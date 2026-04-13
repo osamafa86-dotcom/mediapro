@@ -1026,10 +1026,10 @@ switch ($action) {
         // إحصائيات سريعة
         $stats = [
             'total' => count($platforms),
-            'active' => count(array_filter($platforms, fn($p) => $p['publish_status'] === 'active')),
-            'idle' => count(array_filter($platforms, fn($p) => $p['publish_status'] === 'idle')),
-            'stopped' => count(array_filter($platforms, fn($p) => $p['publish_status'] === 'stopped')),
-            'paused' => count(array_filter($platforms, fn($p) => $p['publish_status'] === 'paused')),
+            'active' => count(array_filter($platforms, function($p) { return $p['publish_status'] === 'active'; })),
+            'idle' => count(array_filter($platforms, function($p) { return $p['publish_status'] === 'idle'; })),
+            'stopped' => count(array_filter($platforms, function($p) { return $p['publish_status'] === 'stopped'; })),
+            'paused' => count(array_filter($platforms, function($p) { return $p['publish_status'] === 'paused'; })),
             'today_total_posts' => array_sum(array_column($platforms, 'today_posts'))
         ];
 
