@@ -1224,12 +1224,12 @@
                 </div>
                 <div class="form-group">
                     <label>حد الخمول (بالدقائق)</label>
-                    <input type="number" id="platformThreshold" value="15" min="1" max="1440">
+                    <input type="text" id="platformThreshold" value="15">
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline" onclick="closeModal('addPlatformModal')">إلغاء</button>
-                <button class="btn btn-primary" onclick="savePlatform()">حفظ المنصة</button>
+                <button type="button" class="btn btn-primary" onclick="savePlatform()">حفظ المنصة</button>
             </div>
         </div>
     </div>
@@ -1272,7 +1272,7 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline" onclick="closeModal('addPublishModal')">إلغاء</button>
-                <button class="btn btn-success" onclick="logPublish()">تسجيل النشر</button>
+                <button type="button" class="btn btn-success" onclick="logPublish()">تسجيل النشر</button>
             </div>
         </div>
     </div>
