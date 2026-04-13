@@ -1049,18 +1049,25 @@ switch ($action) {
         $assignedTo = (int)($input['assigned_to'] ?? 0) ?: null;
         $threshold = (int)($input['idle_threshold'] ?? 15);
         $status = $input['status'] ?? 'active';
+        $lastPublish = !empty($input['last_publish_at']) ? str_replace('T', ' ', $input['last_publish_at']) . ':00' : null;
 
         if (empty($name) || empty($type)) {
             jsonResponse(['error' => 'اسم المنصة ونوعها مطلوبان'], 400);
         }
 
         if ($id > 0) {
-            $stmt = $db->prepare("UPDATE platforms SET name=?, platform_type=?, icon=?, account_url=?, assigned_to=?, idle_threshold=?, status=? WHERE id=?");
-            $stmt->execute([$name, $type, $icon, $url, $assignedTo, $threshold, $status, $id]);
+            if ($lastPublish) {
+                $stmt = $db->prepare("UPDATE platforms SET name=?, platform_type=?, icon=?, account_url=?, assigned_to=?, idle_threshold=?, status=?, last_publish_at=? WHERE id=?");
+                $stmt->execute([$name, $type, $icon, $url, $assignedTo, $threshold, $status, $lastPublish, $id]);
+            } else {
+                $stmt = $db->prepare("UPDATE platforms SET name=?, platform_type=?, icon=?, account_url=?, assigned_to=?, idle_threshold=?, status=? WHERE id=?");
+                $stmt->execute([$name, $type, $icon, $url, $assignedTo, $threshold, $status, $id]);
+            }
             auditLog('platform_update', "تعديل منصة: $name");
         } else {
-            $stmt = $db->prepare("INSERT INTO platforms (name, platform_type, icon, account_url, assigned_to, idle_threshold, status, last_publish_at) VALUES (?,?,?,?,?,?,?,NOW())");
-            $stmt->execute([$name, $type, $icon, $url, $assignedTo, $threshold, $status]);
+            $publishAt = $lastPublish ? $lastPublish : date('Y-m-d H:i:s');
+            $stmt = $db->prepare("INSERT INTO platforms (name, platform_type, icon, account_url, assigned_to, idle_threshold, status, last_publish_at) VALUES (?,?,?,?,?,?,?,?)");
+            $stmt->execute([$name, $type, $icon, $url, $assignedTo, $threshold, $status, $publishAt]);
             $id = $db->lastInsertId();
             auditLog('platform_create', "إضافة منصة جديدة: $name");
         }
