@@ -1147,6 +1147,104 @@ switch ($action) {
                 ORDER BY minutes_since_publish DESC");
         jsonResponse(['alerts' => $stmt->fetchAll()]);
 
+    // ===== تقرير التوقف اليومي =====
+    case 'idle_report':
+        $date = $_GET['date'] ?? date('Y-m-d');
+        $platformId = (int)($_GET['platform_id'] ?? 0);
+
+        $sql = "SELECT il.*, p.name AS platform_name, p.platform_type, p.icon, p.idle_threshold,
+                       u.full_name AS assigned_name
+                FROM idle_logs il
+                JOIN platforms p ON il.platform_id = p.id
+                LEFT JOIN users u ON p.assigned_to = u.id
+                WHERE il.date = ?";
+        $params = [$date];
+
+        if ($platformId) {
+            $sql .= " AND il.platform_id = ?";
+            $params[] = $platformId;
+        }
+        $sql .= " ORDER BY il.started_at DESC";
+
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        $logs = $stmt->fetchAll();
+
+        // ملخص لكل منصة
+        $sql2 = "SELECT p.id, p.name, p.platform_type, p.icon, u.full_name AS assigned_name,
+                    COUNT(il.id) AS idle_count,
+                    COALESCE(SUM(il.duration_minutes), 0) AS total_idle_minutes,
+                    MAX(il.duration_minutes) AS max_idle_minutes
+                 FROM platforms p
+                 LEFT JOIN idle_logs il ON p.id = il.platform_id AND il.date = ?
+                 LEFT JOIN users u ON p.assigned_to = u.id
+                 WHERE p.status = 'active'
+                 GROUP BY p.id
+                 ORDER BY total_idle_minutes DESC";
+        $stmt2 = $db->prepare($sql2);
+        $stmt2->execute([$date]);
+        $summary = $stmt2->fetchAll();
+
+        // إحصائيات عامة
+        $totalPlatforms = count($summary);
+        $platformsWithIdle = count(array_filter($summary, function($s) { return $s['idle_count'] > 0; }));
+        $totalIdleEvents = array_sum(array_column($summary, 'idle_count'));
+        $totalIdleMinutes = array_sum(array_column($summary, 'total_idle_minutes'));
+
+        jsonResponse([
+            'logs' => $logs,
+            'summary' => $summary,
+            'stats' => [
+                'date' => $date,
+                'total_platforms' => $totalPlatforms,
+                'platforms_with_idle' => $platformsWithIdle,
+                'total_idle_events' => $totalIdleEvents,
+                'total_idle_minutes' => $totalIdleMinutes,
+                'compliance_rate' => $totalPlatforms > 0 ? round((($totalPlatforms - $platformsWithIdle) / $totalPlatforms) * 100) : 100
+            ]
+        ]);
+
+    // ===== تقرير أسبوعي/شهري =====
+    case 'idle_report_range':
+        $from = $_GET['from'] ?? date('Y-m-d', strtotime('-7 days'));
+        $to = $_GET['to'] ?? date('Y-m-d');
+
+        $stmt = $db->prepare("SELECT p.id, p.name, p.platform_type, p.icon, u.full_name AS assigned_name,
+                    COUNT(il.id) AS idle_count,
+                    COALESCE(SUM(il.duration_minutes), 0) AS total_idle_minutes,
+                    MAX(il.duration_minutes) AS max_idle_minutes,
+                    ROUND(AVG(il.duration_minutes), 0) AS avg_idle_minutes
+                 FROM platforms p
+                 LEFT JOIN idle_logs il ON p.id = il.platform_id AND il.date BETWEEN ? AND ?
+                 LEFT JOIN users u ON p.assigned_to = u.id
+                 WHERE p.status = 'active'
+                 GROUP BY p.id
+                 ORDER BY total_idle_minutes DESC");
+        $stmt->execute([$from, $to]);
+        jsonResponse(['data' => $stmt->fetchAll(), 'from' => $from, 'to' => $to]);
+
+    // ===== حالة المراقبة =====
+    case 'monitor_status':
+        $logFile = __DIR__ . '/monitor_log.txt';
+        $lastLines = [];
+        if (file_exists($logFile)) {
+            $lines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            $lastLines = array_slice($lines, -20);
+        }
+        $lastRun = '';
+        foreach (array_reverse($lastLines) as $line) {
+            if (strpos($line, 'بدء المراقبة') !== false) {
+                preg_match('/\[(.*?)\]/', $line, $m);
+                $lastRun = $m[1] ?? '';
+                break;
+            }
+        }
+        jsonResponse([
+            'last_run' => $lastRun,
+            'log' => $lastLines,
+            'is_active' => !empty($lastRun) && (time() - strtotime($lastRun)) < 600
+        ]);
+
     // ===== سجل التدقيق =====
     case 'audit_log':
         requireRole(['admin']);

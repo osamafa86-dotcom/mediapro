@@ -452,4 +452,19 @@ INSERT INTO platforms (name, platform_type, icon, assigned_to, idle_threshold, s
 ('إنستغرام - حساب المنتجات', 'instagram', '📸', 5, 15, 'active', NOW() - INTERVAL 50 MINUTE),
 ('تويتر - خدمة العملاء', 'twitter', '🐦', 8, 10, 'active', NOW() - INTERVAL 7 MINUTE),
 ('تلغرام - بوت الخدمات', 'telegram', '✈️', 4, 15, 'active', NOW() - INTERVAL 150 MINUTE),
-('واتساب - الدعم الفني', 'whatsapp', '💬', 8, 10, 'active', NOW() - INTERVAL 4 MINUTE)
+('واتساب - الدعم الفني', 'whatsapp', '💬', 8, 10, 'active', NOW() - INTERVAL 4 MINUTE);
+
+-- ===== جدول سجل التوقف =====
+CREATE TABLE idle_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    platform_id INT NOT NULL,
+    started_at DATETIME NOT NULL COMMENT 'بداية فترة التوقف',
+    ended_at DATETIME DEFAULT NULL COMMENT 'نهاية التوقف (NULL = لا زال متوقف)',
+    duration_minutes INT DEFAULT 0,
+    date DATE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (platform_id) REFERENCES platforms(id) ON DELETE CASCADE,
+    INDEX idx_platform_date (platform_id, date),
+    INDEX idx_date (date),
+    INDEX idx_open (platform_id, ended_at)
+) ENGINE=InnoDB

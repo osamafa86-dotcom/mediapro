@@ -475,6 +475,10 @@
                     <span>مراقبة النشر</span>
                     <div class="nav-badge publish-alert-badge" id="publishAlertBadge" style="display:none;background:#ef4444">0</div>
                 </div>
+                <div class="nav-item" onclick="showPage('publish-report')">
+                    <div class="nav-icon">📊</div>
+                    <span>تقرير النشر</span>
+                </div>
                 <div class="nav-item" onclick="showPage('media')">
                     <div class="nav-icon">🎬</div>
                     <span>المكتبة الإعلامية</span>
@@ -1013,6 +1017,14 @@
                     <button class="btn btn-danger btn-sm" onclick="filterPlatforms('idle')">عرض المتوقفة</button>
                 </div>
 
+                <!-- حالة المراقبة التلقائية -->
+                <div id="monitorStatusBarMain" style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;gap:12px">
+                    <div id="monitorDotMain" style="width:10px;height:10px;border-radius:50%;background:var(--text-tertiary)"></div>
+                    <span style="font-size:13px;color:var(--text-secondary)">المراقبة التلقائية: <strong id="monitorStatusTextMain">جاري التحقق...</strong></span>
+                    <span style="font-size:12px;color:var(--text-tertiary);margin-right:auto" id="monitorLastRunMain"></span>
+                    <a href="#" onclick="showPage('publish-report');return false" style="font-size:13px;color:var(--primary)">عرض التقرير</a>
+                </div>
+
                 <!-- إحصائيات -->
                 <div class="pm-stats-grid">
                     <div class="pm-stat-card total">
@@ -1067,6 +1079,80 @@
                 <!-- شبكة المنصات -->
                 <div class="pm-grid" id="pmPlatformsGrid">
                     <!-- يتم تعبئتها بـ JavaScript -->
+                </div>
+            </div>
+
+            <!-- ===== PUBLISH REPORT PAGE ===== -->
+            <div class="page" id="page-publish-report">
+                <div class="pm-toolbar" style="margin-bottom:20px">
+                    <h2 style="margin:0;flex:1">تقرير التزام النشر</h2>
+                    <input type="date" id="reportDate" class="filter-select" onchange="loadIdleReport()">
+                    <button type="button" class="btn btn-primary" onclick="loadIdleReport()">عرض التقرير</button>
+                </div>
+
+                <!-- حالة المراقبة -->
+                <div id="monitorStatusBar" style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;gap:12px">
+                    <div id="monitorDot" style="width:10px;height:10px;border-radius:50%;background:var(--text-tertiary)"></div>
+                    <span style="font-size:13px;color:var(--text-secondary)">المراقبة التلقائية: <strong id="monitorStatusText">جاري التحقق...</strong></span>
+                    <span style="font-size:12px;color:var(--text-tertiary);margin-right:auto" id="monitorLastRun"></span>
+                </div>
+
+                <!-- إحصائيات التقرير -->
+                <div class="pm-stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:24px">
+                    <div class="pm-stat-card active-stat">
+                        <div class="pm-stat-label">نسبة الالتزام</div>
+                        <div class="pm-stat-number" id="rptCompliance">--%</div>
+                    </div>
+                    <div class="pm-stat-card stopped-stat">
+                        <div class="pm-stat-label">منصات تخلّفت</div>
+                        <div class="pm-stat-number" id="rptIdlePlatforms">0</div>
+                    </div>
+                    <div class="pm-stat-card idle-stat">
+                        <div class="pm-stat-label">مرات التوقف</div>
+                        <div class="pm-stat-number" id="rptIdleEvents">0</div>
+                    </div>
+                    <div class="pm-stat-card posts-stat">
+                        <div class="pm-stat-label">إجمالي دقائق التوقف</div>
+                        <div class="pm-stat-number" id="rptIdleMinutes">0</div>
+                    </div>
+                </div>
+
+                <!-- جدول ملخص المنصات -->
+                <div class="card" style="margin-bottom:24px">
+                    <div class="card-header"><h3>ملخص التزام المنصات</h3></div>
+                    <div class="card-body" style="padding:0">
+                        <table style="width:100%">
+                            <thead>
+                                <tr>
+                                    <th style="text-align:right;padding:14px 16px">المنصة</th>
+                                    <th style="text-align:right;padding:14px 16px">المسؤول</th>
+                                    <th style="text-align:center;padding:14px 16px">مرات التوقف</th>
+                                    <th style="text-align:center;padding:14px 16px">إجمالي التوقف</th>
+                                    <th style="text-align:center;padding:14px 16px">أطول توقف</th>
+                                    <th style="text-align:center;padding:14px 16px">الحالة</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rptSummaryTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- تفاصيل التوقفات -->
+                <div class="card">
+                    <div class="card-header"><h3>تفاصيل فترات التوقف</h3></div>
+                    <div class="card-body" style="padding:0">
+                        <table style="width:100%">
+                            <thead>
+                                <tr>
+                                    <th style="text-align:right;padding:14px 16px">المنصة</th>
+                                    <th style="text-align:center;padding:14px 16px">بداية التوقف</th>
+                                    <th style="text-align:center;padding:14px 16px">نهاية التوقف</th>
+                                    <th style="text-align:center;padding:14px 16px">المدة (دقيقة)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rptDetailsTable"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
@@ -1406,6 +1492,7 @@
                 'reports': 'التقارير',
                 'security': 'إعدادات الأمان',
                 'publish-monitor': 'مراقبة النشر',
+                'publish-report': 'تقرير النشر',
                 'settings': 'الإعدادات'
             };
             document.getElementById('pageTitle').textContent = titles[pageId] || 'ميديا برو';
@@ -1422,6 +1509,7 @@
             else if (pageId === 'knowledge') loadKnowledge();
             else if (pageId === 'clients') loadClients();
             else if (pageId === 'publish-monitor') loadPlatforms();
+            else if (pageId === 'publish-report') initReport();
         }
 
         // Update Clock
@@ -2057,6 +2145,7 @@
         function startPublishMonitor() {
             loadPlatforms();
             loadPlatformAssignees();
+            loadMonitorStatusMain();
             if (document.getElementById('pmAutoRefresh')?.checked) {
                 pmRefreshInterval = setInterval(loadPlatforms, 30000);
             }
@@ -2076,6 +2165,122 @@
                 }
             } catch(e) {}
         }, 60000);
+
+        // =============================================
+        // تقرير النشر
+        // =============================================
+        function initReport() {
+            document.getElementById('reportDate').value = new Date().toISOString().split('T')[0];
+            loadIdleReport();
+            loadMonitorStatus();
+        }
+
+        async function loadIdleReport() {
+            const date = document.getElementById('reportDate').value || new Date().toISOString().split('T')[0];
+            const url = 'api.php?action=idle_report&date=' + encodeURIComponent(date);
+            let data;
+            try {
+                const resp = await fetch(url);
+                data = await resp.json();
+            } catch(e) { return; }
+
+            if (data.stats) {
+                document.getElementById('rptCompliance').textContent = data.stats.compliance_rate + '%';
+                document.getElementById('rptIdlePlatforms').textContent = data.stats.platforms_with_idle;
+                document.getElementById('rptIdleEvents').textContent = data.stats.total_idle_events;
+                document.getElementById('rptIdleMinutes').textContent = data.stats.total_idle_minutes;
+            }
+
+            if (data.summary) {
+                const tbody = document.getElementById('rptSummaryTable');
+                tbody.innerHTML = data.summary.map(function(s) {
+                    const statusBadge = s.idle_count > 0
+                        ? '<span class="badge" style="background:var(--danger-light);color:var(--danger)">' + s.idle_count + ' توقفات</span>'
+                        : '<span class="badge" style="background:var(--success-light);color:var(--success)">ملتزم</span>';
+                    return '<tr>' +
+                        '<td style="padding:12px 16px"><strong>' + (s.icon || '') + ' ' + s.name + '</strong></td>' +
+                        '<td style="padding:12px 16px">' + (s.assigned_name || 'غير معيّن') + '</td>' +
+                        '<td style="text-align:center;padding:12px 16px;font-weight:700;color:' + (s.idle_count > 0 ? 'var(--danger)' : 'var(--success)') + '">' + s.idle_count + '</td>' +
+                        '<td style="text-align:center;padding:12px 16px">' + s.total_idle_minutes + ' د</td>' +
+                        '<td style="text-align:center;padding:12px 16px">' + (s.max_idle_minutes || 0) + ' د</td>' +
+                        '<td style="text-align:center;padding:12px 16px">' + statusBadge + '</td>' +
+                        '</tr>';
+                }).join('');
+            }
+
+            if (data.logs) {
+                const tbody = document.getElementById('rptDetailsTable');
+                if (data.logs.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-secondary)">لا توجد فترات توقف في هذا اليوم</td></tr>';
+                } else {
+                    tbody.innerHTML = data.logs.map(function(l) {
+                        const endTime = l.ended_at ? l.ended_at.substring(11, 16) : '<span style="color:var(--danger)">لا زال متوقف</span>';
+                        return '<tr>' +
+                            '<td style="padding:12px 16px"><strong>' + (l.icon || '') + ' ' + l.platform_name + '</strong></td>' +
+                            '<td style="text-align:center;padding:12px 16px">' + l.started_at.substring(11, 16) + '</td>' +
+                            '<td style="text-align:center;padding:12px 16px">' + endTime + '</td>' +
+                            '<td style="text-align:center;padding:12px 16px;font-weight:700;color:' + (l.duration_minutes > 30 ? 'var(--danger)' : 'var(--warning)') + '">' + l.duration_minutes + ' دقيقة</td>' +
+                            '</tr>';
+                    }).join('');
+                }
+            }
+        }
+
+        async function loadMonitorStatusMain() {
+            const url = 'api.php?action=monitor_status';
+            let data;
+            try { const resp = await fetch(url); data = await resp.json(); } catch(e) { return; }
+            const dot = document.getElementById('monitorDotMain');
+            const text = document.getElementById('monitorStatusTextMain');
+            const lastRun = document.getElementById('monitorLastRunMain');
+            if (!dot) return;
+            if (data.is_active) {
+                dot.style.background = 'var(--success)';
+                text.textContent = 'تعمل';
+                text.style.color = 'var(--success)';
+            } else if (data.last_run) {
+                dot.style.background = 'var(--warning)';
+                text.textContent = 'متوقفة';
+                text.style.color = 'var(--warning)';
+            } else {
+                dot.style.background = 'var(--danger)';
+                text.textContent = 'غير مُفعّلة — يرجى إعداد Cron Job';
+                text.style.color = 'var(--danger)';
+            }
+            if (data.last_run) lastRun.textContent = 'آخر فحص: ' + data.last_run;
+        }
+
+        async function loadMonitorStatus() {
+            const url = 'api.php?action=monitor_status';
+            let data;
+            try {
+                const resp = await fetch(url);
+                data = await resp.json();
+            } catch(e) { return; }
+
+            const dot = document.getElementById('monitorDot');
+            const text = document.getElementById('monitorStatusText');
+            const lastRun = document.getElementById('monitorLastRun');
+
+            if (data.is_active) {
+                dot.style.background = 'var(--success)';
+                dot.style.boxShadow = '0 0 8px rgba(16,185,129,0.5)';
+                text.textContent = 'تعمل';
+                text.style.color = 'var(--success)';
+            } else if (data.last_run) {
+                dot.style.background = 'var(--warning)';
+                text.textContent = 'متوقفة';
+                text.style.color = 'var(--warning)';
+            } else {
+                dot.style.background = 'var(--danger)';
+                text.textContent = 'غير مُفعّلة';
+                text.style.color = 'var(--danger)';
+            }
+
+            if (data.last_run) {
+                lastRun.textContent = 'آخر فحص: ' + data.last_run;
+            }
+        }
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
