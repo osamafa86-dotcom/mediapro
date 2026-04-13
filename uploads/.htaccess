@@ -1,0 +1,5 @@
+# منع تنفيذ ملفات PHP في مجلد الرفع
+<FilesMatch "\.(php|phtml|php3|php4|php5|phps)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
