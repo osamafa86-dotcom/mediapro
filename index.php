@@ -1226,6 +1226,10 @@
                     <label>حد الخمول (بالدقائق)</label>
                     <input type="text" id="platformThreshold" value="15">
                 </div>
+                <div class="form-group">
+                    <label>آخر نشر فعلي (اختياري)</label>
+                    <input type="datetime-local" id="platformLastPublish">
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline" onclick="closeModal('addPlatformModal')">إلغاء</button>
@@ -1929,7 +1933,8 @@
                 platform_type: document.getElementById('platformType').value,
                 account_url: document.getElementById('platformUrl').value,
                 assigned_to: document.getElementById('platformAssignee').value,
-                idle_threshold: document.getElementById('platformThreshold').value
+                idle_threshold: document.getElementById('platformThreshold').value,
+                last_publish_at: document.getElementById('platformLastPublish').value
             };
 
             if (!data.name) { alert('يرجى إدخال اسم المنصة'); return; }
@@ -1951,6 +1956,7 @@
             document.getElementById('platformUrl').value = '';
             document.getElementById('platformAssignee').value = '';
             document.getElementById('platformThreshold').value = '15';
+            document.getElementById('platformLastPublish').value = '';
             document.getElementById('platformModalTitle').textContent = 'إضافة منصة جديدة';
         }
 
@@ -1963,6 +1969,7 @@
             document.getElementById('platformUrl').value = p.account_url || '';
             document.getElementById('platformAssignee').value = p.assigned_to || '';
             document.getElementById('platformThreshold').value = p.idle_threshold;
+            document.getElementById('platformLastPublish').value = p.last_publish_at ? p.last_publish_at.replace(' ', 'T').substring(0, 16) : '';
             document.getElementById('platformModalTitle').textContent = 'تعديل منصة: ' + p.name;
             openModal('addPlatformModal');
         }
