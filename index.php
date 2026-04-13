@@ -1214,7 +1214,7 @@
                 </div>
                 <div class="form-group">
                     <label>رابط الحساب (اختياري)</label>
-                    <input type="url" id="platformUrl" placeholder="https://...">
+                    <input type="text" id="platformUrl" placeholder="https://...">
                 </div>
                 <div class="form-group">
                     <label>المسؤول</label>
