@@ -12,12 +12,30 @@ if (isset($_SESSION['user_id'])) {
 
 $error = '';
 
+// ===== Rate Limiting =====
+// تعقُّب المحاولات الفاشلة عبر جدول audit_log + IP
+// الحد: 5 محاولات في آخر 10 دقائق
+function tooManyAttempts($db, $ip) {
+    $stmt = $db->prepare("
+        SELECT COUNT(*) FROM audit_log
+        WHERE action='login_failed'
+          AND ip_address=?
+          AND created_at > DATE_SUB(NOW(), INTERVAL 10 MINUTE)
+    ");
+    $stmt->execute([$ip]);
+    return (int)$stmt->fetchColumn() >= 5;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = clean($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
 
     if (empty($email) || empty($password)) {
         $error = 'يرجى إدخال البريد الإلكتروني وكلمة المرور';
+    } elseif (tooManyAttempts(getDB(), $ip)) {
+        $error = 'محاولات دخول كثيرة. يرجى المحاولة بعد 10 دقائق.';
+        auditLog('login_blocked', "حظر IP: $ip");
     } else {
         $db = getDB();
         $stmt = $db->prepare("
@@ -32,6 +50,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $user = $stmt->fetch();
 
         if ($user && password_verify($password, $user['password'])) {
+            // تجديد معرّف الجلسة لحماية من Session Fixation
+            session_regenerate_id(true);
+
             // تسجيل الجلسة
             $_SESSION['user_id']        = $user['id'];
             $_SESSION['full_name']      = $user['full_name'];
@@ -45,6 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['avatar_color']   = $user['avatar_color'];
             $_SESSION['job_title']      = $user['job_title'];
             $_SESSION['permissions']    = json_decode($user['permissions'], true) ?: [];
+            $_SESSION['login_time']     = time();
 
             // تحديث حالة الاتصال
             $db->prepare("UPDATE users SET is_online = 1, last_activity = NOW() WHERE id = ?")->execute([$user['id']]);
@@ -55,6 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: index.php');
             exit;
         } else {
+            // رسالة موحدة بدون إفشاء إذا كان البريد موجوداً
             $error = 'البريد الإلكتروني أو كلمة المرور غير صحيحة';
             auditLog('login_failed', "محاولة دخول فاشلة: $email");
         }
@@ -210,11 +233,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
                 <button type="submit" class="login-btn">تسجيل الدخول</button>
             </form>
-
-            <div class="demo-info">
-                <p>حساب تجريبي:</p>
-                <p><code>admin@mediapro.com</code> / <code>123456</code></p>
-            </div>
         </div>
     </div>
 </body>

@@ -1,10 +1,16 @@
 <?php
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
 /**
  * ميديا برو — ملف الإعدادات
  * MediaPro Configuration File
  */
+
+// ===== إعدادات الأخطاء (الإنتاج) =====
+// عرض الأخطاء مغلق للمستخدمين، تُكتب في ملف log خارج مجلد public
+ini_set('display_errors', 0);
+ini_set('display_startup_errors', 0);
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/private_errors.log');
+error_reporting(E_ALL);
 
 // ===== إعدادات قاعدة البيانات =====
 define('DB_HOST', 'localhost');
@@ -23,7 +29,13 @@ define('MAX_UPLOAD_SIZE', 50 * 1024 * 1024); // 50MB
 // ===== إعدادات الجلسة =====
 ini_set('session.cookie_httponly', 1);
 ini_set('session.use_strict_mode', 1);
+ini_set('session.use_only_cookies', 1);
 ini_set('session.cookie_samesite', 'Lax');
+// فعِّل secure cookie تلقائياً عند الاتصال عبر HTTPS
+$isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https')
+        || (($_SERVER['SERVER_PORT'] ?? '') == 443);
+if ($isHttps) ini_set('session.cookie_secure', 1);
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -143,11 +155,20 @@ function saveSetting($key, $value) {
 
 /** رفع ملف */
 function uploadFile($file, $subdir = '') {
-    $dir = UPLOAD_DIR . ($subdir ? $subdir . '/' : '');
+    // التحقق من صحة الرفع أولاً
+    if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+        return ['error' => 'رفع غير صالح'];
+    }
+    if (!empty($file['error'])) {
+        return ['error' => 'خطأ في الرفع (كود: ' . (int)$file['error'] . ')'];
+    }
+
+    $dir = UPLOAD_DIR . ($subdir ? preg_replace('/[^a-zA-Z0-9_-]/', '', $subdir) . '/' : '');
     if (!is_dir($dir)) mkdir($dir, 0755, true);
 
     $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    $allowed = ['jpg','jpeg','png','gif','webp','mp4','mov','avi','pdf','doc','docx','xls','xlsx','psd','ai','svg','zip'];
+    // أُزيلت svg لأنها تحمل خطر XSS؛ أُزيلت zip لأنها تتيح اختباء ملفات PHP
+    $allowed = ['jpg','jpeg','png','gif','webp','mp4','mov','avi','pdf','doc','docx','xls','xlsx','psd','ai'];
     if (!in_array($ext, $allowed)) {
         return ['error' => 'نوع الملف غير مسموح'];
     }
@@ -155,12 +176,37 @@ function uploadFile($file, $subdir = '') {
         return ['error' => 'حجم الملف كبير جداً'];
     }
 
+    // تحقق من MIME الفعلي (ليس فقط الامتداد)
+    $realMime = '';
+    if (function_exists('finfo_file')) {
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $realMime = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+    }
+    $expectedMimes = [
+        'jpg'  => ['image/jpeg'], 'jpeg' => ['image/jpeg'],
+        'png'  => ['image/png'], 'gif'  => ['image/gif'], 'webp' => ['image/webp'],
+        'mp4'  => ['video/mp4'], 'mov'  => ['video/quicktime'],
+        'avi'  => ['video/x-msvideo','video/avi'],
+        'pdf'  => ['application/pdf'],
+        'doc'  => ['application/msword'],
+        'docx' => ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        'xls'  => ['application/vnd.ms-excel'],
+        'xlsx' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        'psd'  => ['image/vnd.adobe.photoshop','application/octet-stream'],
+        'ai'   => ['application/postscript','application/pdf','application/octet-stream'],
+    ];
+    if ($realMime && isset($expectedMimes[$ext]) && !in_array($realMime, $expectedMimes[$ext], true)) {
+        return ['error' => 'محتوى الملف لا يطابق الامتداد'];
+    }
+
     $filename = uniqid('mp_') . '_' . time() . '.' . $ext;
     $path = $dir . $filename;
 
     if (move_uploaded_file($file['tmp_name'], $path)) {
+        @chmod($path, 0644);
         $type = 'document';
-        if (in_array($ext, ['jpg','jpeg','png','gif','webp','svg'])) $type = 'image';
+        if (in_array($ext, ['jpg','jpeg','png','gif','webp'])) $type = 'image';
         elseif (in_array($ext, ['mp4','mov','avi'])) $type = 'video';
         elseif (in_array($ext, ['psd','ai'])) $type = 'design';
 
@@ -169,7 +215,7 @@ function uploadFile($file, $subdir = '') {
             'original_name' => $file['name'],
             'file_type' => $type,
             'file_size' => $file['size'],
-            'mime_type' => $file['type'],
+            'mime_type' => $realMime ?: $file['type'],
             'file_path' => ($subdir ? $subdir . '/' : '') . $filename
         ];
     }

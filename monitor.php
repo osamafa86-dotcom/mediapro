@@ -4,21 +4,30 @@
  * يعمل كـ Cron Job كل 5 دقائق
  * يراقب المنصات ويكتشف النشر الجديد تلقائياً
  *
- * Cron: */5 * * * * /usr/local/bin/php /home/z4sww4p4xieh/public_html/mediapro.emdatra.org/monitor.php >> /dev/null 2>&1
+ * Cron expression (ضع في cPanel > Cron Jobs):
+ *   [*\/5 * * * *] /usr/local/bin/php /home/z4sww4p4xieh/public_html/mediapro.emdatra.org/monitor.php >> /dev/null 2>&1
  */
 
-// منع الوصول من المتصفح
-if (php_sapi_name() !== 'cli' && !isset($_GET['cron_key'])) {
-    // السماح بالوصول عبر cron_key للاختبار
-    http_response_code(403);
-    die('Access denied');
+// منع الوصول من المتصفح ما لم يُمرَّر مفتاح سري صحيح
+require_once __DIR__ . '/config.php';
+
+$isCli = (php_sapi_name() === 'cli');
+if (!$isCli) {
+    // مطلوب مفتاح سري مطابق للإعداد monitor_cron_key في جدول settings
+    $providedKey = $_GET['cron_key'] ?? '';
+    $expectedKey = getSetting('monitor_cron_key', '');
+
+    // رفض الوصول إذا: لم يُضبط المفتاح، أو المفتاح قصير جداً، أو لا يطابق
+    if (empty($expectedKey) || strlen($expectedKey) < 16 || !hash_equals($expectedKey, (string)$providedKey)) {
+        http_response_code(403);
+        header('Content-Type: text/plain; charset=utf-8');
+        die('Access denied');
+    }
 }
 
 // إعدادات التشغيل
 set_time_limit(300); // 5 دقائق كحد أقصى
 date_default_timezone_set('Asia/Riyadh');
-
-require_once __DIR__ . '/config.php';
 
 $db = getDB();
 $now = date('Y-m-d H:i:s');
@@ -337,7 +346,11 @@ function closeIdlePeriod($db, $platformId, $endedAt) {
 }
 
 function logMsg($msg) {
-    $logFile = __DIR__ . '/monitor_log.txt';
+    $logFile = __DIR__ . '/private_monitor.log';
+    // تدوير السجل حين يتجاوز 5MB لتجنب النمو غير المحدود
+    if (file_exists($logFile) && filesize($logFile) > 5 * 1024 * 1024) {
+        @rename($logFile, $logFile . '.' . date('Ymd_His'));
+    }
     $time = date('Y-m-d H:i:s');
     file_put_contents($logFile, "[$time] $msg\n", FILE_APPEND);
 }

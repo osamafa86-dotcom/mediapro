@@ -285,7 +285,10 @@ switch ($action) {
         jsonResponse(['success' => true]);
 
     case 'task_delete':
+        if ($method !== 'POST') jsonResponse(['error' => 'Method not allowed'], 405);
+        requireRole(['admin','supervisor']);
         $taskId = (int)($_POST['id'] ?? 0);
+        if ($taskId <= 0) jsonResponse(['error' => 'معرف مهمة غير صالح'], 400);
         $db->prepare("DELETE FROM tasks WHERE id=?")->execute([$taskId]);
         auditLog('task_delete', "حذف مهمة #$taskId");
         jsonResponse(['success' => true]);
@@ -295,7 +298,12 @@ switch ($action) {
     // =============================================
     case 'employees_list':
         $dept = $_GET['department_id'] ?? null;
-        $sql = "SELECT u.*, r.name_ar as role_ar, d.name as department_name
+        // لا نُرجع password أو remember_token أبداً
+        $sql = "SELECT u.id, u.full_name, u.email, u.phone, u.avatar_initials, u.avatar_color,
+                       u.job_title, u.base_salary, u.allowances, u.hire_date, u.status,
+                       u.is_online, u.last_activity, u.department_id, u.role_id,
+                       u.annual_leave_balance, u.sick_leave_balance, u.emergency_leave_balance,
+                       r.name_ar as role_ar, r.name as role_name, d.name as department_name
                 FROM users u
                 LEFT JOIN roles r ON u.role_id = r.id
                 LEFT JOIN departments d ON u.department_id = d.id
@@ -305,7 +313,16 @@ switch ($action) {
         $sql .= " ORDER BY u.full_name";
         $stmt = $db->prepare($sql);
         $stmt->execute($params);
-        jsonResponse($stmt->fetchAll());
+        // حماية إضافية: إخفاء الرواتب عن الموظف العادي
+        $rows = $stmt->fetchAll();
+        if ($roleN === 'employee') {
+            foreach ($rows as &$r) {
+                if ((int)$r['id'] !== (int)$userId) {
+                    unset($r['base_salary'], $r['allowances']);
+                }
+            }
+        }
+        jsonResponse($rows);
 
     case 'employee_create':
         if ($method !== 'POST') jsonResponse(['error' => 'Method not allowed'], 405);
@@ -336,6 +353,7 @@ switch ($action) {
 
     case 'employee_update':
         if ($method !== 'POST') jsonResponse(['error' => 'Method not allowed'], 405);
+        requireRole(['admin','supervisor']);
         $empId  = (int)($_POST['id'] ?? 0);
         $fields = [];
         $params = [];
@@ -500,19 +518,32 @@ switch ($action) {
         $end    = $_POST['end_date'] ?? '';
         $reason = clean($_POST['reason'] ?? '');
 
+        // قائمة بيضاء صارمة لمنع حقن SQL عبر اسم العمود
+        $allowedTypes = ['annual','sick','emergency','unpaid'];
+        if (!in_array($type, $allowedTypes, true)) {
+            jsonResponse(['error' => 'نوع إجازة غير صالح'], 400);
+        }
+
         if (empty($start) || empty($end)) jsonResponse(['error' => 'يرجى تحديد التواريخ'], 400);
 
-        $d1 = new DateTime($start);
-        $d2 = new DateTime($end);
+        try {
+            $d1 = new DateTime($start);
+            $d2 = new DateTime($end);
+        } catch (Exception $e) {
+            jsonResponse(['error' => 'تاريخ غير صالح'], 400);
+        }
+        if ($d2 < $d1) jsonResponse(['error' => 'تاريخ النهاية قبل تاريخ البداية'], 400);
         $days = $d1->diff($d2)->days + 1;
 
-        // تحقق من الرصيد
-        $balField = $type . '_leave_balance';
-        $stmt = $db->prepare("SELECT $balField FROM users WHERE id=?");
-        $stmt->execute([$userId]);
-        $balance = $stmt->fetchColumn();
-        if ($type !== 'unpaid' && $days > $balance) {
-            jsonResponse(['error' => "رصيد الإجازات غير كافٍ (المتبقي: $balance يوم)"], 400);
+        // تحقق من الرصيد — الآن اسم العمود من قائمة بيضاء مُتحقَّق منها
+        if ($type !== 'unpaid') {
+            $balField = $type . '_leave_balance';
+            $stmt = $db->prepare("SELECT $balField FROM users WHERE id=?");
+            $stmt->execute([$userId]);
+            $balance = (int)$stmt->fetchColumn();
+            if ($days > $balance) {
+                jsonResponse(['error' => "رصيد الإجازات غير كافٍ (المتبقي: $balance يوم)"], 400);
+            }
         }
 
         $stmt = $db->prepare("INSERT INTO leaves (user_id, leave_type, start_date, end_date, days, reason) VALUES (?,?,?,?,?,?)");
@@ -528,6 +559,11 @@ switch ($action) {
         $leaveId = (int)($_POST['id'] ?? 0);
         $action  = $_POST['leave_action'] ?? ''; // approved / rejected
 
+        // قائمة بيضاء لقيم الإجراء
+        if (!in_array($action, ['approved','rejected'], true)) {
+            jsonResponse(['error' => 'إجراء غير صالح'], 400);
+        }
+
         $stmt = $db->prepare("SELECT * FROM leaves WHERE id=?");
         $stmt->execute([$leaveId]);
         $leave = $stmt->fetch();
@@ -536,10 +572,11 @@ switch ($action) {
         $db->prepare("UPDATE leaves SET status=?, approved_by=?, approved_at=NOW() WHERE id=?")
            ->execute([$action, $userId, $leaveId]);
 
-        // خصم الرصيد إذا تمت الموافقة
-        if ($action === 'approved' && $leave['leave_type'] !== 'unpaid') {
+        // خصم الرصيد إذا تمت الموافقة — قائمة بيضاء صارمة لاسم العمود
+        $allowedTypes = ['annual','sick','emergency'];
+        if ($action === 'approved' && in_array($leave['leave_type'], $allowedTypes, true)) {
             $balField = $leave['leave_type'] . '_leave_balance';
-            $db->prepare("UPDATE users SET $balField = $balField - ? WHERE id=?")
+            $db->prepare("UPDATE users SET $balField = GREATEST($balField - ?, 0) WHERE id=?")
                ->execute([$leave['days'], $leave['user_id']]);
         }
 
@@ -843,7 +880,9 @@ switch ($action) {
 
     case 'media_delete':
         if ($method !== 'POST') jsonResponse(['error' => 'Method not allowed'], 405);
+        requireRole(['admin','supervisor']);
         $id = (int)($_POST['id'] ?? 0);
+        if ($id <= 0) jsonResponse(['error' => 'معرف ملف غير صالح'], 400);
         $stmt = $db->prepare("SELECT file_path FROM media_files WHERE id=?");
         $stmt->execute([$id]);
         $file = $stmt->fetch();

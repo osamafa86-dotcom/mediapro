@@ -1,0 +1,84 @@
+# ميديا برو — إعدادات الأمان على مستوى الجذر
+# =============================================
+
+# تعطيل عرض محتويات المجلدات
+Options -Indexes
+
+# حماية من كشف معلومات السيرفر
+ServerSignature Off
+
+# =============================================
+# منع الوصول المباشر للملفات الحساسة
+# =============================================
+
+# حجب ملفات الإعدادات والبيانات والسجلات
+<FilesMatch "^(\.htaccess|\.htpasswd|\.env|\.git.*|config\.php|database\.sql|INSTALL\.md|cpanel-install-guide\.pdf|.*\.log|.*\.md|.*\.sql|.*\.sh|.*\.bak|.*\.swp|.*~)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# حجب مجلد .git بالكامل
+RedirectMatch 404 /\.git
+
+# حجب ملفات السجلات في أي مكان
+<FilesMatch "\.(log|sql|md|bak|swp|ini|conf)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# السماح بـ robots.txt لو وُجد
+<Files "robots.txt">
+    <IfModule mod_authz_core.c>
+        Require all granted
+    </IfModule>
+</Files>
+
+# =============================================
+# رؤوس أمان HTTP
+# =============================================
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set X-XSS-Protection "1; mode=block"
+    # منع cache للصفحات الحساسة (api)
+    <FilesMatch "\.(php)$">
+        Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+    </FilesMatch>
+</IfModule>
+
+# =============================================
+# إجبار HTTPS (يفعَّل فقط إذا كان SSL متوفراً)
+# =============================================
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTPS} !=on
+    RewriteCond %{HTTP:X-Forwarded-Proto} !https
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# =============================================
+# ضبط PHP (تعطيل عرض الأخطاء للعامة)
+# =============================================
+<IfModule mod_php7.c>
+    php_flag display_errors Off
+    php_flag log_errors On
+    php_value session.cookie_httponly 1
+    php_value session.use_strict_mode 1
+</IfModule>
+<IfModule mod_php8.c>
+    php_flag display_errors Off
+    php_flag log_errors On
+    php_value session.cookie_httponly 1
+    php_value session.use_strict_mode 1
+</IfModule>

@@ -1,5 +1,21 @@
-# منع تنفيذ ملفات PHP في مجلد الرفع
-<FilesMatch "\.(php|phtml|php3|php4|php5|phps)$">
-    Order allow,deny
-    Deny from all
+# منع تنفيذ ملفات PHP / السكربتات في مجلد الرفع
+<FilesMatch "\.(php|phtml|php3|php4|php5|phps|pl|py|jsp|asp|sh|cgi)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
 </FilesMatch>
+
+# تعطيل تنفيذ أي handler
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php8.c>
+    php_flag engine off
+</IfModule>
+
+# منع عرض محتويات المجلد
+Options -Indexes -ExecCGI
