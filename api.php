@@ -25,9 +25,11 @@ switch ($action) {
         $stats['employees']   = $db->query("SELECT COUNT(*) FROM users WHERE status='active'")->fetchColumn();
         $stats['tasks_total'] = $db->query("SELECT COUNT(*) FROM tasks")->fetchColumn();
         $stats['tasks_done']  = $db->query("SELECT COUNT(*) FROM tasks WHERE status='completed'")->fetchColumn();
-        $today = date('Y-m-d');
-        $stats['present_today'] = $db->query("SELECT COUNT(DISTINCT user_id) FROM attendance WHERE date='$today' AND check_in IS NOT NULL")->fetchColumn();
-        $stats['leave_pending'] = $db->query("SELECT COUNT(*) FROM leaves WHERE status='pending'")->fetchColumn();
+        $stmt = $db->prepare("SELECT COUNT(DISTINCT user_id) FROM attendance WHERE date=? AND check_in IS NOT NULL");
+        $stmt->execute([date('Y-m-d')]);
+        $stats['present_today'] = $stmt->fetchColumn();
+        $stats['leave_pending']    = $db->query("SELECT COUNT(*) FROM leaves WHERE status='pending'")->fetchColumn();
+        $stats['pending_salaries'] = $db->query("SELECT COUNT(*) FROM salaries WHERE status='pending'")->fetchColumn();
         $stats['clients']       = $db->query("SELECT COUNT(*) FROM clients WHERE status='active'")->fetchColumn();
         $stats['invoices_due']  = $db->query("SELECT COALESCE(SUM(amount),0) FROM invoices WHERE status='pending'")->fetchColumn();
 
@@ -38,7 +40,7 @@ switch ($action) {
             ORDER BY a.created_at DESC LIMIT 10
         ")->fetchAll();
 
-        jsonResponse($stats);
+        jsonResponse(['data' => $stats]);
 
     // ===== أفضل الموظفين =====
     case 'get_top_employees':

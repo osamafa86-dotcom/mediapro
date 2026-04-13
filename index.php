@@ -747,7 +747,7 @@
                         <span>➕</span>
                         <span>إضافة مهمة جديدة</span>
                     </div>
-                    <div class="quick-action" onclick="openModal('addProjectModal')">
+                    <div class="quick-action" onclick="alert('إدارة المشاريع قيد التطوير - سيتم تفعيلها قريباً')">
                         <span>📁</span>
                         <span>مشروع جديد</span>
                     </div>
@@ -1190,26 +1190,35 @@
             <div class="modal-body">
                 <div class="form-group">
                     <label>عنوان المهمة</label>
-                    <input type="text" placeholder="أدخل عنوان المهمة">
+                    <input type="text" id="taskTitle" placeholder="أدخل عنوان المهمة">
                 </div>
                 <div class="form-group">
                     <label>الوصف</label>
-                    <textarea placeholder="أدخل وصف المهمة" rows="4"></textarea>
+                    <textarea id="taskDescription" placeholder="أدخل وصف المهمة" rows="4"></textarea>
                 </div>
                 <div class="form-group">
                     <label>المسؤول</label>
-                    <select>
-                        <option>اختر موظفاً</option>
+                    <select id="taskAssignee">
+                        <option value="">اختر موظفاً</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>الأولوية</label>
+                    <select id="taskPriority">
+                        <option value="low">منخفضة</option>
+                        <option value="medium" selected>متوسطة</option>
+                        <option value="high">عالية</option>
+                        <option value="urgent">عاجلة</option>
                     </select>
                 </div>
                 <div class="form-group">
                     <label>تاريخ الاستحقاق</label>
-                    <input type="date">
+                    <input type="date" id="taskDeadline">
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline" onclick="closeModal('addTaskModal')">إلغاء</button>
-                <button class="btn btn-primary">حفظ المهمة</button>
+                <button type="button" class="btn btn-primary" onclick="saveTask()">حفظ المهمة</button>
             </div>
         </div>
     </div>
@@ -1223,26 +1232,46 @@
             <div class="modal-body">
                 <div class="form-group">
                     <label>الاسم الكامل</label>
-                    <input type="text" placeholder="أدخل الاسم">
+                    <input type="text" id="empFullName" placeholder="أدخل الاسم">
                 </div>
                 <div class="form-group">
                     <label>البريد الإلكتروني</label>
-                    <input type="email" placeholder="أدخل البريد">
+                    <input type="email" id="empEmail" placeholder="أدخل البريد">
+                </div>
+                <div class="form-group">
+                    <label>كلمة المرور الأولية</label>
+                    <input type="text" id="empPassword" placeholder="كلمة مرور افتراضية" value="123456">
+                </div>
+                <div class="form-group">
+                    <label>الهاتف</label>
+                    <input type="text" id="empPhone" placeholder="05xxxxxxxx">
                 </div>
                 <div class="form-group">
                     <label>القسم</label>
-                    <select>
-                        <option>اختر القسم</option>
+                    <select id="empDepartment">
+                        <option value="">اختر القسم</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>الدور</label>
+                    <select id="empRole">
+                        <option value="3">موظف</option>
+                        <option value="2">مشرف</option>
+                        <option value="1">مدير</option>
                     </select>
                 </div>
                 <div class="form-group">
                     <label>المسمى الوظيفي</label>
-                    <input type="text" placeholder="أدخل المسمى">
+                    <input type="text" id="empJobTitle" placeholder="أدخل المسمى">
+                </div>
+                <div class="form-group">
+                    <label>الراتب الأساسي</label>
+                    <input type="text" id="empBaseSalary" value="0">
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline" onclick="closeModal('addEmployeeModal')">إلغاء</button>
-                <button class="btn btn-primary">حفظ الموظف</button>
+                <button type="button" class="btn btn-primary" onclick="saveEmployee()">حفظ الموظف</button>
             </div>
         </div>
     </div>
@@ -1256,16 +1285,16 @@
             <div class="modal-body">
                 <div class="form-group">
                     <label>اختر الملف</label>
-                    <input type="file" accept="image/*,video/*">
+                    <input type="file" id="mediaFile" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.zip">
                 </div>
                 <div class="form-group">
-                    <label>الوصف</label>
-                    <textarea placeholder="أدخل وصف الملف" rows="3"></textarea>
+                    <label>الوسوم (اختياري، مفصولة بفواصل)</label>
+                    <input type="text" id="mediaTags" placeholder="مثال: حملة, رمضان">
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline" onclick="closeModal('uploadMediaModal')">إلغاء</button>
-                <button class="btn btn-primary">رفع الملف</button>
+                <button type="button" class="btn btn-primary" onclick="uploadMedia()">رفع الملف</button>
             </div>
         </div>
     </div>
@@ -1375,21 +1404,29 @@
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label>اسم العميل</label>
-                    <input type="text" placeholder="أدخل اسم العميل">
+                    <label>اسم العميل / الشركة</label>
+                    <input type="text" id="clientName" placeholder="أدخل اسم العميل">
+                </div>
+                <div class="form-group">
+                    <label>وصف العميل (اختياري)</label>
+                    <textarea id="clientDescription" placeholder="نبذة عن العميل" rows="2"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>اسم جهة الاتصال</label>
+                    <input type="text" id="clientContactName" placeholder="الشخص المسؤول">
                 </div>
                 <div class="form-group">
                     <label>البريد الإلكتروني</label>
-                    <input type="email" placeholder="أدخل البريد">
+                    <input type="email" id="clientContactEmail" placeholder="email@example.com">
                 </div>
                 <div class="form-group">
                     <label>الهاتف</label>
-                    <input type="tel" placeholder="أدخل الهاتف">
+                    <input type="tel" id="clientContactPhone" placeholder="05xxxxxxxx">
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline" onclick="closeModal('addClientModal')">إلغاء</button>
-                <button class="btn btn-primary">حفظ العميل</button>
+                <button type="button" class="btn btn-primary" onclick="saveClient()">حفظ العميل</button>
             </div>
         </div>
     </div>
@@ -1403,24 +1440,29 @@
             <div class="modal-body">
                 <div class="form-group">
                     <label>نوع الإجازة</label>
-                    <select>
-                        <option>سنوية</option>
-                        <option>مرضية</option>
-                        <option>بدون راتب</option>
+                    <select id="leaveType">
+                        <option value="annual">سنوية</option>
+                        <option value="sick">مرضية</option>
+                        <option value="emergency">طارئة</option>
+                        <option value="unpaid">بدون راتب</option>
                     </select>
                 </div>
                 <div class="form-group">
                     <label>من التاريخ</label>
-                    <input type="date">
+                    <input type="date" id="leaveStartDate">
                 </div>
                 <div class="form-group">
                     <label>إلى التاريخ</label>
-                    <input type="date">
+                    <input type="date" id="leaveEndDate">
+                </div>
+                <div class="form-group">
+                    <label>السبب (اختياري)</label>
+                    <textarea id="leaveReason" placeholder="اذكر السبب" rows="3"></textarea>
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline" onclick="closeModal('requestLeaveModal')">إلغاء</button>
-                <button class="btn btn-primary">إرسال الطلب</button>
+                <button type="button" class="btn btn-primary" onclick="requestLeave()">إرسال الطلب</button>
             </div>
         </div>
     </div>
@@ -1434,32 +1476,46 @@
             <div class="modal-body">
                 <div class="form-group">
                     <label>العنوان</label>
-                    <input type="text" placeholder="أدخل عنوان المقالة">
+                    <input type="text" id="knowledgeTitle" placeholder="أدخل عنوان المقالة">
+                </div>
+                <div class="form-group">
+                    <label>التصنيف</label>
+                    <input type="text" id="knowledgeCategory" placeholder="مثال: تدريب، إجراءات">
                 </div>
                 <div class="form-group">
                     <label>المحتوى</label>
-                    <textarea placeholder="أدخل محتوى المقالة" rows="6"></textarea>
+                    <textarea id="knowledgeContent" placeholder="أدخل محتوى المقالة" rows="6"></textarea>
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline" onclick="closeModal('addKnowledgeModal')">إلغاء</button>
-                <button class="btn btn-primary">حفظ المقالة</button>
+                <button type="button" class="btn btn-primary" onclick="saveKnowledge()">حفظ المقالة</button>
             </div>
         </div>
     </div>
 
     <script>
         // API Helper Function
+        // يرسل البيانات كـ form-encoded حتى يقرأها $_POST في PHP
+        // ويوحّد شكل الاستجابة: المصفوفات الخام تُغلَّف داخل {data: [...]}
         async function api(action, params = {}) {
             try {
-                const response = await fetch('api.php?action=' + action, {
+                const body = new URLSearchParams();
+                for (const [k, v] of Object.entries(params || {})) {
+                    if (v === undefined || v === null) continue;
+                    body.append(k, typeof v === 'object' ? JSON.stringify(v) : v);
+                }
+                const response = await fetch('api.php?action=' + encodeURIComponent(action), {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(params)
+                    body: body
                 });
                 if (!response.ok) return { error: 'HTTP ' + response.status };
                 const text = await response.text();
-                try { return JSON.parse(text); } catch(e) { return { error: 'Invalid JSON' }; }
+                let parsed;
+                try { parsed = JSON.parse(text); } catch(e) { return { error: 'Invalid JSON' }; }
+                // normalize raw arrays into { data: [...] }
+                if (Array.isArray(parsed)) return { data: parsed };
+                return parsed;
             } catch (error) {
                 console.error('API Error:', error);
                 return { error: error.message };
@@ -1469,9 +1525,17 @@
         // Page Navigation
         function showPage(pageId) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-            document.getElementById('page-' + pageId).classList.add('active');
+            const target = document.getElementById('page-' + pageId);
+            if (target) target.classList.add('active');
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-            event.target.closest('.nav-item').classList.add('active');
+            // حدد الـ nav-item الصحيح بناءً على pageId بدلاً من event.target
+            // (حتى تعمل بشكل سليم حين يُستدعى showPage برمجياً)
+            const navEl = document.querySelector(`.nav-item[onclick*="showPage('${pageId}')"]`);
+            if (navEl) navEl.classList.add('active');
+            else if (typeof event !== 'undefined' && event && event.target) {
+                const byEv = event.target.closest('.nav-item');
+                if (byEv) byEv.classList.add('active');
+            }
 
             const titles = {
                 'dashboard': 'لوحة التحكم',
@@ -1546,17 +1610,19 @@
         }
 
         async function loadAttendance() {
-            const result = await api('get_attendance');
+            const result = await api('attendance_list');
             if (result.data) {
                 const tbody = document.getElementById('attendanceList');
-                tbody.innerHTML = result.data.map(att => `
+                tbody.innerHTML = result.data.map(att => {
+                    const status = att.status || 'present';
+                    return `
                     <tr>
                         <td>${att.date}</td>
                         <td>${att.check_in || '-'}</td>
                         <td>${att.check_out || '-'}</td>
-                        <td><span class="badge ${att.status.toLowerCase()}">${att.status}</span></td>
-                    </tr>
-                `).join('');
+                        <td><span class="badge ${String(status).toLowerCase()}">${status}</span></td>
+                    </tr>`;
+                }).join('');
             }
         }
 
@@ -1565,10 +1631,10 @@
             const result = await api('dashboard_stats');
             if (result.data) {
                 const stats = result.data;
-                document.getElementById('stat-active-emps').textContent = stats.active_employees || 24;
-                document.getElementById('stat-completed').textContent = stats.completed_tasks || 156;
-                document.getElementById('stat-pending-salary').textContent = stats.pending_salaries || 3;
-                document.getElementById('stat-remaining-leaves').textContent = stats.remaining_leaves || 48;
+                document.getElementById('stat-active-emps').textContent = stats.employees ?? 0;
+                document.getElementById('stat-completed').textContent = stats.tasks_done ?? 0;
+                document.getElementById('stat-pending-salary').textContent = stats.pending_salaries ?? 0;
+                document.getElementById('stat-remaining-leaves').textContent = stats.leave_pending ?? 0;
             }
             loadTopEmployees();
             loadNotifications();
@@ -1609,72 +1675,82 @@
 
         // Task Functions
         async function loadTasks() {
-            const result = await api('get_tasks');
+            const result = await api('tasks_list');
             if (result.data) {
                 const list = document.getElementById('tasksList');
-                list.innerHTML = result.data.map(task => `
-                    <div class="task-item ${task.status === 'Overdue' ? 'overdue' : ''}">
+                list.innerHTML = result.data.map(task => {
+                    const status = task.status || 'pending';
+                    const progress = task.progress ?? 0;
+                    return `
+                    <div class="task-item ${status === 'overdue' ? 'overdue' : ''}">
                         <div class="task-header">
-                            <span class="task-title">${task.title}</span>
-                            <span class="badge ${task.status.toLowerCase().replace(' ', '-')}">${task.status}</span>
+                            <span class="task-title">${task.title || ''}</span>
+                            <span class="badge ${String(status).toLowerCase().replace(/[ _]/g, '-')}">${status}</span>
                         </div>
                         <div class="task-meta">
-                            <span>👤 ${task.assigned_to}</span>
-                            <span>📅 تاريخ الاستحقاق: ${task.due_date}</span>
-                            <span>🏷️ ${task.category}</span>
+                            <span>👤 ${task.assignee_name || '-'}</span>
+                            <span>📅 تاريخ الاستحقاق: ${task.deadline || '-'}</span>
+                            <span>🏷️ ${task.task_type || '-'}</span>
                         </div>
                         <div class="task-progress">
-                            <div class="progress-bar"><div class="progress-fill blue" style="width:${task.progress}%"></div></div>
-                            <span class="perc">${task.progress}%</span>
+                            <div class="progress-bar"><div class="progress-fill blue" style="width:${progress}%"></div></div>
+                            <span class="perc">${progress}%</span>
                         </div>
-                    </div>
-                `).join('');
+                    </div>`;
+                }).join('');
             }
         }
 
         // Employee Functions
         async function loadEmployees() {
-            const result = await api('get_employees');
+            const result = await api('employees_list');
             if (result.data) {
                 const grid = document.getElementById('employeesGrid');
-                grid.innerHTML = result.data.map(emp => `
+                grid.innerHTML = result.data.map(emp => {
+                    const bg = emp.avatar_color || 'linear-gradient(135deg,#4f46e5,#7c3aed)';
+                    return `
                     <div class="emp-profile-card">
-                        <div class="emp-avatar-lg" style="background:linear-gradient(135deg,#4f46e5,#7c3aed)">${emp.initials}</div>
-                        <div class="emp-name">${emp.name}</div>
-                        <div class="emp-dept">${emp.department}</div>
+                        <div class="emp-avatar-lg" style="background:${bg}">${emp.avatar_initials || ''}</div>
+                        <div class="emp-name">${emp.full_name || ''}</div>
+                        <div class="emp-dept">${emp.department_name || '-'}</div>
                         <div class="emp-stats">
                             <div class="emp-stat-item">
-                                <div class="emp-stat-val">${emp.projects_count}</div>
-                                <div class="emp-stat-label">مشاريع</div>
+                                <div class="emp-stat-val" style="font-size:13px">${emp.job_title || '-'}</div>
+                                <div class="emp-stat-label">المسمى الوظيفي</div>
                             </div>
                             <div class="emp-stat-item">
-                                <div class="emp-stat-val">${emp.tasks_count}</div>
-                                <div class="emp-stat-label">مهام</div>
+                                <div class="emp-stat-val" style="font-size:13px">${emp.role_ar || '-'}</div>
+                                <div class="emp-stat-label">الدور</div>
                             </div>
                         </div>
-                    </div>
-                `).join('');
+                    </div>`;
+                }).join('');
             }
         }
 
         // Salary Functions
         async function loadSalaries() {
-            const result = await api('get_salaries');
+            const result = await api('salaries_list');
             if (result.data) {
                 let total = 0, deductions = 0, bonuses = 0;
                 const tbody = document.getElementById('salariesList');
                 tbody.innerHTML = result.data.map(sal => {
-                    total += sal.basic_salary || 0;
-                    deductions += sal.deductions || 0;
-                    bonuses += sal.bonuses || 0;
+                    const base = Number(sal.base_salary) || 0;
+                    const bon  = Number(sal.bonuses)     || 0;
+                    const ded  = Number(sal.deductions)  || 0;
+                    const net  = sal.net_salary != null ? Number(sal.net_salary) : (base + bon - ded);
+                    const status = sal.status || 'pending';
+                    total      += base;
+                    deductions += ded;
+                    bonuses    += bon;
                     return `
                         <tr>
-                            <td><strong>${sal.employee_name}</strong></td>
-                            <td>₪ ${sal.basic_salary || 0}</td>
-                            <td>₪ ${sal.bonuses || 0}</td>
-                            <td>₪ ${sal.deductions || 0}</td>
-                            <td>₪ ${(sal.basic_salary || 0) + (sal.bonuses || 0) - (sal.deductions || 0)}</td>
-                            <td><span class="badge ${sal.status.toLowerCase()}">${sal.status}</span></td>
+                            <td><strong>${sal.full_name || ''}</strong></td>
+                            <td>₪ ${base}</td>
+                            <td>₪ ${bon}</td>
+                            <td>₪ ${ded}</td>
+                            <td>₪ ${net}</td>
+                            <td><span class="badge ${String(status).toLowerCase()}">${status}</span></td>
                         </tr>
                     `;
                 }).join('');
@@ -1686,43 +1762,45 @@
 
         // Leave Functions
         async function loadLeaves() {
-            const result = await api('get_leaves');
+            const result = await api('leaves_list');
             if (result.data) {
                 const tbody = document.getElementById('leavesList');
-                tbody.innerHTML = result.data.map(leave => `
+                tbody.innerHTML = result.data.map(leave => {
+                    const status = leave.status || 'pending';
+                    return `
                     <tr>
-                        <td><strong>${leave.employee_name}</strong></td>
-                        <td>${leave.leave_type}</td>
-                        <td>${leave.from_date}</td>
-                        <td>${leave.to_date}</td>
-                        <td><span class="badge ${leave.status.toLowerCase()}">${leave.status}</span></td>
-                    </tr>
-                `).join('');
+                        <td><strong>${leave.full_name || ''}</strong></td>
+                        <td>${leave.leave_type || '-'}</td>
+                        <td>${leave.start_date || '-'}</td>
+                        <td>${leave.end_date || '-'}</td>
+                        <td><span class="badge ${String(status).toLowerCase()}">${status}</span></td>
+                    </tr>`;
+                }).join('');
             }
         }
 
         // Message Functions
         async function loadMessages() {
-            const result = await api('get_channels');
+            const result = await api('channels_list');
             if (result.data) {
                 const channelsList = document.getElementById('channelsList');
                 channelsList.innerHTML = result.data.map((ch, idx) => `
                     <div class="quick-action" style="width:100%;margin:0;padding:10px 0;justify-content:flex-start" onclick="loadChannelMessages('${ch.id}')">
-                        <span>${ch.icon} ${ch.name}</span>
+                        <span>💬 ${ch.name || ''}</span>
                     </div>
                 `).join('');
             }
         }
 
         async function loadChannelMessages(channelId) {
-            const result = await api('get_messages', { channel_id: channelId });
+            const result = await api('channel_messages', { channel_id: channelId });
             if (result.data) {
                 const list = document.getElementById('messagesList');
                 list.innerHTML = result.data.map(msg => `
                     <div style="padding:10px 0;border-bottom:1px solid var(--border-light)">
-                        <strong>${msg.sender}</strong>
-                        <p style="color:var(--text-secondary);font-size:13px;margin-top:4px">${msg.content}</p>
-                        <span style="color:var(--text-tertiary);font-size:11px">${msg.timestamp}</span>
+                        <strong>${msg.full_name || ''}</strong>
+                        <p style="color:var(--text-secondary);font-size:13px;margin-top:4px">${msg.content || ''}</p>
+                        <span style="color:var(--text-tertiary);font-size:11px">${msg.created_at || ''}</span>
                     </div>
                 `).join('');
             }
@@ -1730,47 +1808,56 @@
 
         // Media Functions
         async function loadMedia() {
-            const result = await api('get_media');
+            const result = await api('media_list');
             if (result.data) {
                 const grid = document.getElementById('mediaGrid');
-                grid.innerHTML = result.data.map(media => `
+                grid.innerHTML = result.data.map(media => {
+                    const ftype = media.file_type || media.mime_type || '';
+                    const icon = String(ftype).includes('image') ? '📷'
+                               : String(ftype).includes('video') ? '🎬'
+                               : String(ftype).includes('audio') ? '🎵'
+                               : '📄';
+                    return `
                     <div style="border:1px solid var(--border);border-radius:12px;padding:12px;text-align:center">
                         <div style="width:100%;height:140px;background:var(--bg-secondary);border-radius:8px;margin-bottom:10px;display:flex;align-items:center;justify-content:center;font-size:32px">
-                            ${media.type.includes('image') ? '📷' : '🎬'}
+                            ${icon}
                         </div>
-                        <p style="font-size:13px;font-weight:600;margin-bottom:4px">${media.name}</p>
-                        <span style="color:var(--text-secondary);font-size:12px">${media.size}</span>
-                    </div>
-                `).join('');
+                        <p style="font-size:13px;font-weight:600;margin-bottom:4px">${media.original_name || ''}</p>
+                        <span style="color:var(--text-secondary);font-size:12px">${media.file_size_formatted || ''}</span>
+                    </div>`;
+                }).join('');
             }
         }
 
         // Knowledge Functions
         async function loadKnowledge() {
-            const result = await api('get_knowledge');
+            const result = await api('knowledge_list');
             if (result.data) {
                 const list = document.getElementById('knowledgeList');
-                list.innerHTML = result.data.map(kb => `
+                list.innerHTML = result.data.map(kb => {
+                    const content = kb.content || '';
+                    const excerpt = content.length > 100 ? content.substring(0, 100) + '...' : content;
+                    return `
                     <div style="padding:14px 0;border-bottom:1px solid var(--border-light)">
-                        <strong>${kb.title}</strong>
-                        <p style="color:var(--text-secondary);font-size:13px;margin-top:6px">${kb.content.substring(0, 100)}...</p>
-                        <span style="color:var(--text-tertiary);font-size:11px">${kb.created_at}</span>
-                    </div>
-                `).join('');
+                        <strong>${kb.title || ''}</strong>
+                        <p style="color:var(--text-secondary);font-size:13px;margin-top:6px">${excerpt}</p>
+                        <span style="color:var(--text-tertiary);font-size:11px">${kb.created_at || ''}</span>
+                    </div>`;
+                }).join('');
             }
         }
 
         // Client Functions
         async function loadClients() {
-            const result = await api('get_clients');
+            const result = await api('clients_list');
             if (result.data) {
                 const tbody = document.getElementById('clientsList');
                 tbody.innerHTML = result.data.map(client => `
                     <tr>
-                        <td><strong>${client.name}</strong></td>
-                        <td>${client.email}</td>
-                        <td>${client.phone}</td>
-                        <td>${client.projects_count}</td>
+                        <td><strong>${client.name || ''}</strong></td>
+                        <td>${client.contact_email || '-'}</td>
+                        <td>${client.contact_phone || '-'}</td>
+                        <td>${client.project_count ?? 0}</td>
                     </tr>
                 `).join('');
             }
@@ -1782,15 +1869,138 @@
             if (result.data) {
                 const list = document.getElementById('notifList');
                 document.getElementById('notifCount').textContent = result.data.length;
+                const iconByType = { task: '📋', leave: '🌴', message: '💬', salary: '💰', system: '⚙️' };
                 list.innerHTML = result.data.map(notif => `
                     <div class="notif-item">
-                        <div class="notif-icon-box" style="background:var(--primary-light);color:var(--primary)">${notif.icon || '📢'}</div>
+                        <div class="notif-icon-box" style="background:var(--primary-light);color:var(--primary)">${iconByType[notif.type] || '📢'}</div>
                         <div>
-                            <div class="notif-text">${notif.title}</div>
-                            <div class="notif-sub">${notif.message}</div>
+                            <div class="notif-text">${notif.title || ''}</div>
+                            <div class="notif-sub">${notif.message || ''}</div>
                         </div>
                     </div>
                 `).join('');
+            }
+        }
+
+        // =============================================
+        // Modal Save Functions — ربط الحفظ بالـ API
+        // =============================================
+        function val(id) {
+            const el = document.getElementById(id);
+            return el ? el.value.trim() : '';
+        }
+
+        async function saveTask() {
+            const title = val('taskTitle');
+            if (!title) { alert('الرجاء إدخال عنوان المهمة'); return; }
+            const result = await api('task_create', {
+                title: title,
+                description: val('taskDescription'),
+                assigned_to: val('taskAssignee'),
+                priority: val('taskPriority'),
+                deadline: val('taskDeadline')
+            });
+            if (result.error) { alert('خطأ: ' + result.error); return; }
+            closeModal('addTaskModal');
+            loadTasks();
+        }
+
+        async function saveEmployee() {
+            const name = val('empFullName');
+            const email = val('empEmail');
+            if (!name || !email) { alert('الاسم والبريد الإلكتروني مطلوبان'); return; }
+            const result = await api('employee_create', {
+                full_name: name,
+                email: email,
+                password: val('empPassword') || '123456',
+                phone: val('empPhone'),
+                department_id: val('empDepartment'),
+                role_id: val('empRole') || 3,
+                job_title: val('empJobTitle'),
+                base_salary: val('empBaseSalary') || 0
+            });
+            if (result.error) { alert('خطأ: ' + result.error); return; }
+            closeModal('addEmployeeModal');
+            loadEmployees();
+        }
+
+        async function uploadMedia() {
+            const fileInput = document.getElementById('mediaFile');
+            if (!fileInput || !fileInput.files[0]) { alert('الرجاء اختيار ملف'); return; }
+            const fd = new FormData();
+            fd.append('file', fileInput.files[0]);
+            fd.append('tags', JSON.stringify(val('mediaTags').split(',').map(t => t.trim()).filter(Boolean)));
+            try {
+                const response = await fetch('api.php?action=media_upload', { method: 'POST', body: fd });
+                const result = await response.json();
+                if (result.error) { alert('خطأ: ' + result.error); return; }
+                closeModal('uploadMediaModal');
+                loadMedia();
+            } catch (e) {
+                alert('تعذر رفع الملف: ' + e.message);
+            }
+        }
+
+        async function saveClient() {
+            const name = val('clientName');
+            if (!name) { alert('الرجاء إدخال اسم العميل'); return; }
+            const result = await api('client_save', {
+                name: name,
+                description: val('clientDescription'),
+                contact_name: val('clientContactName'),
+                contact_email: val('clientContactEmail'),
+                contact_phone: val('clientContactPhone')
+            });
+            if (result.error) { alert('خطأ: ' + result.error); return; }
+            closeModal('addClientModal');
+            loadClients();
+        }
+
+        async function requestLeave() {
+            const start = val('leaveStartDate');
+            const end = val('leaveEndDate');
+            if (!start || !end) { alert('الرجاء تحديد التواريخ'); return; }
+            const result = await api('leave_request', {
+                leave_type: val('leaveType'),
+                start_date: start,
+                end_date: end,
+                reason: val('leaveReason')
+            });
+            if (result.error) { alert('خطأ: ' + result.error); return; }
+            closeModal('requestLeaveModal');
+            loadLeaves();
+        }
+
+        async function saveKnowledge() {
+            const title = val('knowledgeTitle');
+            const content = val('knowledgeContent');
+            if (!title || !content) { alert('العنوان والمحتوى مطلوبان'); return; }
+            const result = await api('knowledge_save', {
+                title: title,
+                category: val('knowledgeCategory'),
+                content: content
+            });
+            if (result.error) { alert('خطأ: ' + result.error); return; }
+            closeModal('addKnowledgeModal');
+            loadKnowledge();
+        }
+
+        // تحميل قوائم الأقسام/الموظفين لاستخدامها داخل الـ Modals
+        async function loadDepartmentsInto(selectId) {
+            const result = await api('departments_list');
+            const select = document.getElementById(selectId);
+            if (select && result.data) {
+                select.innerHTML = '<option value="">اختر القسم</option>' +
+                    result.data.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+            }
+        }
+
+        async function loadEmployeesInto(selectId) {
+            const result = await api('employees_list');
+            const select = document.getElementById(selectId);
+            if (select && result.data) {
+                select.innerHTML = '<option value="">اختر موظفاً</option>' +
+                    result.data.map(e => `<option value="${e.id}">${e.full_name}</option>`).join('');
             }
         }
 
@@ -1836,7 +2046,12 @@
         }
 
         function openModal(modalId) {
-            document.getElementById(modalId).classList.add('show');
+            const el = document.getElementById(modalId);
+            if (!el) return;
+            el.classList.add('show');
+            // تحميل البيانات المطلوبة للـ Modal
+            if (modalId === 'addTaskModal')      loadEmployeesInto('taskAssignee');
+            if (modalId === 'addEmployeeModal')  loadDepartmentsInto('empDepartment');
         }
 
         function closeModal(modalId) {
