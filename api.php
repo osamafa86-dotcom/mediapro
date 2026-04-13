@@ -958,6 +958,167 @@ switch ($action) {
         auditLog('settings_save', 'تحديث إعدادات النظام');
         jsonResponse(['success' => true]);
 
+    // =============================================
+    // مراقبة النشر على المنصات
+    // =============================================
+
+    // ===== قائمة المنصات مع حالة النشر =====
+    case 'platforms_list':
+        $filter = $_GET['filter'] ?? 'all'; // all, active, idle, stopped
+        $type = $_GET['type'] ?? '';
+        $idleMinutes = (int)getSetting('publish_idle_minutes', 15);
+
+        $sql = "SELECT p.*, u.full_name AS assigned_name,
+                    TIMESTAMPDIFF(MINUTE, p.last_publish_at, NOW()) AS minutes_since_publish,
+                    (SELECT COUNT(*) FROM publish_logs pl WHERE pl.platform_id = p.id AND DATE(pl.published_at) = CURDATE()) AS today_posts
+                FROM platforms p
+                LEFT JOIN users u ON p.assigned_to = u.id
+                WHERE p.status != 'archived'";
+
+        if ($type) $sql .= " AND p.platform_type = " . $db->quote($type);
+
+        if ($filter === 'idle') {
+            $sql .= " AND TIMESTAMPDIFF(MINUTE, p.last_publish_at, NOW()) >= " . $idleMinutes;
+        } elseif ($filter === 'active') {
+            $sql .= " AND TIMESTAMPDIFF(MINUTE, p.last_publish_at, NOW()) < " . $idleMinutes;
+        }
+
+        $sql .= " ORDER BY p.last_publish_at ASC";
+        $platforms = $db->query($sql)->fetchAll();
+
+        // إضافة حالة كل منصة
+        foreach ($platforms as &$p) {
+            $mins = (int)$p['minutes_since_publish'];
+            $threshold = (int)$p['idle_threshold'];
+            if ($p['status'] === 'paused') {
+                $p['publish_status'] = 'paused';
+            } elseif ($mins < $threshold) {
+                $p['publish_status'] = 'active';
+            } elseif ($mins < $threshold * 2) {
+                $p['publish_status'] = 'idle';
+            } else {
+                $p['publish_status'] = 'stopped';
+            }
+        }
+        unset($p);
+
+        // إحصائيات سريعة
+        $stats = [
+            'total' => count($platforms),
+            'active' => count(array_filter($platforms, fn($p) => $p['publish_status'] === 'active')),
+            'idle' => count(array_filter($platforms, fn($p) => $p['publish_status'] === 'idle')),
+            'stopped' => count(array_filter($platforms, fn($p) => $p['publish_status'] === 'stopped')),
+            'paused' => count(array_filter($platforms, fn($p) => $p['publish_status'] === 'paused')),
+            'today_total_posts' => array_sum(array_column($platforms, 'today_posts'))
+        ];
+
+        jsonResponse(['platforms' => $platforms, 'stats' => $stats]);
+
+    // ===== إضافة/تعديل منصة =====
+    case 'platform_save':
+        if ($method !== 'POST') jsonResponse(['error' => 'Method not allowed'], 405);
+        requireRole(['admin', 'supervisor']);
+
+        $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+        $id = (int)($input['id'] ?? 0);
+        $name = clean($input['name'] ?? '');
+        $type = clean($input['platform_type'] ?? '');
+        $icon = $input['icon'] ?? '📱';
+        $url = clean($input['account_url'] ?? '');
+        $assignedTo = (int)($input['assigned_to'] ?? 0) ?: null;
+        $threshold = (int)($input['idle_threshold'] ?? 15);
+        $status = $input['status'] ?? 'active';
+
+        if (empty($name) || empty($type)) {
+            jsonResponse(['error' => 'اسم المنصة ونوعها مطلوبان'], 400);
+        }
+
+        if ($id > 0) {
+            $stmt = $db->prepare("UPDATE platforms SET name=?, platform_type=?, icon=?, account_url=?, assigned_to=?, idle_threshold=?, status=? WHERE id=?");
+            $stmt->execute([$name, $type, $icon, $url, $assignedTo, $threshold, $status, $id]);
+            auditLog('platform_update', "تعديل منصة: $name");
+        } else {
+            $stmt = $db->prepare("INSERT INTO platforms (name, platform_type, icon, account_url, assigned_to, idle_threshold, status, last_publish_at) VALUES (?,?,?,?,?,?,?,NOW())");
+            $stmt->execute([$name, $type, $icon, $url, $assignedTo, $threshold, $status]);
+            $id = $db->lastInsertId();
+            auditLog('platform_create', "إضافة منصة جديدة: $name");
+        }
+        jsonResponse(['success' => true, 'id' => $id]);
+
+    // ===== حذف منصة =====
+    case 'platform_delete':
+        if ($method !== 'POST') jsonResponse(['error' => 'Method not allowed'], 405);
+        requireRole(['admin']);
+        $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+        $id = (int)($input['id'] ?? 0);
+        $db->prepare("DELETE FROM platforms WHERE id=?")->execute([$id]);
+        auditLog('platform_delete', "حذف منصة رقم: $id");
+        jsonResponse(['success' => true]);
+
+    // ===== تسجيل نشر جديد =====
+    case 'publish_log':
+        if ($method !== 'POST') jsonResponse(['error' => 'Method not allowed'], 405);
+        $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+        $platformId = (int)($input['platform_id'] ?? 0);
+        $title = clean($input['content_title'] ?? '');
+        $contentType = $input['content_type'] ?? 'post';
+        $notes = clean($input['notes'] ?? '');
+
+        if (!$platformId) {
+            jsonResponse(['error' => 'يرجى اختيار المنصة'], 400);
+        }
+
+        $stmt = $db->prepare("INSERT INTO publish_logs (platform_id, user_id, content_title, content_type, notes, published_at) VALUES (?,?,?,?,?,NOW())");
+        $stmt->execute([$platformId, $userId, $title, $contentType, $notes]);
+
+        // تحديث وقت آخر نشر في المنصة
+        $db->prepare("UPDATE platforms SET last_publish_at = NOW() WHERE id=?")->execute([$platformId]);
+
+        auditLog('publish_log', "تسجيل نشر على المنصة رقم: $platformId - $title");
+        jsonResponse(['success' => true]);
+
+    // ===== سجل النشر لمنصة معينة =====
+    case 'publish_history':
+        $platformId = (int)($_GET['platform_id'] ?? 0);
+        $date = $_GET['date'] ?? date('Y-m-d');
+
+        $sql = "SELECT pl.*, u.full_name AS publisher_name, p.name AS platform_name
+                FROM publish_logs pl
+                LEFT JOIN users u ON pl.user_id = u.id
+                LEFT JOIN platforms p ON pl.platform_id = p.id";
+        $params = [];
+
+        if ($platformId) {
+            $sql .= " WHERE pl.platform_id = ?";
+            $params[] = $platformId;
+            if ($date) {
+                $sql .= " AND DATE(pl.published_at) = ?";
+                $params[] = $date;
+            }
+        } else {
+            if ($date) {
+                $sql .= " WHERE DATE(pl.published_at) = ?";
+                $params[] = $date;
+            }
+        }
+        $sql .= " ORDER BY pl.published_at DESC LIMIT 100";
+
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        jsonResponse(['data' => $stmt->fetchAll()]);
+
+    // ===== المنصات المتوقفة (للإشعارات) =====
+    case 'platforms_alerts':
+        $idleMinutes = (int)getSetting('publish_idle_minutes', 15);
+        $stmt = $db->query("SELECT p.*, u.full_name AS assigned_name,
+                    TIMESTAMPDIFF(MINUTE, p.last_publish_at, NOW()) AS minutes_since_publish
+                FROM platforms p
+                LEFT JOIN users u ON p.assigned_to = u.id
+                WHERE p.status = 'active'
+                    AND TIMESTAMPDIFF(MINUTE, p.last_publish_at, NOW()) >= p.idle_threshold
+                ORDER BY minutes_since_publish DESC");
+        jsonResponse(['alerts' => $stmt->fetchAll()]);
+
     // ===== سجل التدقيق =====
     case 'audit_log':
         requireRole(['admin']);

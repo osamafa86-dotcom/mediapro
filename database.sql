@@ -389,4 +389,67 @@ INSERT INTO settings (setting_key, setting_value) VALUES
 ('idle_detection', '1'),
 ('random_screenshot', '0'),
 ('single_session', '1'),
-('suspicious_reporting', '1');
+('suspicious_reporting', '1'),
+('publish_idle_minutes', '15');
+
+-- =============================================
+-- جداول مراقبة النشر على المنصات
+-- =============================================
+
+-- ===== جدول المنصات =====
+CREATE TABLE platforms (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(150) NOT NULL,
+    platform_type VARCHAR(50) NOT NULL COMMENT 'facebook, telegram, whatsapp, twitter, instagram, youtube, tiktok, snapchat, other',
+    icon VARCHAR(10) DEFAULT '📱',
+    account_url VARCHAR(500),
+    assigned_to INT,
+    idle_threshold INT DEFAULT 15 COMMENT 'دقائق الخمول قبل التنبيه',
+    status ENUM('active','paused','archived') DEFAULT 'active',
+    last_publish_at DATETIME,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_status (status),
+    INDEX idx_type (platform_type),
+    INDEX idx_last_publish (last_publish_at)
+) ENGINE=InnoDB;
+
+-- ===== جدول سجل النشر =====
+CREATE TABLE publish_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    platform_id INT NOT NULL,
+    user_id INT,
+    content_title VARCHAR(255),
+    content_type ENUM('post','story','reel','video','article','message','ad','other') DEFAULT 'post',
+    notes TEXT,
+    published_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (platform_id) REFERENCES platforms(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_platform (platform_id),
+    INDEX idx_published (published_at)
+) ENGINE=InnoDB;
+
+-- بيانات تجريبية للمنصات
+INSERT INTO platforms (name, platform_type, icon, assigned_to, idle_threshold, status, last_publish_at) VALUES
+('فيسبوك - الصفحة الرئيسية', 'facebook', '📘', 3, 15, 'active', NOW() - INTERVAL 5 MINUTE),
+('فيسبوك - مجموعة العملاء', 'facebook', '📘', 3, 15, 'active', NOW() - INTERVAL 45 MINUTE),
+('إنستغرام - الحساب الرسمي', 'instagram', '📸', 5, 15, 'active', NOW() - INTERVAL 3 MINUTE),
+('إنستغرام - القصص', 'instagram', '📸', 5, 15, 'active', NOW() - INTERVAL 120 MINUTE),
+('تويتر - الحساب الرسمي', 'twitter', '🐦', 3, 15, 'active', NOW() - INTERVAL 10 MINUTE),
+('تويتر - حساب الأخبار', 'twitter', '🐦', 2, 15, 'active', NOW() - INTERVAL 200 MINUTE),
+('تلغرام - القناة الرئيسية', 'telegram', '✈️', 2, 15, 'active', NOW() - INTERVAL 8 MINUTE),
+('تلغرام - قناة العروض', 'telegram', '✈️', 5, 15, 'active', NOW() - INTERVAL 30 MINUTE),
+('تلغرام - مجموعة النقاش', 'telegram', '✈️', 2, 15, 'active', NOW() - INTERVAL 60 MINUTE),
+('واتساب - البث الرسمي', 'whatsapp', '💬', 3, 15, 'active', NOW() - INTERVAL 2 MINUTE),
+('واتساب - مجموعة VIP', 'whatsapp', '💬', 5, 15, 'active', NOW() - INTERVAL 90 MINUTE),
+('يوتيوب - القناة الرئيسية', 'youtube', '▶️', 4, 30, 'active', NOW() - INTERVAL 1440 MINUTE),
+('تيك توك - الحساب الرسمي', 'tiktok', '🎵', 5, 20, 'active', NOW() - INTERVAL 25 MINUTE),
+('سناب شات - الحساب الرسمي', 'snapchat', '👻', 5, 15, 'active', NOW() - INTERVAL 180 MINUTE),
+('لينكدإن - صفحة الشركة', 'linkedin', '💼', 8, 60, 'active', NOW() - INTERVAL 300 MINUTE),
+('فيسبوك - حملة رمضان', 'facebook', '📘', 3, 15, 'active', NOW() - INTERVAL 12 MINUTE),
+('إنستغرام - حساب المنتجات', 'instagram', '📸', 5, 15, 'active', NOW() - INTERVAL 50 MINUTE),
+('تويتر - خدمة العملاء', 'twitter', '🐦', 8, 10, 'active', NOW() - INTERVAL 7 MINUTE),
+('تلغرام - بوت الخدمات', 'telegram', '✈️', 4, 15, 'active', NOW() - INTERVAL 150 MINUTE),
+('واتساب - الدعم الفني', 'whatsapp', '💬', 8, 10, 'active', NOW() - INTERVAL 4 MINUTE)
