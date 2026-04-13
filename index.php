@@ -1367,8 +1367,9 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(params)
                 });
-                const data = await response.json();
-                return data;
+                if (!response.ok) return { error: 'HTTP ' + response.status };
+                const text = await response.text();
+                try { return JSON.parse(text); } catch(e) { return { error: 'Invalid JSON' }; }
             } catch (error) {
                 console.error('API Error:', error);
                 return { error: error.message };
@@ -1801,11 +1802,12 @@
             const type = document.getElementById('pmFilterType')?.value || '';
             const filter = document.getElementById('pmFilterStatus')?.value || 'all';
 
-            const result = await api('platforms_list', {});
-            // استخدام GET parameters
             const url = 'api.php?action=platforms_list&type=' + encodeURIComponent(type) + '&filter=' + encodeURIComponent(filter);
-            const response = await fetch(url);
-            const data = await response.json();
+            let data;
+            try {
+                const response = await fetch(url);
+                data = await response.json();
+            } catch(e) { return; }
 
             if (data.platforms) {
                 pmPlatformsData = data.platforms;

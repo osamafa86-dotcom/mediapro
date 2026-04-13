@@ -40,6 +40,27 @@ switch ($action) {
 
         jsonResponse($stats);
 
+    // ===== أفضل الموظفين =====
+    case 'get_top_employees':
+        $stmt = $db->query("
+            SELECT u.id, u.full_name AS name, u.avatar_initials AS initials,
+                   d.name AS department,
+                   COALESCE(e.overall_rating, 0) * 20 AS performance
+            FROM users u
+            LEFT JOIN departments d ON u.department_id = d.id
+            LEFT JOIN evaluations e ON u.id = e.user_id
+            WHERE u.status = 'active'
+            ORDER BY e.overall_rating DESC, u.full_name ASC
+            LIMIT 5
+        ");
+        jsonResponse(['data' => $stmt->fetchAll()]);
+
+    // ===== الإشعارات =====
+    case 'get_notifications':
+        $stmt = $db->prepare("SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 30");
+        $stmt->execute([$userId]);
+        jsonResponse(['data' => $stmt->fetchAll()]);
+
     // ===== لوحتي الشخصية =====
     case 'my_dashboard':
         $my = [];
