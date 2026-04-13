@@ -319,6 +319,82 @@
             .topbar{padding:0 16px;height:60px}
             .search-box{width:auto;flex:1}
         }
+
+        /* ===== مراقبة النشر - Publish Monitor ===== */
+        .pm-stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-bottom:24px}
+        .pm-stat-card{background:var(--white);border-radius:var(--radius);padding:20px;text-align:center;border:1px solid var(--border);transition:var(--transition)}
+        .pm-stat-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
+        .pm-stat-card .pm-stat-number{font-size:32px;font-weight:800;margin:8px 0 4px}
+        .pm-stat-card .pm-stat-label{font-size:13px;color:var(--text-secondary)}
+        .pm-stat-card.total .pm-stat-number{color:var(--primary)}
+        .pm-stat-card.active-stat .pm-stat-number{color:var(--success)}
+        .pm-stat-card.idle-stat .pm-stat-number{color:var(--warning)}
+        .pm-stat-card.stopped-stat .pm-stat-number{color:var(--danger)}
+        .pm-stat-card.posts-stat .pm-stat-number{color:var(--info)}
+
+        .pm-toolbar{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+        .pm-toolbar .filter-select{padding:10px 16px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--white);font-family:'Tajawal',sans-serif;font-size:14px;color:var(--text);cursor:pointer}
+        .pm-toolbar .btn{white-space:nowrap}
+        .pm-auto-refresh{display:flex;align-items:center;gap:6px;margin-right:auto;font-size:13px;color:var(--text-secondary)}
+        .pm-auto-refresh input[type="checkbox"]{width:16px;height:16px;accent-color:var(--primary)}
+
+        .pm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+        .pm-card{background:var(--white);border-radius:var(--radius);padding:20px;border:2px solid var(--border);transition:var(--transition);position:relative;overflow:hidden}
+        .pm-card:hover{box-shadow:var(--shadow-md);transform:translateY(-2px)}
+        .pm-card.status-active{border-color:var(--success)}
+        .pm-card.status-idle{border-color:var(--warning);animation:pm-pulse 2s ease-in-out infinite}
+        .pm-card.status-stopped{border-color:var(--danger);animation:pm-pulse 1.5s ease-in-out infinite}
+        .pm-card.status-paused{border-color:var(--text-tertiary);opacity:0.7}
+
+        .pm-card-header{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+        .pm-card-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+        .pm-card-icon.facebook{background:rgba(24,119,242,0.1)}
+        .pm-card-icon.instagram{background:rgba(225,48,108,0.1)}
+        .pm-card-icon.twitter{background:rgba(29,155,240,0.1)}
+        .pm-card-icon.telegram{background:rgba(0,136,204,0.1)}
+        .pm-card-icon.whatsapp{background:rgba(37,211,102,0.1)}
+        .pm-card-icon.youtube{background:rgba(255,0,0,0.1)}
+        .pm-card-icon.tiktok{background:rgba(0,0,0,0.1)}
+        .pm-card-icon.snapchat{background:rgba(255,252,0,0.15)}
+        .pm-card-icon.linkedin{background:rgba(0,119,181,0.1)}
+        .pm-card-icon.other{background:rgba(107,114,128,0.1)}
+
+        .pm-card-info h4{font-size:14px;font-weight:700;margin-bottom:3px;color:var(--text)}
+        .pm-card-info span{font-size:12px;color:var(--text-secondary)}
+
+        .pm-card-status{position:absolute;top:16px;left:16px;width:12px;height:12px;border-radius:50%}
+        .pm-card-status.active{background:var(--success);box-shadow:0 0 8px rgba(16,185,129,0.5)}
+        .pm-card-status.idle{background:var(--warning);box-shadow:0 0 8px rgba(245,158,11,0.5)}
+        .pm-card-status.stopped{background:var(--danger);box-shadow:0 0 8px rgba(239,68,68,0.5)}
+        .pm-card-status.paused{background:var(--text-tertiary)}
+
+        .pm-card-body{display:flex;flex-direction:column;gap:10px}
+        .pm-card-row{display:flex;justify-content:space-between;align-items:center;font-size:13px}
+        .pm-card-row .label{color:var(--text-secondary)}
+        .pm-card-row .value{font-weight:600;color:var(--text)}
+        .pm-card-row .value.danger{color:var(--danger)}
+        .pm-card-row .value.warning{color:var(--warning)}
+        .pm-card-row .value.success{color:var(--success)}
+
+        .pm-card-timer{text-align:center;padding:10px;border-radius:var(--radius-sm);margin-top:6px;font-size:20px;font-weight:800;letter-spacing:2px}
+        .pm-card-timer.active{background:var(--success-light);color:var(--success)}
+        .pm-card-timer.idle{background:var(--warning-light);color:var(--warning)}
+        .pm-card-timer.stopped{background:var(--danger-light);color:var(--danger)}
+
+        .pm-card-actions{display:flex;gap:8px;margin-top:10px}
+        .pm-card-actions .btn{flex:1;padding:8px;font-size:12px;border-radius:8px}
+
+        .pm-alert-banner{background:linear-gradient(135deg,#fef2f2,#fee2e2);border:1px solid rgba(239,68,68,0.3);border-radius:var(--radius);padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:14px}
+        .pm-alert-banner .alert-icon{font-size:28px;animation:pm-shake 0.5s ease-in-out infinite alternate}
+        .pm-alert-banner .alert-text{flex:1}
+        .pm-alert-banner .alert-text strong{color:var(--danger);font-size:15px}
+        .pm-alert-banner .alert-text p{color:var(--text-secondary);font-size:13px;margin-top:2px}
+
+        @keyframes pm-pulse{0%,100%{opacity:1}50%{opacity:0.85}}
+        @keyframes pm-shake{0%{transform:rotate(-5deg)}100%{transform:rotate(5deg)}}
+
+        @media(max-width:1200px){.pm-stats-grid{grid-template-columns:repeat(3,1fr)}}
+        @media(max-width:768px){.pm-stats-grid{grid-template-columns:repeat(2,1fr)}.pm-grid{grid-template-columns:1fr}}
     </style>
 </head>
 <body data-theme="light">
@@ -394,6 +470,11 @@
 
             <div class="nav-section">
                 <div class="nav-section-title">المحتوى والمعرفة</div>
+                <div class="nav-item" onclick="showPage('publish-monitor')">
+                    <div class="nav-icon">📡</div>
+                    <span>مراقبة النشر</span>
+                    <div class="nav-badge publish-alert-badge" id="publishAlertBadge" style="display:none;background:#ef4444">0</div>
+                </div>
                 <div class="nav-item" onclick="showPage('media')">
                     <div class="nav-icon">🎬</div>
                     <span>المكتبة الإعلامية</span>
@@ -920,6 +1001,75 @@
                 </div>
             </div>
 
+            <!-- ===== PUBLISH MONITOR PAGE ===== -->
+            <div class="page" id="page-publish-monitor">
+                <!-- تنبيه المنصات المتوقفة -->
+                <div class="pm-alert-banner" id="pmAlertBanner" style="display:none">
+                    <div class="alert-icon">🚨</div>
+                    <div class="alert-text">
+                        <strong>تنبيه! <span id="pmStoppedCount">0</span> منصات متوقفة عن النشر</strong>
+                        <p>بعض المنصات تجاوزت الحد المسموح بدون نشر. يرجى المتابعة.</p>
+                    </div>
+                    <button class="btn btn-danger btn-sm" onclick="filterPlatforms('idle')">عرض المتوقفة</button>
+                </div>
+
+                <!-- إحصائيات -->
+                <div class="pm-stats-grid">
+                    <div class="pm-stat-card total">
+                        <div class="pm-stat-label">إجمالي المنصات</div>
+                        <div class="pm-stat-number" id="pmTotal">0</div>
+                    </div>
+                    <div class="pm-stat-card active-stat">
+                        <div class="pm-stat-label">نشطة</div>
+                        <div class="pm-stat-number" id="pmActive">0</div>
+                    </div>
+                    <div class="pm-stat-card idle-stat">
+                        <div class="pm-stat-label">خاملة</div>
+                        <div class="pm-stat-number" id="pmIdle">0</div>
+                    </div>
+                    <div class="pm-stat-card stopped-stat">
+                        <div class="pm-stat-label">متوقفة</div>
+                        <div class="pm-stat-number" id="pmStopped">0</div>
+                    </div>
+                    <div class="pm-stat-card posts-stat">
+                        <div class="pm-stat-label">منشورات اليوم</div>
+                        <div class="pm-stat-number" id="pmTodayPosts">0</div>
+                    </div>
+                </div>
+
+                <!-- شريط الأدوات -->
+                <div class="pm-toolbar">
+                    <button class="btn btn-primary" onclick="openModal('addPlatformModal')">+ إضافة منصة</button>
+                    <button class="btn btn-success" onclick="openModal('addPublishModal')">📝 تسجيل نشر</button>
+                    <select class="filter-select" id="pmFilterType" onchange="loadPlatforms()">
+                        <option value="">كل الأنواع</option>
+                        <option value="facebook">فيسبوك</option>
+                        <option value="instagram">إنستغرام</option>
+                        <option value="twitter">تويتر</option>
+                        <option value="telegram">تلغرام</option>
+                        <option value="whatsapp">واتساب</option>
+                        <option value="youtube">يوتيوب</option>
+                        <option value="tiktok">تيك توك</option>
+                        <option value="snapchat">سناب شات</option>
+                        <option value="linkedin">لينكدإن</option>
+                    </select>
+                    <select class="filter-select" id="pmFilterStatus" onchange="loadPlatforms()">
+                        <option value="all">كل الحالات</option>
+                        <option value="active">نشطة فقط</option>
+                        <option value="idle">خاملة/متوقفة</option>
+                    </select>
+                    <div class="pm-auto-refresh">
+                        <input type="checkbox" id="pmAutoRefresh" checked onchange="toggleAutoRefresh()">
+                        <label for="pmAutoRefresh">تحديث تلقائي (30 ثانية)</label>
+                    </div>
+                </div>
+
+                <!-- شبكة المنصات -->
+                <div class="pm-grid" id="pmPlatformsGrid">
+                    <!-- يتم تعبئتها بـ JavaScript -->
+                </div>
+            </div>
+
             <!-- ===== SETTINGS PAGE ===== -->
             <div class="page" id="page-settings">
                 <h2 style="margin-bottom:24px">الإعدادات</h2>
@@ -1030,6 +1180,99 @@
             <div class="modal-footer">
                 <button class="btn btn-outline" onclick="closeModal('uploadMediaModal')">إلغاء</button>
                 <button class="btn btn-primary">رفع الملف</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- مودال إضافة منصة -->
+    <div class="modal-overlay" id="addPlatformModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="platformModalTitle">إضافة منصة جديدة</h3>
+                <button class="modal-close" onclick="closeModal('addPlatformModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="platformId" value="0">
+                <div class="form-group">
+                    <label>اسم المنصة / الحساب</label>
+                    <input type="text" id="platformName" placeholder="مثال: فيسبوك - الصفحة الرئيسية">
+                </div>
+                <div class="form-group">
+                    <label>نوع المنصة</label>
+                    <select id="platformType">
+                        <option value="facebook">فيسبوك</option>
+                        <option value="instagram">إنستغرام</option>
+                        <option value="twitter">تويتر / X</option>
+                        <option value="telegram">تلغرام</option>
+                        <option value="whatsapp">واتساب</option>
+                        <option value="youtube">يوتيوب</option>
+                        <option value="tiktok">تيك توك</option>
+                        <option value="snapchat">سناب شات</option>
+                        <option value="linkedin">لينكدإن</option>
+                        <option value="other">أخرى</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>رابط الحساب (اختياري)</label>
+                    <input type="url" id="platformUrl" placeholder="https://...">
+                </div>
+                <div class="form-group">
+                    <label>المسؤول</label>
+                    <select id="platformAssignee">
+                        <option value="">بدون تعيين</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>حد الخمول (بالدقائق)</label>
+                    <input type="number" id="platformThreshold" value="15" min="1" max="1440">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('addPlatformModal')">إلغاء</button>
+                <button class="btn btn-primary" onclick="savePlatform()">حفظ المنصة</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- مودال تسجيل نشر -->
+    <div class="modal-overlay" id="addPublishModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>تسجيل نشر جديد</h3>
+                <button class="modal-close" onclick="closeModal('addPublishModal')">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>المنصة</label>
+                    <select id="publishPlatformId">
+                        <option value="">اختر المنصة</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>عنوان المحتوى</label>
+                    <input type="text" id="publishTitle" placeholder="مثال: بوست حملة رمضان">
+                </div>
+                <div class="form-group">
+                    <label>نوع المحتوى</label>
+                    <select id="publishContentType">
+                        <option value="post">منشور</option>
+                        <option value="story">قصة / ستوري</option>
+                        <option value="reel">ريلز</option>
+                        <option value="video">فيديو</option>
+                        <option value="article">مقال</option>
+                        <option value="message">رسالة</option>
+                        <option value="ad">إعلان</option>
+                        <option value="other">أخرى</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>ملاحظات (اختياري)</label>
+                    <textarea id="publishNotes" placeholder="أي ملاحظات إضافية..." rows="3"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('addPublishModal')">إلغاء</button>
+                <button class="btn btn-success" onclick="logPublish()">تسجيل النشر</button>
             </div>
         </div>
     </div>
@@ -1157,6 +1400,7 @@
                 'roles': 'الأدوار والصلاحيات',
                 'reports': 'التقارير',
                 'security': 'إعدادات الأمان',
+                'publish-monitor': 'مراقبة النشر',
                 'settings': 'الإعدادات'
             };
             document.getElementById('pageTitle').textContent = titles[pageId] || 'ميديا برو';
@@ -1172,6 +1416,7 @@
             else if (pageId === 'media') loadMedia();
             else if (pageId === 'knowledge') loadKnowledge();
             else if (pageId === 'clients') loadClients();
+            else if (pageId === 'publish-monitor') loadPlatforms();
         }
 
         // Update Clock
@@ -1510,6 +1755,318 @@
             event.target.classList.add('active');
             loadTasks();
         }
+
+        // =============================================
+        // مراقبة النشر - Publish Monitor
+        // =============================================
+        let pmRefreshInterval = null;
+        let pmPlatformsData = [];
+        let pmAlertSound = null;
+        let pmLastAlertCount = 0;
+
+        const platformIcons = {
+            facebook: '📘', instagram: '📸', twitter: '🐦', telegram: '✈️',
+            whatsapp: '💬', youtube: '▶️', tiktok: '🎵', snapchat: '👻',
+            linkedin: '💼', other: '📱'
+        };
+
+        function formatMinutes(mins) {
+            if (mins < 1) return 'الآن';
+            if (mins < 60) return mins + ' دقيقة';
+            const h = Math.floor(mins / 60);
+            const m = mins % 60;
+            if (h < 24) return h + ' ساعة' + (m > 0 ? ' و ' + m + ' د' : '');
+            const d = Math.floor(h / 24);
+            return d + ' يوم' + (h % 24 > 0 ? ' و ' + (h % 24) + ' س' : '');
+        }
+
+        function getStatusArabic(status) {
+            const map = { active: 'نشطة', idle: 'خاملة', stopped: 'متوقفة', paused: 'مُعلّقة' };
+            return map[status] || status;
+        }
+
+        function getTimerClass(status) {
+            if (status === 'active') return 'active';
+            if (status === 'idle') return 'idle';
+            return 'stopped';
+        }
+
+        function getValueClass(status) {
+            if (status === 'active') return 'success';
+            if (status === 'idle') return 'warning';
+            return 'danger';
+        }
+
+        async function loadPlatforms() {
+            const type = document.getElementById('pmFilterType')?.value || '';
+            const filter = document.getElementById('pmFilterStatus')?.value || 'all';
+
+            const result = await api('platforms_list', {});
+            // استخدام GET parameters
+            const url = 'api.php?action=platforms_list&type=' + encodeURIComponent(type) + '&filter=' + encodeURIComponent(filter);
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.platforms) {
+                pmPlatformsData = data.platforms;
+                const stats = data.stats;
+
+                // تحديث الإحصائيات
+                document.getElementById('pmTotal').textContent = stats.total;
+                document.getElementById('pmActive').textContent = stats.active;
+                document.getElementById('pmIdle').textContent = stats.idle;
+                document.getElementById('pmStopped').textContent = stats.stopped;
+                document.getElementById('pmTodayPosts').textContent = stats.today_total_posts;
+
+                // تنبيه المنصات المتوقفة
+                const alertCount = stats.idle + stats.stopped;
+                const alertBanner = document.getElementById('pmAlertBanner');
+                const alertBadge = document.getElementById('publishAlertBadge');
+
+                if (alertCount > 0) {
+                    alertBanner.style.display = 'flex';
+                    document.getElementById('pmStoppedCount').textContent = alertCount;
+                    alertBadge.style.display = 'flex';
+                    alertBadge.textContent = alertCount;
+
+                    // صوت تنبيه عند زيادة المنصات المتوقفة
+                    if (alertCount > pmLastAlertCount && pmLastAlertCount > 0) {
+                        playAlertSound();
+                    }
+                } else {
+                    alertBanner.style.display = 'none';
+                    alertBadge.style.display = 'none';
+                }
+                pmLastAlertCount = alertCount;
+
+                // بناء بطاقات المنصات
+                renderPlatformCards(data.platforms);
+
+                // تحديث قائمة المنصات في مودال النشر
+                updatePublishPlatformSelect(data.platforms);
+            }
+        }
+
+        function renderPlatformCards(platforms) {
+            const grid = document.getElementById('pmPlatformsGrid');
+            if (platforms.length === 0) {
+                grid.innerHTML = '<div style="text-align:center;padding:60px;color:var(--text-secondary);grid-column:1/-1"><p style="font-size:48px;margin-bottom:16px">📡</p><p style="font-size:16px">لا توجد منصات. أضف منصة جديدة للبدء.</p></div>';
+                return;
+            }
+
+            grid.innerHTML = platforms.map(p => {
+                const mins = parseInt(p.minutes_since_publish) || 0;
+                const status = p.publish_status;
+                const iconClass = p.platform_type || 'other';
+                const icon = p.icon || platformIcons[p.platform_type] || '📱';
+
+                return `
+                <div class="pm-card status-${status}">
+                    <div class="pm-card-status ${status}"></div>
+                    <div class="pm-card-header">
+                        <div class="pm-card-icon ${iconClass}">${icon}</div>
+                        <div class="pm-card-info">
+                            <h4>${p.name}</h4>
+                            <span>${p.assigned_name || 'غير معيّن'}</span>
+                        </div>
+                    </div>
+                    <div class="pm-card-body">
+                        <div class="pm-card-row">
+                            <span class="label">الحالة</span>
+                            <span class="value ${getValueClass(status)}">${getStatusArabic(status)}</span>
+                        </div>
+                        <div class="pm-card-row">
+                            <span class="label">آخر نشر</span>
+                            <span class="value ${mins >= parseInt(p.idle_threshold) ? 'danger' : ''}">${formatMinutes(mins)}</span>
+                        </div>
+                        <div class="pm-card-row">
+                            <span class="label">منشورات اليوم</span>
+                            <span class="value">${p.today_posts || 0}</span>
+                        </div>
+                        <div class="pm-card-row">
+                            <span class="label">حد الخمول</span>
+                            <span class="value">${p.idle_threshold} دقيقة</span>
+                        </div>
+                        <div class="pm-card-timer ${getTimerClass(status)}">
+                            ${mins < 60 ? mins + ':00' : Math.floor(mins/60) + ':' + String(mins%60).padStart(2,'0') + ':00'}
+                        </div>
+                    </div>
+                    <div class="pm-card-actions">
+                        <button class="btn btn-success btn-sm" onclick="quickPublish(${p.id}, '${p.name.replace(/'/g, "\\'")}')">📝 نشر</button>
+                        <button class="btn btn-outline btn-sm" onclick="editPlatform(${p.id})">✏️ تعديل</button>
+                        <button class="btn btn-danger btn-sm" onclick="deletePlatform(${p.id})">🗑️</button>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function updatePublishPlatformSelect(platforms) {
+            const select = document.getElementById('publishPlatformId');
+            if (!select) return;
+            const currentVal = select.value;
+            select.innerHTML = '<option value="">اختر المنصة</option>' +
+                platforms.filter(p => p.status === 'active').map(p =>
+                    `<option value="${p.id}">${p.icon || ''} ${p.name}</option>`
+                ).join('');
+            if (currentVal) select.value = currentVal;
+        }
+
+        function filterPlatforms(status) {
+            const select = document.getElementById('pmFilterStatus');
+            if (select) {
+                select.value = status;
+                loadPlatforms();
+            }
+        }
+
+        async function savePlatform() {
+            const data = {
+                id: document.getElementById('platformId').value,
+                name: document.getElementById('platformName').value,
+                platform_type: document.getElementById('platformType').value,
+                account_url: document.getElementById('platformUrl').value,
+                assigned_to: document.getElementById('platformAssignee').value,
+                idle_threshold: document.getElementById('platformThreshold').value
+            };
+
+            if (!data.name) { alert('يرجى إدخال اسم المنصة'); return; }
+
+            const result = await api('platform_save', data);
+            if (result.success) {
+                closeModal('addPlatformModal');
+                resetPlatformForm();
+                loadPlatforms();
+            } else {
+                alert(result.error || 'حدث خطأ');
+            }
+        }
+
+        function resetPlatformForm() {
+            document.getElementById('platformId').value = '0';
+            document.getElementById('platformName').value = '';
+            document.getElementById('platformType').value = 'facebook';
+            document.getElementById('platformUrl').value = '';
+            document.getElementById('platformAssignee').value = '';
+            document.getElementById('platformThreshold').value = '15';
+            document.getElementById('platformModalTitle').textContent = 'إضافة منصة جديدة';
+        }
+
+        function editPlatform(id) {
+            const p = pmPlatformsData.find(x => x.id == id);
+            if (!p) return;
+            document.getElementById('platformId').value = p.id;
+            document.getElementById('platformName').value = p.name;
+            document.getElementById('platformType').value = p.platform_type;
+            document.getElementById('platformUrl').value = p.account_url || '';
+            document.getElementById('platformAssignee').value = p.assigned_to || '';
+            document.getElementById('platformThreshold').value = p.idle_threshold;
+            document.getElementById('platformModalTitle').textContent = 'تعديل منصة: ' + p.name;
+            openModal('addPlatformModal');
+        }
+
+        async function deletePlatform(id) {
+            if (!confirm('هل أنت متأكد من حذف هذه المنصة؟')) return;
+            const result = await api('platform_delete', { id });
+            if (result.success) loadPlatforms();
+            else alert(result.error || 'حدث خطأ');
+        }
+
+        function quickPublish(platformId, platformName) {
+            document.getElementById('publishPlatformId').value = platformId;
+            document.getElementById('publishTitle').value = '';
+            document.getElementById('publishNotes').value = '';
+            openModal('addPublishModal');
+        }
+
+        async function logPublish() {
+            const data = {
+                platform_id: document.getElementById('publishPlatformId').value,
+                content_title: document.getElementById('publishTitle').value,
+                content_type: document.getElementById('publishContentType').value,
+                notes: document.getElementById('publishNotes').value
+            };
+
+            if (!data.platform_id) { alert('يرجى اختيار المنصة'); return; }
+
+            const result = await api('publish_log', data);
+            if (result.success) {
+                closeModal('addPublishModal');
+                loadPlatforms();
+            } else {
+                alert(result.error || 'حدث خطأ');
+            }
+        }
+
+        function toggleAutoRefresh() {
+            const checked = document.getElementById('pmAutoRefresh').checked;
+            if (checked) {
+                pmRefreshInterval = setInterval(loadPlatforms, 30000);
+            } else {
+                if (pmRefreshInterval) clearInterval(pmRefreshInterval);
+                pmRefreshInterval = null;
+            }
+        }
+
+        function playAlertSound() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.frequency.value = 800;
+                osc.type = 'sine';
+                gain.gain.value = 0.3;
+                osc.start();
+                osc.stop(ctx.currentTime + 0.3);
+                setTimeout(() => {
+                    const osc2 = ctx.createOscillator();
+                    const gain2 = ctx.createGain();
+                    osc2.connect(gain2);
+                    gain2.connect(ctx.destination);
+                    osc2.frequency.value = 600;
+                    osc2.type = 'sine';
+                    gain2.gain.value = 0.3;
+                    osc2.start();
+                    osc2.stop(ctx.currentTime + 0.3);
+                }, 350);
+            } catch(e) {}
+        }
+
+        // تحديث قائمة الموظفين في مودال المنصة
+        async function loadPlatformAssignees() {
+            const result = await api('employees_list');
+            const select = document.getElementById('platformAssignee');
+            if (select && result.data) {
+                select.innerHTML = '<option value="">بدون تعيين</option>' +
+                    result.data.map(e => `<option value="${e.id}">${e.full_name}</option>`).join('');
+            }
+        }
+
+        // تشغيل التحديث التلقائي عند فتح صفحة المراقبة
+        function startPublishMonitor() {
+            loadPlatforms();
+            loadPlatformAssignees();
+            if (document.getElementById('pmAutoRefresh')?.checked) {
+                pmRefreshInterval = setInterval(loadPlatforms, 30000);
+            }
+        }
+
+        // فحص المنصات المتوقفة بشكل دوري (حتى لو المستخدم في صفحة ثانية)
+        setInterval(async () => {
+            try {
+                const resp = await fetch('api.php?action=platforms_alerts');
+                const data = await resp.json();
+                if (data.alerts && data.alerts.length > 0) {
+                    const badge = document.getElementById('publishAlertBadge');
+                    if (badge) {
+                        badge.style.display = 'flex';
+                        badge.textContent = data.alerts.length;
+                    }
+                }
+            } catch(e) {}
+        }, 60000);
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
