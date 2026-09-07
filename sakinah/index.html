@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>سكينة — مواقيت الصلاة والقبلة والأذكار</title>
+  <meta name="description" content="تطبيق إسلامي دقيق: مواقيت الصلاة حسب موقعك، اتجاه القبلة بدقة عالية، أذكار الصباح والمساء، أحاديث مختارة من الصحيحين، وتذكير بمواعيد الصلاة.">
+  <meta name="theme-color" content="#0f766e" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0b1412" media="(prefers-color-scheme: dark)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="سكينة">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="assets/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=Amiri:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css">
+  <script>
+    // تطبيق السمة مبكرًا لتفادي الوميض
+    try {
+      const s = JSON.parse(localStorage.getItem('sakinah:v1') || '{}');
+      const t = s.theme || 'auto';
+      const dark = t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c-1.2 2.2-2 3.6-2 5.5a2 2 0 0 0 4 0c0-1.9-.8-3.3-2-5.5Z"/><path d="M4 20v-6a8 8 0 0 1 16 0v6"/><path d="M2 20h20"/><path d="M9 20v-3a3 3 0 0 1 6 0v3"/></svg>
+        </div>
+        <div>
+          <h1>سكينة</h1>
+          <small id="header-sub">رفيقك للصلاة والذكر</small>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="icon-btn" id="btn-theme" aria-label="تبديل السمة" title="السمة"></button>
+        <button class="icon-btn" id="btn-install" aria-label="تثبيت التطبيق" title="تثبيت التطبيق" hidden></button>
+      </div>
+    </header>
+
+    <main class="view-container" id="views">
+      <section class="view" id="view-prayer" aria-labelledby="tab-prayer"></section>
+      <section class="view" id="view-qibla" aria-labelledby="tab-qibla"></section>
+      <section class="view" id="view-adhkar" aria-labelledby="tab-adhkar"></section>
+      <section class="view" id="view-hadith" aria-labelledby="tab-hadith"></section>
+      <section class="view" id="view-settings" aria-labelledby="tab-settings"></section>
+    </main>
+
+    <nav class="tabbar" aria-label="التنقل الرئيسي">
+      <button class="tab" id="tab-prayer" data-view="prayer"></button>
+      <button class="tab" id="tab-qibla" data-view="qibla"></button>
+      <button class="tab" id="tab-adhkar" data-view="adhkar"></button>
+      <button class="tab" id="tab-hadith" data-view="hadith"></button>
+      <button class="tab" id="tab-settings" data-view="settings"></button>
+    </nav>
+  </div>
+
+  <div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
+  <div class="sheet" id="sheet" role="dialog" aria-modal="true" hidden>
+    <div class="sheet-handle"></div>
+    <div class="sheet-head"><h3 id="sheet-title"></h3><button class="icon-btn" id="sheet-close" aria-label="إغلاق"></button></div>
+    <div class="sheet-body" id="sheet-body"></div>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <noscript><p style="padding:20px;text-align:center">يلزم تفعيل JavaScript لتشغيل التطبيق.</p></noscript>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

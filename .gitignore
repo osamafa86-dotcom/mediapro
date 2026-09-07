@@ -1,0 +1,7 @@
+node_modules/
+sakinah/node_modules/
+sakinah/test-results/
+sakinah/playwright-report/
+*.log
+!error_log
+.DS_Store

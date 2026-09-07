@@ -1,0 +1,68 @@
+/**
+ * تخزين الإعدادات والحالة محليًا (localStorage) مع قيم افتراضية ونظام اشتراك بسيط.
+ */
+const KEY = 'sakinah:v1';
+
+export const DEFAULT_SETTINGS = {
+  location: null,            // { lat, lon, tz, name, countryCode, cityId, source: 'gps'|'city'|'manual', accuracy }
+  method: 'auto',            // 'auto' أو معرّف طريقة من methods.js
+  madhab: 'shafi',           // 'shafi' | 'hanafi'
+  highLatitudeRule: 'auto',
+  adjustments: { fajr: 0, sunrise: 0, dhuhr: 0, asr: 0, maghrib: 0, isha: 0 },
+  custom: { fajrAngle: 18, ishaAngle: 17, ishaInterval: 0, maghribAngle: 0 },
+  hijriOffset: 0,
+  hour12: true,
+  numerals: 'latn',          // 'latn' | 'arab'
+  theme: 'auto',             // 'auto' | 'light' | 'dark'
+  notifications: {
+    enabled: false,
+    prayers: { fajr: true, sunrise: false, dhuhr: true, asr: true, maghrib: true, isha: true },
+    preMinutes: 0,           // تذكير قبل الأذان بدقائق (0 = عند الأذان فقط)
+    sound: 'chime',          // 'chime' | 'none'
+    vibrate: true,
+  },
+  compass: { declinationMode: 'auto' }, // 'auto' | 'on' | 'off'
+  adhkarProgress: { date: null, morning: {}, evening: {} },
+  favorites: [],
+  seenIntro: false,
+};
+
+function safeParse(raw) {
+  try { return raw ? JSON.parse(raw) : null; } catch { return null; }
+}
+function deepMerge(base, patch) {
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return patch === undefined ? base : patch;
+  const out = { ...base };
+  for (const k of Object.keys(patch)) {
+    out[k] = (base && typeof base[k] === 'object' && base[k] !== null && !Array.isArray(base[k]))
+      ? deepMerge(base[k], patch[k]) : patch[k];
+  }
+  return out;
+}
+
+const listeners = new Set();
+let state = deepMerge(DEFAULT_SETTINGS, safeParse(typeof localStorage !== 'undefined' ? localStorage.getItem(KEY) : null) || {});
+
+export function getSettings() { return state; }
+export function get(path) {
+  return path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), state);
+}
+/** تحديث جزئي (دمج عميق) مع حفظ وإشعار المشتركين */
+export function update(patch) {
+  state = deepMerge(state, patch);
+  persist();
+  for (const fn of listeners) { try { fn(state, patch); } catch (e) { console.error(e); } }
+  return state;
+}
+export function set(path, value) {
+  const keys = path.split('.');
+  const patch = {}; let cur = patch;
+  keys.forEach((k, i) => { cur[k] = i === keys.length - 1 ? value : {}; cur = cur[k]; });
+  return update(patch);
+}
+export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
+export function resetAll() { state = deepMerge(DEFAULT_SETTINGS, {}); persist(); for (const fn of listeners) fn(state, {}); }
+
+function persist() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { console.warn('storage failed', e); }
+}

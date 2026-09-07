@@ -1,0 +1,25 @@
+# سكينة — إعدادات Apache/cPanel
+AddType application/manifest+json .webmanifest
+AddType application/javascript .mjs
+AddDefaultCharset UTF-8
+
+<IfModule mod_headers.c>
+  <FilesMatch "sw\.js$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Service-Worker-Allowed "/"
+  </FilesMatch>
+  <FilesMatch "\.(js|css|svg|png|webmanifest)$">
+    Header set Cache-Control "public, max-age=86400"
+  </FilesMatch>
+  Header set X-Content-Type-Options "nosniff"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+  Header set Permissions-Policy "geolocation=(self), accelerometer=(self), gyroscope=(self), magnetometer=(self)"
+</IfModule>
+
+# إعادة توجيه إلى HTTPS (مطلوب لتحديد الموقع والبوصلة والإشعارات)
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
