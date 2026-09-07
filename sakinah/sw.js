@@ -1,5 +1,5 @@
 /* سكينة — عامل الخدمة: عمل دون اتصال + إشعارات */
-const VERSION = 'sakinah-v1.0.0';
+const VERSION = 'sakinah-v1.0.1';
 const CORE = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
   './js/app.js', './js/ui/components.js', './js/ui/prayer-view.js', './js/ui/qibla-view.js', './js/ui/adhkar-view.js',
@@ -11,7 +11,8 @@ const CORE = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => Promise.allSettled(CORE.map((u) => c.add(u)))).then(() => self.skipWaiting()));
+  // cache:'reload' يتجاوز كاش HTTP للمتصفح كي تُخزَّن النسخة الجديدة فعلًا عند رفع الإصدار
+  e.waitUntil(caches.open(VERSION).then((c) => Promise.allSettled(CORE.map((u) => c.add(new Request(u, { cache: 'reload' }))))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
@@ -27,7 +28,8 @@ self.addEventListener('fetch', (e) => {
   if (sameOrigin || isFont) {
     e.respondWith(
       caches.match(req).then((cached) => {
-        const fetched = fetch(req).then((res) => {
+        // إعادة التحقق من الخادم (ETag/304) بدل الاكتفاء بكاش HTTP
+        const fetched = fetch(sameOrigin ? new Request(req, { cache: 'no-cache' }) : req).then((res) => {
           if (res && (res.ok || res.type === 'opaque')) caches.open(VERSION).then((c) => c.put(req, res.clone()));
           return res;
         }).catch(() => cached);

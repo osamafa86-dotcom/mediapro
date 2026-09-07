@@ -74,7 +74,9 @@ const n = await page.locator('.dhikr').count();
 check(n >= 20, `عدد الأذكار المعروضة: ${n}`);
 const firstBtn = page.locator('.count-btn').first();
 await firstBtn.click();
-check(await page.locator('.dhikr').first().evaluate((el) => el.classList.contains('done')) || true, 'العدّاد يستجيب للضغط');
+const firstDone = await page.locator('.dhikr').first().evaluate((el) => el.classList.contains('done'));
+const firstBtnText = await page.locator('.count-btn').first().textContent();
+check(firstDone || /^\s*[٠-٩\d]+/.test(firstBtnText), `العدّاد يستجيب للضغط (${firstDone ? 'اكتمل' : 'تناقص: ' + firstBtnText.trim()})`);
 check(/\/\s*\d+|\d+\s*\//.test((await page.locator('.ring output').textContent()).replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))), 'حلقة التقدّم تعرض النسبة');
 await page.screenshot({ animations: 'disabled', path: path.join(outDir, '04-adhkar.png') });
 
@@ -103,7 +105,7 @@ await page.screenshot({ animations: 'disabled', path: path.join(outDir, '07-dark
 // إعادة التحميل تحتفظ بالموقع
 await page.goto(`${base}/index.html#/prayer`, { waitUntil: 'networkidle' });
 await page.locator('.hero').waitFor();
-check(true, 'الموقع محفوظ بعد إعادة التحميل');
+check(/عمّان|عمان/.test(await page.locator('.loc-chip').textContent()) && (await page.locator('.time-row').count()) === 6, 'الموقع محفوظ بعد إعادة التحميل');
 
 check(errors.length === 0, `لا أخطاء في الكونسول${errors.length ? ':\n  ' + errors.join('\n  ') : ''}`);
 await browser.close(); server.close();

@@ -8,8 +8,12 @@ AddDefaultCharset UTF-8
     Header set Cache-Control "no-cache, no-store, must-revalidate"
     Header set Service-Worker-Allowed "/"
   </FilesMatch>
-  <FilesMatch "\.(js|css|svg|png|webmanifest)$">
-    Header set Cache-Control "public, max-age=86400"
+  # الشيفرة والأنماط تُعاد المصادقة عليها دائمًا (ETag → 304) حتى لا تعلق نسخة قديمة في كاش المتصفح؛ عامل الخدمة يتكفّل بالعمل دون اتصال
+  <FilesMatch "\.(js|css|webmanifest|html)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+  <FilesMatch "\.(svg|png|woff2)$">
+    Header set Cache-Control "public, max-age=604800"
   </FilesMatch>
   Header set X-Content-Type-Options "nosniff"
   Header set Referrer-Policy "strict-origin-when-cross-origin"
