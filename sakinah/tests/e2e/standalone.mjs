@@ -1,0 +1,28 @@
+/** فحص النسخة أحادية الملف dist/sakinah-standalone.html عبر file:// في Chromium */
+import { chromium } from 'playwright';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+const file = path.resolve(fileURLToPath(new URL('../../dist/sakinah-standalone.html', import.meta.url)));
+const browser = await chromium.launch();
+const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar', timezoneId: 'Asia/Riyadh', geolocation: { latitude: 24.7136, longitude: 46.6753 }, permissions: ['geolocation'] });
+const page = await ctx.newPage();
+const errors = [];
+page.on('pageerror', (e) => errors.push(e.message));
+page.on('console', (m) => { if (m.type() === 'error' && !/net::ERR|ERR_ABORTED|Failed to load resource/.test(m.text())) errors.push(m.text()); });
+await page.route(/bigdatacloud|fonts\.g/, (r) => r.abort());
+await page.goto(pathToFileURL(file).href + '#/prayer');
+await page.getByRole('button', { name: /تحديد موقعي/ }).click();
+await page.locator('.hero').waitFor({ timeout: 15000 });
+const fails = [];
+const ok = (c, m) => { console.log(`${c ? '✓' : '✗'} ${m}`); if (!c) fails.push(m); };
+ok(/الرياض/.test(await page.locator('.loc-chip').textContent()), 'الموقع: الرياض');
+ok(/أم القرى/.test(await page.locator('#view-prayer .tiny').last().textContent()), 'الطريقة التلقائية: أم القرى');
+await page.locator('#tab-qibla').click(); await page.locator('.compass-rose').waitFor();
+ok(!/غير متاح/.test(await page.locator('.kv').first().textContent()), 'WMM2025 يعمل داخل الملف الواحد');
+await page.locator('#tab-adhkar').click(); ok((await page.locator('.dhikr').count()) >= 20, 'الأذكار');
+await page.locator('#tab-hadith').click(); ok((await page.locator('.hadith').count()) >= 10, 'الأحاديث');
+await page.locator('#tab-settings').click(); ok((await page.locator('#view-settings select').count()) >= 3, 'الإعدادات');
+await page.screenshot({ path: path.join(path.dirname(file), '..', 'test-results', 'standalone.png') }).catch(() => {});
+ok(errors.length === 0, 'لا أخطاء' + (errors.length ? ': ' + errors.join(' | ') : ''));
+await browser.close();
+if (fails.length) process.exit(1); console.log('النسخة أحادية الملف تعمل ✓');

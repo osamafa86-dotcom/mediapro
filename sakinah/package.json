@@ -11,10 +11,12 @@
     "test:e2e": "node tests/e2e/smoke.mjs",
     "serve": "npx http-server . -p 8080 -c-1",
     "icons": "node tools/make-icons.mjs",
-    "fetch-corpus": "node tools/fetch-corpus.mjs"
+    "fetch-corpus": "node tools/fetch-corpus.mjs",
+    "build:standalone": "node tools/build-standalone.mjs"
   },
   "devDependencies": {
     "adhan": "^4.4.3",
+    "esbuild": "^0.24.2",
     "geomagnetism": "^0.2.0"
   }
 }
