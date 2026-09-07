@@ -65,6 +65,33 @@ jobs:
           /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PLIST" || true
           cd ios/App && xcrun agvtool new-version -all "$BUILD_NUMBER" && cd ../..
 
+      - name: التحقق من وجود أسرار التوقيع والرفع
+        env:
+          S1: ${{ secrets.APPLE_TEAM_ID }}
+          S2: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          S3: ${{ secrets.P12_PASSWORD }}
+          S4: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+          S5: ${{ secrets.KEYCHAIN_PASSWORD }}
+          S6: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          S7: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          S8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+        run: |
+          missing=""
+          [ -z "$S1" ] && missing="$missing APPLE_TEAM_ID"
+          [ -z "$S2" ] && missing="$missing BUILD_CERTIFICATE_BASE64"
+          [ -z "$S3" ] && missing="$missing P12_PASSWORD"
+          [ -z "$S4" ] && missing="$missing BUILD_PROVISION_PROFILE_BASE64"
+          [ -z "$S5" ] && missing="$missing KEYCHAIN_PASSWORD"
+          [ -z "$S6" ] && missing="$missing APP_STORE_CONNECT_API_KEY_ID"
+          [ -z "$S7" ] && missing="$missing APP_STORE_CONNECT_ISSUER_ID"
+          [ -z "$S8" ] && missing="$missing APP_STORE_CONNECT_API_KEY_P8"
+          if [ -n "$missing" ]; then
+            echo "::error::الأسرار التالية غير مضبوطة في Settings → Secrets and variables → Actions:$missing"
+            echo "::error::راجع sakinah/README.md قسم «تطبيق iOS وTestFlight» لطريقة الحصول عليها من Apple Developer وApp Store Connect."
+            exit 1
+          fi
+          echo "كل الأسرار الثمانية موجودة ✓"
+
       - name: تثبيت الشهادة وملف التوفير
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
