@@ -1,5 +1,5 @@
 # بناء تطبيق iOS من تطبيق سكينة (Capacitor) ورفعه إلى TestFlight.
-# التشغيل: يدويًا من تبويب Actions (workflow_dispatch) أو عند دفع وسم ios-v*.
+# التشغيل: يدويًا من تبويب Actions (workflow_dispatch)، أو عند دفع وسم ios-v*، أو عند تعديل sakinah/ios-release.txt.
 # الأسرار المطلوبة (Settings → Secrets and variables → Actions):
 #   APPLE_TEAM_ID                     معرّف الفريق في Apple Developer (10 أحرف)
 #   BUILD_CERTIFICATE_BASE64          شهادة التوزيع Apple Distribution بصيغة .p12 مشفّرة base64
@@ -19,6 +19,9 @@ on:
         required: false
   push:
     tags: ['ios-v*']
+    # تشغيل البناء أيضًا عند تحديث ملف الإصدار (لمن لا يستطيع دفع الوسوم)
+    branches: ['claude/islamic-app-development-tpmkko', 'main']
+    paths: ['sakinah/ios-release.txt']
 
 jobs:
   build-upload:
