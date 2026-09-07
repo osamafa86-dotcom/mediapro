@@ -35,10 +35,10 @@ export function mount(container, app) {
       section('حساب المواقيت', 'clock',
         h('div', { class: 'field' }, h('label', {}, 'طريقة الحساب'), select(s.method, methodOptions, (v) => app.set('method', v)), h('div', { class: 'tiny' }, methodDesc)),
         s.method === 'Custom' ? h('div', { class: 'grid-2' },
-          h('div', { class: 'field' }, h('label', {}, 'زاوية الفجر'), numInput(s.custom.fajrAngle, (v) => app.set('custom.fajrAngle', v))),
-          h('div', { class: 'field' }, h('label', {}, 'زاوية العشاء'), numInput(s.custom.ishaAngle, (v) => app.set('custom.ishaAngle', v))),
-          h('div', { class: 'field' }, h('label', {}, 'العشاء بعد المغرب (دقائق، 0 = زاوية)'), numInput(s.custom.ishaInterval, (v) => app.set('custom.ishaInterval', v))),
-          h('div', { class: 'field' }, h('label', {}, 'زاوية المغرب (0 = الغروب)'), numInput(s.custom.maghribAngle, (v) => app.set('custom.maghribAngle', v)))) : null,
+          h('div', { class: 'field' }, h('label', {}, 'زاوية الفجر (4–30°)'), numInput(s.custom.fajrAngle, (v) => app.set('custom.fajrAngle', v), { min: 4, max: 30 })),
+          h('div', { class: 'field' }, h('label', {}, 'زاوية العشاء (4–30°)'), numInput(s.custom.ishaAngle, (v) => app.set('custom.ishaAngle', v), { min: 4, max: 30 })),
+          h('div', { class: 'field' }, h('label', {}, 'العشاء بعد المغرب (دقائق، 0 = زاوية)'), numInput(s.custom.ishaInterval, (v) => app.set('custom.ishaInterval', v), { min: 0, max: 180 })),
+          h('div', { class: 'field' }, h('label', {}, 'زاوية المغرب (0 = الغروب)'), numInput(s.custom.maghribAngle, (v) => app.set('custom.maghribAngle', v), { min: 0, max: 10 }))) : null,
         h('div', { class: 'field' }, h('label', {}, 'مذهب العصر'),
           h('div', { class: 'segmented' },
             h('button', { class: s.madhab === 'shafi' ? 'active' : '', onclick: () => app.set('madhab', 'shafi') }, 'الجمهور (ظل المثل)'),
@@ -81,12 +81,12 @@ export function mount(container, app) {
           h('p', {}, h('b', {}, 'الأذكار: '), 'حصن المسلم — أذكار الصباح والمساء بنصوصها وتخريجها.'),
           h('p', {}, h('b', {}, 'الأحاديث: '), 'متون منقولة حرفيًا من صحيح البخاري (ترقيم فتح الباري) وصحيح مسلم (ترقيم محمد فؤاد عبد الباقي).'),
           h('p', { class: 'tiny' }, 'تنبيه: المواقيت المحسوبة قد تختلف دقيقة أو دقيقتين عن التقاويم المحلية؛ استخدم التعديل اليدوي للمطابقة عند الحاجة.')),
-        h('button', { class: 'btn btn-outline btn-block', style: { marginTop: '8px', color: 'var(--danger)' }, onclick: () => { if (confirm('إعادة ضبط جميع الإعدادات والتقدّم؟')) { resetAll(); app.emit('change'); toast('تمت إعادة الضبط'); } } }, h('span', { html: icon('reset') }), ' إعادة ضبط التطبيق')));
+        h('button', { class: 'btn btn-outline btn-block', style: { marginTop: '8px', color: 'var(--danger)' }, onclick: () => { if (confirm('إعادة ضبط جميع الإعدادات والتقدّم؟')) { resetAll(); app.applyTheme(); app.applyTextScale(); app.emit('change'); toast('تمت إعادة الضبط'); } } }, h('span', { html: icon('reset') }), ' إعادة ضبط التطبيق')));
   }
 
-  function numInput(value, onChange) {
-    const i = h('input', { class: 'input ltr', type: 'number', step: '0.1', value });
-    i.addEventListener('change', () => onChange(Number(i.value) || 0));
+  function numInput(value, onChange, { min = 0, max = 30 } = {}) {
+    const i = h('input', { class: 'input ltr', type: 'number', step: '0.1', value, min, max });
+    i.addEventListener('change', () => { const v = Number(i.value); onChange(Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : 0); });
     return i;
   }
   function openAdjustments() {

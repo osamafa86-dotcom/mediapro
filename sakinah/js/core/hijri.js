@@ -26,16 +26,17 @@ function supportsUmalqura() {
  * @returns {{day:number, month:number, year:number, monthName:string, weekday:string, formatted:string, source:'umalqura'|'tabular'}}
  */
 export function hijriDate(date = new Date(), tz = 'UTC', offsetDays = 0) {
-  const shifted = new Date(date.getTime() + offsetDays * 86400000);
+  // اليوم المدني في منطقة المستخدم، ثم إزاحته بالأيام على مستوى التاريخ (لا بالمللي ثانية) لتفادي أثر التوقيت الصيفي
+  const civ = new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: 'numeric', day: 'numeric' })
+    .formatToParts(date).reduce((o, p) => (o[p.type] = +p.value, o), {});
+  const shifted = new Date(Date.UTC(civ.year, civ.month - 1, civ.day + (offsetDays | 0), 12));
   let day, month, year, source;
   if (supportsUmalqura()) {
-    const parts = new Intl.DateTimeFormat('en-u-ca-islamic-umalqura-nu-latn', { timeZone: tz, day: 'numeric', month: 'numeric', year: 'numeric' })
+    const parts = new Intl.DateTimeFormat('en-u-ca-islamic-umalqura-nu-latn', { timeZone: 'UTC', day: 'numeric', month: 'numeric', year: 'numeric' })
       .formatToParts(shifted).reduce((o, p) => (o[p.type] = p.value, o), {});
     day = +parts.day; month = +parts.month; year = +parts.year; source = 'umalqura';
   } else {
-    const civil = new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: 'numeric', day: 'numeric' })
-      .formatToParts(shifted).reduce((o, p) => (o[p.type] = +p.value, o), {});
-    ({ day, month, year } = tabularHijri(civil.year, civil.month, civil.day)); source = 'tabular';
+    ({ day, month, year } = tabularHijri(shifted.getUTCFullYear(), shifted.getUTCMonth() + 1, shifted.getUTCDate())); source = 'tabular';
   }
   const weekdayIndex = weekdayInTz(date, tz);
   const monthName = HIJRI_MONTHS_AR[month - 1];

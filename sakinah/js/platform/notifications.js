@@ -91,7 +91,7 @@ export function stopScheduler() { if (timer) clearInterval(timer); timer = null;
  * @param {object} prefs إعدادات الإشعارات { prayers: {fajr:true,...}, preMinutes }
  * @param {(d:Date)=>string} fmt منسّق الوقت
  */
-export function buildReminders(times, prefs, fmt, dateKey) {
+export function buildReminders(times, prefs, fmt, dateKey, num = (v) => String(v)) {
   const out = [];
   for (const key of ['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha']) {
     if (!prefs.prayers || !prefs.prayers[key]) continue;
@@ -101,7 +101,7 @@ export function buildReminders(times, prefs, fmt, dateKey) {
     else out.push({ id: `${dateKey}:${key}`, time: t, kind: 'adhan', prayer: key, title: `حان الآن موعد صلاة ${name}`, body: `${name} — ${fmt(t)}` });
     if (prefs.preMinutes > 0 && key !== 'sunrise') {
       const pre = new Date(t.getTime() - prefs.preMinutes * 60000);
-      out.push({ id: `${dateKey}:${key}:pre`, time: pre, kind: 'pre', prayer: key, title: `اقترب موعد صلاة ${name}`, body: `بقي ${prefs.preMinutes} دقيقة على الأذان (${fmt(t)})` });
+      out.push({ id: `${dateKey}:${key}:pre`, time: pre, kind: 'pre', prayer: key, title: `اقترب موعد صلاة ${name}`, body: `بقي ${num(prefs.preMinutes)} دقيقة على الأذان (${fmt(t)})` });
     }
   }
   return out;
@@ -109,7 +109,15 @@ export function buildReminders(times, prefs, fmt, dateKey) {
 
 /* ---------- تصدير ICS ---------- */
 function icsDate(d) { return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); }
-function icsEscape(s) { return String(s).replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\n/g, '\\n'); }
+function icsEscape(s) { return String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n'); }
+/** طيّ الأسطر الطويلة وفق RFC 5545 (≤ 75 بايت لكل سطر، متابعة بمسافة) */
+function icsFold(line) {
+  const enc = new TextEncoder(); const out = []; let cur = '';
+  for (const ch of line) {
+    if (enc.encode(cur + ch).length > 75) { out.push(cur); cur = ' ' + ch; } else cur += ch;
+  }
+  out.push(cur); return out.join('\r\n');
+}
 /**
  * @param {Array<{date, times}>} days  عناصر من computePrayerTimes
  * @param {object} opts { locationName, prayers: {fajr:true...}, preMinutes, includeSunrise }
@@ -134,7 +142,7 @@ export function buildICS(days, opts = {}) {
     }
   }
   lines.push('END:VCALENDAR');
-  return lines.join('\r\n') + '\r\n';
+  return lines.map(icsFold).join('\r\n') + '\r\n';
 }
 export function downloadFile(filename, content, type = 'text/calendar;charset=utf-8') {
   const blob = new Blob([content], { type });

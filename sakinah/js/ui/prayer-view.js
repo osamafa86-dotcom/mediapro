@@ -3,7 +3,7 @@
  * الجدول الشهري، تصدير التقويم.
  */
 import { h, icon, render, openSheet, closeSheet, toast, fmtCountdown, fmtDurationWords } from './components.js';
-import { PRAYERS, PRAYER_NAMES_AR, monthTable, civilDate, addDays } from '../core/prayer-times.js';
+import { PRAYERS, PRAYER_NAMES_AR, civilDate, addDays } from '../core/prayer-times.js';
 import { buildICS, downloadFile } from '../platform/notifications.js';
 import { describeLocation } from '../platform/location.js';
 
@@ -46,7 +46,12 @@ export function mount(container, app) {
     const bell = (key) => {
       const on = s.notifications.enabled && s.notifications.prayers[key];
       return h('button', { class: `bell ${on ? 'on' : ''}`, 'aria-label': `تنبيه ${PRAYER_NAMES_AR[key]}`, title: on ? 'التنبيه مفعّل' : 'التنبيه متوقف', onclick: async () => {
-        if (!s.notifications.enabled) { const ok = await app.enableNotifications(true); if (!ok) return; }
+        if (!app.settings.notifications.enabled) {
+          // أول تفعيل: نطلب الإذن ونفعّل هذه الصلاة تحديدًا
+          const ok = await app.enableNotifications(true); if (!ok) return;
+          app.set(`notifications.prayers.${key}`, true);
+          return;
+        }
         app.set(`notifications.prayers.${key}`, !app.settings.notifications.prayers[key]);
       } }, h('span', { html: icon(on ? 'bell' : 'bellOff') }));
     };
@@ -88,10 +93,10 @@ export function mount(container, app) {
     const now = new Date();
     if (now >= tl.next.time) { build(); return; }
     const remaining = tl.next.time - now;
-    els.prayerName.textContent = PRAYER_NAMES_AR[tl.next.key] + (tl.next.isTomorrow ? ' (غدًا)' : '');
+    els.prayerName.textContent = PRAYER_NAMES_AR[tl.next.key] + (tl.next.isTomorrow ? ' (غدًا)' : tl.next.isYesterday ? ' (ليلة الأمس)' : '');
     els.prayerTime.textContent = app.fmt(tl.next.time);
     els.count.textContent = fmtCountdown(remaining, app.numerals);
-    els.countLbl.textContent = `متبقٍ (${fmtDurationWords(remaining)})`;
+    els.countLbl.textContent = `متبقٍ (${fmtDurationWords(remaining, app.numerals)})`;
     // شريط التقدّم بين الصلاة الحالية والتالية
     const curKey = tl.current; const curTime = tl.times[curKey];
     let start = curTime && curTime < tl.next.time ? curTime.getTime() : tl.next.time.getTime() - 6 * 3600e3;
@@ -104,9 +109,9 @@ export function mount(container, app) {
     const now = new Date(); let civil = civilDate(now, app.tz); let y = civil.year, m = civil.month;
     const wrap = h('div', { class: 'table-wrap' }); const title = h('h3', {});
     const draw = () => {
-      const c = app.coords();
-      const params = app.prayerParams(new Date(Date.UTC(y, m - 1, 15)));
-      const rows = monthTable(c, y, m, params);
+      // معاملات كل يوم على حدة (رمضان قد يبدأ أو ينتهي وسط الشهر الميلادي)
+      const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+      const rows = []; for (let d = 1; d <= days; d++) rows.push(app.timesFor({ year: y, month: m, day: d }));
       title.textContent = `${MONTHS_AR[m - 1]} ${app.num(y)}`;
       const today = civilDate(new Date(), app.tz);
       render(wrap, h('table', { class: 'month' },

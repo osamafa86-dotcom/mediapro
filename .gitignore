@@ -5,3 +5,5 @@ sakinah/playwright-report/
 *.log
 !error_log
 .DS_Store
+# نصوص الصحيحين المرجعية (18 م.ب) — تُحمَّل بـ node tools/fetch-corpus.mjs
+sakinah/tests/fixtures/corpus/

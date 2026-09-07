@@ -40,6 +40,7 @@ export function defaultParams(overrides = {}) {
     custom: null,                 // { fajrAngle, ishaAngle, ishaInterval, maghribAngle } للطريقة المخصّصة
     isRamadan: false,             // لتفعيل بديل أم القرى الرمضاني (120 دقيقة)
     rounding: null,               // null = حسب الطريقة
+    tz: null,                     // المنطقة الزمنية للمستخدم: تضمن وقوع المواقيت في اليوم المدني المطلوب حتى في المناطق التي يخالف توقيتها خط طولها بأكثر من 12 ساعة (كيريباتي، ساموا…)
     ...overrides,
     ...(overrides.adjustments ? { adjustments: { fajr: 0, sunrise: 0, dhuhr: 0, asr: 0, maghrib: 0, isha: 0, ...overrides.adjustments } } : {}),
   };
@@ -134,11 +135,14 @@ export function resolveMethodParams(params) {
   const base = getMethod(params.method);
   const p = { ...base, adjustments: { ...base.adjustments } };
   if (params.method === 'Custom' && params.custom) {
+    // تحقق من صحة القيم المخصّصة: زوايا ضمن 4..30 درجة، فواصل غير سالبة؛ وإلا القيم الافتراضية
+    const angle = (v, def) => (Number.isFinite(+v) && +v >= 4 && +v <= 30 ? +v : def);
+    const nonneg = (v, def) => (Number.isFinite(+v) && +v >= 0 && +v <= 180 ? +v : def);
     Object.assign(p, {
-      fajrAngle: Number(params.custom.fajrAngle ?? 18),
-      ishaAngle: Number(params.custom.ishaAngle ?? 17),
-      ishaInterval: Number(params.custom.ishaInterval ?? 0),
-      maghribAngle: Number(params.custom.maghribAngle ?? 0),
+      fajrAngle: angle(params.custom.fajrAngle, 18),
+      ishaAngle: angle(params.custom.ishaAngle, 17),
+      ishaInterval: nonneg(params.custom.ishaInterval, 0),
+      maghribAngle: Number.isFinite(+params.custom.maghribAngle) && +params.custom.maghribAngle > 0 && +params.custom.maghribAngle <= 10 ? +params.custom.maghribAngle : 0,
     });
   }
   if (params.isRamadan && p.ishaIntervalRamadan) p.ishaInterval = p.ishaIntervalRamadan;
@@ -162,7 +166,7 @@ function nightPortions(rule, latitude, fajrAngle, ishaAngle) {
  * @param {object} params  انظر defaultParams
  * @returns {{fajr:Date, sunrise:Date, dhuhr:Date, asr:Date, maghrib:Date, isha:Date, sunset:Date, date:object, coords:object, resolved:object}}
  */
-export function computePrayerTimes(coords, date, params = defaultParams()) {
+export function computePrayerTimes(coords, date, params = defaultParams(), _shifted = false) {
   params = defaultParams(params);
   const mp = resolveMethodParams(params);
   const tomorrow = addDays(date, 1);
@@ -174,6 +178,14 @@ export function computePrayerTimes(coords, date, params = defaultParams()) {
   let sunriseTime = utcDate(date, solarTime.sunrise);
   let sunsetTime = utcDate(date, solarTime.sunset);
   let polarResolved = false;
+
+  // في المناطق التي يخالف توقيتها الرسمي خط طولها بأكثر من 12 ساعة (مثل Pacific/Apia وPacific/Kiritimati)
+  // قد يقع زوال اليوم اليولياني المحسوب في يوم مدني مجاور؛ نصحّح بإعادة الحساب ليوم قبله أو بعده.
+  if (params.tz && !_shifted && isValid(dhuhrTime)) {
+    const c = civilDate(dhuhrTime, params.tz);
+    const diff = Math.round((Date.UTC(c.year, c.month - 1, c.day) - Date.UTC(date.year, date.month - 1, date.day)) / 86400000);
+    if (diff !== 0 && Math.abs(diff) === 1) return computePrayerTimes(coords, addDays(date, -diff), params, true);
+  }
 
   if ((!isValid(sunriseTime) || !isValid(sunsetTime) || isNaN(tomorrowSolarTime.sunrise)) && params.polarResolution === 'aqrabbalad') {
     const r = aqrabBalad(coords, date, tomorrow);
@@ -196,9 +208,9 @@ export function computePrayerTimes(coords, date, params = defaultParams()) {
 
   // ---- الفجر ----
   let fajrTime = utcDate(date, solarTime.hourAngle(-mp.fajrAngle, false));
-  if (isMoonsighting && usedCoords.latitude >= 55) fajrTime = addSeconds(sunriseTime, -night / 7);
+  if (isMoonsighting && coords.latitude >= 55) fajrTime = addSeconds(sunriseTime, -night / 7);
   const safeFajr = isMoonsighting
-    ? seasonAdjustedMorningTwilight(usedCoords.latitude, doy, date.year, sunriseTime)
+    ? seasonAdjustedMorningTwilight(coords.latitude, doy, date.year, sunriseTime)
     : addSeconds(sunriseTime, -portions.fajr * night);
   let fajrSafe = false;
   if (!isValid(fajrTime) || safeFajr > fajrTime) { fajrTime = safeFajr; fajrSafe = true; }
@@ -209,9 +221,9 @@ export function computePrayerTimes(coords, date, params = defaultParams()) {
     ishaTime = addMinutes(sunsetTime, mp.ishaInterval);
   } else {
     ishaTime = utcDate(date, solarTime.hourAngle(-mp.ishaAngle, true));
-    if (isMoonsighting && usedCoords.latitude >= 55) ishaTime = addSeconds(sunsetTime, night / 7);
+    if (isMoonsighting && coords.latitude >= 55) ishaTime = addSeconds(sunsetTime, night / 7);
     const safeIsha = isMoonsighting
-      ? seasonAdjustedEveningTwilight(usedCoords.latitude, doy, date.year, sunsetTime, params.shafaq)
+      ? seasonAdjustedEveningTwilight(coords.latitude, doy, date.year, sunsetTime, params.shafaq)
       : addSeconds(sunsetTime, portions.isha * night);
     if (!isValid(ishaTime) || safeIsha < ishaTime) { ishaTime = safeIsha; ishaSafe = true; }
   }
@@ -235,7 +247,7 @@ export function computePrayerTimes(coords, date, params = defaultParams()) {
     maghrib: roundedMinute(addMinutes(maghribTime, adj('maghrib')), rounding),
     isha: roundedMinute(addMinutes(ishaTime, adj('isha')), rounding),
     date, coords,
-    resolved: { method: mp, polarResolved, usedLatitude: usedCoords.latitude, fajrSafe, ishaSafe, nightSeconds: night },
+    resolved: { method: mp, polarResolved, usedLatitude: usedCoords.latitude, fajrSafe, ishaSafe, nightSeconds: night, dayShifted: _shifted },
   };
   return out;
 }
@@ -257,23 +269,28 @@ export function sunnahTimes(coords, date, params = defaultParams()) {
  * @returns {{times, current:string|null, next:{key:string, time:Date}, sunnah}}
  */
 export function dayTimeline(coords, tz, params = defaultParams(), now = new Date()) {
+  params = defaultParams({ ...params, tz });
   const date = civilDate(now, tz);
   const times = computePrayerTimes(coords, date, params);
-  const sunnah = sunnahTimes(coords, date, params);
   const order = PRAYERS.filter(k => isValid(times[k]));
   let current = null, next = null;
   for (const k of order) {
     if (now >= times[k]) current = k; else if (!next) next = { key: k, time: times[k], isTomorrow: false };
   }
+  let yesterday = null;
+  if (current === null) {
+    // قبل فجر اليوم: نحن في ليلة الأمس؛ قد يكون عشاء الأمس لم يدخل بعد (خطوط العرض العالية صيفًا)
+    yesterday = computePrayerTimes(coords, addDays(date, -1), params);
+    if (isValid(yesterday.isha) && yesterday.isha > now) { current = 'maghrib'; next = { key: 'isha', time: yesterday.isha, isTomorrow: false, isYesterday: true }; }
+    else current = 'isha';
+  }
   if (!next) {
     const tomorrow = computePrayerTimes(coords, addDays(date, 1), params);
     next = { key: 'fajr', time: tomorrow.fajr, isTomorrow: true };
   }
-  if (current === null) {
-    // قبل الفجر: الصلاة "الحالية" هي عشاء الأمس
-    current = 'isha';
-  }
-  return { date, times, sunnah, current, next };
+  // منتصف الليل والثلث الأخير لليلة الجارية: قبل الفجر هي ليلة الأمس، وبعده ليلة اليوم
+  const sunnah = sunnahTimes(coords, now < times.fajr ? addDays(date, -1) : date, params);
+  return { date, times, sunnah, current, next, yesterdayIsha: yesterday && isValid(yesterday.isha) ? yesterday.isha : null };
 }
 
 /** جدول شهري */

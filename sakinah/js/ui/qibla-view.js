@@ -42,18 +42,30 @@ function roseSVG(bearing) {
 }
 
 export function mount(container, app) {
-  let compass = null; let decl = null; let declSource = ''; let reading = null; let els = {}; let info = null; let lastVib = 0;
+  let compass = null; let decl = null; let declSource = ''; let reading = null; let els = {}; let info = null; let lastVib = 0; let generation = 0;
 
   function stop() { if (compass) { compass.stop(); compass = null; } reading = null; }
 
   async function start(btn) {
+    const gen = ++generation;
     try {
       btn.disabled = true;
-      compass = await startCompass((r) => { reading = r; paint(); });
+      const c = await startCompass((r) => {
+        if (gen !== generation) return;
+        if (r === null) { // لا قراءات من المستشعر
+          stop(); render(btn, h('span', { html: icon('compass') }), ' تشغيل البوصلة'); btn.disabled = false; btn.onclick = () => start(btn);
+          if (els.status) render(els.status, h('div', { class: 'notice' }, h('span', { html: icon('warning') }), 'لم تصل قراءات من مستشعر الاتجاه؛ يبدو أن هذا الجهاز لا يملك بوصلة. استخدم الاتجاه بالدرجات مع بوصلة يدوية أو طريقة الشمس أدناه.'));
+          return;
+        }
+        reading = r; paint();
+      });
+      if (gen !== generation) { c.stop(); return; } // أُعيد بناء الشاشة أثناء طلب الإذن
+      compass = c;
       render(btn, h('span', { html: icon('close') }), ' إيقاف البوصلة');
       btn.disabled = false; btn.onclick = () => { stop(); build(); };
       if (els.status) render(els.status, h('div', { class: 'notice info' }, h('span', { html: icon('info') }), 'أمسك الهاتف أفقيًا بعيدًا عن المعادن والمغناطيس. إن كانت القراءة غير مستقرة حرّكه على شكل الرقم 8.'));
     } catch (e) {
+      if (gen !== generation) return;
       btn.disabled = false;
       const msg = e.code === 'denied' ? 'لم يُمنح إذن الوصول إلى مستشعرات الحركة. على iOS: الإعدادات ← Safari ← الحركة والاتجاه.' : e.code === 'insecure' ? 'تعمل البوصلة على HTTPS فقط.' : 'هذا الجهاز/المتصفح لا يوفّر بوصلة. استخدم الاتجاه بالدرجات مع بوصلة يدوية أو طريقة الشمس.';
       if (els.status) render(els.status, h('div', { class: 'notice danger' }, h('span', { html: icon('warning') }), msg));
@@ -123,6 +135,7 @@ export function mount(container, app) {
           h('div', {}, h('div', { class: 'v' }, `${app.num(Math.round(info.distanceKm), 0, true)} كم`), h('div', { class: 'k' }, 'المسافة إلى الكعبة')),
           h('div', {}, h('div', { class: 'v' }, declText), h('div', { class: 'k' }, `الانحراف المغناطيسي${declSource ? ` (${declSource})` : ''}`))),
         startBtn, h('div', { style: { marginTop: '10px' } }, els.status),
+        info.antipodal ? h('div', { class: 'notice', style: { marginTop: '10px' } }, h('span', { html: icon('warning') }), 'موقعك قريب جدًا من النقطة المقابلة للكعبة على الكرة الأرضية؛ اتجاه القبلة هنا غير محدد رياضيًا وكل الاتجاهات متقاربة في المسافة.') : null,
         declMode === 'off' ? h('div', { class: 'notice', style: { marginTop: '10px' } }, h('span', { html: icon('warning') }), 'تصحيح الانحراف المغناطيسي متوقف من الإعدادات؛ تُعرض الاتجاهات بالنسبة للشمال المغناطيسي.') : null,
         h('p', { class: 'tiny', style: { marginTop: '10px', lineHeight: '1.8' } },
           `الاتجاه محسوب جيوديسيًا على مجسّم WGS‑84 (Vincenty) من الشمال الحقيقي. الفرق عن الحل الكروي هنا ${app.num(Math.abs(info.difference), 3)}°. `,
@@ -141,7 +154,7 @@ export function mount(container, app) {
     paint();
   }
 
-  app.on('change', () => { stop(); if (app.current === 'qibla') build(); else info = null; });
+  app.on('change', () => { generation++; stop(); if (app.current === 'qibla') build(); else info = null; });
   build();
-  return { refresh: build, show: () => { if (!info) build(); }, hide: () => { stop(); if (els.acc) render(els.acc); if (app.location) build(); } };
+  return { refresh: build, show: () => { if (!info) build(); }, hide: () => { generation++; stop(); if (els.acc) render(els.acc); if (app.location) build(); } };
 }

@@ -8,7 +8,8 @@ import fs from 'node:fs';
 import { ADHKAR } from '../../js/data/adhkar.js';
 import { normalizeArabic, firstMismatch } from '../helpers/arabic.mjs';
 
-const REF = process.env.SAKINAH_REF_DIR || '/tmp/claude-0/-home-user-mediapro/c000bffe-65d6-581c-b6a2-d2d633ac7018/scratchpad/ref';
+// نص حصن المسلم الرسمي (hisnmuslim.com/api/ar/27.json) محفوظ في tests/fixtures
+const REF = process.env.SAKINAH_REF_DIR || new URL('../fixtures', import.meta.url).pathname;
 const HISN_FILE = `${REF}/hisn_27.json`;
 const haveHisn = fs.existsSync(HISN_FILE);
 
@@ -110,7 +111,9 @@ test('كل ذكر مطابق حرفيًا لنص حصن المسلم الرسم�
       const it = items[i];
       if (a.hisnId !== it.ID) { failures.push(`${a.id}: hisnId ${a.hisnId} != Hisn ID ${it.ID} (order)`); return; }
       const src = it.ARABIC_TEXT;
-      const nSrc = normalizeArabic(src), nText = normalizeArabic(a.text);
+      // المقارنة بلا مسافات (تجاوز اختلافات المسافات الطباعية في المصدر)، مع الاحتفاظ بنسخة بمسافات لجدول الاستبدال
+      const nTextSpaced = normalizeArabic(a.text);
+      const nSrc = normalizeArabic(src).replace(/\s+/g, ''), nText = nTextSpaced.replace(/\s+/g, '');
 
       if (!nSrc.includes(nText)) {
         const p = firstMismatch(src, a.text);
@@ -118,11 +121,11 @@ test('كل ذكر مطابق حرفيًا لنص حصن المسلم الرسم�
       }
 
       if (a.textEvening) {
-        const nEve = normalizeArabic(a.textEvening);
+        const nEveSpaced = normalizeArabic(a.textEvening), nEve = nEveSpaced.replace(/\s+/g, '');
         const inSource = nSrc.includes(nEve);
-        const mapsBack = swapNormalized(nEve) === nText;
+        const mapsBack = swapNormalized(nEveSpaced) === nTextSpaced;
         if (!inSource && !mapsBack) {
-          failures.push(`${a.id}: textEvening neither in Hisn ${it.ID} nor maps back to text via swap table:\n   swapped: ${swapNormalized(nEve)}\n   text   : ${nText}`);
+          failures.push(`${a.id}: textEvening neither in Hisn ${it.ID} nor maps back to text via swap table:\n   swapped: ${swapNormalized(nEveSpaced)}\n   text   : ${nTextSpaced}`);
         }
       } else if (/وإذا أمسى قال/.test(src) && a.period === 'both') {
         failures.push(`${a.id}: Hisn ${it.ID} has an evening variant but textEvening is missing`);

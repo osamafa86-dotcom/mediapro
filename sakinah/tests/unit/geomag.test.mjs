@@ -7,7 +7,14 @@ import {
 } from '../../js/core/geomag.js';
 
 const require = createRequire(import.meta.url);
-const TEST_VALUES = '/tmp/claude-0/-home-user-mediapro/c000bffe-65d6-581c-b6a2-d2d633ac7018/scratchpad/ref/WMM2025_TEST_VALUES.txt';
+
+// قيم الاختبار الرسمية من NOAA (ملك عام) محفوظة في tests/fixtures؛ يمكن تجاوز المجلد بـ SAKINAH_REF_DIR
+const REF = process.env.SAKINAH_REF_DIR || new URL('../fixtures', import.meta.url).pathname;
+const TEST_VALUES = `${REF}/WMM2025_TEST_VALUES.txt`;
+
+// حزمة المقارنة الاختيارية (devDependency): إن لم تكن مثبتة يُتخطى اختبار المقارنة بدل الفشل بـ MODULE_NOT_FOUND
+let geomagnetism = null;
+try { geomagnetism = require('geomagnetism'); } catch { /* غير مثبتة — نفّذ npm install */ }
 
 /** قراءة ملف قيم الاختبار الرسمية من NOAA: تُتجاهل أسطر '#'، والأعمدة: date alt lat lon X Y Z H F I D GV ... */
 function parseTestValues(path) {
@@ -69,8 +76,8 @@ test('تحويل الاتجاهات: magneticToTrue(350, 15) === 5 والعكس'
   }
 });
 
-test('مقارنة الانحراف مع حزمة geomagnetism (npm) في 12 نقطة حول العالم: |Δ| ≤ 0.05°', () => {
-  const geomagnetism = require('geomagnetism');
+test('مقارنة الانحراف مع حزمة geomagnetism (npm) في 12 نقطة حول العالم: |Δ| ≤ 0.05°',
+  { skip: !geomagnetism && 'geomagnetism npm package not installed (run npm install)' }, () => {
   const date = new Date('2026-03-15T12:00:00Z');
   const model = geomagnetism.model(date);
   const points = [

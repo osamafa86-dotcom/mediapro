@@ -38,7 +38,7 @@ export const app = {
     const s = this.settings;
     return defaultParams({
       method: this.methodId(), madhab: s.madhab, highLatitudeRule: s.highLatitudeRule, adjustments: s.adjustments, custom: s.custom,
-      isRamadan: isRamadan(now, this.tz, s.hijriOffset),
+      isRamadan: isRamadan(now, this.tz, s.hijriOffset), tz: this.tz,
     });
   },
   coords() { const l = this.location; return l ? { latitude: l.lat, longitude: l.lon } : null; },
@@ -55,6 +55,8 @@ export const app = {
 
   update(patch) { store.update(patch); this.emit('change'); },
   set(path, value) { store.set(path, value); this.emit('change'); },
+  replace(path, value) { store.replace(path, value); this.emit('change'); },
+  applyTextScale() { document.documentElement.style.setProperty('--text-scale', String(this.settings.textScale || 1)); },
   on(ev, fn) { if (!listeners.has(ev)) listeners.set(ev, new Set()); listeners.get(ev).add(fn); return () => listeners.get(ev).delete(fn); },
   emit(ev, data) { (listeners.get(ev) || []).forEach((fn) => { try { fn(data); } catch (e) { console.error(e); } }); },
 
@@ -128,10 +130,10 @@ export const app = {
     const c = this.coords(); const prefs = this.settings.notifications;
     if (!c || !prefs.enabled) return [];
     const now = new Date(); const out = [];
-    for (const off of [0, 1]) {
+    for (const off of [-1, 0, 1]) { // الأمس أيضًا: قد يقع عشاء الأمس بعد منتصف الليل في خطوط العرض العالية
       const civil = addDays(civilDate(now, this.tz), off);
       const t = this.timesFor(civil);
-      out.push(...notif.buildReminders(t, prefs, (d) => this.fmt(d), `${civil.year}-${civil.month}-${civil.day}`));
+      out.push(...notif.buildReminders(t, prefs, (d) => this.fmt(d), `${civil.year}-${civil.month}-${civil.day}`, (v) => this.num(v)));
     }
     return out;
   },
@@ -196,7 +198,7 @@ function boot() {
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); app.installPrompt = e; document.getElementById('btn-install').hidden = false; });
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => app.applyTheme());
   app.applyTheme();
-  document.documentElement.style.setProperty('--text-scale', String(app.settings.textScale || 1));
+  app.applyTextScale();
 
   const route = () => app.navigate((location.hash.replace(/^#\/?/, '') || 'prayer').split('?')[0], { replace: true });
   window.addEventListener('hashchange', route);

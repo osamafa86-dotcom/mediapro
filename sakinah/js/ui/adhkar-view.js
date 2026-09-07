@@ -15,7 +15,7 @@ export function mount(container, app) {
   }
   function progress() {
     const p = app.settings.adhkarProgress; const key = app.todayKey();
-    if (p.date !== key) { app.update({ adhkarProgress: { date: key, morning: {}, evening: {} } }); return app.settings.adhkarProgress; }
+    if (p.date !== key) { app.replace('adhkarProgress', { date: key, morning: {}, evening: {} }); return app.settings.adhkarProgress; }
     return p;
   }
   function items() { return ADHKAR.filter((d) => d.period === 'both' || d.period === period); }
@@ -69,7 +69,7 @@ export function mount(container, app) {
         h('div', { class: 'progress-ring' }, ring,
           h('div', { style: { flex: 1 } }, h('b', {}, period === 'morning' ? 'أذكار الصباح' : 'أذكار المساء'), h('div', { class: 'tiny' }, period === 'morning' ? 'من بعد الفجر إلى طلوع الشمس، وتُجزئ إلى الزوال' : 'من بعد العصر إلى الغروب، وتُجزئ إلى منتصف الليل'),
             h('div', { class: 'row wrap', style: { marginTop: '8px', gap: '8px' } },
-              h('button', { class: 'btn btn-sm btn-outline', onclick: () => { const p = progress(); p[period] = {}; app.update({ adhkarProgress: p }); build(); } }, h('span', { html: icon('reset') }), ' إعادة'),
+              h('button', { class: 'btn btn-sm btn-outline', onclick: () => { progress(); app.replace(`adhkarProgress.${period}`, {}); build(); } }, h('span', { html: icon('reset') }), ' إعادة'),
               h('label', { class: 'row tiny', style: { gap: '6px' } }, switchEl(hideDone, (v) => { hideDone = v; build(); }, 'إخفاء المكتمل'), 'إخفاء المكتمل'),
               h('div', { class: 'text-scale-ctl' }, h('button', { onclick: () => scale(-0.1), 'aria-label': 'تصغير الخط' }, 'أ-'), h('button', { onclick: () => scale(0.1), 'aria-label': 'تكبير الخط' }, 'أ+')))))),
       ...cards,
@@ -77,7 +77,7 @@ export function mount(container, app) {
   }
   function scale(d) {
     const v = Math.min(1.6, Math.max(0.8, +((app.settings.textScale || 1) + d).toFixed(2)));
-    app.set('textScale', v); document.documentElement.style.setProperty('--text-scale', String(v));
+    app.set('textScale', v); app.applyTextScale();
   }
   app.on('change', () => { if (app.current === 'adhkar') build(); else period = null; });
   build();

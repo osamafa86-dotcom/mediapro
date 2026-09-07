@@ -10,9 +10,11 @@
     "test:data": "node --test \"tests/data/*.test.mjs\"",
     "test:e2e": "node tests/e2e/smoke.mjs",
     "serve": "npx http-server . -p 8080 -c-1",
-    "icons": "node tools/make-icons.mjs"
+    "icons": "node tools/make-icons.mjs",
+    "fetch-corpus": "node tools/fetch-corpus.mjs"
   },
   "devDependencies": {
-    "adhan": "^4.4.3"
+    "adhan": "^4.4.3",
+    "geomagnetism": "^0.2.0"
   }
 }

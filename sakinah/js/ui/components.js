@@ -91,40 +91,58 @@ export function fmtCountdown(ms, numerals = 'latn') {
   return numerals === 'arab' ? arabicDigits(out) : out;
 }
 /** صيغة مدة بالكلمات: "بعد ساعتين و١٢ دقيقة" */
-export function fmtDurationWords(ms) {
+export function fmtDurationWords(ms, numerals = 'latn') {
   const m = Math.max(0, Math.round(ms / 60000));
   const hh = Math.floor(m / 60), mm = m % 60;
-  const hours = hh === 0 ? '' : hh === 1 ? 'ساعة' : hh === 2 ? 'ساعتين' : hh <= 10 ? `${hh} ساعات` : `${hh} ساعة`;
-  const mins = mm === 0 ? '' : mm === 1 ? 'دقيقة' : mm === 2 ? 'دقيقتين' : mm <= 10 ? `${mm} دقائق` : `${mm} دقيقة`;
+  const n = (v) => (numerals === 'arab' ? arabicDigits(String(v)) : String(v));
+  const hours = hh === 0 ? '' : hh === 1 ? 'ساعة' : hh === 2 ? 'ساعتين' : hh <= 10 ? `${n(hh)} ساعات` : `${n(hh)} ساعة`;
+  const mins = mm === 0 ? '' : mm === 1 ? 'دقيقة' : mm === 2 ? 'دقيقتين' : mm <= 10 ? `${n(mm)} دقائق` : `${n(mm)} دقيقة`;
   if (!hours && !mins) return 'الآن';
   return [hours, mins].filter(Boolean).join(' و');
 }
 
 /* ---------- الورقة السفلية ---------- */
-let sheetOnClose = null;
+let sheetOnClose = null; let sheetOpener = null;
 export function openSheet({ title, content, onClose }) {
   const sheet = document.getElementById('sheet'), back = document.getElementById('sheet-backdrop');
   document.getElementById('sheet-title').textContent = title || '';
   const body = document.getElementById('sheet-body');
   render(body, content);
+  body.scrollTop = 0;
   sheet.hidden = false; back.hidden = false;
   requestAnimationFrame(() => { sheet.classList.add('show'); back.classList.add('show'); });
   sheetOnClose = onClose || null;
+  sheetOpener = document.activeElement;
   document.body.style.overflow = 'hidden';
+  setTimeout(() => { const first = body.querySelector('input, button, select, [tabindex]'); (first || document.getElementById('sheet-close')).focus({ preventScroll: true }); }, 320);
   return { close: closeSheet, body };
 }
 export function closeSheet() {
   const sheet = document.getElementById('sheet'), back = document.getElementById('sheet-backdrop');
+  if (sheet.hidden) return;
   sheet.classList.remove('show'); back.classList.remove('show');
   document.body.style.overflow = '';
-  setTimeout(() => { sheet.hidden = true; back.hidden = true; }, 300);
+  setTimeout(() => { sheet.hidden = true; back.hidden = true; document.getElementById('sheet-body').scrollTop = 0; }, 300);
+  if (sheetOpener && typeof sheetOpener.focus === 'function' && document.contains(sheetOpener)) { try { sheetOpener.focus({ preventScroll: true }); } catch {} }
+  sheetOpener = null;
   if (sheetOnClose) { const fn = sheetOnClose; sheetOnClose = null; fn(); }
 }
 export function initSheet() {
   document.getElementById('sheet-close').innerHTML = icon('close');
   document.getElementById('sheet-close').addEventListener('click', closeSheet);
   document.getElementById('sheet-backdrop').addEventListener('click', closeSheet);
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !document.getElementById('sheet').hidden) closeSheet(); });
+  document.addEventListener('keydown', (e) => {
+    const sheet = document.getElementById('sheet');
+    if (sheet.hidden) return;
+    if (e.key === 'Escape') closeSheet();
+    if (e.key === 'Tab') { // حصر التنقّل داخل الورقة
+      const f = [...sheet.querySelectorAll('button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])')].filter((el) => !el.disabled && el.offsetParent !== null);
+      if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  });
 }
 
 /* ---------- التنبيه العابر ---------- */

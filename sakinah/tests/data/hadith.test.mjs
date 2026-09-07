@@ -8,7 +8,9 @@ import fs from 'node:fs';
 import { HADITHS, HADITH_TOPICS } from '../../js/data/hadith.js';
 import { normalizeArabic, containsNormalized, firstMismatch } from '../helpers/arabic.mjs';
 
-const REF = process.env.SAKINAH_REF_DIR || '/tmp/claude-0/-home-user-mediapro/c000bffe-65d6-581c-b6a2-d2d633ac7018/scratchpad/ref';
+// مجلد النصوص المرجعية: متغير البيئة، ثم tests/fixtures/corpus (حمّله بـ node tools/fetch-corpus.mjs)
+const CANDIDATES = [process.env.SAKINAH_REF_DIR, new URL('../fixtures/corpus/', import.meta.url).pathname].filter(Boolean);
+const REF = CANDIDATES.find(d => fs.existsSync(`${d}/bukhari_ar.json`) && fs.existsSync(`${d}/muslim_ar.json`)) || CANDIDATES[CANDIDATES.length - 1];
 const haveCorpus = fs.existsSync(`${REF}/bukhari_ar.json`) && fs.existsSync(`${REF}/muslim_ar.json`);
 
 function loadCorpus(col) {

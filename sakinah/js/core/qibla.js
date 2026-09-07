@@ -83,6 +83,8 @@ export function qiblaInfo(latitude, longitude) {
     bearing, bearingSpherical: sph, distanceKm: v.distanceKm,
     difference: quadrantShiftAngle(bearing - sph),
     compassPoint: compassPointAr(bearing),
+    /** قرب النقطة المقابلة للكعبة (شرق بولينيزيا) لا يتقارب حل Vincenty والاتجاه غير محدد عمليًا */
+    antipodal: !v.converged || v.distanceKm > 19900,
   };
 }
 
@@ -120,7 +122,9 @@ export function sunQiblaMoments(latitude, longitude, civil, tz) {
           if (Math.sign(fm) === Math.sign(flo)) { lo = mid; flo = fm; } else hi = mid;
         }
         const res = new Date(Math.round((lo.getTime() + hi.getTime()) / 2000) * 1000);
-        if (sunPosition(res, latitude, longitude).altitude > 0) return res;
+        const pr = sunPosition(res, latitude, longitude);
+        // نرفض العبور الزائف قرب سمت الرأس (السمت ينقلب 180° في ثوانٍ) ونتأكد أن الفرق المتبقي صغير فعلًا
+        if (pr.altitude > 0 && pr.altitude < 85 && Math.abs(signedDifference(pr.azimuth, target)) < 0.5) return res;
       }
       prev = f; prevT = t;
     }
@@ -131,18 +135,14 @@ export function sunQiblaMoments(latitude, longitude, civil, tz) {
 
 /** منتصف الليل المحلي (بداية اليوم المدني) كلحظة UTC */
 export function localMidnightUTC(civil, tz) {
-  // نبدأ من تخمين UTC ثم نصحّح بفارق المنطقة
-  let guess = Date.UTC(civil.year, civil.month - 1, civil.day, 0, 0, 0);
-  for (let i = 0; i < 3; i++) {
-    const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' })
-      .formatToParts(new Date(guess)).reduce((o, p) => (o[p.type] = p.value, o), {});
-    const asUTC = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute);
-    const diff = asUTC - guess; // فارق المنطقة عند هذه اللحظة
-    const target = Date.UTC(civil.year, civil.month - 1, civil.day, 0, 0, 0);
-    const next = target - diff;
-    if (next === guess) break;
-    guess = next;
-  }
+  const fmt = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+  const wall = (ms) => { const p = fmt.formatToParts(new Date(ms)).reduce((o, x) => (o[x.type] = x.value, o), {}); return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute); };
+  const target = Date.UTC(civil.year, civil.month - 1, civil.day, 0, 0, 0);
+  // نبدأ من تخمين UTC ثم نصحّح بفارق المنطقة (تكرار حتى الاستقرار)
+  let guess = target;
+  for (let i = 0; i < 4; i++) { const next = target - (wall(guess) - guess); if (next === guess) break; guess = next; }
+  // إن لم تكن الساعة 00:00 موجودة (تحويل التوقيت الصيفي عند منتصف الليل كما في القاهرة) نأخذ أول لحظة في اليوم المدني المطلوب
+  if (wall(guess) < target) { let t = guess; for (let i = 0; i < 180 && wall(t) < target; i++) t += 60000; guess = t; }
   return new Date(guess);
 }
 

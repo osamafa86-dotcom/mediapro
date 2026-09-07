@@ -60,6 +60,18 @@ export function set(path, value) {
   keys.forEach((k, i) => { cur[k] = i === keys.length - 1 ? value : {}; cur = cur[k]; });
   return update(patch);
 }
+/** استبدال قيمة كاملة دون دمج عميق (للكائنات التي يجب تصفيرها مثل تقدّم الأذكار) */
+export function replace(path, value) {
+  const keys = path.split('.');
+  const next = { ...state }; let cur = next;
+  keys.forEach((k, i) => {
+    if (i === keys.length - 1) cur[k] = value;
+    else { cur[k] = { ...(cur[k] || {}) }; cur = cur[k]; }
+  });
+  state = next; persist();
+  for (const fn of listeners) { try { fn(state, { [path]: value }); } catch (e) { console.error(e); } }
+  return state;
+}
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 export function resetAll() { state = deepMerge(DEFAULT_SETTINGS, {}); persist(); for (const fn of listeners) fn(state, {}); }
 

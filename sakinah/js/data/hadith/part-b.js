@@ -10,7 +10,7 @@ export const PART_B = [
     id: 'h101',
     collection: 'bukhari',
     number: 6484,
-    alsoIn: { collection: 'muslim', number: 41 },
+    alsoIn: { collection: 'muslim', number: 40 },
     grade: 'متفق عليه',
     narrator: 'عبد الله بن عمرو بن العاص رضي الله عنهما',
     text: 'قَالَ النَّبِيُّ ﷺ الْمُسْلِمُ مَنْ سَلِمَ الْمُسْلِمُونَ مِنْ لِسَانِهِ وَيَدِهِ، وَالْمُهَاجِرُ مَنْ هَجَرَ مَا نَهَى اللَّهُ عَنْهُ',

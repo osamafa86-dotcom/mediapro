@@ -30,14 +30,16 @@ export function headingFromEuler(alpha, beta, gamma, screenAngleDeg = 0) {
   // مصفوفة الدوران R = Rz(α)·Rx(β)·Ry(γ) (W3C)؛ نأخذ العمود الثاني (محور y للجهاز = رأس الهاتف) في إطار الأرض (شرق، شمال، أعلى)
   // اشتقاق دقيق: R = Rz(α)·Rx(β)·Ry(γ)؛ العمود y = R·[0,1,0]^T = [ -sinα·cosβ , cosα·cosβ , sinβ ]
   const ex = -sA * cB, ny = cA * cB;
-  let heading = Math.atan2(ex, ny) / d; // زاوية اتجاه رأس الجهاز من الشمال باتجاه الشرق
-  // عند إمالة الجهاز نحو الوجه (beta ~ 90°) يصير المحور y عموديًا؛ نستخدم حينها المحور -z (ظهر الكاميرا)
+  const headY = Math.atan2(ex, ny); // اتجاه رأس الجهاز من الشمال باتجاه الشرق (راديان)
+  // عند رفع الجهاز رأسيًا (beta → ±90°) يصير المحور y عموديًا فلا يصلح؛ نستخدم اتجاه ظهر الجهاز (-z):
+  // العمود z = R·[0,0,1]^T = [ cosα·sinγ + sinα·sinβ·cosγ , sinα·sinγ - cosα·sinβ·cosγ , cosβ·cosγ ]
+  const zx = cA * sG + sA * sB * cG, zy = sA * sG - cA * sB * cG;
+  const headZ = Math.atan2(-zx, -zy);
+  // مزج دائري سلس بين التقديرين بحسب المركبة الأفقية لمحور y لتفادي القفز عند نقطة التبديل
   const horizontal = Math.hypot(ex, ny);
-  if (horizontal < 0.2) {
-    // العمود z = R·[0,0,1]^T = [ cosα·sinγ + sinα·sinβ·cosγ , sinα·sinγ - cosα·sinβ·cosγ , cosβ·cosγ ] ؛ الاتجاه = -z
-    const zx = cA * sG + sA * sB * cG, zy = sA * sG - cA * sB * cG;
-    heading = Math.atan2(-zx, -zy) / d;
-  }
+  const w = Math.min(1, Math.max(0, (horizontal - 0.15) / 0.25)); // 1 = جهاز مستوٍ، 0 = رأسي
+  const vx = w * Math.cos(headY) + (1 - w) * Math.cos(headZ), vy = w * Math.sin(headY) + (1 - w) * Math.sin(headZ);
+  let heading = (Math.hypot(vx, vy) < 1e-9 ? headY : Math.atan2(vy, vx)) / d;
   heading = (heading + screenAngleDeg) % 360; // تعويض دوران الشاشة (الزاوية تُقاس عكس عقارب الساعة من الوضع الطبيعي)
   return (heading + 360) % 360;
 }
@@ -56,11 +58,11 @@ export class HeadingSmoother {
 
 /**
  * بدء الاستماع للبوصلة.
- * @param {(reading:{magneticHeading:number, accuracy:number|null, source:string, absolute:boolean})=>void} onReading
+ * @param {(reading:{magneticHeading:number, accuracy:number|null, source:string, absolute:boolean}|null)=>void} onReading  تُستدعى بـ null إن لم تصل أي قراءة خلال المهلة
  * @returns {Promise<{stop:()=>void, source:string}>}
  * @throws {Error} code: 'denied' | 'unsupported' | 'insecure'
  */
-export async function startCompass(onReading) {
+export async function startCompass(onReading, { noReadingTimeoutMs = 4000 } = {}) {
   if (typeof window === 'undefined' || !('DeviceOrientationEvent' in window)) throw Object.assign(new Error('unsupported'), { code: 'unsupported' });
   if (typeof isSecureContext !== 'undefined' && !isSecureContext) throw Object.assign(new Error('insecure'), { code: 'insecure' });
   if (typeof DeviceOrientationEvent.requestPermission === 'function') {
@@ -69,11 +71,13 @@ export async function startCompass(onReading) {
     if (res !== 'granted') throw Object.assign(new Error('denied'), { code: 'denied' });
   }
   const smoother = new HeadingSmoother(0.3);
-  let source = 'none', gotAbsolute = false, timer = null;
+  let source = 'none', gotAbsolute = false, gotAny = false;
+  // مهلة: بعض الأجهزة (حواسيب، أجهزة بلا مقياس مغناطيسي) تعرّف الحدث ولا ترسل قراءات
+  const timer = setTimeout(() => { if (!gotAny) onReading(null); }, noReadingTimeoutMs);
   const handler = (ev) => {
     let heading = null, accuracy = null, absolute = false;
     if (typeof ev.webkitCompassHeading === 'number' && ev.webkitCompassHeading >= 0) {
-      heading = (ev.webkitCompassHeading + screenAngle()) % 360; // iOS: مغناطيسي، نسبةً إلى رأس الجهاز في الوضع الطبيعي
+      heading = (((ev.webkitCompassHeading + screenAngle()) % 360) + 360) % 360; // iOS: مغناطيسي، نسبةً إلى رأس الجهاز في الوضع الطبيعي
       accuracy = typeof ev.webkitCompassAccuracy === 'number' && ev.webkitCompassAccuracy >= 0 ? ev.webkitCompassAccuracy : null;
       absolute = true; source = 'ios';
     } else if (ev.alpha !== null && ev.alpha !== undefined && (ev.absolute || ev.type === 'deviceorientationabsolute')) {
@@ -85,6 +89,7 @@ export async function startCompass(onReading) {
       absolute = false; source = 'relative';
     }
     if (heading === null || Number.isNaN(heading)) return;
+    gotAny = true; clearTimeout(timer);
     if (absolute) gotAbsolute = true;
     onReading({ magneticHeading: smoother.push(heading), raw: heading, accuracy, source, absolute });
   };
@@ -96,7 +101,7 @@ export async function startCompass(onReading) {
     stop() {
       window.removeEventListener('deviceorientationabsolute', handler, true);
       window.removeEventListener('deviceorientation', handler, true);
-      if (timer) clearTimeout(timer);
+      clearTimeout(timer);
     },
   };
 }
