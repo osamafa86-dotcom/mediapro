@@ -22,6 +22,12 @@ export const DEFAULT_SETTINGS = {
     vibrate: true,
   },
   compass: { declinationMode: 'auto' }, // 'auto' | 'on' | 'off'
+  quran: {
+    lastRead: null,          // { page, surah, ayah, at }
+    bookmarks: [],           // [{ surah, ayah, page, at }]
+    reciter: 'ar.alafasy', repeatAyah: 1, repeatRange: false, rate: 1, follow: true,
+    fontScale: 1, hifzOnlyCurrent: true,
+  },
   adhkarProgress: { date: null, morning: {}, evening: {} },
   favorites: [],
   seenIntro: false,

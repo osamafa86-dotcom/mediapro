@@ -15,17 +15,19 @@ const result = await build({
   minify: true, charset: 'utf8', legalComments: 'none', write: false, logLevel: 'warning',
 });
 const js = result.outputFiles[0].text;
-const css = fs.readFileSync(path.join(root, 'css/app.css'), 'utf8');
+const fontB64 = fs.readFileSync(path.join(root, 'assets/fonts/AmiriQuran.woff2')).toString('base64');
+const css = fs.readFileSync(path.join(root, 'css/app.css'), 'utf8').replace("url('../assets/fonts/AmiriQuran.woff2')", `url(data:font/woff2;base64,${fontB64})`);
 const svg = fs.readFileSync(path.join(root, 'assets/icons/icon.svg'), 'utf8');
 const svgUri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
 let html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+const quranJson = fs.readFileSync(path.join(root, 'data/quran.json'), 'utf8').replace(/<\/script/gi, '<\\/script');
 
 html = html
   .replace(/\s*<link rel="manifest"[^>]*>/, '')
   .replace(/\s*<link rel="apple-touch-icon"[^>]*>/, '')
   .replace(/<link rel="icon" href="assets\/icons\/icon.svg" type="image\/svg\+xml">/, `<link rel="icon" href="${svgUri}" type="image/svg+xml">`)
   .replace(/<link rel="stylesheet" href="css\/app.css">/, `<style>\n${css}\n</style>`)
-  .replace(/<script type="module" src="js\/app.js"><\/script>/, `<script>window.SAKINAH_STANDALONE=true;</script>\n<script>\n${js}\n</script>`)
+  .replace(/<script type="module" src="js\/app.js"><\/script>/, `<script>window.SAKINAH_STANDALONE=true;window.SAKINAH_QURAN=${quranJson};</script>\n<script>\n${js}\n</script>`)
   .replace('<title>سكينة — مواقيت الصلاة والقبلة والأذكار</title>', '<title>سكينة — نسخة تجريبية (ملف واحد)</title>');
 
 if (!html.includes('SAKINAH_STANDALONE') || html.includes('css/app.css')) throw new Error('template replacement failed');

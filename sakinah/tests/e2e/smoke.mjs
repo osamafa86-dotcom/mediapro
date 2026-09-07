@@ -80,15 +80,61 @@ check(firstDone || /^\s*[٠-٩\d]+/.test(firstBtnText), `العدّاد يستج
 check(/\/\s*\d+|\d+\s*\//.test((await page.locator('.ring output').textContent()).replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))), 'حلقة التقدّم تعرض النسبة');
 await page.screenshot({ animations: 'disabled', path: path.join(outDir, '04-adhkar.png') });
 
-await page.locator('#tab-hadith').click();
-await page.locator('.hadith.daily').waitFor();
-check((await page.locator('.hadith').count()) >= 10, 'قائمة الأحاديث مع حديث اليوم');
-await page.locator('.search input').fill('الأعمال بالني');
+// ---- المصحف ----
+await page.locator('#tab-quran').click();
+await page.locator('.surah-row').first().waitFor({ timeout: 20000 });
+check((await page.locator('#view-quran .surah-row').count()) === 114, 'فهرس السور: 114 سورة');
+await page.locator('#view-quran .search input').fill('الكهف');
+await page.waitForTimeout(150);
+check(/الكهف/.test(await page.locator('#view-quran .surah-row').first().textContent()), 'البحث عن سورة الكهف');
+await page.locator('#view-quran .surah-row').first().click();
+await page.locator('.mushaf').waitFor();
+check(/الكهف/.test(await page.locator('.quran-top .title').textContent()), 'القارئ يفتح سورة الكهف');
+check((await page.locator('.mushaf .ayah').count()) >= 4 && /سورة الكهف/.test(await page.locator('.surah-head').first().textContent()), 'صفحة المصحف تعرض الآيات وترويسة السورة والبسملة');
+check(/293/.test((await page.locator('.page-foot').textContent()).replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))), 'سورة الكهف تبدأ في الصفحة 293');
+await page.locator('.page-nav .btn-outline').last().click(); // التالية
+await page.waitForTimeout(100);
+check(/294/.test((await page.locator('.page-foot').textContent()).replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))), 'الانتقال إلى الصفحة التالية');
+await page.screenshot({ path: path.join(outDir, '08-quran.png') });
+// علامة وموضع قراءة عبر قائمة الآية
+await page.locator('.mushaf .ayah').first().click();
+await page.getByRole('button', { name: /إضافة علامة/ }).click();
+await page.waitForTimeout(400);
+check(/أُضيفت علامة/.test(await page.locator('#toast').textContent()), 'إضافة علامة عند الآية');
+// وضع مراجعة الحفظ: الكلمات مخفية ثم تُكشف بالنقر
+await page.locator('.quran-top .actions .icon-btn').first().click();
+await page.locator('.hifz-panel').waitFor();
+const hiddenBefore = await page.locator('.mushaf.hifz .w.spoken:not(.revealed)').count();
+check(hiddenBefore > 20, `وضع المراجعة يخفي الكلمات (${hiddenBefore} كلمة)`);
+await page.getByRole('button', { name: /تلميح/ }).click();
+await page.getByRole('button', { name: /تلميح/ }).click();
+check((await page.locator('.mushaf.hifz .w.spoken.revealed').count()) === 2, 'التلميح يكشف الكلمة التالية بالترتيب');
+check(/2\s*\/|٢\s*\//.test(await page.locator('.hifz-panel .tiny').textContent()), 'عدّاد التقدّم يعرض 2 كلمة');
+await page.screenshot({ path: path.join(outDir, '09-hifz.png') });
+await page.locator('.quran-top .actions .icon-btn').first().click(); // خروج من وضع المراجعة
+check((await page.locator('.mushaf.hifz').count()) === 0, 'الخروج من وضع المراجعة');
+// التشغيل: يظهر شريط التلاوة (الصوت محجوب في الاختبار)
+await page.route(/cdn\.islamic\.network/, (r) => r.abort());
+await page.getByRole('button', { name: /الصفحة/ }).click();
+await page.locator('#audio-bar').waitFor({ timeout: 5000 });
+check(/العفاسي/.test(await page.locator('#audio-bar .who').textContent()), 'شريط التلاوة يعرض القارئ الافتراضي');
+await page.locator('#audio-bar').getByRole('button', { name: 'إغلاق' }).click();
+check((await page.locator('#audio-bar').count()) === 0, 'إغلاق شريط التلاوة');
+// العودة للفهرس: بطاقة المتابعة تعرض آخر موضع
+await page.locator('.quran-top .icon-btn').first().click();
+await page.locator('.resume-card').waitFor();
+check(/الكهف/.test(await page.locator('.resume-card').textContent()), 'بطاقة متابعة القراءة تحفظ الموضع');
+
+await page.locator('#tab-more').click();
+await page.getByRole('button', { name: /الأحاديث/ }).first().click();
+await page.locator('#view-hadith .hadith.daily').waitFor();
+check((await page.locator('#view-hadith .hadith').count()) >= 10, 'قائمة الأحاديث مع حديث اليوم');
+await page.locator('#view-hadith .search input').fill('الأعمال بالني');
 await page.waitForTimeout(200);
-check((await page.locator('.hadith').count()) >= 1 && /الأَعْمَالُ|الأعمال/.test(await page.locator('.hadith:not(.daily) .matn').first().textContent()), 'البحث يجد حديث النية');
+check((await page.locator('#view-hadith .hadith').count()) >= 1 && /الأَعْمَالُ|الأعمال/.test(await page.locator('#view-hadith .hadith:not(.daily) .matn').first().textContent()), 'البحث يجد حديث النية');
 await page.screenshot({ animations: 'disabled', path: path.join(outDir, '05-hadith.png') });
 
-await page.locator('#tab-settings').click();
+await page.locator('#btn-settings').click();
 await page.locator('#view-settings select').first().waitFor();
 check(/الأردن/.test(await page.locator('#view-settings select').first().locator('option').first().textContent()), 'الإعدادات تعرض الطريقة التلقائية (الأردن)');
 await page.locator('#view-settings select').first().selectOption('UmmAlQura');

@@ -19,9 +19,14 @@ ok(/الرياض/.test(await page.locator('.loc-chip').textContent()), 'المو
 ok(/أم القرى/.test(await page.locator('#view-prayer .tiny').last().textContent()), 'الطريقة التلقائية: أم القرى');
 await page.locator('#tab-qibla').click(); await page.locator('.compass-rose').waitFor();
 ok(!/غير متاح/.test(await page.locator('.kv').first().textContent()), 'WMM2025 يعمل داخل الملف الواحد');
+await page.locator('#tab-quran').click(); await page.locator('#view-quran .surah-row').first().waitFor();
+ok((await page.locator('#view-quran .surah-row').count()) === 114, 'المصحف مضمّن: 114 سورة بلا شبكة');
+await page.locator('#view-quran .surah-row').nth(1).click(); await page.locator('.mushaf').waitFor();
+ok((await page.locator('.mushaf .ayah').count()) >= 4, 'قارئ المصحف يعرض صفحة البقرة');
+await page.locator('.quran-top .icon-btn').first().click();
 await page.locator('#tab-adhkar').click(); ok((await page.locator('.dhikr').count()) >= 20, 'الأذكار');
-await page.locator('#tab-hadith').click(); ok((await page.locator('.hadith').count()) >= 10, 'الأحاديث');
-await page.locator('#tab-settings').click(); ok((await page.locator('#view-settings select').count()) >= 3, 'الإعدادات');
+await page.locator('#tab-more').click(); await page.getByRole('button', { name: /الأحاديث/ }).first().click(); ok((await page.locator('#view-hadith .hadith').count()) >= 10, 'الأحاديث');
+await page.locator('#btn-settings').click(); ok((await page.locator('#view-settings select').count()) >= 3, 'الإعدادات');
 await page.screenshot({ path: path.join(path.dirname(file), '..', 'test-results', 'standalone.png') }).catch(() => {});
 ok(errors.length === 0, 'لا أخطاء' + (errors.length ? ': ' + errors.join(' | ') : ''));
 await browser.close();

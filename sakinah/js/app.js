@@ -13,9 +13,20 @@ import * as qiblaView from './ui/qibla-view.js';
 import * as adhkarView from './ui/adhkar-view.js';
 import * as hadithView from './ui/hadith-view.js';
 import * as settingsView from './ui/settings-view.js';
+import * as quranView from './ui/quran-view.js';
+import * as moreView from './ui/more-view.js';
 
 const listeners = new Map();
-const VIEWS = { prayer: { title: 'الصلاة', icon: 'prayer', mod: prayerView }, qibla: { title: 'القبلة', icon: 'qibla', mod: qiblaView }, adhkar: { title: 'الأذكار', icon: 'adhkar', mod: adhkarView }, hadith: { title: 'الأحاديث', icon: 'hadith', mod: hadithView }, settings: { title: 'الإعدادات', icon: 'settings', mod: settingsView } };
+const VIEWS = {
+  prayer: { title: 'الصلاة', icon: 'prayer', mod: prayerView, tab: 'prayer' },
+  quran: { title: 'المصحف', icon: 'book', mod: quranView, tab: 'quran' },
+  qibla: { title: 'القبلة', icon: 'qibla', mod: qiblaView, tab: 'qibla' },
+  adhkar: { title: 'الأذكار', icon: 'adhkar', mod: adhkarView, tab: 'adhkar' },
+  more: { title: 'المزيد', icon: 'more', mod: moreView, tab: 'more' },
+  hadith: { title: 'الأحاديث', icon: 'hadith', mod: hadithView, tab: 'more' },
+  settings: { title: 'الإعدادات', icon: 'settings', mod: settingsView, tab: 'more' },
+};
+const TABS = ['prayer', 'quran', 'qibla', 'adhkar', 'more'];
 
 export const app = {
   version: '1.0.0',
@@ -63,10 +74,11 @@ export const app = {
   navigate(view, { replace = false } = {}) {
     if (!VIEWS[view]) view = 'prayer';
     const prev = this.current; this.current = view;
-    for (const k of Object.keys(VIEWS)) {
-      document.getElementById(`view-${k}`).classList.toggle('active', k === view);
-      document.getElementById(`tab-${k}`).classList.toggle('active', k === view);
-      document.getElementById(`tab-${k}`).setAttribute('aria-current', k === view ? 'page' : 'false');
+    for (const k of Object.keys(VIEWS)) document.getElementById(`view-${k}`).classList.toggle('active', k === view);
+    for (const t of TABS) {
+      const el = document.getElementById(`tab-${t}`);
+      el.classList.toggle('active', VIEWS[view].tab === t);
+      el.setAttribute('aria-current', VIEWS[view].tab === t ? 'page' : 'false');
     }
     if (prev !== view && this.mounted[prev] && this.mounted[prev].hide) this.mounted[prev].hide();
     if (this.mounted[view] && this.mounted[view].show) this.mounted[view].show();
@@ -186,13 +198,16 @@ function updateHeader() {
 function boot() {
   initSheet();
   // التبويبات
-  for (const [k, v] of Object.entries(VIEWS)) {
-    const tab = document.getElementById(`tab-${k}`);
-    tab.innerHTML = `${icon(v.icon)}<span>${v.title}</span>`;
-    tab.addEventListener('click', () => app.navigate(k));
-    app.mounted[k] = v.mod.mount(document.getElementById(`view-${k}`), app);
+  for (const t of TABS) {
+    const tab = document.getElementById(`tab-${t}`);
+    tab.innerHTML = `${icon(VIEWS[t].icon)}<span>${VIEWS[t].title}</span>`;
+    tab.addEventListener('click', () => app.navigate(t));
   }
+  for (const [k, v] of Object.entries(VIEWS)) app.mounted[k] = v.mod.mount(document.getElementById(`view-${k}`), app);
   document.getElementById('btn-theme').addEventListener('click', () => app.cycleTheme());
+  document.getElementById('btn-settings').innerHTML = icon('settings');
+  document.getElementById('btn-settings').addEventListener('click', () => app.navigate('settings'));
+  document.documentElement.style.setProperty('--quran-scale', String((app.settings.quran && app.settings.quran.fontScale) || 1));
   document.getElementById('btn-install').innerHTML = icon('install');
   document.getElementById('btn-install').addEventListener('click', () => app.install());
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); app.installPrompt = e; document.getElementById('btn-install').hidden = false; });

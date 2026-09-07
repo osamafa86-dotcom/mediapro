@@ -58,7 +58,7 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: 70px; scroll-padding-bottom: calc(var(--tab-h) + 90px); }
 body {
   margin: 0; font-family: var(--font-ui); background: var(--bg); color: var(--text);
   min-height: 100vh; line-height: 1.55; -webkit-font-smoothing: antialiased;
@@ -164,7 +164,7 @@ select.input { appearance: none; background-image: url("data:image/svg+xml,%3Csv
 .stepper button { width: 38px; height: 38px; border: 0; background: var(--bg-soft); font-size: 18px; font-weight: 900; }
 .stepper output { min-width: 44px; text-align: center; font-weight: 800; font-variant-numeric: tabular-nums; }
 
-.toast { position: fixed; bottom: calc(var(--tab-h) + var(--safe-b) + 16px); left: 50%; transform: translate(-50%, 20px); background: var(--text); color: var(--bg); padding: 12px 18px; border-radius: 14px; font-weight: 700; opacity: 0; transition: .25s; z-index: 60; max-width: 90vw; text-align: center; box-shadow: var(--shadow-lg); }
+.toast { pointer-events: none; position: fixed; bottom: calc(var(--tab-h) + var(--safe-b) + 16px); left: 50%; transform: translate(-50%, 20px); background: var(--text); color: var(--bg); padding: 12px 18px; border-radius: 14px; font-weight: 700; opacity: 0; transition: .25s; z-index: 60; max-width: 90vw; text-align: center; box-shadow: var(--shadow-lg); }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 /* ---------- الورقة السفلية (Sheet) ---------- */
@@ -309,3 +309,79 @@ details.more[open] summary::before { content: '▾ '; }
 .ltr { direction: ltr; unicode-bidi: isolate; }
 .text-scale-ctl { display: inline-flex; gap: 4px; }
 .text-scale-ctl button { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-elev); font-weight: 900; }
+
+/* ---------- المصحف ---------- */
+/* خط Amiri Quran (SIL OFL) مضمّن محليًا حتى يُعرض الرسم العثماني وعلامات الوقف صحيحة دون الاعتماد على الشبكة */
+@font-face { font-family: 'Amiri Quran'; font-style: normal; font-weight: 400; font-display: swap; src: url('../assets/fonts/AmiriQuran.woff2') format('woff2'); }
+.quran-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.quran-top .title { font-weight: 900; font-size: 16px; }
+.quran-top .sub { font-size: 12px; color: var(--text-3); }
+.quran-top .actions { display: flex; gap: 6px; }
+.surah-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: right; background: none; border: 0; border-bottom: 1px solid var(--line); padding: 11px 6px; }
+.surah-row:hover { background: var(--bg-soft); }
+.surah-row .num { width: 36px; height: 36px; border-radius: 12px; background: var(--primary-soft); color: var(--primary-strong); display: grid; place-items: center; font-weight: 900; font-size: 13px; flex-shrink: 0; }
+[data-theme="dark"] .surah-row .num { color: var(--primary); }
+.surah-row .nm { font-weight: 800; font-size: 15px; }
+.surah-row .info { font-size: 12px; color: var(--text-3); }
+.surah-row .pg { margin-right: auto; font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.resume-card { background: var(--hero); color: #fff; border-radius: 18px; padding: 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; box-shadow: 0 10px 26px rgba(11,92,86,.28); }
+.resume-card b { font-size: 17px; display: block; }
+.resume-card small { opacity: .85; font-size: 12.5px; }
+.resume-card .btn { background: #fff; color: var(--primary-strong); }
+
+.mushaf-wrap { background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 14px 10px; position: relative; overflow: hidden; touch-action: pan-y; }
+.mushaf-wrap::before, .mushaf-wrap::after { content: ''; position: absolute; top: 8px; bottom: 8px; width: 3px; border-radius: 2px; background: linear-gradient(180deg, transparent, var(--gold), transparent); opacity: .55; }
+.mushaf-wrap::before { right: 5px; } .mushaf-wrap::after { left: 5px; }
+.mushaf { font-family: 'Amiri Quran', 'Amiri', 'Scheherazade New', 'Traditional Arabic', serif; font-size: calc(22px * var(--quran-scale, 1)); line-height: 2.25; text-align: justify; text-align-last: center; color: var(--text); direction: rtl; -webkit-user-select: none; user-select: none; }
+.mushaf .ayah { cursor: pointer; border-radius: 6px; transition: background .2s; padding: 1px 0; }
+.mushaf .ayah:hover { background: var(--bg-soft); }
+.mushaf .ayah.playing { background: var(--primary-soft); box-shadow: 0 0 0 2px var(--primary-soft); }
+.mushaf .ayah.selected { background: var(--gold-soft); }
+.mushaf .w { display: inline; transition: color .25s, background .25s; border-radius: 4px; }
+.mushaf .mark { color: var(--gold); font-size: .75em; }
+.mushaf .end { color: var(--primary); font-family: 'Amiri Quran', 'Amiri', serif; margin: 0 2px; font-size: .95em; }
+.mushaf .sajda-mark { color: var(--danger); font-size: .6em; vertical-align: super; }
+.surah-head { text-align: center; margin: 10px 0 8px; padding: 10px 12px; border: 2px solid var(--gold); border-radius: 14px; background: var(--gold-soft); font-family: var(--font-ui); font-size: 16px; font-weight: 900; color: var(--gold); position: relative; }
+.surah-head small { display: block; color: var(--text-3); font-size: 11px; font-weight: 700; margin-top: 2px; }
+.basmala { text-align: center; font-family: 'Amiri Quran', 'Amiri', serif; font-size: calc(24px * var(--quran-scale, 1)); margin: 6px 0 10px; color: var(--primary-strong); }
+[data-theme="dark"] .basmala { color: var(--primary); }
+.page-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; font-size: 12.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.page-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; }
+.page-nav input { width: 76px; text-align: center; }
+
+/* وضع مراجعة الحفظ */
+.mushaf.hifz .w.spoken { color: transparent; background: var(--bg-soft); box-shadow: inset 0 -2px 0 var(--line); }
+.mushaf.hifz .w.spoken.revealed { color: var(--text); background: transparent; box-shadow: none; animation: reveal .35s ease; }
+.mushaf.hifz .w.spoken.current { color: var(--primary-strong); background: var(--primary-soft); box-shadow: none; }
+[data-theme="dark"] .mushaf.hifz .w.spoken.current { color: var(--primary); }
+.mushaf.hifz.only-current .w.spoken.revealed:not(.current) { color: transparent; background: var(--ok-soft); box-shadow: inset 0 -2px 0 var(--ok); }
+@keyframes reveal { from { background: var(--gold-soft); } to { background: transparent; } }
+.hifz-panel { background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px; box-shadow: var(--shadow); }
+.hifz-word { font-family: 'Amiri Quran', 'Amiri', serif; font-size: calc(34px * var(--quran-scale, 1)); text-align: center; min-height: 64px; display: grid; place-items: center; color: var(--primary-strong); }
+[data-theme="dark"] .hifz-word { color: var(--primary); }
+.hifz-word small { font-family: var(--font-ui); font-size: 12px; color: var(--text-3); }
+.hifz-heard { font-size: 13px; color: var(--text-3); text-align: center; min-height: 20px; direction: rtl; }
+.hifz-ctl { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 8px; }
+.mic-btn { position: relative; }
+.mic-btn.listening { background: var(--danger); color: #fff; box-shadow: 0 0 0 6px var(--danger-soft); animation: pulse 1.4s infinite; }
+@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 4px var(--danger-soft); } 50% { box-shadow: 0 0 0 10px transparent; } }
+.hifz-progress { height: 6px; background: var(--bg-soft); border-radius: 3px; overflow: hidden; margin-top: 10px; }
+.hifz-progress i { display: block; height: 100%; background: var(--primary); transition: width .3s; }
+
+/* شريط التلاوة */
+.audio-bar { position: fixed; bottom: calc(var(--tab-h) + var(--safe-b) + 8px); left: 50%; transform: translateX(-50%); width: calc(100% - 24px); max-width: 576px; background: var(--bg-elev); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow-lg); padding: 10px 12px; z-index: 45; }
+.audio-bar .row1 { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.audio-bar .who { font-size: 12.5px; font-weight: 800; }
+.audio-bar .where { font-size: 12px; color: var(--text-3); }
+.audio-bar .ctl { display: flex; align-items: center; gap: 4px; }
+.audio-bar .ctl .icon-btn { width: 38px; height: 38px; }
+.audio-bar .ctl .play { background: var(--primary); color: var(--on-primary); border-color: transparent; width: 44px; height: 44px; }
+.audio-bar .bar { height: 4px; background: var(--bg-soft); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+.audio-bar .bar i { display: block; height: 100%; background: var(--primary); width: 0; }
+.audio-bar .opts { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.audio-bar .opts .chip { padding: 4px 10px; font-size: 12px; }
+.has-audio .view-container { padding-bottom: calc(var(--tab-h) + var(--safe-b) + 140px); }
+.more-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.more-tile { background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 14px; text-align: center; box-shadow: var(--shadow); font-weight: 800; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.more-tile svg { width: 28px; height: 28px; color: var(--primary); }
+.more-tile small { font-weight: 600; color: var(--text-3); font-size: 12px; }

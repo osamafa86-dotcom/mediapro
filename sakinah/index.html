@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>سكينة — مواقيت الصلاة والقبلة والأذكار</title>
-  <meta name="description" content="تطبيق إسلامي دقيق: مواقيت الصلاة حسب موقعك، اتجاه القبلة بدقة عالية، أذكار الصباح والمساء، أحاديث مختارة من الصحيحين، وتذكير بمواعيد الصلاة.">
+  <meta name="description" content="تطبيق إسلامي دقيق: مواقيت الصلاة حسب موقعك، المصحف مع التلاوة ومراجعة الحفظ، اتجاه القبلة بدقة عالية، أذكار الصباح والمساء، أحاديث مختارة من الصحيحين، وتذكير بمواعيد الصلاة.">
   <meta name="theme-color" content="#0f766e" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0b1412" media="(prefers-color-scheme: dark)">
   <meta name="mobile-web-app-capable" content="yes">
@@ -43,6 +43,7 @@
         </div>
       </div>
       <div class="header-actions">
+        <button class="icon-btn" id="btn-settings" aria-label="الإعدادات" title="الإعدادات"></button>
         <button class="icon-btn" id="btn-theme" aria-label="تبديل السمة" title="السمة"></button>
         <button class="icon-btn" id="btn-install" aria-label="تثبيت التطبيق" title="تثبيت التطبيق" hidden></button>
       </div>
@@ -50,18 +51,20 @@
 
     <main class="view-container" id="views">
       <section class="view" id="view-prayer" aria-labelledby="tab-prayer"></section>
+      <section class="view" id="view-quran" aria-labelledby="tab-quran"></section>
       <section class="view" id="view-qibla" aria-labelledby="tab-qibla"></section>
       <section class="view" id="view-adhkar" aria-labelledby="tab-adhkar"></section>
-      <section class="view" id="view-hadith" aria-labelledby="tab-hadith"></section>
-      <section class="view" id="view-settings" aria-labelledby="tab-settings"></section>
+      <section class="view" id="view-more" aria-labelledby="tab-more"></section>
+      <section class="view" id="view-hadith" aria-label="الأحاديث"></section>
+      <section class="view" id="view-settings" aria-label="الإعدادات"></section>
     </main>
 
     <nav class="tabbar" aria-label="التنقل الرئيسي">
       <button class="tab" id="tab-prayer" data-view="prayer"></button>
+      <button class="tab" id="tab-quran" data-view="quran"></button>
       <button class="tab" id="tab-qibla" data-view="qibla"></button>
       <button class="tab" id="tab-adhkar" data-view="adhkar"></button>
-      <button class="tab" id="tab-hadith" data-view="hadith"></button>
-      <button class="tab" id="tab-settings" data-view="settings"></button>
+      <button class="tab" id="tab-more" data-view="more"></button>
     </nav>
   </div>
 
