@@ -66,7 +66,7 @@ sakinah/
 1. حساب Apple Developer (99$/سنة)، ثم في App Store Connect أنشئ تطبيقًا بمعرّف الحزمة `org.emdatra.sakinah` (غيّره في `capacitor.config.json` وسير العمل إن أردت).
 2. أنشئ شهادة **Apple Distribution** وصدّرها `.p12`، وملف **Provisioning Profile** من نوع App Store لمعرّف الحزمة، ومفتاح **App Store Connect API** (دور App Manager).
 3. أضف الأسرار في GitHub (Settings → Secrets → Actions): `APPLE_TEAM_ID`, `BUILD_CERTIFICATE_BASE64`, `P12_PASSWORD`, `BUILD_PROVISION_PROFILE_BASE64`, `KEYCHAIN_PASSWORD`, `APP_STORE_CONNECT_API_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_API_KEY_P8` (التفاصيل في رأس `.github/workflows/ios-testflight.yml`).
-4. شغّل سير العمل **iOS TestFlight** من تبويب Actions (أو ادفع وسمًا `ios-v1.0.0`). يبني الحزمة ويرفعها إلى TestFlight ويحتفظ بملف IPA كناتج.
+4. شغّل سير العمل **iOS TestFlight** من تبويب Actions، أو ادفع وسمًا `ios-v1.0.0`، أو عدّل رقم الإصدار في `sakinah/ios-release.txt` وادفعه. يبني الحزمة ويرفعها إلى TestFlight ويحتفظ بملف IPA كناتج.
 
 للبناء محليًا على Mac: `npm install && npm run cap:ios` ثم افتح `ios/App/App.xcworkspace` في Xcode.
 
