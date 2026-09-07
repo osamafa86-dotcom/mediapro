@@ -1,0 +1,49 @@
+# نشر تطبيق سكينة على GitHub Pages (https://osamafa86-dotcom.github.io/mediapro/)
+# يلزم مرة واحدة: Settings → Pages → Build and deployment → Source: "GitHub Actions"
+name: Deploy Sakinah to GitHub Pages
+
+on:
+  push:
+    branches: ['claude/islamic-app-development-tpmkko', 'main']
+    paths: ['sakinah/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: تجهيز ملفات التشغيل
+        run: |
+          cd sakinah
+          node tools/build-www.mjs
+          # على GitHub Pages يعمل عامل الخدمة والمسارات النسبية كما هي؛ نزيل علم الغلاف الأصلي
+          sed -i 's/<script>window.SAKINAH_NATIVE = true;<\/script>//' www/index.html
+          touch www/.nojekyll
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: sakinah/www
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
