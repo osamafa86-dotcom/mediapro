@@ -41,7 +41,9 @@ function deepMerge(base, patch) {
 }
 
 const listeners = new Set();
-let state = deepMerge(DEFAULT_SETTINGS, safeParse(typeof localStorage !== 'undefined' ? localStorage.getItem(KEY) : null) || {});
+const clone = (o) => (typeof structuredClone === 'function' ? structuredClone(o) : JSON.parse(JSON.stringify(o)));
+// نسخة عميقة من الافتراضيات حتى لا تشاركها الحالة بالمرجع
+let state = deepMerge(clone(DEFAULT_SETTINGS), safeParse(typeof localStorage !== 'undefined' ? localStorage.getItem(KEY) : null) || {});
 
 export function getSettings() { return state; }
 export function get(path) {
@@ -73,7 +75,7 @@ export function replace(path, value) {
   return state;
 }
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
-export function resetAll() { state = deepMerge(DEFAULT_SETTINGS, {}); persist(); for (const fn of listeners) fn(state, {}); }
+export function resetAll() { state = clone(DEFAULT_SETTINGS); persist(); for (const fn of listeners) fn(state, {}); }
 
 function persist() {
   try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { console.warn('storage failed', e); }

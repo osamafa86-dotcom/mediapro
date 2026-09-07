@@ -1,5 +1,5 @@
 /* سكينة — عامل الخدمة: عمل دون اتصال + إشعارات */
-const VERSION = 'sakinah-v1.0.2';
+const VERSION = 'sakinah-v1.0.3';
 const CORE = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
   './js/app.js', './js/ui/components.js', './js/ui/prayer-view.js', './js/ui/qibla-view.js', './js/ui/adhkar-view.js',
@@ -37,7 +37,12 @@ self.addEventListener('fetch', (e) => {
         const fetched = fetch(sameOrigin ? new Request(req, { cache: 'no-cache' }) : req).then((res) => {
           if (res && (res.ok || res.type === 'opaque')) caches.open(VERSION).then((c) => c.put(req, res.clone()));
           return res;
-        }).catch(() => cached);
+        }).catch(async () => {
+          // دون اتصال ولا نسخة مخزّنة: صفحة التطبيق للتنقل، وخطأ شبكة صريح (فوري) لغير ذلك بدل تعليق الطلب
+          if (cached) return cached;
+          if (req.mode === 'navigate') return (await caches.match('./index.html')) || Response.error();
+          return Response.error();
+        });
         return cached || fetched;
       })
     );
