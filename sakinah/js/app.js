@@ -233,7 +233,7 @@ function boot() {
   notif.startScheduler(() => app.reminderSchedule(), (item) => app.fireReminder(item));
 
   // عامل الخدمة
-  if ('serviceWorker' in navigator && location.protocol !== 'file:' && !window.SAKINAH_STANDALONE) {
+  if ('serviceWorker' in navigator && location.protocol !== 'file:' && !window.SAKINAH_STANDALONE && !window.SAKINAH_NATIVE) {
     navigator.serviceWorker.register('sw.js').catch((e) => console.warn('SW registration failed', e));
   }
   // تحديث الموقع بصمت إذا كان من GPS وقديمًا (> 12 ساعة)

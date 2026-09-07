@@ -1,0 +1,138 @@
+# بناء تطبيق iOS من تطبيق سكينة (Capacitor) ورفعه إلى TestFlight.
+# التشغيل: يدويًا من تبويب Actions (workflow_dispatch) أو عند دفع وسم ios-v*.
+# الأسرار المطلوبة (Settings → Secrets and variables → Actions):
+#   APPLE_TEAM_ID                     معرّف الفريق في Apple Developer (10 أحرف)
+#   BUILD_CERTIFICATE_BASE64          شهادة التوزيع Apple Distribution بصيغة .p12 مشفّرة base64
+#   P12_PASSWORD                      كلمة مرور ملف .p12
+#   BUILD_PROVISION_PROFILE_BASE64    ملف Provisioning Profile (App Store) مشفّر base64 لمعرّف الحزمة org.emdatra.sakinah
+#   KEYCHAIN_PASSWORD                 أي كلمة عشوائية لسلسلة المفاتيح المؤقتة
+#   APP_STORE_CONNECT_API_KEY_ID      معرّف مفتاح App Store Connect API
+#   APP_STORE_CONNECT_ISSUER_ID       Issuer ID
+#   APP_STORE_CONNECT_API_KEY_P8      محتوى ملف AuthKey_XXXX.p8 كاملًا
+name: iOS TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: 'رقم البناء (يُترك فارغًا لاستخدام رقم التشغيل)'
+        required: false
+  push:
+    tags: ['ios-v*']
+
+jobs:
+  build-upload:
+    runs-on: macos-14
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: sakinah
+    env:
+      BUNDLE_ID: org.emdatra.sakinah
+      SCHEME: App
+      BUILD_NUMBER: ${{ github.event.inputs.build_number || github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: sakinah/package-lock.json
+
+      - name: تثبيت التبعيات وبناء www/
+        run: |
+          npm ci
+          npm test
+          node tools/build-www.mjs
+
+      - name: إنشاء مشروع iOS (Capacitor)
+        run: |
+          npx cap add ios
+          npx cap sync ios
+          # مفاتيح الأذونات المطلوبة في Info.plist
+          PLIST=ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'لحساب مواقيت الصلاة واتجاه القبلة حسب موقعك'" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :NSMotionUsageDescription string 'لتشغيل بوصلة القبلة'" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'لمراجعة الحفظ عبر التعرّف على تلاوتك'" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :NSSpeechRecognitionUsageDescription string 'لتحويل تلاوتك إلى كلمات في وضع مراجعة الحفظ'" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName سكينة" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :CFBundleLocalizations array" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :CFBundleLocalizations:0 string ar" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PLIST" || true
+          cd ios/App && xcrun agvtool new-version -all "$BUILD_NUMBER" && cd ../..
+
+      - name: تثبيت الشهادة وملف التوفير
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          CERT_PATH=$RUNNER_TEMP/build_certificate.p12
+          PP_PATH=$RUNNER_TEMP/build_pp.mobileprovision
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o "$CERT_PATH"
+          echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode -o "$PP_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          PP_UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< "$(security cms -D -i "$PP_PATH")")
+          cp "$PP_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/"$PP_UUID".mobileprovision
+          echo "PP_UUID=$PP_UUID" >> "$GITHUB_ENV"
+
+      - name: الأرشفة (Archive)
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cd ios/App
+          xcodebuild -workspace App.xcworkspace -scheme "$SCHEME" -configuration Release -sdk iphoneos \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" archive \
+            CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
+            PROVISIONING_PROFILE_SPECIFIER="$PP_UUID" \
+            CODE_SIGN_IDENTITY="Apple Distribution" | xcpretty && exit ${PIPESTATUS[0]}
+
+      - name: التصدير (IPA)
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key><dict><key>$BUNDLE_ID</key><string>$PP_UUID</string></dict>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/App.xcarchive" -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export"
+          ls -la "$RUNNER_TEMP/export"
+
+      - name: الرفع إلى TestFlight
+        env:
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          API_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$API_KEY_P8" > ~/.appstoreconnect/private_keys/AuthKey_$API_KEY_ID.p8
+          IPA=$(ls "$RUNNER_TEMP"/export/*.ipa | head -1)
+          xcrun altool --upload-app -f "$IPA" -t ios --apiKey "$API_KEY_ID" --apiIssuer "$API_ISSUER_ID"
+
+      - name: حفظ الـ IPA كناتج
+        uses: actions/upload-artifact@v4
+        with:
+          name: sakinah-ios-ipa
+          path: ${{ runner.temp }}/export/*.ipa
+          if-no-files-found: error
+
+      - name: تنظيف سلسلة المفاتيح
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/app-signing.keychain-db" || true

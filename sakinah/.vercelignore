@@ -1,0 +1,8 @@
+node_modules
+tests
+tools
+dist
+test-results
+package-lock.json
+README.md
+.htaccess

@@ -1,0 +1,15 @@
+{
+  "appId": "org.emdatra.sakinah",
+  "appName": "سكينة",
+  "webDir": "www",
+  "server": { "androidScheme": "https", "iosScheme": "https" },
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#0f766e",
+    "limitsNavigationsToAppBoundDomains": false,
+    "preferredContentMode": "mobile"
+  },
+  "plugins": {
+    "SplashScreen": { "launchShowDuration": 800, "backgroundColor": "#0f766e", "showSpinner": false }
+  }
+}

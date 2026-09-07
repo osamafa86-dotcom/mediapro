@@ -12,11 +12,17 @@
     "serve": "npx http-server . -p 8080 -c-1",
     "icons": "node tools/make-icons.mjs",
     "fetch-corpus": "node tools/fetch-corpus.mjs",
-    "build:standalone": "node tools/build-standalone.mjs"
+    "build:standalone": "node tools/build-standalone.mjs",
+    "build:www": "node tools/build-www.mjs",
+    "cap:ios": "node tools/build-www.mjs && npx cap add ios && npx cap sync ios",
+    "cap:sync": "node tools/build-www.mjs && npx cap sync"
   },
   "devDependencies": {
     "adhan": "^4.4.3",
     "esbuild": "^0.24.2",
-    "geomagnetism": "^0.2.0"
+    "geomagnetism": "^0.2.0",
+    "@capacitor/cli": "^6.1.2",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/ios": "^6.1.2"
   }
 }
