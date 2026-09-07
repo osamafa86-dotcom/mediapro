@@ -29,7 +29,7 @@ const VIEWS = {
 const TABS = ['prayer', 'quran', 'qibla', 'adhkar', 'more'];
 
 export const app = {
-  version: '1.0.0',
+  version: '1.1.0',
   current: 'prayer',
   mounted: {},
   installPrompt: null,

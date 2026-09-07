@@ -1,6 +1,6 @@
 {
   "name": "sakinah",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "سكينة — تطبيق ويب تقدمي لمواقيت الصلاة والقبلة والأذكار والأحاديث",
   "type": "module",
