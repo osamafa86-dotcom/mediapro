@@ -79,6 +79,15 @@ test('الصفحة الأولى: البسملة هي الآية الأولى ب�
   assert.equal(lines.filter((l) => l.type === 'words').length, 7);
 });
 
+test('علامات ربع الحزب ۞ (199) والسجدة ۩ (15) في مواضعها من نص المصحف', () => {
+  let rub = 0, saj = 0;
+  for (let p = 1; p <= TOTAL_PAGES; p++) for (const l of pageLines(p)) if (l.type === 'words') for (const w of l.words) {
+    if (w.rub) { rub++; const a = getAyah(w.n); assert.ok(a.text.startsWith('۞') && w.k === 0, `rub mark at ${a.surah}:${a.ayah}`); assert.ok(/^[ﭐ-﷿] ?[ﭐ-﷿]/.test(w.glyph), 'rub glyph precedes the word'); }
+    if (w.sajda) { saj++; const a = getAyah(w.n); assert.ok(a.sajda, `sajda mark on a sajda ayah ${a.surah}:${a.ayah}`); }
+  }
+  assert.equal(rub, 199); assert.equal(saj, 15);
+});
+
 test('مساعدات الخطوط', () => {
   assert.equal(surahNameGlyph(1), '001'); assert.equal(surahNameGlyph(114), '114');
   assert.match(pageFontUrl(604), /\/hafs\/v1\/woff2\/p604\.woff2$/);

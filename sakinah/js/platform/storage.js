@@ -26,7 +26,7 @@ export const DEFAULT_SETTINGS = {
     lastRead: null,          // { page, surah, ayah, at }
     bookmarks: [],           // [{ surah, ayah, page, at }]
     reciter: 'ar.alafasy', repeatAyah: 1, repeatRange: false, rate: 1, follow: true,
-    fontScale: 1, hifzOnlyCurrent: true, night: false, fontsOffline: false,
+    fontScale: 1, hifzOnlyCurrent: true, night: false, paper: 'cream', fontsOffline: false, hintShown: false,
   },
   adhkarProgress: { date: null, morning: {}, evening: {} },
   favorites: [],

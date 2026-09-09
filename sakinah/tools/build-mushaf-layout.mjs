@@ -11,6 +11,8 @@
  *   line = [0, glyphs, runs]  سطر كلمات: glyphs رموزُ الكلمات مفصولةً بـ '|' (لكل كلمة رمز أو رمزان: الكلمة وعلامة الوقف/الحزب؛ وعلامة نهاية الآية كلمةٌ مستقلة)
  *                             runs = [[n, k0, cnt, e], ...] : n رقم الآية العام، k0 فهرس أول كلمة منطوقة من الآية في هذا المقطع،
  *                             cnt عدد الكلمات، e=1 إن كانت آخر كلمة في المقطع هي علامة نهاية الآية (رقمها).
+ *                             عنصر رابع اختياري: فهارس الكلمات (في السطر) التي تبدأ بعلامة ربع الحزب ۞ (رمزها الأول)،
+ *                             وعنصر خامس اختياري: فهارس الكلمات التي تنتهي بعلامة السجدة ۩ (رمزها الأخير).
  *        = [1, surah]         سطر ترويسة السورة
  *        = [2]                سطر البسملة
  *   maps: لآيات يختلف فيها تقسيم كلمات مجمع الملك فهد عن تقسيم نص Tanzil: لكل رمز كلمة فهرسُ الكلمة المنطوقة المقابلة (أو -1).
@@ -109,7 +111,7 @@ for (let p = from; p <= to; p++) {
       if (!w.code_v1 || !/^[ﭐ-﷿](?: ?[ﭐ-﷿]){0,3}$/.test(w.code_v1)) throw new Error(`page ${p} ${v.verse_key}: unexpected glyph string ${JSON.stringify(w.code_v1)}`);
       if (!byLine.has(w.line_number)) byLine.set(w.line_number, []);
       const k = w.char_type_name === 'word' ? (map ? map[wi] : wi) : null;
-      byLine.get(w.line_number).push({ glyph: w.code_v1, n: a.n, end: w.char_type_name === 'end', k });
+      byLine.get(w.line_number).push({ glyph: w.code_v1, n: a.n, end: w.char_type_name === 'end', k, rub: /۞/.test(w.text_uthmani || ''), sajda: /۩/.test(w.text_uthmani || '') });
       if (w.char_type_name === 'word') wi++;
     }
     if (v.verse_number === 1) starts.push({ surah, firstLine: Math.min(...words.map((w) => w.line_number)) });
@@ -152,7 +154,10 @@ for (let p = from; p <= to; p++) {
     }
     // k0 للمقطع: فهرس أول كلمة منطوقة فيه (إن كان المقطع علامة نهاية فقط فهو صفر ولا أثر له)
     for (const r of runs) { const first = items.find((it) => it.n === r[0] && !it.end && it.k !== null && it.k >= 0); if (first) r[1] = first.k; }
-    lines.push([0, glyphs.join('|'), runs]);
+    const line = [0, glyphs.join('|'), runs];
+    const rub = items.map((it, i) => (it.rub ? i : -1)).filter((i) => i >= 0); const saj = items.map((it, i) => (it.sajda ? i : -1)).filter((i) => i >= 0);
+    if (rub.length || saj.length) line.push(rub); if (saj.length) line.push(saj);
+    lines.push(line);
   }
   report.lineCounts[pg.totalLines] = (report.lineCounts[pg.totalLines] || 0) + 1;
   pages[p - 1] = lines;

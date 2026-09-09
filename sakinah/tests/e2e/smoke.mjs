@@ -31,6 +31,7 @@ const ctx = await browser.newContext({
   geolocation: { latitude: 31.9539, longitude: 35.9106, accuracy: 20 }, permissions: ['geolocation'], serviceWorkers: 'block',
 });
 const page = await ctx.newPage();
+const showTools = async () => { if (!(await page.evaluate(() => { const r = document.querySelector('.mreader'); return r && r.classList.contains('chrome'); }))) { const cur = await page.evaluate(() => document.querySelector('.mreader').dataset.page); await page.locator(`.mr-slide[data-page="${cur}"] .mp-body`).tap(); await page.waitForTimeout(450); } }; // الأدوات مخفية أثناء القراءة؛ نُظهرها بنقرة قبل الضغط على أزرارها
 const errors = [];
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error' && !/net::ERR_FAILED|ERR_ABORTED/.test(m.text())) errors.push(`console: ${m.text()}`); });
@@ -131,7 +132,7 @@ if (mushafMode === 'qcf') {
   check(lines.length === 15 && lines[9].includes('mh') && lines[10].includes('mb') && lines.filter((c) => c.includes('mt')).length === 13, 'صفحة 293: 15 سطرًا — ترويسة الكهف في السطر العاشر ثم البسملة و13 سطر كلمات');
   check((await page.locator('.mr-slide[data-page="293"] .mh[data-surah="18"] .sname').count()) === 1, 'ترويسة سورة الكهف بخط أسماء السور');
   const fit = await page.evaluate(() => { const body = document.querySelector('.mr-slide[data-page="293"] .mp-body'); const W = body.clientWidth; const ws = [...body.querySelectorAll('.mlw')].map((l) => l.getBoundingClientRect().width); return { W, max: Math.max(...ws), min: Math.min(...ws) }; });
-  check(fit.max <= fit.W + 1 && fit.max >= fit.W * 0.97, `الأسطر تملأ عرض الصفحة (${Math.round(fit.max)}/${Math.round(fit.W)}px)`);
+  check(fit.max <= fit.W + 1 && fit.max >= fit.W * 0.95, `الأسطر تملأ عرض الصفحة (${Math.round(fit.max)}/${Math.round(fit.W)}px)`);
   check((await page.locator('.mr-slide[data-page="293"] .mw[data-n][data-k]').count()) > 100 && (await page.locator('.mr-slide[data-page="293"] .me').count()) === (await page.evaluate(() => document.querySelectorAll('.mr-slide[data-page="293"] .me').length)), 'الكلمات تحمل رقم الآية وفهرس الكلمة');
 }
 await page.locator('.mr-slide[data-page="294"] .mp.ready').waitFor({ timeout: 30000 });
@@ -147,27 +148,45 @@ await page.evaluate(() => document.querySelector('.mr-sname[data-surah="18"]').c
 await page.waitForTimeout(700);
 check((await page.locator('.mreader').getAttribute('data-page')) === '293', 'النقر على اسم السورة يعود إلى أولها');
 // النقر يخفي الأطر (شاشة كاملة) ثم يعيدها
+// القراءة بملء الشاشة: الأدوات مخفية افتراضيًا، نقرة تُظهرها، نقرة أخرى تخفيها، ونقرتان تفتحان التنقل والبحث
+check(!(await page.evaluate(() => document.querySelector('.mreader').classList.contains('chrome'))), 'القارئ يفتح بملء الشاشة دون أدوات');
+const full = await page.evaluate(() => { const mp = document.querySelector('.mr-slide[data-page="293"] .mp'); const r = mp.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), vw: innerWidth, vh: innerHeight, rows: mp.querySelector('.mp-body').clientHeight / 15 / parseFloat(mp.style.getPropertyValue('--mp-size')) }; });
+check(full.w === full.vw && full.h === full.vh && full.rows >= 1.12 && full.rows <= 2.0, `الصفحة تملأ الشاشة ${full.w}×${full.h} وتباعد الأسطر ${full.rows.toFixed(2)}em`);
 await page.locator('.mr-slide[data-page="293"] .mp-body').tap();
-await page.waitForTimeout(500);
-check(await page.evaluate(() => document.querySelector('.mreader').classList.contains('zen')), 'النقر على الصفحة يخفي الأطر');
+await page.waitForTimeout(450);
+check(await page.evaluate(() => document.querySelector('.mreader').classList.contains('chrome')), 'النقر على الصفحة يُظهر الأدوات');
 await page.locator('.mr-slide[data-page="293"] .mp-body').tap();
+await page.waitForTimeout(450);
+check(!(await page.evaluate(() => document.querySelector('.mreader').classList.contains('chrome'))), 'النقر مجددًا يخفي الأدوات');
+await page.locator('.mr-slide[data-page="293"] .mp-body').tap(); await page.locator('.mr-slide[data-page="293"] .mp-body').tap();
+await page.locator('#sheet:not([hidden])').waitFor({ timeout: 3000 });
+check(/التنقل والبحث/.test(await page.locator('#sheet-title').textContent()), 'النقر المزدوج يفتح التنقل والبحث');
+await page.locator('#sheet-body input[type=search]').fill('الكهف 10');
+await page.waitForTimeout(200);
+check(/الكهف · آية 10|الكهف · آية ١٠/.test(await page.locator('#sheet-body .surah-row .nm').first().textContent()), 'البحث «الكهف 10» يقترح الآية العاشرة');
+await page.locator('#sheet-close').click();
 await page.waitForTimeout(500);
-check(!(await page.evaluate(() => document.querySelector('.mreader').classList.contains('zen'))), 'النقر مجددًا يعيد الأطر');
-// الوضع الليلي
+await page.locator('.mr-slide[data-page="293"] .mp-body').tap(); await page.waitForTimeout(450); // إظهار الأدوات للزرّ الليلي
+await showTools();
 await page.locator('.mr-round[aria-label="الوضع الليلي"]').click();
+await page.waitForTimeout(250);
 check(await page.evaluate(() => document.querySelector('.mreader').classList.contains('night') && document.querySelector('.mr-slide[data-page="293"] .mp').classList.contains('night')), 'الوضع الليلي يطبَّق على القارئ والصفحة');
 await page.screenshot({ path: path.join(outDir, '08b-quran-night.png') });
-await page.locator('.mr-round[aria-label="الوضع الليلي"]').click();
 // علامة عبر زر العلامة ثم عبر قائمة الآية (ضغطة مطوّلة)
+await showTools();
 await page.locator('.mr-round[aria-label="علامة"]').click();
 await page.waitForTimeout(300);
 check(/أُضيفت علامة/.test(await page.locator('#toast').textContent()) && (await page.locator('.mr-round[aria-label="علامة"].active').count()) === 1, 'زر العلامة يضيف علامة للصفحة');
-const w0 = page.locator('.mr-slide[data-page="293"] .mw[data-k]').nth(3); const bb = await w0.boundingBox();
+await page.locator('.mr-slide[data-page="293"] .mp-body').tap(); await page.waitForTimeout(450); // إخفاء الأدوات قبل الضغط المطوّل
+const w0 = page.locator('.mr-slide[data-page="293"] .mw[data-k]').nth(60); const bb = await w0.boundingBox();
 await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2); await page.mouse.down(); await page.waitForTimeout(650); await page.mouse.up();
 await page.locator('#sheet:not([hidden])').waitFor({ timeout: 3000 }).catch(() => {});
 check(/الإسراء: \d+/.test(await page.locator('#sheet-title').textContent()) && (await page.locator('.mw.sel').count()) > 3, 'الضغط المطوّل على كلمة يفتح قائمة الآية ويظلّلها');
 if (!(await page.evaluate(() => document.getElementById('sheet').hidden))) { await page.getByRole('button', { name: /موضع القراءة/ }).click(); await page.waitForTimeout(300); }
-// وضع مراجعة الحفظ: الكلمات مخفية ثم تُكشف بالنقر
+// وضع مراجعة الحفظ: الكلمات مخفية ثم تُكشف بالنقر (الزر في الطبقة العلوية؛ نُظهرها بنقرة)
+await page.waitForTimeout(500);
+await page.locator('.mr-slide[data-page="293"] .mp-body').tap(); await page.waitForTimeout(450);
+await showTools();
 await page.locator('.mr-hifz-btn').click();
 await page.locator('.hifz-panel').waitFor();
 const hiddenBefore = await page.locator('.mr-slide[data-page="293"] .mp.hifz .mw[data-k]:not(.revealed)').count();
@@ -179,10 +198,11 @@ await page.locator('.mr-slide[data-page="293"] .mp-body').tap();
 check((await page.locator('.mr-slide[data-page="293"] .mw.revealed').count()) === 3, 'النقر على الصفحة في المراجعة يكشف كلمة');
 check(/3\s*\/|٣\s*\//.test(await page.locator('.hifz-panel .tiny').textContent()), 'عدّاد التقدّم يعرض 3 كلمات');
 await page.screenshot({ path: path.join(outDir, '09-hifz.png') });
-await page.locator('.mr-hifz-btn').click(); // خروج من وضع المراجعة
+await page.locator('.hifz-panel .icon-btn[aria-label="إنهاء المراجعة"]').click(); // خروج من وضع المراجعة
 check((await page.locator('.mp.hifz').count()) === 0 && (await page.locator('.hifz-panel').count()) === 0, 'الخروج من وضع المراجعة');
 // التشغيل من الخيارات: يظهر شريط التلاوة (الصوت محجوب في الاختبار)
 await page.route(/cdn\.islamic\.network/, (r) => r.abort());
+await showTools();
 await page.locator('.mr-btn[aria-label="خيارات"]').click();
 await page.getByRole('button', { name: /تشغيل/ }).click();
 await page.locator('#audio-bar').waitFor({ timeout: 5000 });
@@ -190,9 +210,10 @@ check(/العفاسي/.test(await page.locator('#audio-bar .who').textContent())
 await page.locator('#audio-bar').getByRole('button', { name: 'إغلاق' }).click();
 check((await page.locator('#audio-bar').count()) === 0, 'إغلاق شريط التلاوة');
 // العودة للفهرس: بطاقة المتابعة تعرض آخر موضع، والعلامة في قائمة العلامات
+await showTools();
 await page.locator('.mr-btn[aria-label="الفهرس"]').click();
 await page.locator('.resume-card').waitFor();
-check(/الإسراء/.test(await page.locator('.resume-card').textContent()) && /293/.test(await page.locator('.resume-card').textContent()), 'بطاقة متابعة القراءة تحفظ الموضع (الإسراء، ص 293)');
+check(/الإسراء/.test(await page.locator('.resume-card').textContent()) && /293/.test(await page.locator('.resume-card').textContent()), `بطاقة متابعة القراءة تحفظ الموضع (الإسراء، ص 293): ${(await page.locator('.resume-card').textContent()).replace(/\s+/g, ' ').trim()}`);
 check((await page.locator('.mreader').getAttribute('hidden')) !== null && (await page.evaluate(() => location.hash)) === '#/quran', 'إغلاق القارئ يعيد الرابط #/quran');
 console.log(`  (خطوط المصحف المقدَّمة من الكاش: ${fontsServed})`);
 

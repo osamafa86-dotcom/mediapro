@@ -115,13 +115,14 @@ export function fmtDurationWords(ms, numerals = 'latn') {
 
 /* ---------- الورقة السفلية ---------- */
 let sheetOnClose = null; let sheetOpener = null;
+let sheetOpenedAt = 0;
 export function openSheet({ title, content, onClose }) {
   const sheet = document.getElementById('sheet'), back = document.getElementById('sheet-backdrop');
   document.getElementById('sheet-title').textContent = title || '';
   const body = document.getElementById('sheet-body');
   render(body, content);
   body.scrollTop = 0;
-  sheet.hidden = false; back.hidden = false;
+  sheet.hidden = false; back.hidden = false; sheetOpenedAt = performance.now();
   requestAnimationFrame(() => { sheet.classList.add('show'); back.classList.add('show'); });
   sheetOnClose = onClose || null;
   sheetOpener = document.activeElement;
@@ -142,7 +143,8 @@ export function closeSheet() {
 export function initSheet() {
   document.getElementById('sheet-close').innerHTML = icon('close');
   document.getElementById('sheet-close').addEventListener('click', closeSheet);
-  document.getElementById('sheet-backdrop').addEventListener('click', closeSheet);
+  // نقرة اللمس المُركَّبة بعد فتح الورقة مباشرة (نقرة مزدوجة/ضغطة مطوّلة على الصفحة) تقع على الخلفية؛ نتجاهلها لبرهة
+  document.getElementById('sheet-backdrop').addEventListener('click', () => { if (performance.now() - sheetOpenedAt < 400) return; closeSheet(); });
   document.addEventListener('keydown', (e) => {
     const sheet = document.getElementById('sheet');
     if (sheet.hidden) return;

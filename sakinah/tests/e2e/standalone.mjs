@@ -6,6 +6,7 @@ const file = path.resolve(fileURLToPath(new URL('../../dist/sakinah-standalone.h
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar', timezoneId: 'Asia/Riyadh', geolocation: { latitude: 24.7136, longitude: 46.6753 }, permissions: ['geolocation'] });
 const page = await ctx.newPage();
+const showTools = async () => { if (!(await page.evaluate(() => { const r = document.querySelector('.mreader'); return r && r.classList.contains('chrome'); }))) { const cur = await page.evaluate(() => document.querySelector('.mreader').dataset.page); await page.locator(`.mr-slide[data-page="${cur}"] .mp-body`).tap(); await page.waitForTimeout(450); } }; // الأدوات مخفية أثناء القراءة؛ نُظهرها بنقرة قبل الضغط على أزرارها
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error' && !/net::ERR|ERR_ABORTED|Failed to load resource/.test(m.text())) errors.push(m.text()); });
@@ -30,6 +31,7 @@ await page.locator('#view-quran .surah-row').nth(1).click(); await page.locator(
 await page.locator('.mr-slide[data-page="2"] .mp.ready').waitFor({ timeout: 20000 });
 ok((await page.locator('.mr-slide[data-page="2"] .mp.mp-text .mw[data-k]').count()) >= 20 && (await page.locator('.mr-slide[data-page="2"] .mh').count()) === 1, 'قارئ المصحف يعرض صفحة البقرة (البديل النصي دون خطوط)');
 ok(/الأَوَّلُ/.test(await page.locator('.mr-juz').textContent()), 'شريط الجزء يعمل داخل الملف الواحد');
+await showTools();
 await page.locator('.mr-btn[aria-label="الفهرس"]').click();
 await page.locator('#tab-adhkar').click(); ok((await page.locator('.dhikr').count()) >= 20, 'الأذكار');
 await page.locator('#tab-more').click(); await page.getByRole('button', { name: /الأحاديث/ }).first().click(); ok((await page.locator('#view-hadith .hadith').count()) >= 10, 'الأحاديث');

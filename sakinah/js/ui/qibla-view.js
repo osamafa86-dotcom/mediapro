@@ -120,8 +120,12 @@ export function mount(container, app) {
     if (els.calib) {
       const acc = reading ? accuracyLabel(reading.accuracy) : null;
       const rel = reading && !reading.absolute;
-      if (rel) render(els.calib, h('div', { class: 'calib danger' }, h('span', { html: icon('warning') }), h('span', {}, 'المتصفح يعطي اتجاهًا نسبيًا بلا مرجع للشمال — فعّل الموقع/البوصلة في النظام أو استخدم وضع «الشمس».')));
-      else if (acc && acc.level === 'bad') render(els.calib, h('div', { class: 'calib' }, h('span', { html: FIG8_SVG }), h('span', {}, 'دقة البوصلة ضعيفة — حرّك الهاتف في الهواء على شكل الرقم 8 عدة مرات.')));
+      if (rel) render(els.calib, h('div', { class: 'calib danger' }, h('span', { html: icon('warning') }),
+        h('span', {}, reading.source === 'relative' && /iP(hone|ad|od)/.test(navigator.userAgent)
+          ? 'iPhone يعطي اتجاهًا نسبيًا فقط: البوصلة تحتاج إذن الموقع للتطبيق (الإعدادات ← الخصوصية ← خدمات الموقع ← سكينة) ثم أعد فتح الشاشة، أو استخدم وضع «الشمس».'
+          : 'المتصفح يعطي اتجاهًا نسبيًا بلا مرجع للشمال — فعّل الموقع/البوصلة في النظام أو استخدم وضع «الشمس».'),
+        h('button', { class: 'btn btn-outline btn-sm', onclick: () => navigator.geolocation && navigator.geolocation.getCurrentPosition(() => { generation++; stopSensor(); sensor = 'idle'; start(); }, () => {}, { timeout: 8000 }) }, 'طلب إذن الموقع')));
+      else if (acc && (acc.level === 'bad' || acc.level === 'low')) render(els.calib, h('div', { class: 'calib' }, h('span', { html: FIG8_SVG }), h('span', {}, `دقة البوصلة ${acc.label} (±${app.num(reading.accuracy, 0)}°) — حرّك الهاتف في الهواء على شكل الرقم 8 بعيدًا عن المعادن والمغناطيس.`)));
       else render(els.calib);
     }
     // زر البدء (iOS) أو إعادة المحاولة
@@ -148,6 +152,7 @@ export function mount(container, app) {
       reading ? row('مصدر المستشعر', reading.source === 'ios' ? 'iOS (webkitCompassHeading)' : reading.source === 'android-absolute' ? 'Android (اتجاه مطلق)' : 'اتجاه نسبي') : row('المستشعر', { idle: 'لم يُشغَّل', starting: 'جارٍ التشغيل', none: 'لا قراءات (لا بوصلة)', denied: 'الإذن مرفوض', insecure: 'يلزم HTTPS', unsupported: 'غير مدعوم', live: 'يعمل' }[sensor]),
       acc ? row('دقة المستشعر', `${acc.label}${reading.accuracy !== null ? ` (±${app.num(reading.accuracy, 0)}°)` : ''}`) : null,
       info.antipodal ? h('div', { class: 'notice' }, h('span', { html: icon('warning') }), 'موقعك قريب جدًا من النقطة المقابلة للكعبة؛ اتجاه القبلة هنا غير محدد رياضيًا.') : null,
+      h('div', { class: 'notice info' }, h('span', { html: icon('info') }), h('span', {}, 'للتحقق: افتح تطبيق البوصلة في هاتفك (مع تفعيل «الشمال الحقيقي» في iPhone) وقارن اتجاه الهاتف الحقيقي أعلاه مع قراءته؛ إن اختلفا فالمستشعر يحتاج معايرة (حركة 8) أو إبعاده عن المعادن والحافظات المغناطيسية. وللتأكد المطلق استخدم وضع «الشمس» فهو لا يعتمد على المغناطيس.')),
       h('p', { class: 'tiny', style: { lineHeight: 1.8 } }, `الاتجاه محسوب جيوديسيًا على مجسّم WGS‑84 (Vincenty) من الشمال الحقيقي؛ الفرق عن الحل الكروي ${app.num(Math.abs(info.difference), 3)}°. مستشعرات الهاتف تعطي الشمال المغناطيسي فيُضاف الانحراف المغناطيسي من النموذج العالمي WMM2025 تلقائيًا. يمكن إيقاف التصحيح من الإعدادات.`)) });
   }
 

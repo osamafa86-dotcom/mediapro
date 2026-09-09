@@ -50,7 +50,12 @@ export class HeadingSmoother {
   push(deg) {
     const r = deg * Math.PI / 180, x = Math.cos(r), y = Math.sin(r);
     if (this.x === null) { this.x = x; this.y = y; }
-    else { this.x += this.alpha * (x - this.x); this.y += this.alpha * (y - this.y); }
+    else {
+      // تنعيم تكيّفي: دوران كبير يُتبع فورًا (لا تأخّر يُحسّ به انحرافًا)، والرجفة الصغيرة تُنعَّم
+      const cur = Math.atan2(this.y, this.x) * 180 / Math.PI; let d = Math.abs(((deg - cur) % 360 + 540) % 360 - 180);
+      const a = d > 25 ? 0.85 : d > 8 ? 0.5 : this.alpha;
+      this.x += a * (x - this.x); this.y += a * (y - this.y);
+    }
     return (Math.atan2(this.y, this.x) * 180 / Math.PI + 360) % 360;
   }
   reset() { this.x = this.y = null; }
@@ -119,7 +124,7 @@ export const trueToMagnetic = (t, decl) => ((t - decl) % 360 + 360) % 360;
 export function accuracyLabel(acc) {
   if (acc === null || acc === undefined) return { label: 'غير معروفة', level: 'unknown' };
   if (acc <= 5) return { label: 'ممتازة', level: 'high' };
-  if (acc <= 15) return { label: 'جيدة', level: 'medium' };
-  if (acc <= 30) return { label: 'متوسطة', level: 'low' };
+  if (acc <= 12) return { label: 'جيدة', level: 'medium' };
+  if (acc <= 20) return { label: 'متوسطة', level: 'low' };
   return { label: 'ضعيفة — حرّك الهاتف على شكل 8', level: 'bad' };
 }

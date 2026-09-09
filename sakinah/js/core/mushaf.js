@@ -37,7 +37,8 @@ export function mushafInfo() { return layout ? { font: layout.font, source: layo
 
 /**
  * أسطر صفحة مفكوكة الترميز:
- *   { type: 'header', surah } | { type: 'basmala' } | { type: 'words', words: [{ glyph, n, k, end }] }
+ *   { type: 'header', surah } | { type: 'basmala' } | { type: 'words', words: [{ glyph, n, k, end, rub, sajda }] }
+ *   rub: الكلمة تبدأ بعلامة ربع الحزب ۞ (رمزها الأول)؛ sajda: تنتهي بعلامة السجدة ۩ (رمزها الأخير)
  *   k: فهرس الكلمة بين الكلمات المنطوقة للآية (يطابق tokenize(text).filter(spoken))، أو -1 لرمز لا يقابل كلمة (علامة نهاية الآية أو كلمة بلا مقابل)
  */
 export function pageLines(p) {
@@ -47,12 +48,13 @@ export function pageLines(p) {
     if (line[0] === 1) return { type: 'header', surah: line[1] };
     if (line[0] === 2) return { type: 'basmala' };
     const glyphs = line[1] ? line[1].split('|') : []; const words = []; let gi = 0;
+    const rub = new Set(line[3] || []), saj = new Set(line[4] || []);
     for (const [n, k0, cnt, e] of line[2]) {
       for (let j = 0; j < cnt; j++) {
         const isEnd = e === 1 && j === cnt - 1;
         let k = -1;
         if (!isEnd) { const map = layout.maps && layout.maps[n]; k = map ? map[k0 + j] ?? -1 : k0 + j; }
-        words.push({ glyph: glyphs[gi++], n, k, end: isEnd });
+        words.push({ glyph: glyphs[gi], n, k, end: isEnd, rub: rub.has(gi), sajda: saj.has(gi) }); gi++;
       }
     }
     return { type: 'words', words };

@@ -36,13 +36,24 @@ export function isPageFontReady(p) { const f = fontPromises.get(pageFontFamily(p
 export function preloadPageFonts(pages) { for (const p of pages) if (p >= 1 && p <= 604) ensurePageFont(p).catch(() => {}); }
 
 const arabicDigits = (n) => String(n).replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[d]);
+/** رأس الصفحة: اسم السورة والجزء متعاكسان بين الصفحات اليمنى (الفردية) واليسرى (الزوجية) كما في الكتاب المطبوع */
+function pageHead(p, first, lbl) {
+  const surah = h('span', { class: 'mp-surah' }, `سُورَةُ ${surahInfo(first.surah).vocalized}`); const juz = h('span', { class: 'mp-juz' }, juzName(lbl.juz));
+  return h('div', { class: 'mp-head' }, ...(p % 2 ? [surah, juz] : [juz, surah]));
+}
+/** رمز كلمة مع فصل علامة ربع الحزب (الرمز الأول) أو علامة السجدة (الرمز الأخير) في عنصر خاص للتلوين */
+function wordContent(w) {
+  if (w.rub) { const cps = [...w.glyph]; if (cps.length > 1) return [h('span', { class: 'rub' }, cps[0]), cps.slice(1).join('')]; }
+  if (w.sajda) { const cps = [...w.glyph]; if (cps.length > 1) return [cps.slice(0, -1).join(''), h('span', { class: 'sajda' }, cps[cps.length - 1])]; }
+  return [w.glyph];
+}
 /** نص اسم السورة بخط أسماء السور: رمز الاسم ثم كلمة «سورة» (الخط يحوّل "surah" إلى رسم الكلمة؛ وبترتيب LTR تظهر «سورة» على اليمين) */
 export function surahNameText(surah, { prefix = true } = {}) { return prefix ? `${surahNameGlyph(surah)} surah` : surahNameGlyph(surah); }
 
 /**
  * بناء عنصر الصفحة. لا يُحمِّل الخطوط بنفسه؛ استدعِ mountMushafPage بعد إدراجه في الشجرة.
  * @param {number} p رقم الصفحة
- * @param {{ onTapAyah?: (n:number, ev:Event) => void, showChrome?: boolean }} opts
+ * @param {{ onTapAyah?: (n:number, ev:Event) => void, showChrome?: boolean, full?: boolean }} opts  full: ملء الشاشة (الأسطر موزّعة على الارتفاع)
  */
 export function renderMushafPage(p, opts = {}) {
   const lines = pageLines(p); const ayahs = pageAyahs(p); const first = ayahs[0]; const lbl = pageLabel(p);
@@ -55,7 +66,7 @@ export function renderMushafPage(p, opts = {}) {
     else {
       const wrap = h('span', { class: 'mlw' });
       for (const w of line.words) {
-        const span = h('span', { class: w.end ? 'me' : 'mw', dataset: { n: String(w.n) } }, w.glyph);
+        const span = h('span', { class: w.end ? 'me' : 'mw', dataset: { n: String(w.n) } }, ...wordContent(w));
         if (!w.end && w.k >= 0) span.dataset.k = String(w.k);
         wrap.append(span);
       }
@@ -65,9 +76,9 @@ export function renderMushafPage(p, opts = {}) {
     body.append(el);
   });
   if (short) body.append(h('div', { class: 'mframe', 'aria-hidden': 'true' }));
-  const page = h('article', { class: 'mp', dataset: { page: String(p) }, 'aria-label': `صفحة ${p}` },
-    opts.showChrome === false ? null : h('div', { class: 'mp-head' }, h('span', { class: 'mp-surah' }, `سُورَةُ ${surahInfo(first.surah).vocalized}`), h('span', { class: 'mp-juz' }, juzName(lbl.juz))),
-    body,
+  const page = h('article', { class: `mp ${opts.full ? 'mp-full' : ''}`, dataset: { page: String(p) }, 'aria-label': `صفحة ${p}` },
+    opts.showChrome === false ? null : pageHead(p, first, lbl),
+    opts.full ? h('div', { class: 'mp-mid' }, body) : body,
     opts.showChrome === false ? null : h('div', { class: 'mp-foot' }, arabicDigits(p)));
   if (opts.onTapAyah) page.addEventListener('click', (ev) => { const t = ev.target.closest('.mw, .me'); if (t) opts.onTapAyah(+t.dataset.n, ev); });
   return page;
@@ -90,11 +101,22 @@ export async function mountMushafPage(page) {
 }
 
 /** ضبط حجم الخط: السطر الكامل (≈14.8em) يملأ عرض الجسم؛ ثم تصحيح بالقياس إن تجاوز أي سطر العرض */
+export const ROW_MIN_EM = 1.12; // أدنى ارتفاع للسطر (كما في الطباعة) كي لا تتداخل الأسطر
+export const ROW_MAX_EM = 2.0;  // أقصى تباعد قبل توسيط الكتلة عموديًا
 export function fitMushafPage(page) {
   const body = page.querySelector('.mp-body'); if (!body) return;
   const W = body.clientWidth - parseFloat(getComputedStyle(body).paddingLeft || 0) - parseFloat(getComputedStyle(body).paddingRight || 0);
   if (W <= 0) return;
   let size = W / FULL_LINE_EM;
+  if (page.classList.contains('mp-full') && !body.classList.contains('text')) {
+    // ملء الشاشة: الأسطر الخمسة عشر تتوزع على الارتفاع المتاح؛ الحجم من العرض ما لم يضق الارتفاع
+    const mid = page.querySelector('.mp-mid'); const H = mid ? mid.clientHeight : 0;
+    if (H > 0) {
+      const rows = LINES; const rowH = H / rows;
+      if (rowH < size * ROW_MIN_EM) size = rowH / ROW_MIN_EM;
+      body.style.height = Math.min(H, rows * size * ROW_MAX_EM).toFixed(1) + 'px';
+    }
+  }
   body.style.fontSize = size.toFixed(2) + 'px';
   let maxW = 0;
   for (const l of body.querySelectorAll('.mlw')) maxW = Math.max(maxW, l.getBoundingClientRect().width);
@@ -130,10 +152,11 @@ export function renderTextPage(p, opts = {}) {
     span.append(' ', h('span', { class: 'me', dataset: { n: String(a.n) } }, `۝${ayahMarker(a.ayah, 'arab')}`), ' ');
     body.append(span);
   }
-  const page = h('article', { class: 'mp mp-text ready', dataset: { page: String(p) }, 'aria-label': `صفحة ${p}` },
-    opts.showChrome === false ? null : h('div', { class: 'mp-head' }, h('span', { class: 'mp-surah' }, `سُورَةُ ${surahInfo(first.surah).vocalized}`), h('span', { class: 'mp-juz' }, juzName(lbl.juz))),
-    body,
+  const page = h('article', { class: `mp mp-text ready ${opts.full ? 'mp-full' : ''}`, dataset: { page: String(p) }, 'aria-label': `صفحة ${p}` },
+    opts.showChrome === false ? null : pageHead(p, first, lbl),
+    opts.full ? h('div', { class: 'mp-mid' }, body) : body,
     opts.showChrome === false ? null : h('div', { class: 'mp-foot' }, arabicDigits(p)));
+  if (opts.full) requestAnimationFrame(() => fitMushafPage(page));
   if (opts.onTapAyah) page.addEventListener('click', (ev) => { const t = ev.target.closest('.mw, .me'); if (t) opts.onTapAyah(+t.dataset.n, ev); });
   return page;
 }
