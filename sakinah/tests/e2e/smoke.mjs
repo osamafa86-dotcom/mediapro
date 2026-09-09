@@ -31,6 +31,8 @@ const ctx = await browser.newContext({
   geolocation: { latitude: 31.9539, longitude: 35.9106, accuracy: 20 }, permissions: ['geolocation'], serviceWorkers: 'block',
 });
 const page = await ctx.newPage();
+// بديل لـ page.waitForFunction: مُنفِّذه يُحقن عبر eval فتحجبه سياسة أمان المحتوى (script-src 'self')؛ نستطلع عبر page.evaluate (CDP)
+const waitFor = async (fn, arg = null, { timeout = 8000 } = {}) => { const t0 = Date.now(); for (;;) { if (await page.evaluate(fn, arg)) return true; if (Date.now() - t0 > timeout) throw new Error('waitFor timeout'); await page.waitForTimeout(100); } };
 const document_page = () => page.evaluate(() => document.querySelector('.mreader').dataset.page);
 const chromeOn = () => page.evaluate(() => { const r = document.querySelector('.mreader'); return !!r && r.classList.contains('chrome'); });
 const showTools = async () => {
@@ -208,7 +210,7 @@ await page.touchscreen.tap(wb.x + wb.width / 2, wb.y + wb.height / 2); await pag
 check(!(await page.evaluate(() => document.querySelector('.mr-ayahbar').hidden)) && /الإسراء: \d+/.test(await page.locator('.ayahbar .ab-head b').textContent()) && (await page.locator('.mw.sel').count()) > 3, 'النقر على آية يحدّدها ويعرض شريط خياراتها');
 await page.locator('.ayahbar .ab-actions button', { hasText: 'تفسير' }).click();
 await page.locator('.tafsir-body p, .tafsir-body').first().waitFor({ timeout: 8000 });
-await page.waitForFunction(() => (document.querySelector('.tafsir-body')?.innerText || '').length > 40, null, { timeout: 8000 });
+await waitFor(() => (document.querySelector('.tafsir-body')?.innerText || '').length > 40, null, { timeout: 8000 });
 check(/محفوظ على الجهاز/.test(await page.locator('.tafsir-foot').textContent()) && (await page.locator('.tafsir-src .chip').count()) === 7, 'التفسير الميسر يُعرض من الجهاز مع 7 مصادر');
 await page.locator('.tafsir-nav button').last().click(); await page.waitForTimeout(600);
 check(/تفسير الإسراء: \d+/.test(await page.locator('#sheet-title').textContent()), 'التنقل إلى تفسير الآية التالية');
