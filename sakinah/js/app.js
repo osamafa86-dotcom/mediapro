@@ -243,8 +243,14 @@ function updateHeader() {
   sub.textContent = `${hj.weekday}، ${app.num(hj.day)} ${hj.monthName} ${app.num(hj.year)}هـ`;
 }
 
+function isAppLike() {
+  try { return native.isNative() || navigator.standalone === true || matchMedia('(display-mode: standalone)').matches; } catch { return false; }
+}
 function boot() {
   initSheet();
+  // في التطبيق الأصلي (WKWebView) وتطبيق الشاشة الرئيسية: لا تكبير للصفحة بالنقر المزدوج أو القرص — كان يكبّر المصحف ويقصّ يساره
+  // ويترك «تمريرًا وهميًا». حجم النص يُضبط من إعدادات القارئ. (في المتصفح تبقى إمكانية التكبير كما هي)
+  if (isAppLike()) { const vp = document.querySelector('meta[name="viewport"]'); if (vp) vp.content = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover'; }
   // التبويبات
   for (const t of TABS) {
     const tab = document.getElementById(`tab-${t}`);

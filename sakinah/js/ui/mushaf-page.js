@@ -124,6 +124,27 @@ export async function mountMushafPage(page) {
 /** ضبط حجم الخط: السطر الكامل (≈14.8em) يملأ عرض الجسم؛ ثم تصحيح بالقياس إن تجاوز أي سطر العرض */
 export const ROW_MIN_EM = 1.12; // أدنى ارتفاع للسطر (كما في الطباعة) كي لا تتداخل الأسطر
 export const ROW_MAX_EM = 2.0;  // أقصى تباعد قبل توسيط الكتلة عموديًا
+let _measureCtx = null;
+/**
+ * توسيط اسم السورة بصريًا داخل إطاره: صاعد خط «أميري قرآن» (≈1.8em) أعلى بكثير من نازله (≈0.65em)، فيهبط خط الأساس
+ * والنص عن منتصف الإطار بنحو 0.4em. يُقاس حبر النص (canvas measureText) وموضع خط الأساس (عنصر صفري) ثم يُزاح النص.
+ */
+export function centerSurahName(el) {
+  const frame = el.parentElement; if (!frame || typeof getComputedStyle !== 'function') return;
+  try {
+    if (!_measureCtx) _measureCtx = document.createElement('canvas').getContext('2d');
+    if (!_measureCtx) return;
+    el.style.transform = '';
+    const cs = getComputedStyle(el); _measureCtx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`; _measureCtx.direction = 'rtl';
+    const m = _measureCtx.measureText(el.textContent);
+    if (typeof m.actualBoundingBoxAscent !== 'number') return;
+    const probe = document.createElement('span'); probe.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline;';
+    el.append(probe); const baseline = probe.getBoundingClientRect().bottom; probe.remove();
+    const inkCenter = baseline - (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2;
+    const f = frame.getBoundingClientRect(); const dy = f.top + f.height / 2 - inkCenter;
+    if (Math.abs(dy) > 0.5) el.style.transform = `translateY(${dy.toFixed(2)}px)`;
+  } catch { /* لا قياس (بيئة بلا canvas): يبقى النص في موضعه */ }
+}
 export function fitMushafPage(page) {
   const body = page.querySelector('.mp-body'); if (!body) return;
   if (page._pad === undefined) { const cs = getComputedStyle(body); page._pad = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0); }
@@ -134,7 +155,8 @@ export function fitMushafPage(page) {
   const rootCs = isText ? getComputedStyle(document.documentElement) : null;
   const scale = isText ? (parseFloat(rootCs.getPropertyValue('--quran-scale')) || 1) : 1;
   const lh = isText ? (parseFloat(rootCs.getPropertyValue('--quran-lh')) || 2.15) : 0;
-  const key = `${W}|${H}|${scale}|${lh}|${page.dataset.fit || ''}`;
+  const font = isText ? rootCs.getPropertyValue('--quran-font').trim() : '';
+  const key = `${W}|${H}|${scale}|${lh}|${font}|${page.dataset.fit || ''}`;
   if (page._fitKey === key) return; // لا تغيير في الأبعاد: لا قياس (يُستدعى من مراقبين وعند كل تبديل لشريط الصوت)
   page._fitKey = key;
   let size = W / FULL_LINE_EM;
@@ -148,6 +170,7 @@ export function fitMushafPage(page) {
       body.style.fontSize = lo.toFixed(2) + 'px';
     }
     page.classList.toggle('overflow', body.scrollHeight > body.clientHeight + 1);
+    for (const sn of body.querySelectorAll('.sname.plain')) centerSurahName(sn);
     return;
   }
   if (page.classList.contains('mp-full') && !body.classList.contains('text')) {
@@ -188,23 +211,31 @@ export function tajweedNodes(word, start, spans) {
   }
   flush(); return out;
 }
+/**
+ * خط حفص (مجمع الملك فهد، الإصدار 18) لا يرسم ثلاث علامات من نص تنزيل ويُظهر مكانها دائرة منقّطة، فتُبدَّل بما يرسمه الخط
+ * بالشكل ذاته (سياقيًا): الصفر المستدير ۟ ← سكون (يُرسم صفرًا فوق الألف الصامتة)، علامة الإشمام ۫ ← الصفر القائم ۠، السين
+ * الصغيرة السفلية ۣ ← العلوية ۜ. الطول محفوظ (حرف بحرف) كي تبقى مواضع مقاطع التجويد صحيحة.
+ */
+const HAFS_MAP = { '\u06DF': '\u0652', '\u06EB': '\u06E0', '\u06E3': '\u06DC' };
+export function hafsText(text) { return text.replace(/[\u06DF\u06EB\u06E3]/g, (c) => HAFS_MAP[c]); }
 export function renderTextPage(p, opts = {}) {
   const ayahs = pageAyahs(p); const first = ayahs[0]; const lbl = pageLabel(p);
-  const body = h('div', { class: 'mp-body text' });
+  const body = h('div', { class: 'mp-body text' }); const hafs = opts.font === 'hafs';
   for (const a of ayahs) {
     if (a.ayah === 1) {
       body.append(h('div', { class: 'ml mh' }, h('div', { class: 'sframe' }, h('span', { class: 'sname plain' }, `سورة ${surahInfo(a.surah).name}`))));
       if (a.surah !== 1 && a.surah !== 9) body.append(h('div', { class: 'ml mb', role: 'img', 'aria-label': 'بسم الله الرحمن الرحيم', html: BISMILLAH_SVG }));
     }
     const span = h('span', { class: 'ayah-text' }); let k = 0;
-    const tj = opts.tajweed ? opts.tajweed(a.n) : null; let pos = 0;
-    tokenize(a.text).forEach((t, i, arr) => {
-      const start = a.text.indexOf(t.raw, pos); pos = start + t.raw.length;
+    const tj = opts.tajweed ? opts.tajweed(a.n) : null; let pos = 0; const text = hafs ? hafsText(a.text) : a.text;
+    tokenize(text).forEach((t, i, arr) => {
+      const start = text.indexOf(t.raw, pos); pos = start + t.raw.length;
       const el = h('span', { class: t.spoken ? 'mw' : 'mw mark', dataset: { n: String(a.n) } }, ...(tj && tj.length ? tajweedNodes(t.raw, start, tj) : [t.raw]));
       if (t.spoken) el.dataset.k = String(k++);
       span.append(el, i < arr.length - 1 ? ' ' : '');
     });
-    span.append(' ', h('span', { class: 'me', dataset: { n: String(a.n) } }, `۝${ayahMarker(a.ayah, 'arab')}`), ' ');
+    // خط حفص يركّب الأرقام وحدها في زخرفة نهاية الآية (رمز ۝ يضيف زخرفة فارغة قبلها)
+    span.append(' ', h('span', { class: 'me', dataset: { n: String(a.n) } }, hafs ? ayahMarker(a.ayah, 'arab') : `۝${ayahMarker(a.ayah, 'arab')}`), ' ');
     body.append(span);
   }
   const page = h('article', { class: `mp mp-text ready ${opts.full ? 'mp-full' : ''}`, dataset: { page: String(p) }, 'aria-label': `صفحة ${p}` },

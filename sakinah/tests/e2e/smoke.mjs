@@ -296,10 +296,24 @@ check(tjCount > 40 && (await page.evaluate(() => window.sakinah.settings.quran.v
 await page.waitForTimeout(300);
 const fit = await page.evaluate(() => { const b = document.querySelector('.mr-slide[data-page="293"] .mp-body.text'); return { sh: b.scrollHeight, ch: b.clientHeight, fs: parseFloat(getComputedStyle(b).fontSize) }; });
 check(fit.sh <= fit.ch + 1 && fit.fs >= 12, `وضع النص يلائم الشاشة دون تمرير (${fit.sh}/${fit.ch}px، خط ${fit.fs.toFixed(1)}px)`);
+// الصفحة الملائمة لا تكون حاوية تمرير (فلا يتسرّب السحب الرأسي إلى المستند خلف القارئ على iOS)
+const fitCss = await page.evaluate(() => { const b = document.querySelector('.mr-slide[data-page="293"] .mp-body.text'); const cs = getComputedStyle(b); return { ov: cs.overflowY, ta: cs.touchAction, cls: b.closest('.mp').classList.contains('overflow') }; });
+check(fitCss.ov === 'hidden' && fitCss.ta === 'pan-x' && !fitCss.cls, `الصفحة الملائمة بلا تمرير داخلي ولمسها أفقي فقط (${fitCss.ov}/${fitCss.ta})`);
+// اسم السورة داخل إطاره: مركز الحبر يطابق مركز الإطار (خط أميري قرآن صاعده أعلى من نازله فيهبط النص بلا تصحيح)
+const snc = await page.evaluate(() => {
+  const sn = document.querySelector('.mr-slide[data-page="293"] .mp-text .sname.plain'); if (!sn) return null;
+  const c = document.createElement('canvas').getContext('2d'); const cs = getComputedStyle(sn); c.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`; c.direction = 'rtl'; const m = c.measureText(sn.textContent);
+  const pr = document.createElement('span'); pr.style.cssText = 'display:inline-block;width:0;height:0'; sn.append(pr); const bl = pr.getBoundingClientRect().bottom; pr.remove();
+  const f = sn.parentElement.getBoundingClientRect(); return { d: Math.abs(bl - (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2 - (f.top + f.height / 2)), t: sn.style.transform };
+});
+check(snc && snc.d < 1 && /translateY/.test(snc.t), `اسم السورة في منتصف إطاره بصريًا (انحراف ${snc && snc.d.toFixed(2)}px، ${snc && snc.t})`);
 await page.locator('#sheet-body .segmented button', { hasText: 'حفص' }).waitFor();
 await page.locator('#sheet-body .segmented button', { hasText: 'حفص' }).click();
-await page.waitForTimeout(200);
+await page.locator('.mr-slide[data-page="293"] .mp-text .mw').first().waitFor({ timeout: 20000 });
+await page.evaluate(() => document.fonts.ready); await page.waitForTimeout(500);
 check(/KFGQPC Hafs/.test(await page.evaluate(() => document.documentElement.style.getPropertyValue('--quran-font'))), 'خط حفص (مجمع الملك فهد) يُختار لوضع النص');
+const hafs = await page.evaluate(() => { const b = document.querySelector('.mr-slide[data-page="293"] .mp-body.text'); const w = b.querySelector('.mw'); const me = b.querySelector('.me'); return { ff: getComputedStyle(w).fontFamily, zero: /[\u06DF\u06EB\u06E3]/.test(b.textContent), marker: me.textContent, sh: b.scrollHeight, ch: b.clientHeight, loaded: document.fonts.check('20px "KFGQPC Hafs"') }; });
+check(/KFGQPC Hafs/.test(hafs.ff) && !hafs.zero && !/۝/.test(hafs.marker) && hafs.sh <= hafs.ch + 1, `خط حفص يُطبَّق فعلًا على الكلمات، بلا علامات لا يرسمها الخط، ورقم الآية بزخرفة الخط (${hafs.marker})، والصفحة تلائم الشاشة (${hafs.sh}/${hafs.ch}، محمَّل: ${hafs.loaded})`);
 await page.locator('#sheet-body .segmented button', { hasText: 'أميري' }).click();
 await page.waitForTimeout(200);
 await page.locator('#sheet-body .segmented button', { hasText: 'رأسي' }).click();
