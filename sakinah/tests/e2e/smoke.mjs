@@ -198,7 +198,8 @@ await page.locator('#tab-quran').click();
 await page.locator('.surah-row').first().waitFor({ timeout: 20000 });
 check((await page.locator('#view-quran .surah-row').count()) === 114, 'فهرس السور: 114 سورة');
 await page.locator('#view-quran .search input').fill('الكهف');
-await page.waitForTimeout(150);
+// البحث مؤجَّل (debounce) وقد ينتظر وصول بيانات المصحف أولًا: ننتظر النتيجة لا مدة ثابتة
+await page.waitForFunction(() => /الكهف/.test((document.querySelector('#view-quran .surah-row') || {}).textContent || ''), null, { timeout: 8000 }).catch(() => {});
 check(/الكهف/.test(await page.locator('#view-quran .surah-row').first().textContent()), 'البحث عن سورة الكهف');
 await a11y('فهرس المصحف');
 await page.locator('#view-quran .surah-row').first().click();
@@ -226,20 +227,22 @@ await page.screenshot({ path: path.join(outDir, '08-quran.png') });
 const pageSettled = async (p) => { try { await waitFor((x) => document.querySelector('.mreader').dataset.page === x && !document.querySelector('.mreader').dataset.anim, p); } catch { /* الفحص أدناه يُبلغ */ } await page.waitForTimeout(300); return (await page.locator('.mreader').getAttribute('data-page')) === p; };
 await page.keyboard.press('ArrowLeft');
 check(await pageSettled('294'), 'السهم الأيسر ينتقل إلى الصفحة التالية 294');
-// الملء الفوري أثناء التمرير: بمجرد تجاوز الصفحة منتصف الشاشة تُرسم هي وجارتها قبل «استقرار» التمرير (على iOS يتأخر الاستقرار نحو ثانية)
+// الملء الفوري أثناء التمرير: بمجرد تجاوز الصفحة منتصف الشاشة تُرسم قبل «استقرار» التمرير (على iOS يتأخر الاستقرار نحو ثانية)
+// تمرير ناعم 4 صفحات (بلا التصاق كي لا يُقصر على صفحة واحدة): الصفحة 297 (خارج النافذة المرسومة 293–296) يجب أن تُرسم أثناء الحركة والصفحة الحالية ما زالت 294
 {
-  const before = await page.evaluate(() => ({ 298: !!document.querySelector('.mr-slide[data-page="298"] .mp'), 299: !!document.querySelector('.mr-slide[data-page="299"] .mp') }));
-  // نراقب كل 4 م.ث: لحظة ظهور صفحة 298 يجب أن تكون الصفحة الحالية ما زالت 294 (أي قبل الاستقرار الذي يأتي بعد 120 م.ث من آخر حدث تمرير)
+  const before = await page.evaluate(() => ({ 297: !!document.querySelector('.mr-slide[data-page="297"] .mp'), 298: !!document.querySelector('.mr-slide[data-page="298"] .mp') }));
   const eager = await page.evaluate(() => new Promise((resolve) => {
-    // scroll-snap-stop: always يقصر التمرير البرمجي على صفحة واحدة، فنعطّل الالتصاق مؤقتًا لمحاكاة قفزة تمرير طويلة ثم نعيده بعد الفحص
-    const t = document.querySelector('.mr-track'); t.style.scrollSnapType = 'none'; t.scrollBy({ left: -t.clientWidth * 4, behavior: 'instant' }); const t0 = performance.now();
+    const t = document.querySelector('.mr-track'); t.style.scrollSnapType = 'none'; const t0 = performance.now();
+    t.scrollBy({ left: -t.clientWidth * 4, behavior: 'smooth' });
     const tick = () => {
-      const has = !!document.querySelector('.mr-slide[data-page="298"] .mp'); const cur = document.querySelector('.mreader').dataset.page; const dt = performance.now() - t0;
-      if (has || dt > 1000) resolve({ has, cur, dt: Math.round(dt), 299: !!document.querySelector('.mr-slide[data-page="299"] .mp'), ph: !!document.querySelector('.mr-slide[data-page="298"] .mr-ph') }); else setTimeout(tick, 4);
+      const has = !!document.querySelector('.mr-slide[data-page="297"] .mp'); const cur = document.querySelector('.mreader').dataset.page; const dt = performance.now() - t0;
+      if (has || dt > 3000) resolve({ has, cur, dt: Math.round(dt), ph: !!document.querySelector('.mr-slide[data-page="297"] .mr-ph') }); else setTimeout(tick, 4);
     }; tick();
   }));
-  check(!before[298] && !before[299] && eager.has && eager[299] && !eager.ph && eager.cur === '294', `الصفحة 298 وجارتها 299 تُرسمان فورًا أثناء التمرير قبل استقرار الصفحة الحالية (بعد ${eager.dt} م.ث، الحالية ${eager.cur}، قبلًا ${before[298]}/${before[299]})`);
+  check(!before[297] && !before[298] && eager.has && !eager.ph && eager.cur === '294', `الصفحة 297 تُرسم أثناء حركة التمرير قبل استقرار الصفحة الحالية (بعد ${eager.dt} م.ث، الحالية ${eager.cur}، قبلًا ${before[297]}/${before[298]})`);
   await pageSettled('298');
+  const after = await page.evaluate(() => ({ 298: !!document.querySelector('.mr-slide[data-page="298"] .mp'), 299: !!document.querySelector('.mr-slide[data-page="299"] .mp'), 300: !!document.querySelector('.mr-slide[data-page="300"] .mp') }));
+  check(after[298] && after[299] && after[300], 'بعد الاستقرار على 298: الصفحة وجارتاها 299 و300 (اتجاه القراءة) مرسومة');
   await page.evaluate(() => { document.querySelector('.mr-track').style.scrollSnapType = ''; });
   await page.evaluate(() => window.sakinah.quranReader.goto(294, { smooth: false }));
   await pageSettled('294');
