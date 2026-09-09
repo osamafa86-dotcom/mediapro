@@ -63,7 +63,13 @@ export async function getTafsir(sourceId, surah, ayah, { baseUrl = 'data/tafsir/
   if (src.offline) {
     try {
       const arr = await cachedJson(`${baseUrl}${src.id}/${surah}.json`);
-      if (Array.isArray(arr) && arr[ayah - 1]) return { html: arr[ayah - 1], source: src, offline: true };
+      if (Array.isArray(arr) && arr[ayah - 1]) {
+        // تفسير مجموعة آيات يُخزَّن تحت أولها، والبقية تحمل مرجعًا "@رقم" إليه؛ نعيد النص مع مدى المجموعة لعرضه
+        let entry = arr[ayah - 1], from = ayah;
+        if (typeof entry === 'string' && entry[0] === '@') { from = +entry.slice(1); entry = arr[from - 1]; }
+        let to = from; while (arr[to] === `@${from}`) to++;
+        if (typeof entry === 'string' && entry && entry[0] !== '@') return { html: entry, source: src, offline: true, range: from !== to ? { from, to } : null };
+      }
     } catch { /* نسخة الملف الواحد أو ملف ناقص: نجرّب الشبكة */ }
   }
   const json = await cachedJson(`${API}${src.api}/by_ayah/${surah}:${ayah}`);

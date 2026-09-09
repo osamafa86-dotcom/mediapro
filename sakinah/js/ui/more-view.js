@@ -13,7 +13,7 @@ export function mount(container, app) {
         h('div', { class: 'chip gold', style: { marginBottom: '8px' } }, '✦ حديث اليوم'),
         h('p', { class: 'matn', lang: 'ar' }, hd.text.length > 220 ? hd.text.slice(0, 220) + '…' : hd.text),
         h('div', { class: 'narr' }, `عن ${hd.narrator} — ${hadithReference(hd)}`)),
-      h('p', { class: 'tiny', style: { textAlign: 'center', marginTop: '8px' } }, `سكينة ${app.version} · يعمل دون اتصال · لا يرسل بياناتك إلى أي خادم`));
+      h('p', { class: 'tiny', style: { textAlign: 'center', marginTop: '8px' } }, `سكينة ${app.version} · يعمل دون اتصال · لا حساب ولا تتبّع؛ الشبكة تُستخدم فقط لجلب التلاوات والتفاسير وخطوط المصحف، ولتسمية مدينتك بإحداثيات مقرّبة (يمكن إيقافها من الإعدادات)`));
   }
   app.on('change', () => { if (app.current === 'more') build(); });
   build();

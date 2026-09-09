@@ -14,21 +14,12 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="assets/icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/icons/icon-192.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <!-- الخطوط تُحمَّل دون حجب العرض: يظهر التطبيق فورًا بخطوط النظام ثم تُستبدل (ويعمل دون اتصال بعد أول تخزين) -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=Amiri:ital,wght@0,400;0,700;1,400&display=swap" media="print" onload="this.media='all'">
-  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=Amiri:ital,wght@0,400;0,700;1,400&display=swap"></noscript>
+  <!-- سياسة أمان المحتوى: لا شيفرة مضمّنة، والأصول الخارجية محصورة في خطوط المصحف (jsDelivr) والتفاسير (quran.com) والتلاوات (Islamic Network) وتسمية المدينة (BigDataCloud، اختياري) -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: https://cdn.jsdelivr.net; connect-src 'self' https://api.quran.com https://cdn.jsdelivr.net https://cdn.islamic.network https://api.bigdatacloud.net; media-src 'self' blob: https://cdn.islamic.network; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <!-- خطوط الواجهة مستضافة محليًا (لا طلبات إلى Google Fonts) وتُعرض بخطوط النظام ريثما تُحمَّل -->
+  <link rel="stylesheet" href="css/fonts.css">
   <link rel="stylesheet" href="css/app.css">
-  <script>
-    // تطبيق السمة مبكرًا لتفادي الوميض
-    try {
-      const s = JSON.parse(localStorage.getItem('sakinah:v1') || '{}');
-      const t = s.theme || 'auto';
-      const dark = t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
-      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-    } catch (e) {}
-  </script>
+  <script src="js/boot-theme.js"></script>
 </head>
 <body>
   <div class="app" id="app">

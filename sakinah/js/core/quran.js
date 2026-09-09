@@ -19,14 +19,14 @@ export async function loadQuran(url = 'data/quran.json') {
     else { const res = await fetch(url); if (!res.ok) throw new Error('quran load failed ' + res.status); raw = await res.json(); }
     setQuranData(raw);
     return quran;
-  })();
+  })().catch((e) => { loading = null; throw e; }); // فشل التحميل لا يُخزَّن: تعمل «إعادة المحاولة»
   return loading;
 }
 /** إدخال البيانات مباشرة (للاختبارات والنسخة المضمّنة) */
 export function setQuranData(raw) {
   const sajda = new Set(raw.sajda || []);
   quran = { edition: raw.edition, ayahs: raw.ayahs.map((r, i) => ({ n: i + 1, surah: r[0], ayah: r[1], page: r[2], juz: r[3], hizbQuarter: r[4], text: r[5], sajda: sajda.has(i + 1) })) };
-  byPage.clear(); bySurah.clear();
+  byPage.clear(); bySurah.clear(); searchIdx = null;
   for (const a of quran.ayahs) {
     if (!byPage.has(a.page)) byPage.set(a.page, []); byPage.get(a.page).push(a);
     if (!bySurah.has(a.surah)) bySurah.set(a.surah, []); bySurah.get(a.surah).push(a);
@@ -57,6 +57,32 @@ export function normalizeForMatch(s) {
     .replace(/[^ء-ي٠-٩\s]/g, '')
     .replace(/\s+/g, ' ').trim();
 }
+/** الأرقام العربية المشرقية والفارسية → أرقام ASCII (لمدخلات التنقل والبحث) */
+export function foldDigits(s) { return String(s || '').replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x660)).replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x6F0)); }
+
+/**
+ * صورتان للبحث في الرسم العثماني، لأن كلمات شائعة تُكتب بألف خنجرية أو حروف صغيرة تختلف عن الإملاء الحديث:
+ * - الصورة A تُظهر الحروف الصغيرة كحروف كاملة: ٱلصَّلَوٰةَ → الصلاه، ٱلْكِتَٰبَ → الكتاب، إِبْرَٰهِـۧمَ → ابراهيم، ٱلْقُرْءَانَ → القران.
+ * - الصورة B تحذفها (كالإملاء الذي يُسقط الألف الصغيرة): ٱلرَّحْمَٰنِ → الرحمن، دَاوُۥدَ → داود.
+ * تُطابَق كلمة البحث مع أيٍّ من الصورتين، فتُوجد «الصلاة» و«الرحمن» و«داود» و«إبراهيم» جميعًا.
+ */
+const SEARCH_MARKS = /[\u0610-\u061A\u064B-\u065F\u06D6-\u06DC\u06DF-\u06E4\u06E8-\u06ED\u0640]/g; // الحركات والعلامات، دون الألف الخنجرية والحروف الصغيرة (تُعالج بعدها)
+export function normalizeForSearchA(s) {
+  return normalizeForMatch(String(s || '').replace(SEARCH_MARKS, '')
+    .replace(/\u0648\u0670(?=\u0629)/g, 'ا')  // وٰة (الصلوٰة، الزكوٰة، الحيوٰة، مشكوٰة): الواو صامتة → ا
+    .replace(/\u0648\u0670\u0627/g, 'ا')       // وٰا (الربوٰا) → ا؛ أما السمٰوٰت فالواو منطوقة فتبقى (→ السماوات)
+    .replace(/\u0649\u0670/g, 'ى')   // ىٰ → ى (تصبح ي بعد التطبيع)
+    .replace(/\u0670/g, 'ا').replace(/\u06E7/g, 'ي').replace(/\u06E5/g, 'و').replace(/\u06E6/g, 'ي')
+    .replace(/\u0621\u0627/g, 'ا'));  // ءا (القرءان، ءامنوا) → ا كما تُكتب آ
+}
+export function normalizeForSearchB(s) { return normalizeForMatch(String(s || '').replace(SEARCH_MARKS, '').replace(/\u0621\u0627/g, 'ا')); }
+let searchIdx = null;
+function buildSearchIndex() {
+  if (!quran) return null;
+  searchIdx = quran.ayahs.map((a) => ({ a: ` ${normalizeForSearchA(a.text)} `, b: ` ${normalizeForSearchB(a.text)} ` }));
+  return searchIdx;
+}
+
 /** تجزئة آية إلى كلمات؛ الرموز المنفردة (علامات الوقف) تبقى للعرض لكنها ليست كلمات تُنطق */
 export function tokenize(text) {
   return text.split(' ').filter(Boolean).map((t) => ({ raw: t, norm: normalizeForMatch(t), spoken: /[ء-ي]/.test(normalizeForMatch(t)) }));
@@ -111,13 +137,23 @@ export class HifzMatcher {
   get progress() { return this.words.length ? this.pos / this.words.length : 1; }
 }
 
-/** بحث نصي بسيط (بلا تشكيل) — يعيد حتى limit نتيجة */
+/**
+ * بحث نصي (بلا تشكيل، يتعامل مع الرسم العثماني) — يعيد حتى limit نتيجة.
+ * الترتيب: مطابقة الكلمة الكاملة أولًا ثم المطابقة الجزئية، وداخل كل مجموعة بترتيب المصحف. الفهرس يُبنى مرة عند أول بحث.
+ */
 export function searchText(q, limit = 50) {
   if (!quran) return [];
-  const needle = normalizeForMatch(q); if (needle.length < 2) return [];
-  const out = [];
-  for (const a of quran.ayahs) { if (normalizeForMatch(a.text).includes(needle)) { out.push(a); if (out.length >= limit) break; } }
-  return out;
+  const nA = normalizeForSearchA(q), nB = normalizeForSearchB(q);
+  if (nA.length < 2) return [];
+  const idx = searchIdx || buildSearchIndex();
+  const wA = ` ${nA} `, wB = ` ${nB} `;
+  const whole = [], partial = [];
+  for (let i = 0; i < idx.length; i++) {
+    const e = idx[i];
+    if (e.a.includes(wA) || e.b.includes(wB)) { whole.push(quran.ayahs[i]); if (whole.length >= limit) break; }
+    else if (partial.length < limit && (e.a.includes(nA) || e.b.includes(nB))) partial.push(quran.ayahs[i]);
+  }
+  return whole.concat(partial).slice(0, limit);
 }
 
 /** تحويل رقم آية عالمي إلى نص مرجعي "البقرة: 255" */

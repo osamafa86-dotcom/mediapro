@@ -22,6 +22,7 @@ export const DEFAULT_SETTINGS = {
     vibrate: true,
   },
   compass: { declinationMode: 'auto' }, // 'auto' | 'on' | 'off'
+  privacy: { geocode: true },   // تسمية المدينة عبر الإنترنت بإحداثيات مقرّبة (نحو 1 كم)؛ الإيقاف يكتفي بأقرب مدينة من القائمة
   quran: {
     lastRead: null,          // { page, surah, ayah, at }
     bookmarks: [],           // [{ surah, ayah, page, at }]

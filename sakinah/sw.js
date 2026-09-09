@@ -1,8 +1,8 @@
 /* سكينة — عامل الخدمة: عمل دون اتصال + إشعارات */
-const VERSION = 'sakinah-v1.3.1';
+const VERSION = 'sakinah-v1.4.0';
 const FONT_CACHE = 'sakinah-mushaf-fonts'; // خطوط صفحات المصحف (تُملأ عند الطلب أو بالتنزيل الكامل من الخيارات)
 const CORE = [
-  './', './index.html', './manifest.webmanifest', './css/app.css',
+  './', './index.html', './manifest.webmanifest', './css/app.css', './css/fonts.css', './js/boot-theme.js',
   './js/app.js', './js/ui/components.js', './js/ui/prayer-view.js', './js/ui/qibla-view.js', './js/ui/adhkar-view.js',
   './js/ui/hadith-view.js', './js/ui/settings-view.js',
   './js/core/astro.js', './js/core/prayer-times.js', './js/core/methods.js', './js/core/qibla.js', './js/core/geomag.js', './js/core/hijri.js',
@@ -11,20 +11,27 @@ const CORE = [
   './js/data/quran-meta.js', './js/core/quran.js', './js/platform/audio.js', './js/platform/speech.js', './js/ui/quran-view.js', './js/ui/more-view.js', './data/quran.json',
   './js/core/mushaf.js', './js/ui/mushaf-page.js', './js/ui/mushaf-reader.js', './js/platform/mushaf-fonts.js', './js/data/bismillah.js', './data/mushaf-layout.json', './js/data/world-land.js', './js/core/tafsir.js',
   './assets/icons/icon.svg', './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/fonts/AmiriQuran.woff2',
+  ...['Tajawal-400', 'Tajawal-500', 'Tajawal-700', 'Tajawal-800', 'Tajawal-900', 'Amiri-400', 'Amiri-400i', 'Amiri-700'].flatMap((f) => [`./assets/fonts/${f}-arabic.woff2`, `./assets/fonts/${f}-latin.woff2`]),
 ];
-// ورقة أنماط الخطوط (ملفات الخطوط نفسها تُخزَّن عند أول طلب عبر معالج fetch)
-const FONT_CSS = 'https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&family=Amiri:ital,wght@0,400;0,700;1,400&display=swap';
-
+// ملفات اختيارية تُخزَّن في الخلفية بعد التفعيل (لا تؤخر التثبيت ولا تفشله): التفسير الميسر لكل السور
+const OPTIONAL = Array.from({ length: 114 }, (_, i) => `./data/tafsir/muyassar/${i + 1}.json`);
 self.addEventListener('install', (e) => {
   // cache:'reload' يتجاوز كاش HTTP للمتصفح كي تُخزَّن النسخة الجديدة فعلًا عند رفع الإصدار
-  e.waitUntil(caches.open(VERSION).then((c) => Promise.allSettled([
-    ...CORE.map((u) => c.add(new Request(u, { cache: 'reload' }))),
-    c.add(new Request(FONT_CSS, { cache: 'reload' })).catch(() => {}),
-  ])).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then((c) => Promise.allSettled(CORE.map((u) => c.add(new Request(u, { cache: 'reload' }))))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION && k !== FONT_CACHE && k !== 'sakinah-tafsir').map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION && k !== FONT_CACHE && k !== 'sakinah-tafsir').map((k) => caches.delete(k)))).then(() => self.clients.claim())
+    .then(() => precacheOptional()));
 });
+// تخزين الملفات الاختيارية على دفعات صغيرة في الخلفية (تُتخطى الموجودة)
+async function precacheOptional() {
+  try {
+    const c = await caches.open(VERSION);
+    for (let i = 0; i < OPTIONAL.length; i += 6) {
+      await Promise.allSettled(OPTIONAL.slice(i, i + 6).map(async (u) => { if (!(await c.match(u))) { const r = await fetch(u); if (r.ok) await c.put(u, r); } }));
+    }
+  } catch { /* لا اتصال: تُخزَّن عند أول طلب */ }
+}
 
 // استراتيجية: الملفات المحلية = الكاش أولًا مع تحديث بالخلفية؛ الخطوط = الكاش أولًا؛ الشبكة الخارجية الأخرى = الشبكة أولًا
 self.addEventListener('fetch', (e) => {
@@ -32,7 +39,6 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   const sameOrigin = url.origin === self.location.origin;
-  const isFont = /fonts\.(googleapis|gstatic)\.com$/.test(url.hostname);
   // خطوط صفحات المصحف: الكاش أولًا (كاش دائم لا يُحذف مع ترقية الإصدار)، وتُخزَّن عند أول تحميل
   if (url.hostname === 'cdn.jsdelivr.net' && /\/fonts\/quran\//.test(url.pathname)) {
     e.respondWith(caches.open(FONT_CACHE).then(async (c) => {
@@ -49,12 +55,13 @@ self.addEventListener('fetch', (e) => {
     }));
     return;
   }
-  if (sameOrigin || isFont) {
+  if (sameOrigin) {
     e.respondWith(
       caches.match(req).then((cached) => {
-        // إعادة التحقق من الخادم (ETag/304) بدل الاكتفاء بكاش HTTP
-        const fetched = fetch(sameOrigin ? new Request(req, { cache: 'no-cache' }) : req).then((res) => {
-          if (res && (res.ok || res.type === 'opaque')) caches.open(VERSION).then((c) => c.put(req, res.clone()));
+        // بيانات ثابتة (تفسير، مصحف): الكاش أولًا دون إعادة تحقق؛ وسائر الملفات: إعادة تحقق من الخادم (ETag/304) بدل الاكتفاء بكاش HTTP
+        if (cached && /\/data\/(tafsir|mushaf-layout|quran)/.test(url.pathname)) return cached;
+        const fetched = fetch(new Request(req, { cache: 'no-cache' })).then((res) => {
+          if (res && res.ok) caches.open(VERSION).then((c) => c.put(req, res.clone()));
           return res;
         }).catch(async () => {
           // دون اتصال ولا نسخة مخزّنة: صفحة التطبيق للتنقل، وخطأ شبكة صريح (فوري) لغير ذلك بدل تعليق الطلب

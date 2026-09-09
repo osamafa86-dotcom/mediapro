@@ -30,7 +30,9 @@ export function mount(container, app) {
       section('الموقع', 'location',
         settingRow(describeLocation(loc), loc ? `${app.num(loc.lat, 4)}, ${app.num(loc.lon, 4)} · ${loc.tz}${loc.source === 'gps' ? ' · GPS' : loc.source === 'city' ? ' · من القائمة' : ' · يدوي'}` : 'لم يُحدَّد بعد',
           h('button', { class: 'btn btn-sm btn-soft', onclick: () => app.openLocationSheet() }, 'تغيير')),
-        loc && loc.tz !== deviceTimeZone() ? h('div', { class: 'notice', style: { marginTop: '8px' } }, h('span', { html: icon('info') }), `تُعرض الأوقات بتوقيت ${loc.tz} (منطقة الموقع المختار) وليس بتوقيت جهازك (${deviceTimeZone()}).`) : null),
+        loc && loc.tz !== deviceTimeZone() ? h('div', { class: 'notice', style: { marginTop: '8px' } }, h('span', { html: icon('info') }), `تُعرض الأوقات بتوقيت ${loc.tz} (منطقة الموقع المختار) وليس بتوقيت جهازك (${deviceTimeZone()}).`) : null,
+        settingRow('تسمية المدينة عبر الإنترنت', 'يرسل إحداثيات مقرّبة إلى نحو كيلومتر (لا موقعك الدقيق) إلى خدمة BigDataCloud لمعرفة اسم المدينة والدولة؛ عند الإيقاف يُكتفى بأقرب مدينة من القائمة المضمّنة',
+          switchEl(!(s.privacy && s.privacy.geocode === false), (v) => app.set('privacy.geocode', v), 'تسمية المدينة عبر الإنترنت'))),
 
       section('حساب المواقيت', 'clock',
         h('div', { class: 'field' }, h('label', {}, 'طريقة الحساب'), select(s.method, methodOptions, (v) => app.set('method', v)), h('div', { class: 'tiny' }, methodDesc)),
@@ -75,7 +77,7 @@ export function mount(container, app) {
 
       section('حول التطبيق', 'info',
         h('div', { class: 'about' },
-          h('p', {}, h('b', {}, `سكينة ${app.version}`), ' — تطبيق ويب تقدمي يعمل دون اتصال بعد أول تحميل، ولا يرسل موقعك إلى أي خادم (جميع الحسابات على جهازك).'),
+          h('p', {}, h('b', {}, `سكينة ${app.version}`), ' — تطبيق ويب تقدمي يعمل دون اتصال بعد أول تحميل. كل الحسابات (المواقيت، القبلة، التقويم) تتم على جهازك، ولا حساب ولا تحليلات. الشبكة تُستخدم لجلب التلاوات والتفاسير وخطوط المصحف عند الطلب، ولتسمية مدينتك بإحداثيات مقرّبة إلى نحو كيلومتر (يمكن إيقافها من قسم الموقع أعلاه).'),
           h('p', {}, h('b', {}, 'المواقيت: '), 'حساب فلكي بخوارزميات Jean Meeus مع طرق الهيئات الرسمية (أم القرى، رابطة العالم الإسلامي، الهيئة المصرية، الأوقاف الأردنية…)، وقد تُختبر مطابقتها آليًا مع مكتبة adhan المرجعية.'),
           h('p', {}, h('b', {}, 'القبلة: '), 'اتجاه جيوديسي على WGS‑84 (Vincenty) نحو الكعبة (21.4225°N, 39.8262°E) مع الانحراف المغناطيسي من النموذج العالمي WMM2025 (NOAA/NCEI) والتحقق بالشمس.'),
           h('p', {}, h('b', {}, 'الأذكار: '), 'حصن المسلم — أذكار الصباح والمساء بنصوصها وتخريجها.'),

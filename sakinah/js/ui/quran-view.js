@@ -69,7 +69,7 @@ export function mount(container, app) {
       try {
         const r = await getTafsir(src, cur.surah, cur.ayah);
         if (my !== token) return;
-        body.innerHTML = r.html; render(foot, `${r.source.name} — ${r.source.by}${r.offline ? ' · محفوظ على الجهاز' : ' · عبر quran.com'}`);
+        body.innerHTML = r.html; render(foot, `${r.range ? `تفسير الآيات ${app.num(r.range.from)}–${app.num(r.range.to)} معًا · ` : ''}${r.source.name} — ${r.source.by}${r.offline ? ' · محفوظ على الجهاز' : ' · عبر quran.com'}`);
       } catch (e) {
         if (my !== token) return;
         render(body, h('div', { class: 'notice' }, h('span', { html: icon('warning') }), tafsirSource(src).offline ? 'تعذّر قراءة التفسير. أعد المحاولة.' : 'هذا التفسير يحتاج اتصالًا بالإنترنت أول مرة، ثم يُحفظ على الجهاز. التفسير الميسر متاح دون اتصال.'));
@@ -283,7 +283,10 @@ export function mount(container, app) {
   });
   player.on('state', (st) => { if (st === 'stopped' || st === 'ended') { playingAyah = null; reader.clearMarks('hl'); } renderAudioBar(); });
   player.on('time', ({ t, d }) => { const bar = document.querySelector('.audio-bar .bar i'); if (bar && d) bar.style.width = `${(t / d) * 100}%`; });
-  player.on('error', ({ code }) => { if (code !== 'play') toast('تعذّر تحميل التلاوة — تحقق من الاتصال بالإنترنت', 3500); });
+  player.on('error', ({ code, kind }) => {
+    if (code === 'play') return;
+    toast(kind === 'network' ? 'تعذّر تحميل التلاوة — تحقق من الاتصال بالإنترنت' : kind === 'unavailable' ? 'هذه التلاوة غير متاحة لهذه الآية من هذا القارئ — جرّب قارئًا آخر' : 'تعذّر تشغيل التلاوة — جرّب قارئًا آخر أو أعد المحاولة', 3800);
+  });
 
   function renderAudioBar() {
     let bar = document.getElementById('audio-bar');

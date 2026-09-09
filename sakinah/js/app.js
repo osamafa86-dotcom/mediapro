@@ -93,7 +93,8 @@ export const app = {
   async detectLocation({ silent = false, fresh = false } = {}) {
     if (!isGeolocationSupported()) { toast('المتصفح لا يدعم تحديد الموقع'); return null; }
     try {
-      const loc = await detectLocation(fresh ? { maximumAge: 0, timeout: 20000 } : {});
+      const geocode = !(this.settings.privacy && this.settings.privacy.geocode === false);
+      const loc = await detectLocation({ geocode, ...(fresh ? { maximumAge: 0, timeout: 20000 } : {}) });
       this.update({ location: loc });
       if (!silent) toast(`تم تحديد الموقع: ${describeLocation(loc)}`);
       return loc;

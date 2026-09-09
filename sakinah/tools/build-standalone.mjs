@@ -24,7 +24,12 @@ const quranJson = fs.readFileSync(path.join(root, 'data/quran.json'), 'utf8').re
 const mushafJson = fs.readFileSync(path.join(root, 'data/mushaf-layout.json'), 'utf8').replace(/<\/script/gi, '<\\/script');
 
 // دوال بدل سلاسل الاستبدال: المحتوى المضمّن قد يحوي أنماط $& و$' التي يفسّرها String.replace
+const bootTheme = fs.readFileSync(path.join(root, 'js/boot-theme.js'), 'utf8');
 html = html
+  // نسخة الملف الواحد تعمل من file:// وكل شيفرتها مضمّنة، فلا تنطبق عليها سياسة script-src 'self'
+  .replace(/\s*<!-- سياسة أمان المحتوى[^\n]*\n\s*<meta http-equiv="Content-Security-Policy"[^>]*>/, '')
+  .replace(/\s*<!-- خطوط الواجهة مستضافة محليًا[^\n]*\n\s*<link rel="stylesheet" href="css\/fonts.css">/, '')
+  .replace(/<script src="js\/boot-theme.js"><\/script>/, () => `<script>${bootTheme}</script>`)
   .replace(/\s*<link rel="manifest"[^>]*>/, '')
   .replace(/\s*<link rel="apple-touch-icon"[^>]*>/, '')
   .replace(/<link rel="icon" href="assets\/icons\/icon.svg" type="image\/svg\+xml">/, () => `<link rel="icon" href="${svgUri}" type="image/svg+xml">`)
@@ -32,7 +37,7 @@ html = html
   .replace(/<script type="module" src="js\/app.js"><\/script>/, () => `<script>window.SAKINAH_STANDALONE=true;window.SAKINAH_QURAN=${quranJson};window.SAKINAH_MUSHAF=${mushafJson};</script>\n<script>\n${js.replace(/<\/script/gi, '<\\/script')}\n</script>`)
   .replace('<title>سكينة — مواقيت الصلاة والقبلة والأذكار</title>', '<title>سكينة — نسخة تجريبية (ملف واحد)</title>');
 
-if (!html.includes('SAKINAH_STANDALONE') || html.includes('css/app.css')) throw new Error('template replacement failed');
+if (!html.includes('SAKINAH_STANDALONE') || html.includes('css/app.css') || html.includes('css/fonts.css') || html.includes('Content-Security-Policy') || html.includes('boot-theme.js')) throw new Error('template replacement failed');
 const target = path.join(out, 'sakinah-standalone.html');
 fs.writeFileSync(target, html);
 console.log('wrote', target, (fs.statSync(target).size / 1024).toFixed(0) + ' KB');

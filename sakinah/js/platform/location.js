@@ -43,8 +43,9 @@ export async function detectLocation(opts = {}) {
     loc.nearestKm = Math.round(d);
     if (d > 60) loc.name = `قرب ${near.nameAr}`;
   }
+  // تسمية المدينة عبر الإنترنت اختيارية، وبإحداثيات مقرّبة إلى منزلتين (نحو كيلومتر) لا بالموقع الدقيق
   try {
-    const g = await reverseGeocode(lat, lon);
+    const g = opts.geocode === false ? null : await reverseGeocode(+lat.toFixed(2), +lon.toFixed(2));
     if (g) {
       if (g.city) loc.name = g.city;
       if (g.countryCode) loc.countryCode = g.countryCode;
@@ -55,12 +56,12 @@ export async function detectLocation(opts = {}) {
   return loc;
 }
 
-/** جيوكود عكسي مجاني دون مفتاح (BigDataCloud) — أفضل جهد فقط */
+/** جيوكود عكسي مجاني دون مفتاح (BigDataCloud) — أفضل جهد فقط. الإحداثيات تُقرَّب إلى منزلتين دائمًا حمايةً للخصوصية */
 export async function reverseGeocode(lat, lon, { timeoutMs = 6000 } = {}) {
   if (typeof fetch === 'undefined' || (typeof navigator !== 'undefined' && navigator.onLine === false)) return null;
   const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=ar`;
+    const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${(+lat).toFixed(2)}&longitude=${(+lon).toFixed(2)}&localityLanguage=ar`;
     const res = await fetch(url, { signal: ctrl.signal });
     if (!res.ok) return null;
     const j = await res.json();

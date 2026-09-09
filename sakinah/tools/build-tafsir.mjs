@@ -33,8 +33,12 @@ for (const s of SURAHS) {
   const json = await fetchChapter(s.n);
   const arr = new Array(s.ayahs).fill('');
   for (const t of json.tafsirs) { const [, a] = t.verse_key.split(':').map(Number); if (a >= 1 && a <= s.ayahs) arr[a - 1] = sanitizeTafsirHtml(t.text); }
+  // quran.com يخزّن تفسير مجموعة آيات متتالية تحت أول آية فيها ويترك البقية فارغة؛ نضع مرجعًا "@رقم" إلى بداية المجموعة
+  let grouped = 0;
+  for (let k = 1; k < arr.length; k++) if (!arr[k] && arr[k - 1]) { const start = arr[k - 1][0] === '@' ? +arr[k - 1].slice(1) : k; arr[k] = `@${start}`; grouped++; }
   const missing = arr.filter((x) => !x).length;
   if (missing) console.warn(`surah ${s.n}: ${missing} ayah(s) without tafsir`);
+  if (grouped && s.n % 20 === 0) console.log(`  surah ${s.n}: ${grouped} grouped ayah(s)`);
   const out = JSON.stringify(arr); fs.writeFileSync(path.join(outDir, `${s.n}.json`), out);
   total += arr.length - missing; bytes += Buffer.byteLength(out);
   if (s.n % 20 === 0) process.stdout.write(`\r  ${s.n}/114`);
