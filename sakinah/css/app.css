@@ -518,3 +518,18 @@ body.has-audio .mreader .mr-bottom { display: none; }
 /* مشغّل التلاوة فوق القارئ */
 body.mreader-open .audio-bar { bottom: calc(8px + var(--safe-b)); z-index: 46; }
 body.mreader-open .tabbar { visibility: hidden; }
+/* وضع الخريطة في شاشة القبلة: يابسة بإسقاط مستطيل وقوس الدائرة العظمى إلى الكعبة */
+.map-mode .qmap { width: 100%; aspect-ratio: 16 / 10; border-radius: 14px; overflow: hidden; background: #cfe3ee; border: 1px solid var(--line); margin-top: 6px; }
+[data-theme="dark"] .map-mode .qmap { background: #0f2230; }
+.map-mode .qmap svg { width: 100%; height: 100%; display: block; }
+.map-mode .qmap .land { fill: #e8e1c8; stroke: #b9ad86; stroke-width: .25; }
+[data-theme="dark"] .map-mode .qmap .land { fill: #2a3326; stroke: #465340; }
+.map-mode .qmap .grat { stroke: rgba(0,0,0,.08); stroke-width: .2; fill: none; }
+[data-theme="dark"] .map-mode .qmap .grat { stroke: rgba(255,255,255,.08); }
+.map-mode .qmap .arc { fill: none; stroke: var(--primary); stroke-width: 1.1; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.map-mode .qmap .arc-halo { fill: none; stroke: #fff; stroke-width: 3; stroke-opacity: .7; vector-effect: non-scaling-stroke; }
+.map-mode .qmap .rhumb { fill: none; stroke: var(--gold); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+.map-mode .legend { display: flex; gap: 14px; justify-content: center; font-size: 12px; color: var(--text-2); margin-top: 8px; flex-wrap: wrap; }
+.map-mode .legend i { display: inline-block; width: 18px; height: 0; border-top: 2.5px solid var(--primary); vertical-align: middle; margin-left: 4px; }
+.map-mode .legend i.rh { border-top: 2px dashed var(--gold); }
+.map-mode .map-toggle { display: flex; justify-content: center; gap: 6px; margin-top: 8px; }

@@ -83,3 +83,16 @@ test('localMidnightUTC صحيح عبر مناطق زمنية مختلفة', () =
 test('الاتجاهات الاسمية بالعربية', () => {
   assert.equal(compassPointAr(0), 'شمال'); assert.equal(compassPointAr(150), 'جنوب شرق'); assert.equal(compassPointAr(295), 'شمال غرب');
 });
+
+test('نقاط الدائرة العظمى: تبدأ وتنتهي بالطرفين، وتمرّ شمالًا من نيويورك إلى مكة (التفسير البصري للاتجاه الشمالي الشرقي)', async () => {
+  const { greatCirclePoints, KAABA } = await import('../../js/core/qibla.js');
+  const pts = greatCirclePoints(40.7128, -74.006, KAABA.latitude, KAABA.longitude, 32);
+  assert.equal(pts.length, 33);
+  assert.ok(Math.abs(pts[0][0] - 40.7128) < 1e-9 && Math.abs(pts[0][1] + 74.006) < 1e-9);
+  assert.ok(Math.abs(pts[32][0] - KAABA.latitude) < 1e-6 && Math.abs(pts[32][1] - KAABA.longitude) < 1e-6);
+  const maxLat = Math.max(...pts.map((p) => p[0]));
+  assert.ok(maxLat > 45 && maxLat < 55, `القوس يصعد إلى ${maxLat.toFixed(1)}° شمالًا (أعلى من طرفيه 40.7° و21.4°)`);
+  // خطوط الطول تتزايد رتيبًا (لا يعبر خط التاريخ)
+  for (let i = 1; i < pts.length; i++) assert.ok(pts[i][1] > pts[i - 1][1]);
+  assert.deepEqual(greatCirclePoints(10, 10, 10, 10), [[10, 10], [10, 10]]);
+});

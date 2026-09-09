@@ -1,11 +1,12 @@
 /**
  * شاشة القبلة — تجربة مبسطة: سهم واحد كبير وتعليمة واحدة («أدر الهاتف يمينًا ٣٥°» → «✓ أنت متجه إلى القبلة»)،
  * تشغيل تلقائي للمستشعر (زرّ واحد فقط حيث يلزم إذن iOS)، حالة محاذاة خضراء مع اهتزاز، فقاعة استواء، تنبيه معايرة،
- * ووضع «الشمس» بلا بوصلة. التفاصيل الفنية (الدرجات الدقيقة، المسافة، الانحراف المغناطيسي WMM2025، مصدر المستشعر) خلف زر (i).
+ * ووضع «الشمس» بلا بوصلة، ووضع «الخريطة» (يابسة العالم دون اتصال وقوس الدائرة العظمى إلى الكعبة). التفاصيل الفنية (الدرجات الدقيقة، المسافة، الانحراف المغناطيسي WMM2025، مصدر المستشعر) خلف زر (i).
  * الاتجاه جيوديسي (Vincenty على WGS‑84) من الشمال الحقيقي؛ قراءات الهاتف مغناطيسية فيُضاف الانحراف المغناطيسي.
  */
 import { h, icon, render, vibrate, openSheet } from './components.js';
-import { qiblaInfo, sunQiblaMoments, kaabaZenithEvents, signedDifference, sunPosition } from '../core/qibla.js';
+import { qiblaInfo, sunQiblaMoments, kaabaZenithEvents, signedDifference, sunPosition, greatCirclePoints, KAABA } from '../core/qibla.js';
+import { WORLD_LAND_PATH } from '../data/world-land.js';
 import { startCompass, accuracyLabel, magneticToTrue, needsPermissionGesture, compassSupported } from '../platform/compass.js';
 import { civilDate } from '../core/prayer-times.js';
 import { describeLocation } from '../platform/location.js';
@@ -180,6 +181,42 @@ export function mount(container, app) {
         h('span', {}, 'تعامد الشمس على الكعبة (الظلّ في كل مكان يعاكس القبلة): ', ...zen.map((e, i) => h('b', { class: 'ltr' }, `${i ? ' · ' : ''}${new Intl.DateTimeFormat(`ar-u-nu-${app.numerals}`, { timeZone: app.tz, day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' }).format(e.time)}`)), ' بتوقيتك المحلي.')) : null);
   }
 
+  /* ---------- وضع الخريطة ---------- */
+  let mapWorld = false;
+  function mapPanel(loc) {
+    const P = (lat, lon) => [lon + 180, 90 - lat];
+    const pts = greatCirclePoints(loc.lat, loc.lon, KAABA.latitude, KAABA.longitude, 96);
+    // تقسيم القوس عند خط التاريخ
+    const segs = [[]]; for (let i = 0; i < pts.length; i++) { if (i && Math.abs(pts[i][1] - pts[i - 1][1]) > 180) segs.push([]); segs[segs.length - 1].push(P(pts[i][0], pts[i][1])); }
+    const arcD = segs.map((sg) => sg.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(2)} ${y.toFixed(2)}`).join('')).join('');
+    const [ux, uy] = P(loc.lat, loc.lon); const [kx, ky] = P(KAABA.latitude, KAABA.longitude);
+    // الخط المستقيم على الخريطة (خط الرمب) للمقارنة — يُرسم فقط إن لم يعبر خط التاريخ
+    const rhumb = Math.abs(loc.lon - KAABA.longitude) <= 180 ? `M${ux.toFixed(2)} ${uy.toFixed(2)}L${kx.toFixed(2)} ${ky.toFixed(2)}` : '';
+    // إطار العرض: المنطقة حول القوس (مع هامش) أو العالم كله
+    let vb = '0 0 360 180';
+    if (!mapWorld) {
+      const xs = segs.flat().map((p) => p[0]), ys = segs.flat().map((p) => p[1]);
+      let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+      const padX = Math.max(12, (x1 - x0) * .18), padY = Math.max(8, (y1 - y0) * .25);
+      x0 -= padX; x1 += padX; y0 -= padY; y1 += padY;
+      let w = Math.max(60, x1 - x0), hgt = Math.max(37.5, y1 - y0);
+      if (w / hgt > 1.6) hgt = w / 1.6; else w = hgt * 1.6;
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+      x0 = Math.max(0, Math.min(360 - w, cx - w / 2)); y0 = Math.max(0, Math.min(180 - hgt, cy - hgt / 2));
+      vb = `${x0.toFixed(1)} ${y0.toFixed(1)} ${Math.min(360, w).toFixed(1)} ${Math.min(180, hgt).toFixed(1)}`;
+    }
+    let grat = ''; for (let lon = -150; lon <= 180; lon += 30) grat += `M${lon + 180} 0V180`; for (let lat = -60; lat <= 60; lat += 30) grat += `M0 ${90 - lat}H360`;
+    const map = h('div', { class: 'qmap', role: 'img', 'aria-label': 'خريطة تبيّن أقصر مسار من موقعك إلى الكعبة' });
+    map.innerHTML = `<svg viewBox="${vb}" preserveAspectRatio="xMidYMid slice"><path class="land" d="${WORLD_LAND_PATH}"/><path class="grat" d="${grat}"/>
+      ${rhumb ? `<path class="rhumb" d="${rhumb}"/>` : ''}<path class="arc-halo" d="${arcD}"/><path class="arc" d="${arcD}"/>
+      <g transform="translate(${ux.toFixed(2)} ${uy.toFixed(2)})"><circle r="1.6" fill="var(--primary)" stroke="#fff" stroke-width=".6" vector-effect="non-scaling-stroke"/></g>
+      <g transform="translate(${kx.toFixed(2)} ${ky.toFixed(2)})"><circle r="2.4" fill="#fff" stroke="var(--gold)" stroke-width=".5"/><rect x="-1.3" y="-1.3" width="2.6" height="2.6" rx=".3" fill="#1c1917"/><rect x="-1.3" y="-.4" width="2.6" height=".6" fill="var(--gold)"/></g></svg>`;
+    return h('div', { class: 'map-mode' }, map,
+      h('div', { class: 'legend' }, h('span', {}, h('i'), 'أقصر مسار على الكرة الأرضية (اتجاه القبلة)'), rhumb ? h('span', {}, h('i', { class: 'rh' }), 'الخط المستقيم على الخريطة المسطحة') : null),
+      h('div', { class: 'map-toggle' }, h('button', { class: 'chip chip-btn', onclick: () => { mapWorld = !mapWorld; build(); } }, mapWorld ? 'تكبير على المنطقة' : 'عرض العالم كله')),
+      h('p', { class: 'tiny', style: { textAlign: 'center', marginTop: '8px', lineHeight: 1.8 } }, `اتجاه القبلة هو اتجاه بداية هذا القوس من موقعك: ${app.num(info.bearing, 1)}° (${info.compassPoint}) · ${app.num(Math.round(info.distanceKm), 0, true)} كم. القوس يبدو منحنيًا لأن الخريطة مسطحة، وهذا ما يفسّر مثلًا اتجاه القبلة الشمالي الشرقي من أمريكا الشمالية.`));
+  }
+
   /* ---------- البناء ---------- */
   async function build() {
     const loc = app.location;
@@ -200,7 +237,13 @@ export function mount(container, app) {
         h('button', { class: 'icon-btn', 'aria-label': 'تفاصيل', title: 'التفاصيل', onclick: openDetails }, h('span', { html: icon('info') }))));
     const seg = h('div', { class: 'segmented', style: { margin: '6px 0 10px' } },
       h('button', { class: mode === 'compass' ? 'active' : '', onclick: () => { mode = 'compass'; build(); } }, 'البوصلة'),
-      h('button', { class: mode === 'sun' ? 'active' : '', onclick: () => { mode = 'sun'; build(); } }, 'الشمس'));
+      h('button', { class: mode === 'sun' ? 'active' : '', onclick: () => { mode = 'sun'; build(); } }, 'الشمس'),
+      h('button', { class: mode === 'map' ? 'active' : '', onclick: () => { mode = 'map'; build(); } }, 'الخريطة'));
+    if (mode === 'map') {
+      generation++; stopSensor(); if (sensor === 'live' || sensor === 'starting') sensor = 'idle';
+      render(container, h('div', { class: 'card qibla-card' }, head, seg, mapPanel(loc)));
+      return;
+    }
     if (mode === 'sun') {
       generation++; stopSensor(); if (sensor === 'live' || sensor === 'starting') sensor = 'idle';
       const body = h('div', {});

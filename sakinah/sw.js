@@ -9,7 +9,7 @@ const CORE = [
   './js/platform/storage.js', './js/platform/location.js', './js/platform/compass.js', './js/platform/notifications.js',
   './js/data/adhkar.js', './js/data/hadith.js', './js/data/hadith/part-a.js', './js/data/hadith/part-b.js', './js/data/cities.js',
   './js/data/quran-meta.js', './js/core/quran.js', './js/platform/audio.js', './js/platform/speech.js', './js/ui/quran-view.js', './js/ui/more-view.js', './data/quran.json',
-  './js/core/mushaf.js', './js/ui/mushaf-page.js', './js/ui/mushaf-reader.js', './js/platform/mushaf-fonts.js', './js/data/bismillah.js', './data/mushaf-layout.json',
+  './js/core/mushaf.js', './js/ui/mushaf-page.js', './js/ui/mushaf-reader.js', './js/platform/mushaf-fonts.js', './js/data/bismillah.js', './data/mushaf-layout.json', './js/data/world-land.js',
   './assets/icons/icon.svg', './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/fonts/AmiriQuran.woff2',
 ];
 // ورقة أنماط الخطوط (ملفات الخطوط نفسها تُخزَّن عند أول طلب عبر معالج fetch)

@@ -17,8 +17,11 @@ const fails = [];
 const ok = (c, m) => { console.log(`${c ? '✓' : '✗'} ${m}`); if (!c) fails.push(m); };
 ok(/الرياض/.test(await page.locator('.loc-chip').textContent()), 'الموقع: الرياض');
 ok(/أم القرى/.test(await page.locator('#view-prayer .tiny').last().textContent()), 'الطريقة التلقائية: أم القرى');
-await page.locator('#tab-qibla').click(); await page.locator('.compass-rose').waitFor();
-ok(!/غير متاح/.test(await page.locator('.kv').first().textContent()), 'WMM2025 يعمل داخل الملف الواحد');
+await page.locator('#tab-qibla').click(); await page.locator('.compass-wrap').waitFor();
+await page.locator('.icon-btn[aria-label="تفاصيل"]').click();
+ok(/الانحراف/.test(await page.locator('#sheet-body').textContent()) && !/غير متاح/.test(await page.locator('#sheet-body').textContent()), 'WMM2025 يعمل داخل الملف الواحد');
+await page.locator('#sheet-close').click();
+await page.getByRole('button', { name: /الخريطة/ }).click(); ok((await page.locator('.qmap svg .land').count()) === 1, 'خريطة القبلة مضمّنة');
 await page.locator('#tab-quran').click(); await page.locator('#view-quran .surah-row').first().waitFor();
 ok((await page.locator('#view-quran .surah-row').count()) === 114, 'المصحف مضمّن: 114 سورة بلا شبكة');
 // خطوط الصفحات محجوبة هنا (لا شبكة) فيُختبر البديل النصي بالبنية نفسها

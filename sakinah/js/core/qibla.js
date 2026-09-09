@@ -172,3 +172,22 @@ function jdToCivil(jd) {
 }
 
 export { sunPosition, solarCoordinates };
+
+/**
+ * نقاط على قوس الدائرة العظمى (أقصر مسار على الكرة) من نقطة إلى أخرى — للرسم على الخريطة.
+ * استيفاء كروي (slerp) على المتجهات الواحدة؛ يعيد [[lat, lon], ...] بعدد n+1 نقطة.
+ */
+export function greatCirclePoints(lat1, lon1, lat2, lon2, n = 64) {
+  const d = Math.PI / 180;
+  const toVec = (la, lo) => [Math.cos(la * d) * Math.cos(lo * d), Math.cos(la * d) * Math.sin(lo * d), Math.sin(la * d)];
+  const a = toVec(lat1, lon1), b = toVec(lat2, lon2);
+  const dot = Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]));
+  const omega = Math.acos(dot); const pts = [];
+  if (omega < 1e-7) return [[lat1, lon1], [lat2, lon2]]; // النقطتان متطابقتان عمليًا
+  for (let i = 0; i <= n; i++) {
+    const t = i / n; const s1 = Math.sin((1 - t) * omega) / Math.sin(omega), s2 = Math.sin(t * omega) / Math.sin(omega);
+    const x = s1 * a[0] + s2 * b[0], y = s1 * a[1] + s2 * b[1], z = s1 * a[2] + s2 * b[2];
+    pts.push([Math.atan2(z, Math.hypot(x, y)) / d, Math.atan2(y, x) / d]);
+  }
+  return pts;
+}

@@ -84,6 +84,9 @@ check(/كم/.test(det) && /الانحراف/.test(det) && !/غير متاح/.tes
 await page.locator('#sheet-close').click();
 await page.getByRole('button', { name: /الشمس/ }).click();
 check(/الشمس في اتجاه القبلة/.test(await page.textContent('#view-qibla')) && (await page.locator('.sun-dial').count()) === 1, 'وضع الشمس: اللحظتان اليوميتان وقرص الشمس/القبلة');
+await page.getByRole('button', { name: /الخريطة/ }).click();
+check((await page.locator('.qmap svg .land').count()) === 1 && /^M/.test(await page.locator('.qmap svg .arc').getAttribute('d')) && (await page.locator('.map-mode .legend').count()) === 1, 'وضع الخريطة: اليابسة دون اتصال وقوس الدائرة العظمى إلى الكعبة');
+await page.screenshot({ animations: 'disabled', path: path.join(outDir, '03b-qibla-map.png') });
 await page.getByRole('button', { name: /البوصلة/ }).click();
 await page.screenshot({ animations: 'disabled', path: path.join(outDir, '03-qibla.png') });
 
