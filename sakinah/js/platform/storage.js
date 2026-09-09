@@ -24,6 +24,8 @@ export const DEFAULT_SETTINGS = {
     sound: 'chime',          // 'chime' | 'adhan-fakhry' | 'adhan-azeez' | 'none'
     nativeUntil: null,       // آخر موعد مجدوَل كإشعار نظام (التطبيق الأصلي)
     vibrate: true,
+    adhkar: { morning: false, evening: false, morningAfter: 30, eveningAfter: 30 }, // تذكير الأذكار: بعد الفجر/العصر بدقائق
+    hadithDaily: { enabled: false, time: '09:00' }, // إشعار حديث اليوم
   },
   compass: { declinationMode: 'auto' }, // 'auto' | 'on' | 'off'
   privacy: { geocode: true },   // تسمية المدينة عبر الإنترنت بإحداثيات مقرّبة (نحو 1 كم)؛ الإيقاف يكتفي بأقرب مدينة من القائمة
@@ -42,6 +44,9 @@ export const DEFAULT_SETTINGS = {
   favorites: [],
   seenIntro: false,
   icsUntil: null,            // آخر يوم يغطيه تقويم ICS المصدَّر (لتذكير إعادة التصدير)
+  tasbih: null,              // حالة المسبحة (core/tasbih.js)
+  hisnFavorites: [],         // أبواب حصن المسلم المفضلة (أرقامها)
+  shareTheme: 'green',       // سمة بطاقة المشاركة
 };
 
 function safeParse(raw) {

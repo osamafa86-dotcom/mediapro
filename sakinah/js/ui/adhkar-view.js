@@ -1,8 +1,9 @@
 /**
  * شاشة أذكار الصباح والمساء: عدّاد لكل ذكر مع حفظ التقدّم اليومي، اختيار الفترة تلقائيًا حسب مواقيت الصلاة.
  */
-import { h, icon, render, toast, vibrate, switchEl } from './components.js';
+import { h, icon, render, toast, vibrate, switchEl, copyText, shareText } from './components.js';
 import { ADHKAR } from '../data/adhkar.js';
+import { openShareCardSheet } from './share-sheet.js';
 
 export function mount(container, app) {
   let period = null; let hideDone = false; let selfUpdate = false; // selfUpdate: حفظ تقدّم من هذه الشاشة لا يستدعي إعادة بنائها
@@ -41,6 +42,14 @@ export function mount(container, app) {
     return frag;
   }
 
+  function actionsRow(d) {
+    const txt = `${textOf(d)}\n\n${d.reference}`;
+    return h('div', { class: 'dhikr-actions' },
+      h('button', { class: 'icon-btn', 'aria-label': 'نسخ', title: 'نسخ', onclick: (e) => { e.stopPropagation(); copyText(txt); } }, h('span', { html: icon('copy') })),
+      h('button', { class: 'icon-btn', 'aria-label': 'مشاركة', title: 'مشاركة', onclick: (e) => { e.stopPropagation(); shareText('من أذكار ' + (period === 'morning' ? 'الصباح' : 'المساء'), txt); } }, h('span', { html: icon('share') })),
+      h('button', { class: 'icon-btn', 'aria-label': 'مشاركة كصورة', title: 'مشاركة كصورة', onclick: (e) => { e.stopPropagation(); openShareCardSheet({ title: period === 'morning' ? 'أذكار الصباح' : 'أذكار المساء', text: textOf(d), footer: d.reference, filename: `dhikr-${d.id}.png`, shareText: txt }); } }, h('span', { html: icon('image') })));
+  }
+  const tile = (label, sub, ic, onclick) => h('button', { class: 'more-tile sm', onclick }, h('span', { html: icon(ic) }), label, h('small', {}, sub));
   function build() {
     if (!period) period = autoPeriod();
     const prog = progress(); const done = prog[period] || {};
@@ -60,7 +69,7 @@ export function mount(container, app) {
         h('p', { class: 'text', lang: 'ar' }, richText(textOf(d))),
         d.virtue ? h('div', { class: 'virtue' }, '✦ ', d.virtue) : null,
         h('div', { class: 'dhikr-foot', style: { marginTop: '10px' } },
-          h('div', {}, h('div', { class: 'ref' }, d.reference), d.note ? h('div', { class: 'tiny' }, d.note) : null, h('div', { class: 'tiny' }, `يُقال ${tgt === 1 ? 'مرة واحدة' : tgt === 2 ? 'مرتين' : `${app.num(tgt)} مرات`}`)),
+          h('div', {}, h('div', { class: 'ref' }, d.reference), d.note ? h('div', { class: 'tiny' }, d.note) : null, h('div', { class: 'tiny' }, `يُقال ${tgt === 1 ? 'مرة واحدة' : tgt === 2 ? 'مرتين' : `${app.num(tgt)} مرات`}`), actionsRow(d)),
           btn));
       const tap = () => {
         if (count >= tgt) return;
@@ -74,6 +83,9 @@ export function mount(container, app) {
       return card;
     });
     render(container,
+      h('div', { class: 'more-grid', style: { marginBottom: '12px' } },
+        tile('حصن المسلم', 'الكتاب كاملًا: 132 بابًا', 'book', () => app.navigate('hisn')),
+        tile('المسبحة', 'عدّاد التسبيح', 'tasbih', () => app.navigate('tasbih'))),
       h('div', { class: 'segmented', style: { marginBottom: '12px' } },
         h('button', { class: period === 'morning' ? 'active' : '', onclick: () => { period = 'morning'; build(); } }, '☀️ أذكار الصباح'),
         h('button', { class: period === 'evening' ? 'active' : '', onclick: () => { period = 'evening'; build(); } }, '🌙 أذكار المساء')),

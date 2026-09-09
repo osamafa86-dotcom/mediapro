@@ -28,6 +28,8 @@ export function mount(container, app) {
     const m = METHODS[app.methodId()];
     const methodDesc = m.ishaInterval ? `الفجر ${app.num(m.fajrAngle, 1)}° · العشاء بعد المغرب بـ ${app.num(m.ishaInterval)} دقيقة${m.ishaIntervalRamadan ? ` (${app.num(m.ishaIntervalRamadan)} في رمضان)` : ''}` : `الفجر ${app.num(m.fajrAngle, 1)}° · العشاء ${app.num(m.ishaAngle, 1)}°`;
     const perm = notif.permissionState();
+    const ad = { morning: false, evening: false, morningAfter: 30, eveningAfter: 30, ...(s.notifications.adhkar || {}) };
+    const hdp = { enabled: false, time: '09:00', ...(s.notifications.hadithDaily || {}) };
 
     render(container,
       section('الموقع', 'location',
@@ -77,6 +79,15 @@ export function mount(container, app) {
               ? 'على iPhone تعمل الإشعارات فقط بعد إضافة التطبيق إلى الشاشة الرئيسية (مشاركة ← إضافة إلى الشاشة الرئيسية) وما دام مفتوحًا. للتذكير المضمون حتى مع إغلاقه، صدّر المواقيت إلى تقويم هاتفك بمنبّهات من شاشة الصلاة، أو ثبّت تطبيق iOS.'
               : 'تعمل الإشعارات ما دام التطبيق مفتوحًا أو في الخلفية (ثبّته على الشاشة الرئيسية لأفضل نتيجة). للتذكير المضمون حتى مع إغلاق التطبيق، صدّر المواقيت إلى تقويم هاتفك بمنبّهات من شاشة الصلاة.'))),
 
+      section('تذكير الأذكار وحديث اليوم', 'adhkar',
+        !s.notifications.enabled ? h('div', { class: 'notice', style: { marginBottom: '10px' } }, h('span', { html: icon('info') }), 'فعّل «التذكير بالصلاة» أعلاه أولًا؛ هذه التذكيرات تصل بالطريقة نفسها (إشعارات النظام في التطبيق الأصلي).') : null,
+        settingRow('أذكار الصباح', `تذكير بعد الفجر بـ ${app.num(ad.morningAfter)} دقيقة`, switchEl(!!ad.morning, (v) => app.set('notifications.adhkar.morning', v), 'أذكار الصباح')),
+        ad.morning ? h('div', { class: 'field' }, h('label', {}, 'موعد تذكير الصباح'), select(String(ad.morningAfter), [['15', 'بعد الفجر بـ 15 دقيقة'], ['30', 'بعد الفجر بـ 30 دقيقة'], ['45', 'بعد الفجر بـ 45 دقيقة'], ['60', 'بعد الفجر بساعة'], ['90', 'بعد الفجر بساعة ونصف']], (v) => app.set('notifications.adhkar.morningAfter', Number(v)))) : null,
+        settingRow('أذكار المساء', `تذكير بعد العصر بـ ${app.num(ad.eveningAfter)} دقيقة`, switchEl(!!ad.evening, (v) => app.set('notifications.adhkar.evening', v), 'أذكار المساء')),
+        ad.evening ? h('div', { class: 'field' }, h('label', {}, 'موعد تذكير المساء'), select(String(ad.eveningAfter), [['15', 'بعد العصر بـ 15 دقيقة'], ['30', 'بعد العصر بـ 30 دقيقة'], ['45', 'بعد العصر بـ 45 دقيقة'], ['60', 'بعد العصر بساعة'], ['90', 'بعد العصر بساعة ونصف']], (v) => app.set('notifications.adhkar.eveningAfter', Number(v)))) : null,
+        settingRow('حديث اليوم', 'إشعار يومي بحديث من الصحيحين في وقت تختاره', switchEl(!!hdp.enabled, (v) => app.set('notifications.hadithDaily.enabled', v), 'حديث اليوم')),
+        hdp.enabled ? h('div', { class: 'field' }, h('label', {}, 'وقت حديث اليوم'), (() => { const i = h('input', { class: 'input ltr', type: 'time', value: hdp.time || '09:00', style: { width: '140px' } }); i.addEventListener('change', () => { if (/^\d{2}:\d{2}$/.test(i.value)) app.set('notifications.hadithDaily.time', i.value); }); return i; })()) : null),
+
       section('العرض', 'sun',
         settingRow('نظام 12 ساعة', 'مثال: 5:12 ص بدل 05:12', switchEl(s.hour12, (v) => app.set('hour12', v), '12 ساعة')),
         settingRow('الأرقام العربية المشرقية', '١٢٣ بدل 123', switchEl(s.numerals === 'arab', (v) => app.set('numerals', v ? 'arab' : 'latn'), 'الأرقام')),
@@ -107,8 +118,8 @@ export function mount(container, app) {
           h('p', {}, h('b', {}, `سكينة ${app.version}`), ' — تطبيق ويب تقدمي يعمل دون اتصال بعد أول تحميل. كل الحسابات (المواقيت، القبلة، التقويم) تتم على جهازك، ولا حساب ولا تحليلات. الشبكة تُستخدم لجلب التلاوات والتفاسير وخطوط المصحف عند الطلب، ولتسمية مدينتك بإحداثيات مقرّبة إلى نحو كيلومتر (يمكن إيقافها من قسم الموقع أعلاه).'),
           h('p', {}, h('b', {}, 'المواقيت: '), 'حساب فلكي بخوارزميات Jean Meeus مع طرق الهيئات الرسمية (أم القرى، رابطة العالم الإسلامي، الهيئة المصرية، الأوقاف الأردنية…)، وقد تُختبر مطابقتها آليًا مع مكتبة adhan المرجعية.'),
           h('p', {}, h('b', {}, 'القبلة: '), 'اتجاه جيوديسي على WGS‑84 (Vincenty) نحو الكعبة (21.4225°N, 39.8262°E) مع الانحراف المغناطيسي من النموذج العالمي WMM2025 (NOAA/NCEI) والتحقق بالشمس.'),
-          h('p', {}, h('b', {}, 'الأذكار: '), 'حصن المسلم — أذكار الصباح والمساء بنصوصها وتخريجها.'),
-          h('p', {}, h('b', {}, 'الأحاديث: '), 'متون منقولة حرفيًا من صحيح البخاري (ترقيم فتح الباري) وصحيح مسلم (ترقيم محمد فؤاد عبد الباقي).'),
+          h('p', {}, h('b', {}, 'الأذكار: '), 'حصن المسلم كاملًا (132 بابًا) بنصوص الطبعة الرسمية للكتاب، مع أذكار الصباح والمساء بتخريجها؛ التلاوة الصوتية للذكر تُجلب من موقع الكتاب عند الطلب.'),
+          h('p', {}, h('b', {}, 'الأحاديث: '), 'متون منقولة حرفيًا من صحيح البخاري (ترقيم فتح الباري) وصحيح مسلم (ترقيم محمد فؤاد عبد الباقي)، والأربعون النووية بمتونها وتخريجها بعد مقارنة نسختين مستقلتين.'),
           h('p', { class: 'tiny' }, 'تنبيه: المواقيت المحسوبة قد تختلف دقيقة أو دقيقتين عن التقاويم المحلية؛ استخدم التعديل اليدوي للمطابقة عند الحاجة.')),
         h('button', { class: 'btn btn-outline btn-block', style: { marginTop: '8px', color: 'var(--danger)' }, onclick: () => { if (confirm('إعادة ضبط جميع الإعدادات والتقدّم؟')) { resetAll(); app.applyTheme(); app.applyTextScale(); app.emit('change'); toast('تمت إعادة الضبط'); } } }, h('span', { html: icon('reset') }), ' إعادة ضبط التطبيق')));
   }

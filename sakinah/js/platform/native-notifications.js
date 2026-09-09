@@ -21,9 +21,10 @@ export async function requestPermission() {
 }
 /** معرّف عددي ثابت لكل تذكير: أيام منذ 2020-01-01 × 100 + ترتيب الصلاة × 10 + النوع */
 const PRAYER_IDX = { fajr: 1, sunrise: 2, dhuhr: 3, asr: 4, maghrib: 5, isha: 6 };
+const KIND_OFFSET = { adhan: 0, pre: 1, sunrise: 2, adhkar: 3, hadith: 4 };
 export function numericId(item) {
   const day = Math.floor((item.time.getTime() - Date.UTC(2020, 0, 1)) / 86400000);
-  return day * 100 + (PRAYER_IDX[item.prayer] || 9) * 10 + (item.kind === 'pre' ? 1 : item.kind === 'sunrise' ? 2 : 0);
+  return day * 100 + (PRAYER_IDX[item.prayer] || 9) * 10 + (KIND_OFFSET[item.kind] || 0);
 }
 let channelsReady = false;
 async function ensureChannels(LN) {
@@ -49,7 +50,7 @@ export async function syncSchedule(items, prefs = {}) {
   const useAdhan = prefs.sound && prefs.sound !== 'none' && prefs.sound !== 'chime';
   const notifications = upcoming.map((it) => {
     const adhan = it.kind === 'adhan' && useAdhan;
-    const n = { id: numericId(it), title: it.title, body: it.body, schedule: { at: it.time, allowWhileIdle: true }, extra: { kind: it.kind, prayer: it.prayer || null, url: './index.html#/prayer' } };
+    const n = { id: numericId(it), title: it.title, body: it.body, schedule: { at: it.time, allowWhileIdle: true }, extra: { kind: it.kind, prayer: it.prayer || null, url: it.url || './index.html#/prayer' } };
     if (adhan) n.sound = SOUND_FILE;
     if (platform() === 'android') n.channelId = adhan ? CHANNEL_ADHAN : CHANNEL_QUIET;
     return n;

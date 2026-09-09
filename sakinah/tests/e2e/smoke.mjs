@@ -128,6 +128,32 @@ const firstDone = await page.locator('.dhikr').first().evaluate((el) => el.class
 const firstBtnText = await page.locator('.count-btn').first().textContent();
 check(firstDone || /^\s*[٠-٩\d]+/.test(firstBtnText), `العدّاد يستجيب للضغط (${firstDone ? 'اكتمل' : 'تناقص: ' + firstBtnText.trim()})`);
 check(/\/\s*\d+|\d+\s*\//.test((await page.locator('.ring output').textContent()).replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))), 'حلقة التقدّم تعرض النسبة');
+// حصن المسلم كاملًا: الأقسام والأبواب، البحث، فتح باب والعدّ، ثم المسبحة
+await page.locator('#view-adhkar .more-tile', { hasText: 'حصن المسلم' }).click();
+await page.locator('.hisn-row').first().waitFor();
+check((await page.locator('.hisn-row').count()) === 132, `حصن المسلم: ${await page.locator('.hisn-row').count()} بابًا في الأقسام`);
+await page.locator('#view-hisn .search input').fill('السفر');
+await page.waitForTimeout(200);
+check((await page.locator('.hisn-row').count()) >= 4, `البحث في حصن المسلم يجد أبواب السفر وأذكاره (${await page.locator('.hisn-row').count()} نتائج)`);
+await page.locator('#view-hisn .search input').fill('');
+await page.waitForTimeout(200);
+await page.locator('.hisn-row', { hasText: 'دعاء السفر' }).first().click();
+await page.locator('#view-hisn .dhikr').first().waitFor();
+{ const bare = (s) => s.replace(/[\u064B-\u0652\u0670]/g, ''); const ttl = await page.locator('.hisn-title').textContent(); const body = await page.locator('#view-hisn .dhikr .text').first().textContent();
+  check(/دعاء السفر/.test(ttl) && (await page.locator('#view-hisn .dhikr').count()) === 1 && /سخر لنا/.test(bare(body)), `باب «دعاء السفر» يعرض الذكر بنصه (${ttl.trim()} · ${bare(body).slice(0, 40)})`); }
+check(/#\/hisn\?c=96$/.test(await page.evaluate(() => location.hash)), 'رابط الباب #/hisn?c=96');
+await page.locator('#view-hisn .count-btn').first().click();
+check((await page.locator('#view-hisn .dhikr.done').count()) === 1, 'عدّاد الذكر يكتمل بنقرة (يُقال مرة واحدة)');
+await page.locator('#view-hisn .icon-btn[aria-label="رجوع إلى الأبواب"]').click();
+await page.locator('.hisn-row').first().waitFor();
+check((await page.evaluate(() => location.hash)) === '#/hisn', 'الرجوع إلى الأبواب يعيد الرابط #/hisn');
+await page.locator('#tab-adhkar').click();
+await page.locator('#view-adhkar .more-tile', { hasText: 'المسبحة' }).click();
+await page.locator('.tasbih-btn').waitFor();
+for (let i = 0; i < 3; i++) await page.locator('.tasbih-btn').click();
+check(/^\s*[3٣]\s*$/.test(await page.locator('.tasbih-count').textContent()), 'المسبحة تعدّ ثلاث نقرات');
+check((await page.evaluate(() => window.sakinah.settings.tasbih.count)) === 3, 'عدّ المسبحة محفوظ في الإعدادات');
+await page.screenshot({ path: path.join(outDir, '10-tasbih.png') });
 await page.screenshot({ animations: 'disabled', path: path.join(outDir, '04-adhkar.png') });
 
 // ---- المصحف ----
@@ -266,11 +292,23 @@ check((await page.locator('#view-hadith .hadith').count()) >= 10, 'قائمة ا
 await page.locator('#view-hadith .search input').fill('الأعمال بالني');
 await page.waitForTimeout(200);
 check((await page.locator('#view-hadith .hadith').count()) >= 1 && /الأَعْمَالُ|الأعمال/.test(await page.locator('#view-hadith .hadith:not(.daily) .matn').first().textContent()), 'البحث يجد حديث النية');
+// الأربعون النووية
+await page.locator('#view-hadith .search input').fill('');
+await page.locator('#view-hadith .segmented button', { hasText: 'الأربعون' }).click();
+await page.locator('#view-hadith .hadith.nawawi').first().waitFor();
+check((await page.locator('#view-hadith .hadith.nawawi').count()) === 20 && /الْأَعْمَالُ بِالنِّيَّاتِ/.test(await page.locator('#view-hadith .hadith.nawawi .matn').first().textContent()), 'الأربعون النووية: الحديث الأول «إنما الأعمال بالنيات»');
+await page.locator('#view-hadith .search input').fill('الحلال بين');
+await page.waitForTimeout(200);
+check((await page.locator('#view-hadith .hadith.nawawi').count()) === 1 && /السادس/.test(await page.locator('#view-hadith .hadith.nawawi .chip').first().textContent()), 'البحث في الأربعين يجد الحديث السادس');
+// بطاقة المشاركة كصورة تُرسم على Canvas بخطوط التطبيق
+const cardBytes = await page.evaluate(async () => { const m = await import('./js/core/share-card.js'); const b = await m.renderShareCard({ title: 'تجربة', text: 'إنما الأعمال بالنيات وإنما لكل امرئ ما نوى', footer: 'رواه البخاري' }); return b.size; });
+check(cardBytes > 20000, `بطاقة المشاركة PNG (${Math.round(cardBytes / 1024)} KB)`);
 await page.screenshot({ animations: 'disabled', path: path.join(outDir, '05-hadith.png') });
 
 await page.locator('#btn-settings').click();
 await page.locator('#view-settings select').first().waitFor();
 check(/الأردن/.test(await page.locator('#view-settings select').first().locator('option').first().textContent()), 'الإعدادات تعرض الطريقة التلقائية (الأردن)');
+check((await page.locator('#view-settings .card-title', { hasText: 'تذكير الأذكار' }).count()) === 1, 'قسم تذكير الأذكار وحديث اليوم في الإعدادات');
 await page.locator('#view-settings select').first().selectOption('UmmAlQura');
 await page.locator('#tab-prayer').click();
 check(/أم القرى/.test(await page.locator('#view-prayer > p.tiny').last().textContent()), 'تغيير الطريقة ينعكس في شاشة الصلاة');

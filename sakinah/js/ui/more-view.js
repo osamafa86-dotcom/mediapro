@@ -1,14 +1,17 @@
-/** شاشة "المزيد": مداخل الأحاديث والإعدادات وحول التطبيق. */
+/** شاشة "المزيد": مداخل الأحاديث وحصن المسلم والمسبحة والإعدادات، وحديث اليوم. */
 import { h, icon, render } from './components.js';
 import { hadithOfDay, hadithReference } from '../data/hadith.js';
 
 export function mount(container, app) {
+  const tile = (label, sub, ic, onclick) => h('button', { class: 'more-tile', onclick }, h('span', { html: icon(ic) }), label, h('small', {}, sub));
   function build() {
     const hd = hadithOfDay(new Date());
     render(container,
       h('div', { class: 'more-grid' },
-        h('button', { class: 'more-tile', onclick: () => app.navigate('hadith') }, h('span', { html: icon('hadith') }), 'الأحاديث', h('small', {}, 'مختارات من الصحيحين')),
-        h('button', { class: 'more-tile', onclick: () => app.navigate('settings') }, h('span', { html: icon('settings') }), 'الإعدادات', h('small', {}, 'الموقع والحساب والتنبيهات'))),
+        tile('الأحاديث', 'الصحيحان والأربعون النووية', 'hadith', () => app.navigate('hadith')),
+        tile('حصن المسلم', 'الكتاب كاملًا: 132 بابًا', 'book', () => app.navigate('hisn')),
+        tile('المسبحة', 'عدّاد التسبيح والإحصاء', 'tasbih', () => app.navigate('tasbih')),
+        tile('الإعدادات', 'الموقع والحساب والتنبيهات', 'settings', () => app.navigate('settings'))),
       h('article', { class: 'card hadith daily', style: { marginTop: '14px', cursor: 'pointer' }, onclick: () => app.navigate('hadith') },
         h('div', { class: 'chip gold', style: { marginBottom: '8px' } }, '✦ حديث اليوم'),
         h('p', { class: 'matn', lang: 'ar' }, hd.text.length > 220 ? hd.text.slice(0, 220) + '…' : hd.text),

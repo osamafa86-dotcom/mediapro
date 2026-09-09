@@ -8,6 +8,7 @@
  *   (لا تسمح المتصفحات بجدولة إشعارات مستقبلية دون خادم دفع).
  */
 import { PRAYER_NAMES_AR } from '../core/prayer-times.js';
+import { tzOffsetMinutes } from './location.js';
 import * as nativeNotif from './native-notifications.js';
 import { shareFile, isNative } from './native.js';
 
@@ -132,6 +133,32 @@ export function buildReminders(times, prefs, fmt, dateKey, num = (v) => String(v
       const pre = new Date(t.getTime() - prefs.preMinutes * 60000);
       out.push({ id: `${dateKey}:${key}:pre`, time: pre, kind: 'pre', prayer: key, title: `اقترب موعد صلاة ${name}`, body: `بقي ${num(prefs.preMinutes)} دقيقة على الأذان (${fmt(t)})` });
     }
+  }
+  return out;
+}
+
+/** لحظة في يوم مدني معيّن بساعة ودقيقة محليتين لمنطقة زمنية (مع مراعاة الانتقال الصيفي) */
+export function zonedDate({ year, month, day }, hh, mm, tz) {
+  const guess = Date.UTC(year, month - 1, day, hh, mm);
+  let t = guess - tzOffsetMinutes(tz, new Date(guess)) * 60000;
+  const off2 = tzOffsetMinutes(tz, new Date(t)); if (guess - off2 * 60000 !== t) t = guess - off2 * 60000;
+  return new Date(t);
+}
+/**
+ * تذكيرات إضافية ليوم واحد: أذكار الصباح (بعد الفجر بدقائق) والمساء (بعد العصر)، وحديث اليوم في وقت ثابت.
+ * @param {object} times مواقيت اليوم  @param {object} prefs إعدادات الإشعارات { adhkar, hadithDaily }  @param {string} dateKey
+ * @param {{civil?:{year:number,month:number,day:number}, tz?:string, hadith?:string}} [o] hadith: نص إشعار حديث اليوم
+ */
+export function buildExtraReminders(times, prefs, dateKey, { civil, tz, hadith } = {}) {
+  const out = []; const ad = (prefs && prefs.adhkar) || {};
+  const valid = (d) => d instanceof Date && !isNaN(d);
+  const mins = (v, d) => (Number.isFinite(+v) ? +v : d);
+  if (ad.morning && valid(times.fajr)) out.push({ id: `${dateKey}:adhkar:m`, time: new Date(times.fajr.getTime() + mins(ad.morningAfter, 30) * 60000), kind: 'adhkar', prayer: 'fajr', title: 'أذكار الصباح', body: 'حان وقت أذكار الصباح — من بعد الفجر إلى طلوع الشمس', url: './index.html#/adhkar' });
+  if (ad.evening && valid(times.asr)) out.push({ id: `${dateKey}:adhkar:e`, time: new Date(times.asr.getTime() + mins(ad.eveningAfter, 30) * 60000), kind: 'adhkar', prayer: 'asr', title: 'أذكار المساء', body: 'حان وقت أذكار المساء — من بعد العصر إلى الغروب', url: './index.html#/adhkar' });
+  const hd = (prefs && prefs.hadithDaily) || {};
+  if (hd.enabled && civil && tz && hadith) {
+    const [hh, mm] = String(hd.time || '09:00').split(':').map(Number);
+    if (Number.isFinite(hh) && Number.isFinite(mm)) out.push({ id: `${dateKey}:hadith`, time: zonedDate(civil, hh, mm, tz), kind: 'hadith', title: 'حديث اليوم', body: hadith, url: './index.html#/hadith' });
   }
   return out;
 }

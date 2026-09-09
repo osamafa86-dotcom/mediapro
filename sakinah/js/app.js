@@ -18,6 +18,9 @@ import * as hadithView from './ui/hadith-view.js';
 import * as settingsView from './ui/settings-view.js';
 import * as quranView from './ui/quran-view.js';
 import * as moreView from './ui/more-view.js';
+import * as hisnView from './ui/hisn-view.js';
+import * as tasbihView from './ui/tasbih-view.js';
+import { hadithOfDay, hadithReference } from './data/hadith.js';
 
 const listeners = new Map();
 const VIEWS = {
@@ -28,6 +31,8 @@ const VIEWS = {
   more: { title: 'المزيد', icon: 'more', mod: moreView, tab: 'more' },
   hadith: { title: 'الأحاديث', icon: 'hadith', mod: hadithView, tab: 'more' },
   settings: { title: 'الإعدادات', icon: 'settings', mod: settingsView, tab: 'more' },
+  hisn: { title: 'حصن المسلم', icon: 'adhkar', mod: hisnView, tab: 'adhkar' },
+  tasbih: { title: 'المسبحة', icon: 'tasbih', mod: tasbihView, tab: 'adhkar' },
 };
 const TABS = ['prayer', 'quran', 'qibla', 'adhkar', 'more'];
 
@@ -145,6 +150,12 @@ export const app = {
   },
 
   /* ---------- التذكيرات ---------- */
+  /** نص إشعار حديث اليوم ليوم مدني معيّن */
+  hadithBody(civil) {
+    const hd = hadithOfDay(new Date(civil.year, civil.month - 1, civil.day, 12));
+    const txt = hd.text.length > 150 ? hd.text.slice(0, 150).replace(/\s+\S*$/, '') + '…' : hd.text;
+    return `${txt}\n— ${hadithReference(hd)}`;
+  },
   reminderSchedule(days = [-1, 0, 1]) { // الأمس أيضًا: قد يقع عشاء الأمس بعد منتصف الليل في خطوط العرض العالية
     const c = this.coords(); const prefs = this.settings.notifications;
     if (!c || !prefs.enabled) return [];
@@ -152,7 +163,9 @@ export const app = {
     for (const off of days) {
       const civil = addDays(civilDate(now, this.tz), off);
       const t = this.timesFor(civil);
-      out.push(...notif.buildReminders(t, prefs, (d) => this.fmt(d), `${civil.year}-${civil.month}-${civil.day}`, (v) => this.num(v)));
+      const key = `${civil.year}-${civil.month}-${civil.day}`;
+      out.push(...notif.buildReminders(t, prefs, (d) => this.fmt(d), key, (v) => this.num(v)));
+      out.push(...notif.buildExtraReminders(t, prefs, key, { civil, tz: this.tz, hadith: this.hadithBody(civil) }));
     }
     return out;
   },
@@ -172,7 +185,7 @@ export const app = {
   async fireReminder(item) {
     const prefs = this.settings.notifications;
     // في التطبيق الأصلي يعرض النظام الإشعار (مجدوَل مسبقًا)؛ هنا نكتفي بالصوت داخل التطبيق إن كان في الواجهة
-    if (!native.isNative()) await notif.showNotification(item.title, item.body, { tag: `sakinah-${item.kind}`, vibrate: prefs.vibrate, url: './index.html#/prayer' });
+    if (!native.isNative()) await notif.showNotification(item.title, item.body, { tag: `sakinah-${item.kind}`, vibrate: prefs.vibrate, url: item.url || './index.html#/prayer' });
     if (prefs.sound !== 'none' && item.kind === 'adhan') { notif.unlockAudio(); notif.playAdhan(prefs.sound || 'chime'); }
     if (prefs.vibrate) vibrate([300, 100, 300]);
     toast(item.title, 6000);
@@ -259,18 +272,19 @@ function boot() {
   // التطبيق الأصلي: إشعارات النظام، زر الرجوع، العودة إلى الواجهة، شريط الحالة، إخفاء الشاشة الافتتاحية
   if (native.isNative()) {
     notif.refreshPermission().then(() => { if (app.settings.notifications.enabled) app.syncNativeReminders(); });
-    nativeNotif.onTap(() => { app.navigate('prayer'); });
+    nativeNotif.onTap((n) => { const u = n && n.extra && n.extra.url; const view = u && u.includes('#/') ? u.split('#/')[1].split('?')[0] : 'prayer'; app.navigate(VIEWS[view] ? view : 'prayer'); });
     native.onAppEvents({
       onBack: () => {
         const sheet = document.getElementById('sheet');
         if (sheet && !sheet.hidden) { closeSheet(); return; }
         if (document.body.classList.contains('mreader-open')) { history.back(); return; }
+        const cur = app.mounted[app.current]; if (cur && cur.back && cur.back()) return; // شاشة لها رجوع داخلي (باب حصن المسلم → الأبواب)
         if (app.current !== 'prayer') { app.navigate('prayer', { replace: true }); return; }
         native.exitApp();
       },
       onResume: () => { if (app.settings.notifications.enabled) app.syncNativeReminders(); app.emit('tick'); },
     });
-    const nativeSig = () => { const s = app.settings; return JSON.stringify([s.location, s.method, s.madhab, s.highLatitudeRule, s.shafaq, s.adjustments, s.custom, s.hijriOffset, s.notifications && { e: s.notifications.enabled, p: s.notifications.prayers, m: s.notifications.preMinutes, s: s.notifications.sound }]); };
+    const nativeSig = () => { const s = app.settings; return JSON.stringify([s.location, s.method, s.madhab, s.highLatitudeRule, s.shafaq, s.adjustments, s.custom, s.hijriOffset, s.notifications && { e: s.notifications.enabled, p: s.notifications.prayers, m: s.notifications.preMinutes, s: s.notifications.sound, a: s.notifications.adhkar, h: s.notifications.hadithDaily }]); };
     let lastNativeSig = nativeSig();
     app.on('change', () => { const sig = nativeSig(); if (sig !== lastNativeSig) { lastNativeSig = sig; app.syncNativeReminders(); } });
     setTimeout(() => native.hideSplash(), 150);

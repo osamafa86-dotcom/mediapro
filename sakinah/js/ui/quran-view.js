@@ -4,6 +4,7 @@
  * ووضع مراجعة الحفظ (إخفاء الكلمات وكشف المنطوق منها عبر التعرّف على الصوت أو النقر).
  */
 import { h, icon, render, openSheet, closeSheet, toast, copyText, shareText, vibrate, switchEl } from './components.js';
+import { openShareCardSheet } from './share-sheet.js';
 import { loadQuran, isLoaded, pageAyahs, surahAyahs, surahInfo, pageLabel, getAyah, getAyahBySurah, tokenize, HifzMatcher, searchText, refLabel, SURAHS, JUZ_STARTS, TOTAL_PAGES } from '../core/quran.js';
 import { loadMushafLayout, isMushafLoaded } from '../core/mushaf.js';
 import { foldDigits, normalizeForMatch } from '../core/quran.js';
@@ -226,6 +227,7 @@ export function mount(container, app) {
         h('button', { class: 'btn btn-outline', onclick: () => { closeSheet(); saveLastRead(a); toast(`حُفظ موضع القراءة عند ${refLabel(a)}`); } }, h('span', { html: icon('check') }), ' موضع القراءة'),
         h('button', { class: 'btn btn-outline', onclick: () => { closeSheet(); startHifz(a.n); } }, h('span', { html: icon('eyeOff') }), ' مراجعة الحفظ من هنا'),
         h('button', { class: 'btn btn-outline', onclick: () => shareText('آية من القرآن الكريم', txt) }, h('span', { html: icon('share') }), ' مشاركة'),
+        h('button', { class: 'btn btn-outline', onclick: () => { closeSheet(); openShareCardSheet({ title: `القرآن الكريم · ${refLabel(a)}`, text: `${a.text} ﴿${a.ayah}﴾`, footer: refLabel(a), quran: true, filename: `ayah-${a.surah}-${a.ayah}.png`, shareText: txt }); } }, h('span', { html: icon('image') }), ' مشاركة كصورة'),
         h('button', { class: 'btn btn-outline', onclick: () => copyText(txt) }, h('span', { html: icon('copy') }), ' نسخ'))),
       onClose: () => { if (selected !== a.n) reader.clearMarks('sel'); } });
   }

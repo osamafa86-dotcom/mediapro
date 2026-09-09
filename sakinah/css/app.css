@@ -603,3 +603,38 @@ body.mreader-open .tabbar { visibility: hidden; }
 .dl-row:last-child { border-bottom: 0; }
 .dl-row .nm { font-weight: 700; } .dl-row .info { font-size: .75rem; color: var(--text-3); }
 .dl-row .prog { font-variant-numeric: tabular-nums; font-size: .8125rem; color: var(--primary); min-width: 44px; text-align: center; }
+
+/* ---------- المرحلة 3: حصن المسلم، المسبحة، بطاقات المشاركة ---------- */
+.more-tile.sm { padding: 12px 10px; gap: 4px; }
+.more-tile.sm svg { width: 22px; height: 22px; }
+.dhikr-actions { display: flex; gap: 4px; margin-top: 6px; }
+.dhikr-actions .icon-btn { width: 32px; height: 32px; border-radius: 10px; }
+.dhikr-actions .icon-btn svg { width: 17px; height: 17px; }
+.audio-btn.playing { background: var(--primary); color: var(--on-primary); border-color: var(--primary); }
+.hisn-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.hisn-title { font-size: 1.05rem; margin: 0; line-height: 1.4; }
+.hisn-sec { padding: 6px 8px 2px; }
+.hisn-sec-title { display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 0.8125rem; color: var(--primary-strong); padding: 6px 8px 8px; }
+.hisn-sec-title svg { width: 14px; height: 14px; color: var(--danger); }
+.hisn-row { padding: 10px 6px; }
+.hisn-row .num { font-size: 0.75rem; }
+.hisn-row .nm { line-height: 1.5; }
+.hisn-snippet { font-family: var(--font-text); font-weight: 500; font-size: 0.9375rem; }
+.hisn-fav { margin-right: auto; color: var(--danger); display: inline-flex; }
+.hisn-fav svg { width: 16px; height: 16px; }
+.hisn-nav .btn { overflow: hidden; }
+.hisn-nav .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.icon-btn.fav { color: var(--danger); }
+.tasbih-card { text-align: center; padding: 20px 16px 16px; }
+.tasbih-phrase { font-family: var(--font-text); font-size: calc(1.4rem * var(--text-scale, 1)); line-height: 1.9; color: var(--primary-strong); margin-bottom: 14px; }
+.tasbih-btn { --pct: 0; position: relative; width: min(64vw, 260px); aspect-ratio: 1; margin: 0 auto; border-radius: 50%; border: 0; display: grid; place-content: center; gap: 2px; color: var(--primary-strong); background: radial-gradient(circle at 50% 45%, var(--bg-elev) 0 66%, transparent 67%), conic-gradient(var(--primary) calc(var(--pct) * 360deg), var(--primary-soft) 0); box-shadow: var(--shadow); transition: transform .08s; user-select: none; -webkit-user-select: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.tasbih-btn:active { transform: scale(.96); }
+.tasbih-btn.reached { color: var(--on-primary); background: var(--primary); }
+.tasbih-count { font-size: 4rem; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
+.tasbih-btn small { font-size: 0.8125rem; color: var(--text-3); font-weight: 700; }
+.tasbih-btn.reached small { color: var(--on-primary); }
+.tasbih-rounds { margin-top: 12px; font-weight: 700; color: var(--text-2); }
+.tasbih-stats { margin-top: 10px; }
+.chip-text { font-family: var(--font-text); font-size: 0.9375rem; font-weight: 600; }
+.share-preview { display: block; width: 100%; max-height: 52vh; object-fit: contain; border-radius: 12px; background: var(--bg-soft); min-height: 120px; }
+.hadith.nawawi .narr { font-size: 0.8125rem; line-height: 1.8; }

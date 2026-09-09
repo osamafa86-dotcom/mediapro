@@ -10,7 +10,7 @@ const CORE = [
   './js/core/astro.js', './js/core/prayer-times.js', './js/core/methods.js', './js/core/qibla.js', './js/core/geomag.js', './js/core/hijri.js',
   './js/platform/storage.js', './js/platform/location.js', './js/platform/compass.js', './js/platform/notifications.js',
   './js/data/adhkar.js', './js/data/hadith.js', './js/data/hadith/part-a.js', './js/data/hadith/part-b.js', './js/data/cities.js',
-  './js/data/quran-meta.js', './js/core/quran.js', './js/platform/audio.js', './js/platform/speech.js', './js/ui/quran-view.js', './js/ui/more-view.js', './data/quran.json',
+  './js/data/quran-meta.js', './js/core/quran.js', './js/platform/audio.js', './js/platform/speech.js', './js/ui/quran-view.js', './js/ui/more-view.js', './js/ui/hisn-view.js', './js/ui/tasbih-view.js', './js/ui/share-sheet.js', './js/core/tasbih.js', './js/core/share-card.js', './js/data/hisn.js', './js/data/nawawi.js', './data/quran.json',
   './js/core/mushaf.js', './js/ui/mushaf-page.js', './js/ui/mushaf-reader.js', './js/platform/mushaf-fonts.js', './js/data/bismillah.js', './data/mushaf-layout.json', './js/data/world-land.js', './js/core/tafsir.js',
   './assets/icons/icon.svg', './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/fonts/AmiriQuran.woff2',
   ...['Tajawal-400', 'Tajawal-500', 'Tajawal-700', 'Tajawal-800', 'Tajawal-900', 'Amiri-400', 'Amiri-400i', 'Amiri-700'].flatMap((f) => [`./assets/fonts/${f}-arabic.woff2`, `./assets/fonts/${f}-latin.woff2`]),
