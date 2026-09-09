@@ -167,6 +167,7 @@ export function mount(container, app) {
 
   /* ---------- الفهرس ---------- */
   function indexScreen() {
+    if (!isLoaded()) loadQuran().then(() => { if (!reader.isOpen && app.current === 'quran') indexScreen(); }).catch(() => {}); // تُكمل البطاقات (الجزء…) بعد وصول البيانات
     const last = q().lastRead;
     const input = h('input', { class: 'input', type: 'search', placeholder: 'ابحث عن سورة أو آية أو رقم صفحة…', value: query });
     let debounce = null;
@@ -203,7 +204,7 @@ export function mount(container, app) {
       }
     };
     render(container,
-      last ? h('div', { class: 'resume-card' }, h('div', {}, h('small', {}, 'متابعة القراءة'), h('b', {}, `${surahInfo(last.surah).name} · آية ${app.num(last.ayah)}`), h('small', {}, `الصفحة ${app.num(last.page)} · الجزء ${app.num(pageLabel(last.page).juz)}`)),
+      last ? h('div', { class: 'resume-card' }, h('div', {}, h('small', {}, 'متابعة القراءة'), h('b', {}, `${surahInfo(last.surah).name} · آية ${app.num(last.ayah)}`), h('small', {}, `الصفحة ${app.num(last.page)}${isLoaded() ? ` · الجزء ${app.num(pageLabel(last.page).juz)}` : ''}`)),
         h('button', { class: 'btn btn-sm', onclick: () => openReader(last.page, getAyahBySurah(last.surah, last.ayah)) }, h('span', { html: icon('play') }), ' متابعة'))
         : h('div', { class: 'resume-card' }, h('div', {}, h('small', {}, 'ابدأ القراءة'), h('b', {}, 'المصحف الشريف'), h('small', {}, 'مصحف المدينة النبوية · حفص عن عاصم · 604 صفحات')), h('button', { class: 'btn btn-sm', onclick: () => openReader(1) }, 'فتح')),
       khatmahCard(),

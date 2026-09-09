@@ -666,10 +666,12 @@ body.onboarding { overflow: hidden; }
 p a, .tiny a, .refline a, li a { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
 
 /* ---------- المرحلة 5 للمصحف: زر الرجوع الدائم، التعتيم، شبكة السمات، تبويبات الانتقال ---------- */
-.mr-exit { position: absolute; top: calc(var(--safe-t) + 8px); right: 10px; z-index: 3; display: inline-flex; align-items: center; gap: 5px; height: 34px; padding: 0 12px 0 9px; border: 0; border-radius: 999px; background: var(--chrome); color: var(--chrome-ink); font-weight: 800; font-size: .8125rem; box-shadow: 0 2px 8px rgba(0,0,0,.22); opacity: .92; transition: opacity .35s, transform .2s; cursor: pointer; }
+.mr-exit { position: absolute; top: calc(var(--safe-t) + 6px); left: 50%; transform: translateX(-50%); z-index: 3; display: inline-flex; align-items: center; gap: 5px; height: 34px; padding: 0 12px 0 9px; border: 0; border-radius: 999px; background: var(--chrome); color: var(--chrome-ink); font-weight: 800; font-size: .8125rem; box-shadow: 0 2px 8px rgba(0,0,0,.22); opacity: .92; transition: opacity .35s, transform .2s; cursor: pointer; }
 .mr-exit svg { width: 16px; height: 16px; }
 .mr-exit.faded { opacity: .38; }
-.mr-exit:active { transform: scale(.96); opacity: 1; }
+.mr-exit:active { transform: translateX(-50%) scale(.96); opacity: 1; }
+.mreader:has(.mr-stage.pulling) .mr-exit { opacity: 0; }
+.veil-panel b { color: var(--chrome-ink); }
 .mreader.chrome .mr-exit, .mreader.has-panel .mr-exit, .mreader.hifz .mr-exit { opacity: 0; pointer-events: none; }
 .mr-dim { position: absolute; inset: 0; z-index: 1; background: #000; opacity: 0; pointer-events: none; transition: opacity .3s; }
 .theme-groups { display: flex; flex-direction: column; gap: 10px; }
