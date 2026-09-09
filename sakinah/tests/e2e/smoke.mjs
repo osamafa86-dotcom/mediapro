@@ -31,7 +31,13 @@ const ctx = await browser.newContext({
   geolocation: { latitude: 31.9539, longitude: 35.9106, accuracy: 20 }, permissions: ['geolocation'], serviceWorkers: 'block',
 });
 const page = await ctx.newPage();
-const showTools = async () => { if (!(await page.evaluate(() => { const r = document.querySelector('.mreader'); return r && r.classList.contains('chrome'); }))) { const cur = await page.evaluate(() => document.querySelector('.mreader').dataset.page); await page.locator(`.mr-slide[data-page="${cur}"] .mp-body`).tap(); await page.waitForTimeout(450); } }; // الأدوات مخفية أثناء القراءة؛ نُظهرها بنقرة قبل الضغط على أزرارها
+const document_page = () => page.evaluate(() => document.querySelector('.mreader').dataset.page);
+const chromeOn = () => page.evaluate(() => { const r = document.querySelector('.mreader'); return !!r && r.classList.contains('chrome'); });
+const showTools = async () => {
+  if (!(await page.evaluate(() => document.querySelector('.mr-ayahbar')?.hidden ?? true))) { await page.locator('.mr-ayahbar .icon-btn[aria-label="إغلاق"]').click(); await page.waitForTimeout(300); }
+  for (let i = 0; i < 3 && !(await chromeOn()); i++) { await page.touchscreen.tap(6, 422); await page.waitForTimeout(500); }
+  if (!(await chromeOn())) console.log('DBG showTools failed', await page.evaluate(() => ({ cls: document.querySelector('.mreader').className, at: document.elementFromPoint(6, 422)?.className, sheet: document.getElementById('sheet').hidden })));
+};
 const errors = [];
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 page.on('console', (m) => { if (m.type() === 'error' && !/net::ERR_FAILED|ERR_ABORTED/.test(m.text())) errors.push(`console: ${m.text()}`); });
@@ -152,13 +158,13 @@ check((await page.locator('.mreader').getAttribute('data-page')) === '293', 'ا�
 check(!(await page.evaluate(() => document.querySelector('.mreader').classList.contains('chrome'))), 'القارئ يفتح بملء الشاشة دون أدوات');
 const full = await page.evaluate(() => { const mp = document.querySelector('.mr-slide[data-page="293"] .mp'); const r = mp.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), vw: innerWidth, vh: innerHeight, rows: mp.querySelector('.mp-body').clientHeight / 15 / parseFloat(mp.style.getPropertyValue('--mp-size')) }; });
 check(full.w === full.vw && full.h === full.vh && full.rows >= 1.12 && full.rows <= 2.0, `الصفحة تملأ الشاشة ${full.w}×${full.h} وتباعد الأسطر ${full.rows.toFixed(2)}em`);
-await page.locator('.mr-slide[data-page="293"] .mp-body').tap();
+await page.touchscreen.tap(6, 422);
 await page.waitForTimeout(450);
-check(await page.evaluate(() => document.querySelector('.mreader').classList.contains('chrome')), 'النقر على الصفحة يُظهر الأدوات');
-await page.locator('.mr-slide[data-page="293"] .mp-body').tap();
+check(await page.evaluate(() => document.querySelector('.mreader').classList.contains('chrome')), 'النقر على هامش الصفحة يُظهر الأدوات');
+await page.touchscreen.tap(6, 422);
 await page.waitForTimeout(450);
 check(!(await page.evaluate(() => document.querySelector('.mreader').classList.contains('chrome'))), 'النقر مجددًا يخفي الأدوات');
-await page.locator('.mr-slide[data-page="293"] .mp-body').tap(); await page.locator('.mr-slide[data-page="293"] .mp-body').tap();
+await page.touchscreen.tap(6, 422); await page.touchscreen.tap(6, 422);
 await page.locator('#sheet:not([hidden])').waitFor({ timeout: 3000 });
 check(/التنقل والبحث/.test(await page.locator('#sheet-title').textContent()), 'النقر المزدوج يفتح التنقل والبحث');
 await page.locator('#sheet-body input[type=search]').fill('الكهف 10');
@@ -166,7 +172,7 @@ await page.waitForTimeout(200);
 check(/الكهف · آية 10|الكهف · آية ١٠/.test(await page.locator('#sheet-body .surah-row .nm').first().textContent()), 'البحث «الكهف 10» يقترح الآية العاشرة');
 await page.locator('#sheet-close').click();
 await page.waitForTimeout(500);
-await page.locator('.mr-slide[data-page="293"] .mp-body').tap(); await page.waitForTimeout(450); // إظهار الأدوات للزرّ الليلي
+await page.touchscreen.tap(6, 422); await page.waitForTimeout(450); // إظهار الأدوات للزرّ الليلي
 await showTools();
 await page.locator('.mr-round[aria-label="الوضع الليلي"]').click();
 await page.waitForTimeout(250);
@@ -177,7 +183,24 @@ await showTools();
 await page.locator('.mr-round[aria-label="علامة"]').click();
 await page.waitForTimeout(300);
 check(/أُضيفت علامة/.test(await page.locator('#toast').textContent()) && (await page.locator('.mr-round[aria-label="علامة"].active').count()) === 1, 'زر العلامة يضيف علامة للصفحة');
-await page.locator('.mr-slide[data-page="293"] .mp-body').tap(); await page.waitForTimeout(450); // إخفاء الأدوات قبل الضغط المطوّل
+// نقرة على آية: شريط الخيارات، ثم التفسير الميسر دون اتصال، ثم الاستماع بعدة قراء
+const wa = page.locator('.mr-slide[data-page="293"] .mw[data-k]').nth(40); const wb = await wa.boundingBox();
+await page.touchscreen.tap(wb.x + wb.width / 2, wb.y + wb.height / 2); await page.waitForTimeout(500);
+check(!(await page.evaluate(() => document.querySelector('.mr-ayahbar').hidden)) && /الإسراء: \d+/.test(await page.locator('.ayahbar .ab-head b').textContent()) && (await page.locator('.mw.sel').count()) > 3, 'النقر على آية يحدّدها ويعرض شريط خياراتها');
+await page.locator('.ayahbar .ab-actions button', { hasText: 'تفسير' }).click();
+await page.locator('.tafsir-body p, .tafsir-body').first().waitFor({ timeout: 8000 });
+await page.waitForFunction(() => (document.querySelector('.tafsir-body')?.innerText || '').length > 40, null, { timeout: 8000 });
+check(/محفوظ على الجهاز/.test(await page.locator('.tafsir-foot').textContent()) && (await page.locator('.tafsir-src .chip').count()) === 7, 'التفسير الميسر يُعرض من الجهاز مع 7 مصادر');
+await page.locator('.tafsir-nav button').last().click(); await page.waitForTimeout(600);
+check(/تفسير الإسراء: \d+/.test(await page.locator('#sheet-title').textContent()), 'التنقل إلى تفسير الآية التالية');
+await page.locator('#sheet-close').click(); await page.waitForTimeout(500);
+await page.touchscreen.tap(wb.x + wb.width / 2, wb.y + wb.height / 2); await page.waitForTimeout(500);
+await page.locator('.ayahbar .ab-actions button', { hasText: 'استماع' }).click(); await page.waitForTimeout(400);
+check((await page.locator('.listen-reciters .surah-row').count()) === 16 && /الاستماع/.test(await page.locator('#sheet-title').textContent()), 'نافذة الاستماع تعرض 16 قارئًا مع المدى والتكرار');
+await page.locator('#sheet-close').click(); await page.waitForTimeout(500);
+await page.locator('.ayahbar .icon-btn[aria-label="إغلاق"]').click(); await page.waitForTimeout(300);
+check(await page.evaluate(() => document.querySelector('.mr-ayahbar').hidden) && (await page.locator('.mw.sel').count()) === 0, 'إغلاق شريط الآية يزيل التحديد');
+await page.touchscreen.tap(6, 422); await page.waitForTimeout(450); // إخفاء الأدوات قبل الضغط المطوّل
 const w0 = page.locator('.mr-slide[data-page="293"] .mw[data-k]').nth(60); const bb = await w0.boundingBox();
 await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2); await page.mouse.down(); await page.waitForTimeout(650); await page.mouse.up();
 await page.locator('#sheet:not([hidden])').waitFor({ timeout: 3000 }).catch(() => {});
@@ -185,7 +208,6 @@ check(/الإسراء: \d+/.test(await page.locator('#sheet-title').textContent(
 if (!(await page.evaluate(() => document.getElementById('sheet').hidden))) { await page.getByRole('button', { name: /موضع القراءة/ }).click(); await page.waitForTimeout(300); }
 // وضع مراجعة الحفظ: الكلمات مخفية ثم تُكشف بالنقر (الزر في الطبقة العلوية؛ نُظهرها بنقرة)
 await page.waitForTimeout(500);
-await page.locator('.mr-slide[data-page="293"] .mp-body').tap(); await page.waitForTimeout(450);
 await showTools();
 await page.locator('.mr-hifz-btn').click();
 await page.locator('.hifz-panel').waitFor();

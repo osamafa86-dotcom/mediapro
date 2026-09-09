@@ -13,7 +13,7 @@
 const isIOS = () => typeof navigator !== 'undefined' && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
 
 /** تعويض دوران الشاشة (بالدرجات) */
-function screenAngle() {
+export function screenAngle() {
   if (typeof screen !== 'undefined' && screen.orientation && typeof screen.orientation.angle === 'number') return screen.orientation.angle;
   if (typeof window !== 'undefined' && typeof window.orientation === 'number') return window.orientation;
   return 0;
@@ -50,12 +50,7 @@ export class HeadingSmoother {
   push(deg) {
     const r = deg * Math.PI / 180, x = Math.cos(r), y = Math.sin(r);
     if (this.x === null) { this.x = x; this.y = y; }
-    else {
-      // تنعيم تكيّفي: دوران كبير يُتبع فورًا (لا تأخّر يُحسّ به انحرافًا)، والرجفة الصغيرة تُنعَّم
-      const cur = Math.atan2(this.y, this.x) * 180 / Math.PI; let d = Math.abs(((deg - cur) % 360 + 540) % 360 - 180);
-      const a = d > 25 ? 0.85 : d > 8 ? 0.5 : this.alpha;
-      this.x += a * (x - this.x); this.y += a * (y - this.y);
-    }
+    else { this.x += this.alpha * (x - this.x); this.y += this.alpha * (y - this.y); }
     return (Math.atan2(this.y, this.x) * 180 / Math.PI + 360) % 360;
   }
   reset() { this.x = this.y = null; }
@@ -96,7 +91,7 @@ export async function startCompass(onReading, { noReadingTimeoutMs = 4000 } = {}
     if (heading === null || Number.isNaN(heading)) return;
     gotAny = true; clearTimeout(timer);
     if (absolute) gotAbsolute = true;
-    onReading({ magneticHeading: smoother.push(heading), raw: heading, accuracy, source, absolute, beta: typeof ev.beta === 'number' ? ev.beta : null, gamma: typeof ev.gamma === 'number' ? ev.gamma : null });
+    onReading({ magneticHeading: smoother.push(heading), raw: heading, accuracy, source, absolute, beta: typeof ev.beta === 'number' ? ev.beta : null, gamma: typeof ev.gamma === 'number' ? ev.gamma : null, alpha: typeof ev.alpha === 'number' ? ev.alpha : null, webkit: typeof ev.webkitCompassHeading === 'number' ? ev.webkitCompassHeading : null, screen: screenAngle(), at: Date.now() });
   };
   const absSupported = 'ondeviceorientationabsolute' in window && !isIOS();
   if (absSupported) window.addEventListener('deviceorientationabsolute', handler, true);

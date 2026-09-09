@@ -8,6 +8,7 @@ import { h, icon, render, vibrate, openSheet } from './components.js';
 import { qiblaInfo, sunQiblaMoments, kaabaZenithEvents, signedDifference, sunPosition, greatCirclePoints, KAABA } from '../core/qibla.js';
 import { WORLD_LAND_PATH } from '../data/world-land.js';
 import { startCompass, accuracyLabel, magneticToTrue, needsPermissionGesture, compassSupported } from '../platform/compass.js';
+import { copyText, toast } from './components.js';
 import { civilDate } from '../core/prayer-times.js';
 import { describeLocation } from '../platform/location.js';
 
@@ -153,7 +154,27 @@ export function mount(container, app) {
       acc ? row('دقة المستشعر', `${acc.label}${reading.accuracy !== null ? ` (±${app.num(reading.accuracy, 0)}°)` : ''}`) : null,
       info.antipodal ? h('div', { class: 'notice' }, h('span', { html: icon('warning') }), 'موقعك قريب جدًا من النقطة المقابلة للكعبة؛ اتجاه القبلة هنا غير محدد رياضيًا.') : null,
       h('div', { class: 'notice info' }, h('span', { html: icon('info') }), h('span', {}, 'للتحقق: افتح تطبيق البوصلة في هاتفك (مع تفعيل «الشمال الحقيقي» في iPhone) وقارن اتجاه الهاتف الحقيقي أعلاه مع قراءته؛ إن اختلفا فالمستشعر يحتاج معايرة (حركة 8) أو إبعاده عن المعادن والحافظات المغناطيسية. وللتأكد المطلق استخدم وضع «الشمس» فهو لا يعتمد على المغناطيس.')),
+      h('details', { class: 'more' }, h('summary', {}, 'بيانات التشخيص (للدعم الفني)'),
+        h('pre', { class: 'diag', dir: 'ltr' }, diagnostics()),
+        h('button', { class: 'btn btn-outline btn-sm', style: { marginTop: '6px' }, onclick: () => copyText(diagnostics()) }, h('span', { html: icon('copy') }), ' نسخ بيانات التشخيص')),
       h('p', { class: 'tiny', style: { lineHeight: 1.8 } }, `الاتجاه محسوب جيوديسيًا على مجسّم WGS‑84 (Vincenty) من الشمال الحقيقي؛ الفرق عن الحل الكروي ${app.num(Math.abs(info.difference), 3)}°. مستشعرات الهاتف تعطي الشمال المغناطيسي فيُضاف الانحراف المغناطيسي من النموذج العالمي WMM2025 تلقائيًا. يمكن إيقاف التصحيح من الإعدادات.`)) });
+  }
+
+  /** بيانات خام للتشخيص عن بُعد: القراءة الأخيرة والمصدر والإعدادات */
+  function diagnostics() {
+    const loc = app.location || {}; const r = reading || {};
+    const f = (v, d = 1) => (typeof v === 'number' ? v.toFixed(d) : String(v));
+    return [
+      `sakinah compass diag ${new Date().toISOString()}`,
+      `ua: ${navigator.userAgent}`,
+      `secure: ${typeof isSecureContext !== 'undefined' ? isSecureContext : '?'} · standalone: ${!!window.SAKINAH_STANDALONE} · capacitor: ${!!window.Capacitor}`,
+      `location: ${f(loc.lat, 4)}, ${f(loc.lon, 4)} (${loc.source || loc.city || '?'})`,
+      `bearing(true): ${f(info && info.bearing, 2)} · declination: ${f(decl, 2)} (${declSource || '-'}) · mode: ${app.settings.compass.declinationMode}`,
+      `sensor: ${sensor} · source: ${r.source || '-'} · absolute: ${r.absolute}`,
+      `webkitCompassHeading: ${f(r.webkit)} · accuracy: ${f(r.accuracy)} · alpha: ${f(r.alpha)} · beta: ${f(r.beta)} · gamma: ${f(r.gamma)}`,
+      `screenAngle: ${r.screen} · window.orientation: ${typeof window.orientation === 'number' ? window.orientation : '-'} · screen.orientation: ${screen.orientation ? screen.orientation.type + '/' + screen.orientation.angle : '-'}`,
+      `heading raw: ${f(r.raw)} · smoothed magnetic: ${f(r.magneticHeading)} · true: ${f(trueHeading())}`,
+    ].join('\n');
   }
 
   /* ---------- وضع الشمس ---------- */
@@ -274,7 +295,12 @@ export function mount(container, app) {
     if (sensor === 'idle' || sensor === 'none') { if (!needsPermissionGesture()) start(); else paint(); }
   }
 
-  app.on('change', () => { generation++; stopSensor(); if (sensor === 'live' || sensor === 'starting') sensor = 'idle'; if (app.current === 'qibla') build(); else info = null; });
+  // إعادة البناء فقط عند تغيّر الموقع أو إعدادات البوصلة (لا عند كل تغيير في الإعدادات، كي لا يُعاد تشغيل المستشعر أثناء الاستخدام)
+  let snapshot = JSON.stringify([app.location, app.settings.compass]);
+  app.on('change', () => {
+    const now = JSON.stringify([app.location, app.settings.compass]); if (now === snapshot) return; snapshot = now;
+    generation++; stopSensor(); if (sensor === 'live' || sensor === 'starting') sensor = 'idle'; if (app.current === 'qibla') build(); else info = null;
+  });
   build();
   return {
     refresh: build,

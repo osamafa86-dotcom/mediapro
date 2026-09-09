@@ -1,5 +1,5 @@
 /* سكينة — عامل الخدمة: عمل دون اتصال + إشعارات */
-const VERSION = 'sakinah-v1.2.1';
+const VERSION = 'sakinah-v1.3.0';
 const FONT_CACHE = 'sakinah-mushaf-fonts'; // خطوط صفحات المصحف (تُملأ عند الطلب أو بالتنزيل الكامل من الخيارات)
 const CORE = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
@@ -9,7 +9,7 @@ const CORE = [
   './js/platform/storage.js', './js/platform/location.js', './js/platform/compass.js', './js/platform/notifications.js',
   './js/data/adhkar.js', './js/data/hadith.js', './js/data/hadith/part-a.js', './js/data/hadith/part-b.js', './js/data/cities.js',
   './js/data/quran-meta.js', './js/core/quran.js', './js/platform/audio.js', './js/platform/speech.js', './js/ui/quran-view.js', './js/ui/more-view.js', './data/quran.json',
-  './js/core/mushaf.js', './js/ui/mushaf-page.js', './js/ui/mushaf-reader.js', './js/platform/mushaf-fonts.js', './js/data/bismillah.js', './data/mushaf-layout.json', './js/data/world-land.js',
+  './js/core/mushaf.js', './js/ui/mushaf-page.js', './js/ui/mushaf-reader.js', './js/platform/mushaf-fonts.js', './js/data/bismillah.js', './data/mushaf-layout.json', './js/data/world-land.js', './js/core/tafsir.js',
   './assets/icons/icon.svg', './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/fonts/AmiriQuran.woff2',
 ];
 // ورقة أنماط الخطوط (ملفات الخطوط نفسها تُخزَّن عند أول طلب عبر معالج fetch)
@@ -23,7 +23,7 @@ self.addEventListener('install', (e) => {
   ])).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION && k !== FONT_CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION && k !== FONT_CACHE && k !== 'sakinah-tafsir').map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
 // استراتيجية: الملفات المحلية = الكاش أولًا مع تحديث بالخلفية؛ الخطوط = الكاش أولًا؛ الشبكة الخارجية الأخرى = الشبكة أولًا
@@ -39,6 +39,14 @@ self.addEventListener('fetch', (e) => {
       const hit = await c.match(req); if (hit) return hit;
       const res = await fetch(req); if (res && res.ok) c.put(req, res.clone()); return res;
     }).catch(() => Response.error()));
+    return;
+  }
+  // تفاسير quran.com: الشبكة أولًا ثم الكاش (الصفحة تخزّنها أيضًا عبر Cache API)
+  if (url.hostname === 'api.quran.com') {
+    e.respondWith(caches.open('sakinah-tafsir').then(async (c) => {
+      try { const res = await fetch(req); if (res && res.ok) c.put(req, res.clone()); return res; }
+      catch { return (await c.match(req)) || Response.error(); }
+    }));
     return;
   }
   if (sameOrigin || isFont) {

@@ -6,6 +6,7 @@ const file = path.resolve(fileURLToPath(new URL('../../dist/sakinah-standalone.h
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar', timezoneId: 'Asia/Riyadh', geolocation: { latitude: 24.7136, longitude: 46.6753 }, permissions: ['geolocation'] });
 const page = await ctx.newPage();
+const document_page = () => page.evaluate(() => document.querySelector('.mreader').dataset.page);
 const showTools = async () => { if (!(await page.evaluate(() => { const r = document.querySelector('.mreader'); return r && r.classList.contains('chrome'); }))) { const cur = await page.evaluate(() => document.querySelector('.mreader').dataset.page); await page.locator(`.mr-slide[data-page="${cur}"] .mp-body`).tap(); await page.waitForTimeout(450); } }; // الأدوات مخفية أثناء القراءة؛ نُظهرها بنقرة قبل الضغط على أزرارها
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));

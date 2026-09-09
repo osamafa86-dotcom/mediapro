@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS = {
     bookmarks: [],           // [{ surah, ayah, page, at }]
     reciter: 'ar.alafasy', repeatAyah: 1, repeatRange: false, rate: 1, follow: true,
     fontScale: 1, hifzOnlyCurrent: true, night: false, paper: 'cream', fontsOffline: false, hintShown: false,
+    tafsir: 'muyassar', view: 'pages', // view: 'pages' صفحات المصحف | 'text' نص متدفق بحجم قابل للتغيير
   },
   adhkarProgress: { date: null, morning: {}, evening: {} },
   favorites: [],

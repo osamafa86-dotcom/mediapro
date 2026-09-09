@@ -539,3 +539,35 @@ body.mreader-open .tabbar { visibility: hidden; }
 .map-mode .legend i { display: inline-block; width: 18px; height: 0; border-top: 2.5px solid var(--primary); vertical-align: middle; margin-left: 4px; }
 .map-mode .legend i.rh { border-top: 2px dashed var(--gold); }
 .map-mode .map-toggle { display: flex; justify-content: center; gap: 6px; margin-top: 8px; }
+/* شريط خيارات الآية (يظهر بنقرة على الآية) */
+.mr-ayahbar { position: absolute; left: 50%; bottom: calc(var(--safe-b) + 12px); transform: translateX(-50%); width: min(560px, calc(100% - 20px)); z-index: 3; background: var(--bg-elev); color: var(--text); border-radius: 18px; box-shadow: var(--shadow-lg); border: 1px solid var(--line); direction: rtl; animation: mp-in .2s ease; }
+.mr-ayahbar[hidden] { display: none; }
+.ayahbar { padding: 8px 10px 10px; }
+.ayahbar .ab-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px 6px; }
+.ayahbar .ab-head b { font-size: 14px; }
+.ayahbar .ab-head .icon-btn { width: 30px; height: 30px; border-radius: 9px; }
+.ayahbar .ab-actions { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+.ayahbar .ab-actions button { border: 0; background: transparent; border-radius: 12px; padding: 6px 2px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 800; color: var(--text-2); cursor: pointer; }
+.ayahbar .ab-actions button svg { width: 22px; height: 22px; color: var(--primary); }
+.ayahbar .ab-actions button:active { background: var(--bg-soft); }
+.ayahbar .ab-actions button.on { color: var(--gold); } .ayahbar .ab-actions button.on svg { color: var(--gold); }
+/* التفسير */
+.tafsir-src { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: none; }
+.tafsir-src::-webkit-scrollbar { display: none; }
+.tafsir-src .chip { flex-shrink: 0; }
+.tafsir-ayah { font-family: 'Amiri Quran', 'Amiri', serif; font-size: 20px; line-height: 2.1; text-align: justify; text-align-last: right; background: var(--gold-soft); border-radius: 14px; padding: 10px 14px; color: var(--text); }
+.tafsir-body { font-family: var(--font-text); font-size: calc(17px * var(--text-scale, 1)); line-height: 2; color: var(--text); text-align: justify; text-align-last: right; min-height: 80px; }
+.tafsir-body p { margin: 0 0 10px; }
+.tafsir-body b { color: var(--primary-strong); font-weight: 700; }
+[data-theme="dark"] .tafsir-body b { color: var(--primary); }
+.tafsir-body i { color: var(--gold); font-style: normal; }
+.tafsir-nav { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.tafsir-foot { font-size: 11.5px; color: var(--text-3); }
+/* الاستماع */
+.listen-reciters { max-height: 34vh; overflow-y: auto; border: 1px solid var(--line); border-radius: 14px; padding: 2px 8px; }
+.listen-reciters .surah-row { padding: 9px 4px; }
+.listen-reciters .surah-row.on .num { background: var(--primary); color: var(--on-primary); }
+.diag { font-family: ui-monospace, monospace; font-size: 10.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; background: var(--bg-soft); border-radius: 10px; padding: 8px 10px; direction: ltr; text-align: left; margin-top: 6px; color: var(--text-2); }
+/* وضع النص المتدفق داخل القارئ */
+.mreader.text-mode .mp.mp-full .mp-body.text { font-size: calc(var(--mp-size) * 1.02 * var(--quran-scale, 1)); line-height: 2.15; overflow-y: auto; height: 100%; padding: .2em .4em; }
+.mreader.text-mode .mp.mp-full .mp-mid { align-items: stretch; }
