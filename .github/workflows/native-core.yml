@@ -1,0 +1,23 @@
+# نواة «سكينة» الأصلية (Swift): بناء واختبار المرجع الذهبي على Linux عند كل دفعة تمسّ sakinah-native/
+name: Sakinah Native Core
+
+on:
+  push:
+    paths: ['sakinah-native/**', '.github/workflows/native-core.yml']
+  pull_request:
+    paths: ['sakinah-native/**']
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container: swift:6.2
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: sakinah-native
+    steps:
+      - uses: actions/checkout@v4
+      - name: الإصدار
+        run: swift --version
+      - name: بناء واختبار SakinahCore
+        run: swift test 2>&1 | grep -vE "^\[|Compiling|Emitting|Write " | tail -40

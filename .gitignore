@@ -13,3 +13,9 @@ sakinah/android/
 sakinah/.cache/
 # لقطات المتجر المولَّدة (node tools/store-screenshots.mjs)
 sakinah/dist/store/
+
+# التطبيق الأصلي (Swift): مخرجات البناء والمشروع المولَّد بـ XcodeGen
+sakinah-native/.build/
+sakinah-native/App/*.xcodeproj
+sakinah-native/App/build/
+sakinah-native/App/Sakinah/Info.plist
