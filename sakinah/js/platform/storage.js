@@ -21,7 +21,8 @@ export const DEFAULT_SETTINGS = {
     enabled: false,
     prayers: { fajr: true, sunrise: false, dhuhr: true, asr: true, maghrib: true, isha: true },
     preMinutes: 0,           // تذكير قبل الأذان بدقائق (0 = عند الأذان فقط)
-    sound: 'chime',          // 'chime' | 'none'
+    sound: 'chime',          // 'chime' | 'adhan-fakhry' | 'adhan-azeez' | 'none'
+    nativeUntil: null,       // آخر موعد مجدوَل كإشعار نظام (التطبيق الأصلي)
     vibrate: true,
   },
   compass: { declinationMode: 'auto' }, // 'auto' | 'on' | 'off'

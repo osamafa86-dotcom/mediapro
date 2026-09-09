@@ -1,0 +1,57 @@
+# بناء APK تجريبي (debug) لتطبيق سكينة على Android عبر Capacitor — بلا أسرار؛ الناتج أثرٌ (artifact) يُثبَّت مباشرة للتجربة.
+# النشر إلى Google Play يحتاج مفتاح توقيع وحساب Play Console: خطوة مالك لاحقة (يُضاف سير release عندها).
+name: Sakinah Android (debug APK)
+
+on:
+  push:
+    branches: ['claude/islamic-app-development-tpmkko', 'main']
+    paths: ['sakinah/ios-release.txt', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: sakinah
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: sakinah/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: التبعيات وملفات التشغيل
+        run: |
+          npm ci
+          node tools/build-www.mjs
+      - name: إنشاء مشروع Android (Capacitor)
+        run: |
+          npx cap add android
+          npx cap sync android
+          # الأيقونات (adaptive) وشاشة البداية من resources/
+          npx --yes @capacitor/assets@3 generate --android --iconBackgroundColor '#0f766e' --iconBackgroundColorDark '#0b1412' --splashBackgroundColor '#0f766e' --splashBackgroundColorDark '#0b1412' --logoSplashScale 0.25
+          # صوت الإشعار القصير في res/raw (اسم بلا شرطة)
+          mkdir -p android/app/src/main/res/raw
+          cp assets/audio/adhan_short.wav android/app/src/main/res/raw/adhan_short.wav
+          # اسم التطبيق بالعربية
+          sed -i 's|<string name="app_name">.*</string>|<string name="app_name">سكينة</string>|; s|<string name="title_activity_main">.*</string>|<string name="title_activity_main">سكينة</string>|' android/app/src/main/res/values/strings.xml
+      - name: بناء APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon -q
+          ls -la app/build/outputs/apk/debug/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sakinah-debug-apk
+          path: sakinah/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14

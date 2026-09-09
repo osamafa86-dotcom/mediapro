@@ -60,18 +60,16 @@ sakinah/
 2. **GitHub Pages** (مجاني): من إعدادات المستودع → Pages → Build and deployment → Source: **GitHub Actions**. سير العمل `.github/workflows/pages.yml` ينشر تلقائيًا عند كل دفع إلى الفرع، على الرابط `https://osamafa86-dotcom.github.io/mediapro/`.
 3. **Vercel**: ثبّت تطبيق Vercel على GitHub (https://github.com/apps/vercel) واربط المستودع بمجلد جذر `sakinah` — الإعدادات في `vercel.json` وتُنشأ معاينة لكل فرع تلقائيًا.
 
-## تطبيق iOS وTestFlight
+## تطبيق iOS وAndroid (Capacitor)
 
-التطبيق ويب تقدمي يعمل على iPhone من Safari بـ «إضافة إلى الشاشة الرئيسية» دون متجر. ولإصدار تطبيق أصلي عبر TestFlight جُهّز غلاف **Capacitor** وسير عمل GitHub Actions يبني على macOS ويرفع إلى App Store Connect:
+التطبيق ويب تقدمي يعمل على iPhone من Safari بـ «إضافة إلى الشاشة الرئيسية» دون متجر، ويُغلَّف تطبيقًا أصليًا بـ **Capacitor 6** مع الإضافات: إشعارات محلية (`@capacitor/local-notifications`)، اهتزاز (`haptics`)، مشاركة الملفات (`filesystem` + `share` لتصدير التقويم والنسخة الاحتياطية)، شريط الحالة، الشاشة الافتتاحية، وأحداث التطبيق (زر الرجوع في Android، العودة إلى الواجهة). الجسر في `js/platform/native.js` لا يحتاج خطوة بناء: على الويب تعيد دواله null فتبقى مسارات المتصفح.
 
-1. حساب Apple Developer (99$/سنة)، ثم في App Store Connect أنشئ تطبيقًا بمعرّف الحزمة `org.emdatra.sakinah` (غيّره في `capacitor.config.json` وسير العمل إن أردت).
-2. أنشئ شهادة **Apple Distribution** وصدّرها `.p12`، وملف **Provisioning Profile** من نوع App Store لمعرّف الحزمة، ومفتاح **App Store Connect API** (دور App Manager).
-3. أضف الأسرار في GitHub (Settings → Secrets → Actions): `APPLE_TEAM_ID`, `BUILD_CERTIFICATE_BASE64`, `P12_PASSWORD`, `BUILD_PROVISION_PROFILE_BASE64`, `KEYCHAIN_PASSWORD`, `APP_STORE_CONNECT_API_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_API_KEY_P8` (التفاصيل في رأس `.github/workflows/ios-testflight.yml`).
-4. شغّل سير العمل **iOS TestFlight** من تبويب Actions، أو ادفع وسمًا `ios-v1.0.0`، أو عدّل رقم الإصدار في `sakinah/ios-release.txt` وادفعه. يبني الحزمة ويرفعها إلى TestFlight ويحتفظ بملف IPA كناتج.
+- **الإشعارات في التطبيق الأصلي**: تُجدوَل مواعيد الصلاة كإشعارات نظام لنحو أسبوع مقدّمًا (حدّ iOS 64 إشعارًا معلّقًا) وتُجدَّد عند كل فتح أو عودة أو تغيير في الموقع/الطريقة/التذكيرات، بصوت أذان قصير (`assets/audio/adhan_short.wav`، 28 ثانية) وداخل التطبيق يُتلى الأذان كاملًا (`assets/audio/`، الترخيص في `LICENSE.md` هناك).
+- **iOS/TestFlight**: سير العمل الفعلي في مستودع `wilt` (`.github/workflows/sakinah-ios.yml`، فرع `sakinah-ios`) لأن أسرار Apple هناك؛ يسحب هذا الفرع، ويولّد مشروع Xcode، ويضيف مفاتيح Info.plist (الموقع، الحركة، الميكروفون، التعرّف على الكلام، الصوت في الخلفية، الاتجاه العمودي)، والأيقونات وشاشة البداية بكل المقاسات من `resources/` عبر `@capacitor/assets`، وصوت الإشعار وبيان الخصوصية `ios-config/PrivacyInfo.xcprivacy` (يسجّلهما `tools/ios/add_resources.rb` في هدف App)، ثم يوقّع ويرفع. رقم الإصدار التسويقي من `ios-release.txt` (= `package.json` عبر `npm run version:sync`).
+- **Android**: سير `.github/workflows/android.yml` يبني APK تجريبيًا (debug) أثرًا قابلًا للتثبيت عند تعديل `ios-release.txt` أو يدويًا؛ النشر إلى Google Play يحتاج مفتاح توقيع وحساب Play Console (خطوة مالك).
+- **محليًا على Mac**: `npm install && npm run cap:ios` ثم افتح `ios/App/App.xcworkspace`. للأندرويد: `npx cap add android && npx cap sync android` ثم Android Studio.
 
-للبناء محليًا على Mac: `npm install && npm run cap:ios` ثم افتح `ios/App/App.xcworkspace` في Xcode.
-
-**حدود الغلاف الأصلي (WKWebView) التي تحتاج إضافات لاحقة**: إشعارات الصلاة تحتاج `@capacitor/local-notifications`، ووضع التسميع بالصوت يحتاج `@capacitor-community/speech-recognition` لأن Web Speech API غير متاح داخل WKWebView (يعمل الكشف بالنقر)، وإذن مستشعرات البوصلة يعتمد على دعم Capacitor لطلب إذن الحركة.
+**ما يبقى خارج الغلاف**: التعرّف على الصوت في مراجعة الحفظ يعتمد على Web Speech API غير المتاح داخل WKWebView (يعمل الكشف بالنقر؛ الإضافة `@capacitor-community/speech-recognition` مرشّحة لاحقًا)، وودجت الشاشة الرئيسية وLive Activities تحتاج هدف Swift مُلتزمًا في المستودع.
 
 ## التشغيل محليًا والاختبارات
 
@@ -101,9 +99,9 @@ npx http-server . -p 8080   # ثم افتح http://localhost:8080
 
 ## حدود معروفة
 
-- إشعارات المتصفح تعمل ما دام التطبيق مفتوحًا أو في الخلفية؛ لا تسمح المتصفحات بجدولة إشعارات مستقبلية دون خادم دفع. تصدير ICS هو الحل المضمون حين يكون التطبيق مغلقًا، ويمكن لاحقًا إضافة Web Push عبر خادم.
+- على الويب تعمل إشعارات المتصفح ما دام التطبيق مفتوحًا أو في الخلفية (لا تسمح المتصفحات بجدولة إشعارات مستقبلية دون خادم دفع)؛ في تطبيق iOS/Android تصل إشعارات النظام والتطبيق مغلق. تصدير ICS هو الحل المضمون حين يكون التطبيق مغلقًا، ويمكن لاحقًا إضافة Web Push عبر خادم.
 - التقويم الهجري من ICU (أم القرى) قد يختلف يومًا عن إعلان الرؤية المحلي؛ يوجد تعديل ±يومين في الإعدادات.
-- اسم الموقع دون اتصال هو أقرب مدينة من القائمة المضمّنة (تُستخدم خدمة جيوكود عكسي مجانية عند توفر الإنترنت).
+- اسم الموقع دون اتصال هو أقرب مدينة من القائمة المضمّنة؛ عند الاتصال تُسأل خدمة جيوكود عكسي مجانية (BigDataCloud) بإحداثيات مقرّبة إلى منزلتين (نحو كيلومتر) ويمكن إيقافها من الإعدادات.
 - التلاوات تُبثّ من الإنترنت (Islamic Network CDN) ولا تُخزَّن دون اتصال. التعرّف على الصوت في وضع المراجعة يعتمد على خدمة المتصفح السحابية (Chrome وSafari) ويلزمه اتصال وإذن الميكروفون؛ دقته مع القرآن جيدة لا مثالية، لذا المطابق متسامح مع الأخطاء الصوتية ويتجاهل الكلمات الدخيلة.
 
 ## المصادر والتراخيص
@@ -116,4 +114,6 @@ npx http-server . -p 8080   # ثم افتح http://localhost:8080
 - تخطيط الصفحات وخطوطها: بيانات مجمع الملك فهد لطباعة المصحف الشريف (مصحف المدينة، حفص) عبر واجهة quran.com v4 (`verses/by_page` مع `code_v1` و`line_number`)، وخطوط الصفحات QCF v1 وخط أسماء السور من مستودع quran.com المفتوح (مثبّتة على إصدار محدد عبر jsDelivr). الخطوط ملك للمجمع ومتاحة للاستخدام غير التجاري في تطبيقات القرآن؛ رسم البسملة من المستودع نفسه.
 - إعادة توليد التخطيط: `node tools/build-mushaf-layout.mjs` (يحفظ الاستجابات الخام في `.cache/qcf`، ويتحقق من مطابقة كل كلمة لكلمات نص Tanzil ومن مواضع ترويسات السور والبسملة، بما فيها 21 ترويسة تقع في آخر سطر من الصفحة السابقة كما في المصحف المطبوع).
 - الأذكار: حصن المسلم (hisnmuslim.com). الأحاديث: نصوص الصحيحين المفتوحة (fawazahmed0/hadith-api).
+- الأذان: «Call to prayer by Sabah Fakhry» (ملكية عامة) و«The Adhan — Aaqib Azeez» (CC BY-SA 4.0) من Wikimedia Commons؛ التفاصيل في `assets/audio/LICENSE.md`.
+- خطوط الواجهة Tajawal وAmiri (SIL OFL) مستضافة محليًا في `assets/fonts/`.
 - الخطوط: Tajawal وAmiri (Google Fonts، رخصة SIL OFL).

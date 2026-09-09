@@ -10,6 +10,8 @@
     "preferredContentMode": "mobile"
   },
   "plugins": {
-    "SplashScreen": { "launchShowDuration": 800, "backgroundColor": "#0f766e", "showSpinner": false }
+    "SplashScreen": { "launchShowDuration": 0, "launchAutoHide": false, "backgroundColor": "#0f766e", "showSpinner": false, "splashFullScreen": true, "splashImmersive": true },
+    "LocalNotifications": { "presentationOptions": ["badge", "alert"], "iconColor": "#0f766e" },
+    "StatusBar": { "style": "LIGHT", "backgroundColor": "#0f766e" }
   }
 }

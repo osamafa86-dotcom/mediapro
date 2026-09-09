@@ -6,6 +6,8 @@ import { dayTimeline, computePrayerTimes, civilDate, formatTime, defaultParams, 
 import { defaultMethodFor, METHODS } from './core/methods.js';
 import { hijriDate, isRamadan, gregorianFormatted } from './core/hijri.js';
 import { VERSION } from './version.js';
+import * as native from './platform/native.js';
+import * as nativeNotif from './platform/native-notifications.js';
 import { detectLocation, locationFromCity, locationFromCoords, searchCities, describeLocation, deviceTimeZone, isGeolocationSupported } from './platform/location.js';
 import * as notif from './platform/notifications.js';
 import { h, icon, initSheet, openSheet, closeSheet, toast, render, fmtNum, vibrate } from './ui/components.js';
@@ -143,33 +145,48 @@ export const app = {
   },
 
   /* ---------- التذكيرات ---------- */
-  reminderSchedule() {
+  reminderSchedule(days = [-1, 0, 1]) { // الأمس أيضًا: قد يقع عشاء الأمس بعد منتصف الليل في خطوط العرض العالية
     const c = this.coords(); const prefs = this.settings.notifications;
     if (!c || !prefs.enabled) return [];
     const now = new Date(); const out = [];
-    for (const off of [-1, 0, 1]) { // الأمس أيضًا: قد يقع عشاء الأمس بعد منتصف الليل في خطوط العرض العالية
+    for (const off of days) {
       const civil = addDays(civilDate(now, this.tz), off);
       const t = this.timesFor(civil);
       out.push(...notif.buildReminders(t, prefs, (d) => this.fmt(d), `${civil.year}-${civil.month}-${civil.day}`, (v) => this.num(v)));
     }
     return out;
   },
+  /** التطبيق الأصلي: جدولة أقرب 60 موعدًا (نحو أسبوع) كإشعارات نظام تصل والتطبيق مغلق؛ تُعاد عند كل فتح/عودة/تغيير */
+  _nativeSyncTimer: null,
+  syncNativeReminders() {
+    if (!nativeNotif.available()) return;
+    clearTimeout(this._nativeSyncTimer);
+    this._nativeSyncTimer = setTimeout(async () => {
+      const prefs = this.settings.notifications;
+      if (!prefs.enabled) { await nativeNotif.cancelAll(); this.set('notifications.nativeUntil', null); return; }
+      const r = await nativeNotif.syncSchedule(this.reminderSchedule([-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), prefs);
+      const until = r.until ? r.until.toISOString() : null;
+      if ((this.settings.notifications.nativeUntil || null) !== until) store.set('notifications.nativeUntil', until); // حفظ صامت (بلا change)
+    }, 300);
+  },
   async fireReminder(item) {
     const prefs = this.settings.notifications;
-    await notif.showNotification(item.title, item.body, { tag: `sakinah-${item.kind}`, vibrate: prefs.vibrate, url: './index.html#/prayer' });
-    if (prefs.sound !== 'none' && item.kind === 'adhan') notif.playChime();
+    // في التطبيق الأصلي يعرض النظام الإشعار (مجدوَل مسبقًا)؛ هنا نكتفي بالصوت داخل التطبيق إن كان في الواجهة
+    if (!native.isNative()) await notif.showNotification(item.title, item.body, { tag: `sakinah-${item.kind}`, vibrate: prefs.vibrate, url: './index.html#/prayer' });
+    if (prefs.sound !== 'none' && item.kind === 'adhan') { notif.unlockAudio(); notif.playAdhan(prefs.sound || 'chime'); }
     if (prefs.vibrate) vibrate([300, 100, 300]);
     toast(item.title, 6000);
   },
   async enableNotifications(on) {
     if (!on) { this.set('notifications.enabled', false); return false; }
     const perm = await notif.requestPermission();
-    if (perm !== 'granted') { toast(perm === 'unsupported' ? 'المتصفح لا يدعم الإشعارات' : 'لم يُمنح إذن الإشعارات', 3500); this.set('notifications.enabled', false); return false; }
+    if (perm !== 'granted') { toast(perm === 'unsupported' ? 'المتصفح لا يدعم الإشعارات' : native.isNative() ? 'لم يُمنح إذن الإشعارات — فعّله من إعدادات النظام للتطبيق' : 'لم يُمنح إذن الإشعارات', 3500); this.set('notifications.enabled', false); return false; }
     notif.unlockAudio();
     // طلب تخزين دائم: يمنع Safari وغيره من إخلاء بيانات التطبيق (العلامات والتقدّم) بعد مدة من عدم الاستخدام
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch { /* تجاهل */ }
     this.set('notifications.enabled', true);
-    toast('تم تفعيل التذكير بمواعيد الصلاة');
+    this.syncNativeReminders();
+    toast(native.isNative() ? 'تم تفعيل التذكير — ستصلك إشعارات الصلاة حتى والتطبيق مغلق' : 'تم تفعيل التذكير بمواعيد الصلاة');
     return true;
   },
 
@@ -178,6 +195,7 @@ export const app = {
     const t = this.settings.theme;
     const dark = t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    native.applyStatusBar(dark);
     const btn = document.getElementById('btn-theme');
     btn.innerHTML = icon(t === 'auto' ? 'theme' : dark ? 'moon' : 'sun');
     btn.title = t === 'auto' ? 'السمة: تلقائي' : dark ? 'السمة: داكن' : 'السمة: فاتح';
@@ -238,6 +256,31 @@ function boot() {
 
   // التذكيرات
   notif.startScheduler(() => app.reminderSchedule(), (item) => app.fireReminder(item));
+  // التطبيق الأصلي: إشعارات النظام، زر الرجوع، العودة إلى الواجهة، شريط الحالة، إخفاء الشاشة الافتتاحية
+  if (native.isNative()) {
+    notif.refreshPermission().then(() => { if (app.settings.notifications.enabled) app.syncNativeReminders(); });
+    nativeNotif.onTap(() => { app.navigate('prayer'); });
+    native.onAppEvents({
+      onBack: () => {
+        const sheet = document.getElementById('sheet');
+        if (sheet && !sheet.hidden) { closeSheet(); return; }
+        if (document.body.classList.contains('mreader-open')) { history.back(); return; }
+        if (app.current !== 'prayer') { app.navigate('prayer', { replace: true }); return; }
+        native.exitApp();
+      },
+      onResume: () => { if (app.settings.notifications.enabled) app.syncNativeReminders(); app.emit('tick'); },
+    });
+    const nativeSig = () => { const s = app.settings; return JSON.stringify([s.location, s.method, s.madhab, s.highLatitudeRule, s.shafaq, s.adjustments, s.custom, s.hijriOffset, s.notifications && { e: s.notifications.enabled, p: s.notifications.prayers, m: s.notifications.preMinutes, s: s.notifications.sound }]); };
+    let lastNativeSig = nativeSig();
+    app.on('change', () => { const sig = nativeSig(); if (sig !== lastNativeSig) { lastNativeSig = sig; app.syncNativeReminders(); } });
+    setTimeout(() => native.hideSplash(), 150);
+  }
+  // شريط «الأذان يُتلى الآن» مع زر إيقاف عند تشغيل الأذان الكامل داخل التطبيق
+  notif.onAdhanState((st) => {
+    let bar = document.getElementById('adhan-banner');
+    if (st === 'playing') { if (!bar) { bar = h('div', { id: 'adhan-banner', class: 'update-banner', role: 'status' }, h('span', {}, 'الأذان يُتلى الآن'), h('button', { class: 'btn btn-primary btn-sm', onclick: () => notif.stopAdhan() }, 'إيقاف')); document.body.append(bar); } }
+    else if (bar) bar.remove();
+  });
 
   // عامل الخدمة
   if ('serviceWorker' in navigator && location.protocol !== 'file:' && !window.SAKINAH_STANDALONE && !window.SAKINAH_NATIVE) {

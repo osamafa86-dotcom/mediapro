@@ -8,13 +8,42 @@
  *   (لا تسمح المتصفحات بجدولة إشعارات مستقبلية دون خادم دفع).
  */
 import { PRAYER_NAMES_AR } from '../core/prayer-times.js';
+import * as nativeNotif from './native-notifications.js';
+import { shareFile, isNative } from './native.js';
 
-export function isSupported() { return typeof window !== 'undefined' && 'Notification' in window; }
-export function permissionState() { return isSupported() ? Notification.permission : 'unsupported'; }
+let nativePerm = null; // آخر حالة إذن معروفة في التطبيق الأصلي (الفحص هناك غير متزامن)
+export function isSupported() { return nativeNotif.available() || (typeof window !== 'undefined' && 'Notification' in window); }
+export function permissionState() {
+  if (nativeNotif.available()) return nativePerm || 'default';
+  return typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported';
+}
+export async function refreshPermission() { if (nativeNotif.available()) nativePerm = await nativeNotif.permission(); return permissionState(); }
 export async function requestPermission() {
+  if (nativeNotif.available()) { nativePerm = await nativeNotif.requestPermission(); return nativePerm; }
   if (!isSupported()) return 'unsupported';
   try { return await Notification.requestPermission(); } catch { return Notification.permission; }
 }
+
+/* ---------- الأذان الكامل داخل التطبيق ---------- */
+export const ADHAN_SOUNDS = [
+  { id: 'chime', name: 'نغمة هادئة', file: null },
+  { id: 'adhan-fakhry', name: 'أذان (صباح فخري)', file: 'assets/audio/adhan-fakhry.mp3', by: 'ملكية عامة' },
+  { id: 'adhan-azeez', name: 'أذان (عاقب عزيز)', file: 'assets/audio/adhan-azeez.mp3', by: 'CC BY-SA 4.0' },
+  { id: 'none', name: 'بلا صوت', file: null },
+];
+let adhanEl = null; const adhanListeners = new Set();
+export function onAdhanState(fn) { adhanListeners.add(fn); return () => adhanListeners.delete(fn); }
+const emitAdhan = (st) => { for (const fn of adhanListeners) { try { fn(st); } catch { /* تجاهل */ } } };
+/** تشغيل صوت الأذان المختار (مقطع كامل)؛ يعيد true إن بدأ */
+export async function playAdhan(id) {
+  const s = ADHAN_SOUNDS.find((x) => x.id === id);
+  if (!s || !s.file) { if (id === 'chime') playChime(); return false; }
+  stopAdhan();
+  try { adhanEl = new Audio(s.file); adhanEl.preload = 'auto'; adhanEl.addEventListener('ended', () => { adhanEl = null; emitAdhan('ended'); }); await adhanEl.play(); emitAdhan('playing'); return true; }
+  catch { adhanEl = null; playChime(); return false; }
+}
+export function stopAdhan() { if (adhanEl) { try { adhanEl.pause(); } catch { /* تجاهل */ } adhanEl = null; emitAdhan('stopped'); } }
+export function isAdhanPlaying() { return !!adhanEl && !adhanEl.paused; }
 
 let audioCtx = null;
 /** تجهيز الصوت من داخل إيماءة مستخدم (iOS يتطلب ذلك) */
@@ -144,7 +173,9 @@ export function buildICS(days, opts = {}) {
   lines.push('END:VCALENDAR');
   return lines.map(icsFold).join('\r\n') + '\r\n';
 }
-export function downloadFile(filename, content, type = 'text/calendar;charset=utf-8') {
+export async function downloadFile(filename, content, type = 'text/calendar;charset=utf-8') {
+  // داخل الغلاف الأصلي لا تعمل روابط التنزيل: نحفظ الملف ونفتح ورقة المشاركة (التقويم، الملفات، البريد…)
+  if (isNative()) { if (await shareFile(filename, content, type.split(';')[0])) return; }
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click();

@@ -1,3 +1,4 @@
+import { haptic } from '../platform/native.js';
 /**
  * مكوّنات واجهة مشتركة: بناء عناصر DOM، أيقونات SVG، الورقة السفلية، التنبيهات، تنسيق الأرقام.
  */
@@ -200,8 +201,8 @@ export async function shareText(title, text) {
 }
 export function vibrate(pattern) {
   try {
-    const H = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics;
-    if (H) { const strong = Array.isArray(pattern) ? pattern.length > 1 : pattern > 20; (strong ? H.notification({ type: 'SUCCESS' }) : H.impact({ style: 'LIGHT' })).catch(() => {}); return; }
+    const strong = Array.isArray(pattern) ? pattern.length > 1 : pattern > 20;
+    if (haptic(strong ? 'success' : 'light')) return; // iOS/Android الأصلي
     navigator.vibrate && navigator.vibrate(pattern);
   } catch { /* لا اهتزاز */ }
 }

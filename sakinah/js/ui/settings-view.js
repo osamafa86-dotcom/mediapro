@@ -5,6 +5,7 @@ import { h, icon, render, openSheet, closeSheet, toast, switchEl, stepper, setti
 import { METHODS, METHOD_ORDER, defaultMethodFor } from '../core/methods.js';
 import { PRAYERS, PRAYER_NAMES_AR, HIGH_LATITUDE_RULE_NAMES_AR } from '../core/prayer-times.js';
 import * as store from '../platform/storage.js';
+import { isNative } from '../platform/native.js';
 import { downloadFile } from '../platform/notifications.js';
 import { describeLocation, deviceTimeZone } from '../platform/location.js';
 import * as notif from '../platform/notifications.js';
@@ -56,18 +57,25 @@ export function mount(container, app) {
         settingRow('تعديل التاريخ الهجري', 'لمطابقة إعلان الرؤية في بلدك', stepper(s.hijriOffset, { min: -2, max: 2, format: (v) => (v > 0 ? '+' : '') + app.num(v) + ' يوم', onChange: (v) => app.set('hijriOffset', v) }))),
 
       section('التذكير بالصلاة', 'bell',
-        settingRow('تفعيل التذكير', perm === 'denied' ? 'الإذن مرفوض في المتصفح — فعّله من إعدادات الموقع' : perm === 'unsupported' ? 'المتصفح لا يدعم الإشعارات' : 'إشعار ونغمة عند دخول وقت كل صلاة',
+        settingRow('تفعيل التذكير', perm === 'denied' ? (isNative() ? 'الإذن مرفوض — فعّله من إعدادات النظام للتطبيق' : 'الإذن مرفوض في المتصفح — فعّله من إعدادات الموقع') : perm === 'unsupported' ? 'المتصفح لا يدعم الإشعارات' : isNative() ? 'إشعارات النظام بمواعيد الصلاة، تصل حتى والتطبيق مغلق' : 'إشعار ونغمة عند دخول وقت كل صلاة',
           switchEl(s.notifications.enabled, (v) => app.enableNotifications(v), 'تفعيل التذكير')),
         ...PRAYERS.map((k) => settingRow(PRAYER_NAMES_AR[k], k === 'sunrise' ? 'تنبيه بانتهاء وقت الفجر' : null, switchEl(s.notifications.prayers[k], (v) => app.set(`notifications.prayers.${k}`, v), PRAYER_NAMES_AR[k]))),
         h('div', { class: 'field', style: { marginTop: '10px' } }, h('label', {}, 'تذكير مسبق قبل الأذان'),
           select(String(s.notifications.preMinutes), [['0', 'بدون'], ['5', 'قبل 5 دقائق'], ['10', 'قبل 10 دقائق'], ['15', 'قبل 15 دقيقة'], ['30', 'قبل 30 دقيقة']], (v) => app.set('notifications.preMinutes', Number(v)))),
-        settingRow('نغمة التنبيه', 'نغمة هادئة عند دخول الوقت', switchEl(s.notifications.sound !== 'none', (v) => app.set('notifications.sound', v ? 'chime' : 'none'), 'النغمة')),
+        h('div', { class: 'field', style: { marginTop: '10px' } }, h('label', {}, 'صوت دخول الوقت'),
+          h('div', { class: 'row' }, select(s.notifications.sound || 'chime', notif.ADHAN_SOUNDS.map((x) => [x.id, x.name]), (v) => app.set('notifications.sound', v)),
+            h('button', { class: 'btn btn-outline btn-sm', 'aria-label': 'تجربة الصوت', onclick: () => { notif.unlockAudio(); if (notif.isAdhanPlaying()) notif.stopAdhan(); else notif.playAdhan(app.settings.notifications.sound || 'chime'); } }, h('span', { html: icon('play') }))),
+          h('div', { class: 'tiny' }, isNative() ? 'في الإشعار (والتطبيق مغلق) يُسمع مقطع 28 ثانية من الأذان، وداخل التطبيق الأذان كاملًا' : 'الأذان الكامل يُسمع ما دام التطبيق مفتوحًا؛ إشعار المتصفح يستخدم صوت النظام')),
         settingRow('الاهتزاز', null, switchEl(s.notifications.vibrate, (v) => app.set('notifications.vibrate', v), 'الاهتزاز')),
         h('div', { class: 'grid-2', style: { marginTop: '10px' } },
           h('button', { class: 'btn btn-outline', onclick: async () => { notif.unlockAudio(); notif.playChime(); const ok = await notif.showNotification('سكينة — تجربة', 'هكذا سيظهر تنبيه الصلاة', { tag: 'sakinah-test' }); if (!ok) toast('فعّل إذن الإشعارات أولًا'); } }, h('span', { html: icon('play') }), ' تجربة التنبيه'),
           h('button', { class: 'btn btn-outline', onclick: () => app.navigate('prayer') }, h('span', { html: icon('download') }), ' تصدير للتقويم')),
         h('div', { class: 'notice info', style: { marginTop: '12px' } }, h('span', { html: icon('info') }),
-          h('span', {}, 'تعمل الإشعارات ما دام التطبيق مفتوحًا أو في الخلفية (ثبّته على الشاشة الرئيسية لأفضل نتيجة). للتذكير المضمون حتى مع إغلاق التطبيق، صدّر المواقيت إلى تقويم هاتفك بمنبّهات من شاشة الصلاة.'))),
+          h('span', {}, isNative()
+            ? `تُجدوَل إشعارات النظام لنحو أسبوع مقدّمًا وتُجدَّد عند كل فتح للتطبيق${s.notifications.nativeUntil ? ` (مجدولة حتى ${new Date(s.notifications.nativeUntil).toLocaleDateString('ar', { day: 'numeric', month: 'long' })})` : ''}. افتح التطبيق مرة في الأسبوع على الأقل لتستمر.`
+            : /iP(hone|ad|od)/.test(navigator.userAgent)
+              ? 'على iPhone تعمل الإشعارات فقط بعد إضافة التطبيق إلى الشاشة الرئيسية (مشاركة ← إضافة إلى الشاشة الرئيسية) وما دام مفتوحًا. للتذكير المضمون حتى مع إغلاقه، صدّر المواقيت إلى تقويم هاتفك بمنبّهات من شاشة الصلاة، أو ثبّت تطبيق iOS.'
+              : 'تعمل الإشعارات ما دام التطبيق مفتوحًا أو في الخلفية (ثبّته على الشاشة الرئيسية لأفضل نتيجة). للتذكير المضمون حتى مع إغلاق التطبيق، صدّر المواقيت إلى تقويم هاتفك بمنبّهات من شاشة الصلاة.'))),
 
       section('العرض', 'sun',
         settingRow('نظام 12 ساعة', 'مثال: 5:12 ص بدل 05:12', switchEl(s.hour12, (v) => app.set('hour12', v), '12 ساعة')),
