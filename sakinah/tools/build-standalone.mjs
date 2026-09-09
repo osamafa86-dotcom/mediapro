@@ -28,7 +28,10 @@ const bootTheme = fs.readFileSync(path.join(root, 'js/boot-theme.js'), 'utf8');
 html = html
   // نسخة الملف الواحد تعمل من file:// وكل شيفرتها مضمّنة، فلا تنطبق عليها سياسة script-src 'self'
   .replace(/\s*<!-- سياسة أمان المحتوى[^\n]*\n\s*<meta http-equiv="Content-Security-Policy"[^>]*>/, '')
-  .replace(/\s*<!-- خطوط الواجهة مستضافة محليًا[^\n]*\n\s*<link rel="stylesheet" href="css\/fonts.css">/, '')
+  .replace(/\s*<!-- خطوط الواجهة مستضافة محليًا[^\n]*\n/, '')
+  .replace(/\s*<link rel="preload"[^>]*as="font"[^>]*>/g, '')            // الخطوط مضمّنة في CSS
+  .replace(/\s*<link rel="stylesheet" href="css\/fonts.css">/, '')
+  .replace(/\s*<!-- modulepreload:start[^\n]*\n[\s\S]*?<!-- modulepreload:end -->/, '') // الشيفرة كلها في حزمة واحدة
   .replace(/<script src="js\/boot-theme.js"><\/script>/, () => `<script>${bootTheme}</script>`)
   .replace(/\s*<link rel="manifest"[^>]*>/, '')
   .replace(/\s*<link rel="apple-touch-icon"[^>]*>/, '')

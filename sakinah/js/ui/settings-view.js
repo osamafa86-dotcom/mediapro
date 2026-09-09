@@ -1,7 +1,7 @@
 /**
  * شاشة الإعدادات: الموقع، طريقة الحساب، المذهب، خطوط العرض العالية، التعديلات، الهجري، العرض، التنبيهات، البوصلة، حول.
  */
-import { h, icon, render, openSheet, closeSheet, toast, switchEl, stepper, settingRow } from './components.js';
+import { h, icon, render, openSheet, closeSheet, toast, switchEl, stepper, settingRow, labelFields } from './components.js';
 import { METHODS, METHOD_ORDER, defaultMethodFor } from '../core/methods.js';
 import { PRAYERS, PRAYER_NAMES_AR, HIGH_LATITUDE_RULE_NAMES_AR } from '../core/prayer-times.js';
 import * as store from '../platform/storage.js';
@@ -10,6 +10,7 @@ import { downloadFile } from '../platform/notifications.js';
 import { describeLocation, deviceTimeZone } from '../platform/location.js';
 import * as notif from '../platform/notifications.js';
 import { resetAll } from '../platform/storage.js';
+import * as backup from '../platform/backup.js';
 
 export function mount(container, app) {
   function select(value, options, onChange) {
@@ -99,6 +100,7 @@ export function mount(container, app) {
           h('div', { class: 'tiny' }, 'مستشعرات الهواتف تعطي الشمال المغناطيسي على iOS وAndroid؛ التصحيح يحوّله إلى الشمال الحقيقي الذي يُحسب عليه اتجاه القبلة.'))),
 
       section('النسخ الاحتياطي', 'download',
+        backup.available() ? nativeBackupRows() : null,
         settingRow('تصدير الإعدادات والعلامات', 'ملف JSON يحوي الموقع والطريقة والتذكيرات وعلامات المصحف وموضع القراءة وتقدّم الأذكار',
           h('button', { class: 'btn btn-sm btn-soft', onclick: () => { downloadFile(`sakinah-backup-${app.todayKey()}.json`, store.exportJSON(), 'application/json;charset=utf-8'); toast('تم إنشاء ملف النسخة الاحتياطية'); } }, 'تصدير')),
         settingRow('استيراد نسخة احتياطية', 'يستبدل الإعدادات الحالية بما في الملف', (() => {
@@ -124,6 +126,21 @@ export function mount(container, app) {
         h('button', { class: 'btn btn-outline btn-block', style: { marginTop: '8px', color: 'var(--danger)' }, onclick: () => { if (confirm('إعادة ضبط جميع الإعدادات والتقدّم؟')) { resetAll(); app.applyTheme(); app.applyTextScale(); app.emit('change'); toast('تمت إعادة الضبط'); } } }, h('span', { html: icon('reset') }), ' إعادة ضبط التطبيق')));
   }
 
+  /** التطبيق الأصلي: لقطات يومية في مجلد المستندات (تظهر في تطبيق الملفات) مع استعادة ومشاركة */
+  function nativeBackupRows() {
+    const list = h('div', { class: 'tiny' }, 'جارٍ قراءة اللقطات…');
+    const draw = async () => {
+      const items = await backup.listBackups();
+      render(list, items.length ? h('div', { class: 'city-list' }, ...items.map((b) => h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, b.key), h('div', { class: 'desc' }, `${Math.round((b.size || 0) / 1024)} ك.ب`)),
+        h('button', { class: 'btn btn-sm btn-outline', onclick: async () => { if (!confirm(`استعادة نسخة ${b.key}؟ ستُستبدل الإعدادات الحالية.`)) return; const r = await backup.restoreBackup(b.name); if (r.ok) { toast('تمت الاستعادة'); app.applyTheme(); app.applyTextScale(); app.emit('change'); } else toast('تعذّرت الاستعادة', 3000); } }, 'استعادة')))) : h('div', { class: 'tiny' }, 'لا لقطات بعد — تُؤخذ لقطة تلقائية يوميًا عند فتح التطبيق.'));
+    };
+    draw();
+    return h('div', { style: { marginBottom: '10px' } },
+      settingRow('لقطات تلقائية يومية', 'تُحفظ آخر 7 لقطات في «الملفات ← على جهازي ← سكينة ← sakinah-backups»؛ انسخها إلى iCloud Drive لتبقى بعد حذف التطبيق',
+        h('button', { class: 'btn btn-sm btn-soft', onclick: async () => { const ok = await backup.autoBackup(app.todayKey()); toast(ok ? 'أُخذت لقطة اليوم' : 'لقطة اليوم موجودة'); draw(); } }, 'لقطة الآن')),
+      list,
+      settingRow('مشاركة نسخة احتياطية', 'إرسالها أو حفظها في iCloud Drive / Google Drive', h('button', { class: 'btn btn-sm btn-outline', onclick: () => backup.shareBackup(app.todayKey()) }, 'مشاركة')));
+  }
   function numInput(value, onChange, { min = 0, max = 30 } = {}) {
     const i = h('input', { class: 'input ltr', type: 'number', step: '0.1', value, min, max });
     i.addEventListener('change', () => { const v = Number(i.value); onChange(Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : 0); });
@@ -140,6 +157,7 @@ export function mount(container, app) {
   }
 
   app.on('change', () => { if (app.current === 'settings') build(); });
+  const build0 = build; build = () => { build0(); labelFields(container); };
   build();
   return { refresh: build, show: build };
 }

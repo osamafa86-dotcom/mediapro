@@ -6,7 +6,6 @@
  */
 import { h, icon, render, vibrate, openSheet } from './components.js';
 import { qiblaInfo, sunQiblaMoments, kaabaZenithEvents, signedDifference, sunPosition, greatCirclePoints, bearingUncertainty, KAABA } from '../core/qibla.js';
-import { WORLD_LAND_PATH } from '../data/world-land.js';
 import { startCompass, accuracyLabel, magneticToTrue, needsPermissionGesture, compassSupported } from '../platform/compass.js';
 import { copyText, toast } from './components.js';
 import { civilDate } from '../core/prayer-times.js';
@@ -63,6 +62,7 @@ const NEEDLE_SVG = `<svg viewBox="0 0 200 200" aria-hidden="true"><defs><filter 
   <circle cx="100" cy="100" r="9" fill="var(--bg-elev)" stroke="currentColor" stroke-width="3"/></svg>`;
 const FIG8_SVG = `<svg viewBox="0 0 64 32" aria-hidden="true" class="fig8"><path d="M16 16c0-7 6-12 12-8s8 12 16 8 4-14-2-12-10 12-4 14 12-6 12-10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle class="dot" r="3.5" fill="currentColor"><animateMotion dur="2.4s" repeatCount="indefinite" path="M16 16c0-7 6-12 12-8s8 12 16 8 4-14-2-12-10 12-4 14 12-6 12-10"/></circle></svg>`;
 
+let landPath = null; let landLoading = null; // مسار اليابسة يُحمَّل كسولًا عند فتح وضع الخريطة
 export function mount(container, app) {
   let mode = 'compass'; let compass = null; let reading = null; let decl = null; let declSource = ''; let info = null;
   let sensor = 'idle'; // idle | starting | live | none | denied | insecure | unsupported
@@ -276,7 +276,8 @@ export function mount(container, app) {
     }
     let grat = ''; for (let lon = -150; lon <= 180; lon += 30) grat += `M${lon + 180} 0V180`; for (let lat = -60; lat <= 60; lat += 30) grat += `M0 ${90 - lat}H360`;
     const map = h('div', { class: 'qmap', role: 'img', 'aria-label': 'خريطة تبيّن أقصر مسار من موقعك إلى الكعبة' });
-    map.innerHTML = `<svg viewBox="${vb}" preserveAspectRatio="xMidYMid slice"><path class="land" d="${WORLD_LAND_PATH}"/><path class="grat" d="${grat}"/>
+    if (!landPath && !landLoading) landLoading = import('../data/world-land.js').then((m) => { landPath = m.WORLD_LAND_PATH; if (app.current === 'qibla') build(); }).catch(() => { landLoading = null; });
+    map.innerHTML = `<svg viewBox="${vb}" preserveAspectRatio="xMidYMid slice"><path class="land" d="${landPath || ''}"/><path class="grat" d="${grat}"/>
       ${rhumb ? `<path class="rhumb" d="${rhumb}"/>` : ''}<path class="arc-halo" d="${arcD}"/><path class="arc" d="${arcD}"/>
       <g transform="translate(${ux.toFixed(2)} ${uy.toFixed(2)})"><circle r="1.6" fill="var(--primary)" stroke="#fff" stroke-width=".6" vector-effect="non-scaling-stroke"/></g>
       <g transform="translate(${kx.toFixed(2)} ${ky.toFixed(2)})"><circle r="2.4" fill="#fff" stroke="var(--gold)" stroke-width=".5"/><rect x="-1.3" y="-1.3" width="2.6" height="2.6" rx=".3" fill="#1c1917"/><rect x="-1.3" y="-.4" width="2.6" height=".6" fill="var(--gold)"/></g></svg>`;

@@ -12,27 +12,22 @@ import { detectLocation, locationFromCity, locationFromCoords, searchCities, des
 import * as notif from './platform/notifications.js';
 import { h, icon, initSheet, openSheet, closeSheet, toast, render, fmtNum, vibrate } from './ui/components.js';
 import * as prayerView from './ui/prayer-view.js';
-import * as qiblaView from './ui/qibla-view.js';
-import * as adhkarView from './ui/adhkar-view.js';
-import * as hadithView from './ui/hadith-view.js';
-import * as settingsView from './ui/settings-view.js';
-import * as quranView from './ui/quran-view.js';
-import * as moreView from './ui/more-view.js';
-import * as hisnView from './ui/hisn-view.js';
-import * as tasbihView from './ui/tasbih-view.js';
-import { hadithOfDay, hadithReference } from './data/hadith.js';
+let hadithMod = null; // بيانات الأحاديث تُحمَّل كسولًا (لإشعار حديث اليوم)
+const loadHadith = () => (hadithMod ? Promise.resolve(hadithMod) : import('./data/hadith.js').then((m) => (hadithMod = m)));
+import { needsOnboarding, showOnboarding } from './ui/onboarding.js';
+import * as backup from './platform/backup.js';
 
 const listeners = new Map();
 const VIEWS = {
   prayer: { title: 'الصلاة', icon: 'prayer', mod: prayerView, tab: 'prayer' },
-  quran: { title: 'المصحف', icon: 'book', mod: quranView, tab: 'quran' },
-  qibla: { title: 'القبلة', icon: 'qibla', mod: qiblaView, tab: 'qibla' },
-  adhkar: { title: 'الأذكار', icon: 'adhkar', mod: adhkarView, tab: 'adhkar' },
-  more: { title: 'المزيد', icon: 'more', mod: moreView, tab: 'more' },
-  hadith: { title: 'الأحاديث', icon: 'hadith', mod: hadithView, tab: 'more' },
-  settings: { title: 'الإعدادات', icon: 'settings', mod: settingsView, tab: 'more' },
-  hisn: { title: 'حصن المسلم', icon: 'adhkar', mod: hisnView, tab: 'adhkar' },
-  tasbih: { title: 'المسبحة', icon: 'tasbih', mod: tasbihView, tab: 'adhkar' },
+  quran: { title: 'المصحف', icon: 'book', load: () => import('./ui/quran-view.js'), tab: 'quran' },
+  qibla: { title: 'القبلة', icon: 'qibla', load: () => import('./ui/qibla-view.js'), tab: 'qibla' },
+  adhkar: { title: 'الأذكار', icon: 'adhkar', load: () => import('./ui/adhkar-view.js'), tab: 'adhkar' },
+  more: { title: 'المزيد', icon: 'more', load: () => import('./ui/more-view.js'), tab: 'more' },
+  hadith: { title: 'الأحاديث', icon: 'hadith', load: () => import('./ui/hadith-view.js'), tab: 'more' },
+  settings: { title: 'الإعدادات', icon: 'settings', load: () => import('./ui/settings-view.js'), tab: 'more' },
+  hisn: { title: 'حصن المسلم', icon: 'adhkar', load: () => import('./ui/hisn-view.js'), tab: 'adhkar' },
+  tasbih: { title: 'المسبحة', icon: 'tasbih', load: () => import('./ui/tasbih-view.js'), tab: 'adhkar' },
 };
 const TABS = ['prayer', 'quran', 'qibla', 'adhkar', 'more'];
 
@@ -79,8 +74,21 @@ export const app = {
   on(ev, fn) { if (!listeners.has(ev)) listeners.set(ev, new Set()); listeners.get(ev).add(fn); return () => listeners.get(ev).delete(fn); },
   emit(ev, data) { (listeners.get(ev) || []).forEach((fn) => { try { fn(data); } catch (e) { console.error(e); } }); },
 
+  /** تركيب شاشة عند أول زيارة؛ يعيد الشاشة فورًا إن كانت وحدتها محمّلة، وإلا وعدًا يحمّلها ثم يركّبها */
+  ensureMounted(view) {
+    if (this.mounted[view]) return this.mounted[view];
+    const v = VIEWS[view]; if (!v) return null;
+    if (v.mod) { this.mounted[view] = v.mod.mount(document.getElementById(`view-${view}`), this); return this.mounted[view]; }
+    return v.loading || (v.loading = v.load().then((m) => { v.mod = m; v.loading = null; return this.ensureMounted(view); }).catch((e) => { v.loading = null; throw e; }));
+  },
+  /** جلب وحدات الشاشات الأخرى في وقت الخمول بعد الإقلاع (بلا تركيب) كي يكون أول فتح فوريًا */
+  prefetchViews() {
+    for (const v of Object.values(VIEWS)) if (!v.mod && v.load && !v.loading) v.loading = v.load().then((m) => { v.mod = m; v.loading = null; }).catch(() => { v.loading = null; });
+  },
   navigate(view, { replace = false } = {}) {
     if (!VIEWS[view]) view = 'prayer';
+    const m = this.ensureMounted(view);
+    if (m && typeof m.then === 'function') { m.then(() => this.navigate(view, { replace })).catch(() => toast('تعذّر فتح الشاشة — تحقق من الاتصال ثم أعد المحاولة', 3000)); return; }
     const prev = this.current; this.current = view;
     for (const k of Object.keys(VIEWS)) document.getElementById(`view-${k}`).classList.toggle('active', k === view);
     for (const t of TABS) {
@@ -152,9 +160,10 @@ export const app = {
   /* ---------- التذكيرات ---------- */
   /** نص إشعار حديث اليوم ليوم مدني معيّن */
   hadithBody(civil) {
-    const hd = hadithOfDay(new Date(civil.year, civil.month - 1, civil.day, 12));
+    if (!hadithMod) { loadHadith(); return null; } // تُدرج في الدورة التالية للمجدول بعد التحميل
+    const hd = hadithMod.hadithOfDay(new Date(civil.year, civil.month - 1, civil.day, 12));
     const txt = hd.text.length > 150 ? hd.text.slice(0, 150).replace(/\s+\S*$/, '') + '…' : hd.text;
-    return `${txt}\n— ${hadithReference(hd)}`;
+    return `${txt}\n— ${hadithMod.hadithReference(hd)}`;
   },
   reminderSchedule(days = [-1, 0, 1]) { // الأمس أيضًا: قد يقع عشاء الأمس بعد منتصف الليل في خطوط العرض العالية
     const c = this.coords(); const prefs = this.settings.notifications;
@@ -177,6 +186,7 @@ export const app = {
     this._nativeSyncTimer = setTimeout(async () => {
       const prefs = this.settings.notifications;
       if (!prefs.enabled) { await nativeNotif.cancelAll(); this.set('notifications.nativeUntil', null); return; }
+      if (prefs.hadithDaily && prefs.hadithDaily.enabled) { try { await loadHadith(); } catch { /* بلا حديث */ } }
       const r = await nativeNotif.syncSchedule(this.reminderSchedule([-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), prefs);
       const until = r.until ? r.until.toISOString() : null;
       if ((this.settings.notifications.nativeUntil || null) !== until) store.set('notifications.nativeUntil', until); // حفظ صامت (بلا change)
@@ -241,7 +251,7 @@ function boot() {
     tab.innerHTML = `${icon(VIEWS[t].icon)}<span>${VIEWS[t].title}</span>`;
     tab.addEventListener('click', () => app.navigate(t));
   }
-  for (const [k, v] of Object.entries(VIEWS)) app.mounted[k] = v.mod.mount(document.getElementById(`view-${k}`), app);
+  app.ensureMounted('prayer'); // سائر الشاشات تُركَّب عند أول فتح (إقلاع أسرع)
   document.getElementById('btn-theme').addEventListener('click', () => app.cycleTheme());
   document.getElementById('btn-settings').innerHTML = icon('settings');
   document.getElementById('btn-settings').addEventListener('click', () => app.navigate('settings'));
@@ -256,6 +266,9 @@ function boot() {
   const route = () => app.navigate((location.hash.replace(/^#\/?/, '') || 'prayer').split('?')[0], { replace: true });
   window.addEventListener('hashchange', route);
   route();
+  if (needsOnboarding(app)) showOnboarding(app);
+  const idle = window.requestIdleCallback ? (fn) => window.requestIdleCallback(fn, { timeout: 4000 }) : (fn) => setTimeout(fn, 1);
+  setTimeout(() => idle(() => app.prefetchViews()), 3500);
   updateHeader();
   app.on('change', updateHeader);
 
@@ -282,12 +295,13 @@ function boot() {
         if (app.current !== 'prayer') { app.navigate('prayer', { replace: true }); return; }
         native.exitApp();
       },
-      onResume: () => { if (app.settings.notifications.enabled) app.syncNativeReminders(); app.emit('tick'); },
+      onResume: () => { if (app.settings.notifications.enabled) app.syncNativeReminders(); app.emit('tick'); backup.autoBackup(app.todayKey()); },
     });
     const nativeSig = () => { const s = app.settings; return JSON.stringify([s.location, s.method, s.madhab, s.highLatitudeRule, s.shafaq, s.adjustments, s.custom, s.hijriOffset, s.notifications && { e: s.notifications.enabled, p: s.notifications.prayers, m: s.notifications.preMinutes, s: s.notifications.sound, a: s.notifications.adhkar, h: s.notifications.hadithDaily }]); };
     let lastNativeSig = nativeSig();
     app.on('change', () => { const sig = nativeSig(); if (sig !== lastNativeSig) { lastNativeSig = sig; app.syncNativeReminders(); } });
     setTimeout(() => native.hideSplash(), 150);
+    setTimeout(() => backup.autoBackup(app.todayKey()), 4000); // لقطة يومية إلى مجلد المستندات
   }
   // شريط «الأذان يُتلى الآن» مع زر إيقاف عند تشغيل الأذان الكامل داخل التطبيق
   notif.onAdhanState((st) => {

@@ -11,3 +11,5 @@ sakinah/www/
 sakinah/ios/
 sakinah/android/
 sakinah/.cache/
+# لقطات المتجر المولَّدة (node tools/store-screenshots.mjs)
+sakinah/dist/store/

@@ -15,6 +15,7 @@ fs.mkdirSync(outDir, { recursive: true });
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
 const server = http.createServer((req, res) => {
   let p = decodeURIComponent(req.url.split('?')[0]); if (p === '/') p = '/index.html';
+  if (p === '/__axe.js') { res.writeHead(200, { 'Content-Type': 'text/javascript' }); return fs.createReadStream(path.join(root, 'node_modules/axe-core/axe.min.js')).pipe(res); }
   const f = path.join(root, p);
   if (!f.startsWith(root) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); return res.end('not found'); }
   res.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
@@ -24,8 +25,17 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${server.address().port}`;
 
 const failures = [];
+/** فحص إتاحة (axe-core) للشاشة الحالية: لا مخالفات حرجة أو خطيرة */
+let axeLoaded = false;
+const a11y = async (name) => {
+  if (!axeLoaded) { await page.addScriptTag({ url: base + '/__axe.js' }); axeLoaded = true; }
+  // حركات الدخول تُمزج ألوانها مؤقتًا؛ نُنهيها قبل قياس التباين
+  await page.waitForTimeout(150); await page.evaluate(() => document.getAnimations().forEach((an) => { try { an.finish(); } catch { /* تجاهل */ } }));
+  const r = await page.evaluate(async () => { const res = await window.axe.run(document, { runOnly: ['wcag2a', 'wcag2aa', 'best-practice'], rules: { 'color-contrast': { enabled: true } } }); return res.violations.filter((v) => v.impact === 'critical' || v.impact === 'serious').map((v) => `${v.id} (${v.impact}): ${v.nodes.slice(0, 2).map((n) => n.target.join(' ')).join(' | ')}`); });
+  check(r.length === 0, `إتاحة ${name}: ${r.length ? r.join(' ؛ ') : 'لا مخالفات حرجة'}`);
+};
 const check = (cond, msg) => { if (!cond) failures.push(msg); console.log(`${cond ? '✓' : '✗'} ${msg}`); };
-const browser = await chromium.launch();
+const browser = await chromium.launch({ executablePath: process.env.SAKINAH_CHROME || undefined });
 const ctx = await browser.newContext({
   viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'ar', timezoneId: 'Asia/Amman',
   geolocation: { latitude: 31.9539, longitude: 35.9106, accuracy: 20 }, permissions: ['geolocation'], serviceWorkers: 'block',
@@ -48,8 +58,24 @@ await page.route(/^(https?:)?\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com|api
 
 await page.goto(`${base}/index.html#/prayer`, { waitUntil: 'networkidle' });
 check(await page.locator('#view-prayer .onboard').count() === 1, 'شاشة الترحيب تظهر قبل تحديد الموقع');
-await page.getByRole('button', { name: /تحديد موقعي/ }).click();
+// تهيئة أول تشغيل (شاشة كاملة): ترحيب → الموقع (GPS) → التذكير → جاهز؛ تُسجَّل مرة واحدة
+await page.locator('#onboard').waitFor();
+check(/سكينة/.test(await page.locator('#onboard h1').textContent()) && (await page.locator('#onboard .ob-list li').count()) === 4, 'تهيئة أول تشغيل: شاشة الترحيب بأربع ميزات');
+await a11y('التهيئة');
+await page.locator('#onboard').getByRole('button', { name: 'ابدأ' }).click();
+await page.locator('#onboard h2', { hasText: 'أين أنت' }).waitFor();
+await page.locator('#onboard').getByRole('button', { name: /تحديد موقعي/ }).click();
+await page.locator('#onboard h2', { hasText: 'التذكير' }).waitFor({ timeout: 15000 });
+check(true, 'تحديد الموقع ينقل تلقائيًا إلى خطوة التذكير');
+await page.locator('#onboard').getByRole('button', { name: 'متابعة' }).click();
+await page.locator('#onboard h2', { hasText: 'كل شيء جاهز' }).waitFor();
+check(/عمّان|عمان/.test(await page.locator('#onboard .ob-list').textContent()) && /الأردن/.test(await page.locator('#onboard .ob-list').textContent()), 'ملخص التهيئة يعرض الموقع وطريقة الحساب');
+await page.screenshot({ animations: 'disabled', path: path.join(outDir, '00-onboarding.png') });
+await page.locator('#onboard').getByRole('button', { name: /إلى شاشة الصلاة/ }).click();
+await page.locator('#onboard').waitFor({ state: 'detached' });
+check((await page.evaluate(() => window.sakinah.settings.seenIntro)) === true, 'التهيئة تُسجَّل مرة واحدة (seenIntro)');
 await page.locator('.hero').waitFor({ timeout: 15000 });
+await a11y('الصلاة');
 const heroPrayer = await page.locator('.hero-prayer').textContent();
 check(/الفجر|الشروق|الظهر|العصر|المغرب|العشاء/.test(heroPrayer), `الصلاة التالية معروضة: ${heroPrayer.trim()}`);
 check((await page.locator('.time-row').count()) === 6, 'ستة صفوف للمواقيت');
@@ -122,6 +148,7 @@ await page.locator('#tab-adhkar').click();
 await page.locator('.dhikr').first().waitFor();
 const n = await page.locator('.dhikr').count();
 check(n >= 20, `عدد الأذكار المعروضة: ${n}`);
+await a11y('الأذكار');
 const firstBtn = page.locator('.count-btn').first();
 await firstBtn.click();
 const firstDone = await page.locator('.dhikr').first().evaluate((el) => el.classList.contains('done'));
@@ -132,6 +159,7 @@ check(/\/\s*\d+|\d+\s*\//.test((await page.locator('.ring output').textContent()
 await page.locator('#view-adhkar .more-tile', { hasText: 'حصن المسلم' }).click();
 await page.locator('.hisn-row').first().waitFor();
 check((await page.locator('.hisn-row').count()) === 132, `حصن المسلم: ${await page.locator('.hisn-row').count()} بابًا في الأقسام`);
+await a11y('حصن المسلم');
 await page.locator('#view-hisn .search input').fill('السفر');
 await page.waitForTimeout(200);
 check((await page.locator('.hisn-row').count()) >= 4, `البحث في حصن المسلم يجد أبواب السفر وأذكاره (${await page.locator('.hisn-row').count()} نتائج)`);
@@ -152,6 +180,7 @@ await page.locator('#view-adhkar .more-tile', { hasText: 'المسبحة' }).cli
 await page.locator('.tasbih-btn').waitFor();
 for (let i = 0; i < 3; i++) await page.locator('.tasbih-btn').click();
 check(/^\s*[3٣]\s*$/.test(await page.locator('.tasbih-count').textContent()), 'المسبحة تعدّ ثلاث نقرات');
+await a11y('المسبحة');
 check((await page.evaluate(() => window.sakinah.settings.tasbih.count)) === 3, 'عدّ المسبحة محفوظ في الإعدادات');
 await page.screenshot({ path: path.join(outDir, '10-tasbih.png') });
 await page.screenshot({ animations: 'disabled', path: path.join(outDir, '04-adhkar.png') });
@@ -171,6 +200,7 @@ check((await page.locator('#view-quran .surah-row').count()) === 114, 'فهرس 
 await page.locator('#view-quran .search input').fill('الكهف');
 await page.waitForTimeout(150);
 check(/الكهف/.test(await page.locator('#view-quran .surah-row').first().textContent()), 'البحث عن سورة الكهف');
+await a11y('فهرس المصحف');
 await page.locator('#view-quran .surah-row').first().click();
 await page.locator('.mreader:not([hidden])').waitFor();
 await page.locator('.mr-slide[data-page="293"] .mp.ready').waitFor({ timeout: 30000 });
@@ -289,6 +319,7 @@ await page.locator('#tab-more').click();
 await page.getByRole('button', { name: /الأحاديث/ }).first().click();
 await page.locator('#view-hadith .hadith.daily').waitFor();
 check((await page.locator('#view-hadith .hadith').count()) >= 10, 'قائمة الأحاديث مع حديث اليوم');
+await a11y('الأحاديث');
 await page.locator('#view-hadith .search input').fill('الأعمال بالني');
 await page.waitForTimeout(200);
 check((await page.locator('#view-hadith .hadith').count()) >= 1 && /الأَعْمَالُ|الأعمال/.test(await page.locator('#view-hadith .hadith:not(.daily) .matn').first().textContent()), 'البحث يجد حديث النية');
@@ -309,6 +340,7 @@ await page.locator('#btn-settings').click();
 await page.locator('#view-settings select').first().waitFor();
 check(/الأردن/.test(await page.locator('#view-settings select').first().locator('option').first().textContent()), 'الإعدادات تعرض الطريقة التلقائية (الأردن)');
 check((await page.locator('#view-settings .card-title', { hasText: 'تذكير الأذكار' }).count()) === 1, 'قسم تذكير الأذكار وحديث اليوم في الإعدادات');
+await a11y('الإعدادات');
 await page.locator('#view-settings select').first().selectOption('UmmAlQura');
 await page.locator('#tab-prayer').click();
 check(/أم القرى/.test(await page.locator('#view-prayer > p.tiny').last().textContent()), 'تغيير الطريقة ينعكس في شاشة الصلاة');

@@ -17,6 +17,8 @@
   <!-- سياسة أمان المحتوى: لا شيفرة مضمّنة، والأصول الخارجية محصورة في خطوط المصحف (jsDelivr) والتفاسير (quran.com) والتلاوات (Islamic Network) وتسمية المدينة (BigDataCloud، اختياري) -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: https://cdn.jsdelivr.net; connect-src 'self' https://api.quran.com https://cdn.jsdelivr.net https://cdn.islamic.network https://verses.quran.com https://api.bigdatacloud.net; media-src 'self' blob: https://cdn.islamic.network https://verses.quran.com https://www.hisnmuslim.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
   <!-- خطوط الواجهة مستضافة محليًا (لا طلبات إلى Google Fonts) وتُعرض بخطوط النظام ريثما تُحمَّل -->
+  <link rel="preload" href="assets/fonts/Tajawal-500-arabic.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/Tajawal-800-arabic.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="css/fonts.css">
   <link rel="stylesheet" href="css/app.css">
   <script src="js/boot-theme.js"></script>
@@ -70,6 +72,24 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <noscript><p style="padding:20px;text-align:center">يلزم تفعيل JavaScript لتشغيل التطبيق.</p></noscript>
+  <!-- modulepreload:start (يولَّد بـ tools/module-graph.mjs --write) -->
+  <link rel="modulepreload" href="js/platform/storage.js">
+  <link rel="modulepreload" href="js/core/prayer-times.js">
+  <link rel="modulepreload" href="js/core/methods.js">
+  <link rel="modulepreload" href="js/core/hijri.js">
+  <link rel="modulepreload" href="js/version.js">
+  <link rel="modulepreload" href="js/platform/native.js">
+  <link rel="modulepreload" href="js/platform/native-notifications.js">
+  <link rel="modulepreload" href="js/platform/location.js">
+  <link rel="modulepreload" href="js/platform/notifications.js">
+  <link rel="modulepreload" href="js/ui/components.js">
+  <link rel="modulepreload" href="js/ui/prayer-view.js">
+  <link rel="modulepreload" href="js/ui/onboarding.js">
+  <link rel="modulepreload" href="js/platform/backup.js">
+  <link rel="modulepreload" href="js/core/astro.js">
+  <link rel="modulepreload" href="js/core/intl-cache.js">
+  <link rel="modulepreload" href="js/data/cities.js">
+  <!-- modulepreload:end -->
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

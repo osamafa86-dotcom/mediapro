@@ -209,3 +209,11 @@ export function vibrate(pattern) {
     navigator.vibrate && navigator.vibrate(pattern);
   } catch { /* لا اهتزاز */ }
 }
+
+/** إتاحة: كل select/input داخل .field يأخذ اسمه من label السابقة (aria-label) إن لم يكن له اسم */
+export function labelFields(rootEl) {
+  for (const f of rootEl.querySelectorAll('.field')) {
+    const l = f.querySelector(':scope > label'); if (!l) continue;
+    for (const ctl of f.querySelectorAll('select, input, textarea')) if (!ctl.getAttribute('aria-label') && !ctl.id) ctl.setAttribute('aria-label', l.textContent.trim());
+  }
+}

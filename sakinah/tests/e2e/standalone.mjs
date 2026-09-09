@@ -3,7 +3,7 @@ import { chromium } from 'playwright';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 const file = path.resolve(fileURLToPath(new URL('../../dist/sakinah-standalone.html', import.meta.url)));
-const browser = await chromium.launch();
+const browser = await chromium.launch({ executablePath: process.env.SAKINAH_CHROME || undefined });
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ar', timezoneId: 'Asia/Riyadh', geolocation: { latitude: 24.7136, longitude: 46.6753 }, permissions: ['geolocation'] });
 const page = await ctx.newPage();
 const document_page = () => page.evaluate(() => document.querySelector('.mreader').dataset.page);
@@ -17,7 +17,13 @@ page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error' && !/net::ERR|ERR_ABORTED|Failed to load resource/.test(m.text())) errors.push(m.text()); });
 await page.route(/bigdatacloud|fonts\.g/, (r) => r.abort());
 await page.goto(pathToFileURL(file).href + '#/prayer');
-await page.getByRole('button', { name: /تحديد موقعي/ }).click();
+// تهيئة أول تشغيل داخل الملف الواحد: ترحيب → الموقع → التذكير → جاهز
+await page.locator('#onboard').getByRole('button', { name: 'ابدأ' }).click();
+await page.locator('#onboard').getByRole('button', { name: /تحديد موقعي/ }).click();
+await page.locator('#onboard h2', { hasText: 'التذكير' }).waitFor({ timeout: 15000 });
+await page.locator('#onboard').getByRole('button', { name: 'متابعة' }).click();
+await page.locator('#onboard').getByRole('button', { name: /إلى شاشة الصلاة/ }).click();
+await page.locator('#onboard').waitFor({ state: 'detached' });
 await page.locator('.hero').waitFor({ timeout: 15000 });
 const fails = [];
 const ok = (c, m) => { console.log(`${c ? '✓' : '✗'} ${m}`); if (!c) fails.push(m); };
@@ -27,7 +33,7 @@ await page.locator('#tab-qibla').click(); await page.locator('.compass-wrap').wa
 await page.locator('.icon-btn[aria-label="تفاصيل"]').click();
 ok(/الانحراف/.test(await page.locator('#sheet-body').textContent()) && !/غير متاح/.test(await page.locator('#sheet-body').textContent()), 'WMM2025 يعمل داخل الملف الواحد');
 await page.locator('#sheet-close').click();
-await page.getByRole('button', { name: /الخريطة/ }).click(); ok((await page.locator('.qmap svg .land').count()) === 1, 'خريطة القبلة مضمّنة');
+await page.getByRole('button', { name: /الخريطة/ }).click(); await page.waitForTimeout(400); ok(((await page.locator('.qmap svg .land').getAttribute('d')) || '').length > 1000, 'خريطة القبلة مضمّنة (بيانات اليابسة تُحمَّل كسولًا)');
 await page.locator('#tab-quran').click(); await page.locator('#view-quran .surah-row').first().waitFor();
 ok((await page.locator('#view-quran .surah-row').count()) === 114, 'المصحف مضمّن: 114 سورة بلا شبكة');
 // خطوط الصفحات محجوبة هنا (لا شبكة) فيُختبر البديل النصي بالبنية نفسها
