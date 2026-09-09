@@ -20,7 +20,7 @@ const mem = new Map();
 /** تنظيف HTML التفسير: الأقواس الخضراء (نص الآية) → <b>، الزرقاء → <i>، فقرات وفواصل أسطر فقط؛ وكل ما عداه نصٌّ */
 export function sanitizeTafsirHtml(html) {
   if (!html) return '';
-  let s = String(html).replace(/\r/g, '');
+  let s = String(html).replace(/\r/g, '').replace(/<!--[\s\S]*?(?:-->|$)/g, '').replace(/<!\[CDATA\[[\s\S]*?(?:\]\]>|$)/g, '').replace(/<![^>]*>/g, '');
   const spans = []; // مكدس لإغلاق span بالوسم المقابل لفتحها
   s = s.replace(/<\s*(\/?)\s*([a-zA-Z0-9]+)([^>]*)>/g, (m, close, tag, attrs) => {
     tag = tag.toLowerCase();

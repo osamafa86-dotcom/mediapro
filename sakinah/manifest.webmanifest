@@ -4,6 +4,7 @@
   "description": "مواقيت الصلاة حسب موقعك، اتجاه القبلة بدقة عالية، أذكار الصباح والمساء، أحاديث من الصحيحين، وتذكير بالصلاة.",
   "lang": "ar",
   "dir": "rtl",
+  "id": "./index.html",
   "start_url": "./index.html#/prayer",
   "scope": "./",
   "display": "standalone",

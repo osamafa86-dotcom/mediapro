@@ -1,6 +1,6 @@
 {
   "name": "sakinah",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "private": true,
   "description": "سكينة — تطبيق ويب تقدمي لمواقيت الصلاة والقبلة والأذكار والأحاديث",
   "type": "module",
@@ -14,15 +14,18 @@
     "fetch-corpus": "node tools/fetch-corpus.mjs",
     "build:standalone": "node tools/build-standalone.mjs",
     "build:www": "node tools/build-www.mjs",
+    "version:sync": "node tools/sync-version.mjs",
+    "test:e2e:standalone": "node tools/build-standalone.mjs && node tests/e2e/standalone.mjs",
     "cap:ios": "node tools/build-www.mjs && npx cap add ios && npx cap sync ios",
     "cap:sync": "node tools/build-www.mjs && npx cap sync"
   },
   "devDependencies": {
+    "@capacitor/cli": "^6.1.2",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/ios": "^6.1.2",
     "adhan": "^4.4.3",
     "esbuild": "^0.24.2",
     "geomagnetism": "^0.2.0",
-    "@capacitor/cli": "^6.1.2",
-    "@capacitor/core": "^6.1.2",
-    "@capacitor/ios": "^6.1.2"
+    "playwright": "^1.47.2"
   }
 }

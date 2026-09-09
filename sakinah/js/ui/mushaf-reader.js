@@ -5,7 +5,7 @@
  * التنقل والبحث، والضغط المطوّل يفتح قائمة الآية. يعرض الصفحات عبر js/ui/mushaf-page.js وعند تعذّر الخط يعرض البديل النصي.
  */
 import { h, icon, render, vibrate } from './components.js';
-import { renderMushafPage, mountMushafPage, renderTextPage, fitMushafPage, preloadPageFonts, ensureSurahNamesFont, surahNameText, markAyah, clearMarks } from './mushaf-page.js';
+import { renderMushafPage, mountMushafPage, renderTextPage, fitMushafPage, preloadPageFonts, releasePageFonts, ensureSurahNamesFont, surahNameText, markAyah, clearMarks } from './mushaf-page.js';
 import { juzName } from '../core/mushaf.js';
 import { pageAyahs, pageLabel, surahInfo, SURAHS, JUZ_STARTS, TOTAL_PAGES } from '../core/quran.js';
 
@@ -40,7 +40,7 @@ export function createMushafReader(app, cb = {}) {
   const top = h('div', { class: 'mr-top' }, topBar, h('div', { class: 'mr-strip-wrap' }, strip, octagon), panel);
 
   /* ---------- الصفحات ---------- */
-  const track = h('div', { class: 'mr-track', 'aria-live': 'polite' });
+  const track = h('div', { class: 'mr-track' });
   for (let p = 1; p <= TOTAL_PAGES; p++) track.append(h('div', { class: 'mr-slide', dataset: { page: String(p) } }, h('div', { class: 'mr-ph' }, arabicDigits(p))));
   const stage = h('div', { class: 'mr-stage' }, track);
 
@@ -95,6 +95,7 @@ export function createMushafReader(app, cb = {}) {
     for (const p of [...filled.keys()]) if (Math.abs(p - page) > 3) unfill(p);
     fill(page); fill(page + 1); fill(page - 1);
     preloadPageFonts([page + 2, page - 2]);
+    releasePageFonts([page - 3, page - 2, page - 1, page, page + 1, page + 2, page + 3]);
   }
 
   /* ---------- تغيير الصفحة ---------- */
@@ -149,7 +150,7 @@ export function createMushafReader(app, cb = {}) {
   track.addEventListener('pointermove', (e) => { if (press && !press.moved && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8) { press.moved = true; clearTimeout(press.timer); } }, { passive: true });
   track.addEventListener('pointerup', (e) => {
     if (!press) return; const pr = press; cancelPress();
-    if (pr.moved || pr.fired || Date.now() - pr.t > 400) return;
+    if (pr.moved || pr.fired) return; // الضغطة المطوّلة تُعلَّم fired؛ لا منطقة ميتة بين 400 و480 مللي ثانية
     const target = document.elementFromPoint(e.clientX, e.clientY); const w = target && target.closest && target.closest('.mw, .me');
     if (hifz) { if (cb.onTap && cb.onTap(w, e) === true) return; }
     const now = Date.now();
@@ -160,13 +161,14 @@ export function createMushafReader(app, cb = {}) {
     }
     lastTapAt = now;
     const wordN = w ? +w.dataset.n : null;
+    const delay = e.pointerType === 'mouse' ? 0 : 280; // الفأرة لا تحتاج مهلة تمييز النقر المزدوج
     tapTimer = setTimeout(() => {
       tapTimer = null;
       // نقرة على كلمة = قائمة الآية (تفسير/استماع/…)؛ نقرة على الهامش = إظهار/إخفاء الأدوات
       if (wordN && cb.onAyahTap && cb.onAyahTap(wordN, w) === true) { setChrome(false); return; }
       if (!ayahBar.hidden) { setAyahBar(null); cb.onAyahBarClosed && cb.onAyahBarClosed(); return; }
       setChrome(!root.classList.contains('chrome'));
-    }, 280);
+    }, delay);
   });
   track.addEventListener('pointercancel', cancelPress);
   track.addEventListener('scroll', () => { if (press) { press.moved = true; clearTimeout(press.timer); } }, { passive: true });
@@ -192,7 +194,9 @@ export function createMushafReader(app, cb = {}) {
     const bms = app.settings.quran.bookmarks || []; const has = bms.some((b) => b.page === page);
     bmBtn.innerHTML = icon(has ? 'bookmarkFill' : 'bookmark'); bmBtn.classList.toggle('active', has);
   }
-  function relayout() { for (const e of filled.values()) fitMushafPage(e.el); if (page) scrollToPage(page, 'instant'); }
+  let lastW = 0;
+  /** إعادة ملاءمة الصفحات عند تغيّر الأبعاد؛ التمرير إلى الصفحة فقط إن تغيّر العرض (وإلا قطع حركةً جارية أو سحبةً بيد المستخدم) */
+  function relayout({ scroll = false } = {}) { for (const e of filled.values()) fitMushafPage(e.el); const W = stage.clientWidth; if (page && (scroll || W !== lastW)) scrollToPage(page, 'instant'); lastW = W; }
   async function requestWakeLock() {
     try { if ('wakeLock' in navigator && document.visibilityState === 'visible') { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch { wakeLock = null; }
   }

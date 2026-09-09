@@ -127,12 +127,15 @@ export function openSheet({ title, content, onClose }) {
   sheetOnClose = onClose || null;
   sheetOpener = document.activeElement;
   document.body.style.overflow = 'hidden';
+  // زر الرجوع (Android/المتصفح) يغلق النافذة بدل مغادرة الشاشة: ندفع حالة سجل واحدة ونغلق عند popstate
+  if (!(history.state && history.state.sakinahSheet)) { try { history.pushState({ sakinahSheet: true }, ''); } catch { /* تجاهل */ } }
   setTimeout(() => { const first = body.querySelector('input, button, select, [tabindex]'); (first || document.getElementById('sheet-close')).focus({ preventScroll: true }); }, 320);
   return { close: closeSheet, body };
 }
-export function closeSheet() {
+export function closeSheet({ fromHistory = false } = {}) {
   const sheet = document.getElementById('sheet'), back = document.getElementById('sheet-backdrop');
   if (sheet.hidden) return;
+  if (!fromHistory && history.state && history.state.sakinahSheet) { try { history.back(); return; } catch { /* نتابع الإغلاق المباشر */ } }
   sheet.classList.remove('show'); back.classList.remove('show');
   document.body.style.overflow = '';
   setTimeout(() => { sheet.hidden = true; back.hidden = true; document.getElementById('sheet-body').scrollTop = 0; }, 300);
@@ -140,6 +143,7 @@ export function closeSheet() {
   sheetOpener = null;
   if (sheetOnClose) { const fn = sheetOnClose; sheetOnClose = null; fn(); }
 }
+if (typeof window !== 'undefined') window.addEventListener('popstate', () => { const sheet = document.getElementById('sheet'); if (sheet && !sheet.hidden) closeSheet({ fromHistory: true }); });
 export function initSheet() {
   document.getElementById('sheet-close').innerHTML = icon('close');
   document.getElementById('sheet-close').addEventListener('click', closeSheet);

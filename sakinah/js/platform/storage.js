@@ -2,6 +2,8 @@
  * تخزين الإعدادات والحالة محليًا (localStorage) مع قيم افتراضية ونظام اشتراك بسيط.
  */
 const KEY = 'sakinah:v1';
+const BACKUP_KEY = 'sakinah:v1.corrupt'; // نسخة من الحمولة التالفة (إن وُجدت) للتشخيص بدل إسقاطها بصمت
+export const SCHEMA = 1;
 
 export const DEFAULT_SETTINGS = {
   location: null,            // { lat, lon, tz, name, countryCode, cityId, source: 'gps'|'city'|'manual', accuracy }
@@ -34,6 +36,7 @@ export const DEFAULT_SETTINGS = {
   adhkarProgress: { date: null, morning: {}, evening: {} },
   favorites: [],
   seenIntro: false,
+  icsUntil: null,            // آخر يوم يغطيه تقويم ICS المصدَّر (لتذكير إعادة التصدير)
 };
 
 function safeParse(raw) {
@@ -52,7 +55,22 @@ function deepMerge(base, patch) {
 const listeners = new Set();
 const clone = (o) => (typeof structuredClone === 'function' ? structuredClone(o) : JSON.parse(JSON.stringify(o)));
 // نسخة عميقة من الافتراضيات حتى لا تشاركها الحالة بالمرجع
-let state = deepMerge(clone(DEFAULT_SETTINGS), safeParse(typeof localStorage !== 'undefined' ? localStorage.getItem(KEY) : null) || {});
+/** حمولة صالحة = كائن عادي؛ أي شيء آخر (مصفوفة، نص، null) يُهمل مع الاحتفاظ بنسخة تشخيصية */
+function loadStored() {
+  if (typeof localStorage === 'undefined') return {};
+  let raw = null;
+  try { raw = localStorage.getItem(KEY); } catch { return {}; }
+  const parsed = safeParse(raw);
+  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
+  if (raw) { try { localStorage.setItem(BACKUP_KEY, raw); } catch { /* تجاهل */ } console.warn('storage: حمولة تالفة أُهملت وحُفظت نسخة منها في', BACKUP_KEY); }
+  return {};
+}
+let state = deepMerge(clone(DEFAULT_SETTINGS), loadStored());
+state.schema = SCHEMA;
+/** آخر خطأ حفظ (امتلاء التخزين مثلًا) ومستمعوه، كي تُخبر الواجهة المستخدم بدل الصمت */
+export let lastPersistError = null;
+const persistListeners = new Set();
+export function onPersistError(fn) { persistListeners.add(fn); return () => persistListeners.delete(fn); }
 
 export function getSettings() { return state; }
 export function get(path) {
@@ -84,8 +102,33 @@ export function replace(path, value) {
   return state;
 }
 export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
-export function resetAll() { state = clone(DEFAULT_SETTINGS); persist(); for (const fn of listeners) fn(state, {}); }
+export function resetAll() { state = clone(DEFAULT_SETTINGS); state.schema = SCHEMA; persist(); for (const fn of listeners) fn(state, {}); }
+
+/** تصدير الحالة كلها (الإعدادات والعلامات والتقدّم) نصًا JSON لنسخة احتياطية */
+export function exportJSON() {
+  return JSON.stringify({ app: 'sakinah', schema: SCHEMA, exportedAt: new Date().toISOString(), settings: state }, null, 1);
+}
+/**
+ * استيراد نسخة احتياطية: تُدمج فوق الافتراضيات (لا فوق الحالة الحالية) كي تحلّ محلها بالكامل، مع التحقق من الشكل.
+ * @returns {{ok:boolean, error?:string, exportedAt?:string}}
+ */
+export function importJSON(text) {
+  const data = safeParse(text);
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return { ok: false, error: 'invalid' };
+  const src = data.app === 'sakinah' && data.settings && typeof data.settings === 'object' && !Array.isArray(data.settings) ? data.settings : (data.location !== undefined || data.quran !== undefined ? data : null);
+  if (!src) return { ok: false, error: 'not-sakinah' };
+  state = deepMerge(clone(DEFAULT_SETTINGS), src); state.schema = SCHEMA;
+  persist();
+  for (const fn of listeners) { try { fn(state, {}); } catch (e) { console.error(e); } }
+  return { ok: true, exportedAt: data.exportedAt || null };
+}
 
 function persist() {
-  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { console.warn('storage failed', e); }
+  try { localStorage.setItem(KEY, JSON.stringify(state)); lastPersistError = null; }
+  catch (e) {
+    // امتلاء التخزين أو وضع خاص يمنع الكتابة: لا نصمت — تُبلَّغ الواجهة مرة لتنبيه المستخدم
+    lastPersistError = e;
+    console.warn('storage failed', e);
+    for (const fn of persistListeners) { try { fn(e); } catch { /* تجاهل */ } }
+  }
 }

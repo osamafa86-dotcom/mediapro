@@ -14,6 +14,22 @@ export const ROW_EM = 1.09; // ارتفاع السطر نسبةً إلى حجم 
 const LINES = 15;
 
 const fontPromises = new Map();
+const faces = new Map(); // family → FontFace (لإزالتها من الذاكرة عند الابتعاد عن صفحاتها)
+const FONT_LRU_MAX = 24; // خطوط الصفحات المحتفظ بها في الذاكرة (15–38 ك.ب لكل صفحة)
+/** إزالة خطوط الصفحات البعيدة عن النافذة الحالية (LRU) كي لا تتراكم مئات الخطوط في جلسة قراءة طويلة */
+export function releasePageFonts(keepPages = []) {
+  const keep = new Set(keepPages.map((p) => pageFontFamily(p)));
+  const loaded = [...faces.keys()].filter((f) => f !== 'surahnames');
+  if (loaded.length <= FONT_LRU_MAX) return 0;
+  let removed = 0;
+  for (const fam of loaded) {
+    if (loaded.length - removed <= FONT_LRU_MAX) break;
+    if (keep.has(fam)) continue;
+    try { document.fonts.delete(faces.get(fam)); } catch { /* تجاهل */ }
+    faces.delete(fam); fontPromises.delete(fam); removed++;
+  }
+  return removed;
+}
 /** تحميل خط عبر FontFace (مرة واحدة لكل عائلة) */
 export function ensureFont(family, url) {
   if (fontPromises.has(family)) return fontPromises.get(family);
@@ -22,7 +38,7 @@ export function ensureFont(family, url) {
     if ([...document.fonts].some((f) => f.family === family && f.status === 'loaded')) return family;
     const face = new FontFace(family, `url(${url}) format('woff2')`, { display: 'block' });
     await face.load();
-    document.fonts.add(face);
+    document.fonts.add(face); faces.set(family, face);
     return family;
   })();
   run.catch(() => fontPromises.delete(family));
@@ -76,7 +92,11 @@ export function renderMushafPage(p, opts = {}) {
     body.append(el);
   });
   if (short) body.append(h('div', { class: 'mframe', 'aria-hidden': 'true' }));
+  // قارئات الشاشة: رسم الصفحة رموز خطوط لا تُقرأ، فنخفيه عنها ونقدّم نص الآيات (Tanzil) في كتلة مخفية بصريًا
+  body.setAttribute('aria-hidden', 'true');
+  const srText = h('div', { class: 'sr-only', lang: 'ar' }, ayahs.map((a) => `${a.text} (${a.ayah})`).join(' '));
   const page = h('article', { class: `mp ${opts.full ? 'mp-full' : ''}`, dataset: { page: String(p) }, 'aria-label': `صفحة ${p}` },
+    srText,
     opts.showChrome === false ? null : pageHead(p, first, lbl),
     opts.full ? h('div', { class: 'mp-mid' }, body) : body,
     opts.showChrome === false ? null : h('div', { class: 'mp-foot' }, arabicDigits(p)));
@@ -96,7 +116,8 @@ export async function mountMushafPage(page) {
   } catch (e) { page.classList.remove('loading'); page.classList.add('font-error'); throw e; }
   fitMushafPage(page);
   page.classList.remove('loading'); page.classList.add('ready');
-  if (typeof ResizeObserver !== 'undefined' && !page._ro) { page._ro = new ResizeObserver(() => fitMushafPage(page)); page._ro.observe(page); }
+  // داخل القارئ (mp-full) يتكفّل مراقب المسرح بإعادة الملاءمة لكل الصفحات؛ مراقب لكل صفحة يلزم فقط خارجه
+  if (typeof ResizeObserver !== 'undefined' && !page._ro && !page.classList.contains('mp-full')) { page._ro = new ResizeObserver(() => fitMushafPage(page)); page._ro.observe(page); }
   return page;
 }
 
@@ -105,12 +126,15 @@ export const ROW_MIN_EM = 1.12; // أدنى ارتفاع للسطر (كما في
 export const ROW_MAX_EM = 2.0;  // أقصى تباعد قبل توسيط الكتلة عموديًا
 export function fitMushafPage(page) {
   const body = page.querySelector('.mp-body'); if (!body) return;
-  const W = body.clientWidth - parseFloat(getComputedStyle(body).paddingLeft || 0) - parseFloat(getComputedStyle(body).paddingRight || 0);
+  if (page._pad === undefined) { const cs = getComputedStyle(body); page._pad = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0); }
+  const W = body.clientWidth - page._pad;
   if (W <= 0) return;
+  const mid = page.querySelector('.mp-mid'); const H = mid ? mid.clientHeight : 0;
+  if (page._fitKey === `${W}|${H}`) return; // لا تغيير في الأبعاد: لا قياس (يُستدعى من مراقبين وعند كل تبديل لشريط الصوت)
+  page._fitKey = `${W}|${H}`;
   let size = W / FULL_LINE_EM;
   if (page.classList.contains('mp-full') && !body.classList.contains('text')) {
     // ملء الشاشة: الأسطر الخمسة عشر تتوزع على الارتفاع المتاح؛ الحجم من العرض ما لم يضق الارتفاع
-    const mid = page.querySelector('.mp-mid'); const H = mid ? mid.clientHeight : 0;
     if (H > 0) {
       const rows = LINES; const rowH = H / rows;
       if (rowH < size * ROW_MIN_EM) size = rowH / ROW_MIN_EM;

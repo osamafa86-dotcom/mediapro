@@ -17,7 +17,8 @@ const CORE = [
 const OPTIONAL = Array.from({ length: 114 }, (_, i) => `./data/tafsir/muyassar/${i + 1}.json`);
 self.addEventListener('install', (e) => {
   // cache:'reload' يتجاوز كاش HTTP للمتصفح كي تُخزَّن النسخة الجديدة فعلًا عند رفع الإصدار
-  e.waitUntil(caches.open(VERSION).then((c) => Promise.allSettled(CORE.map((u) => c.add(new Request(u, { cache: 'reload' }))))).then(() => self.skipWaiting()));
+  // كل الأساسيات أو لا شيء: فشل أي ملف يُبقي النسخة القديمة الكاملة (لا نسخة ناقصة)؛ والتفعيل يقرّره التطبيق بعد موافقة المستخدم (رسالة «نسخة جديدة»)
+  e.waitUntil(caches.open(VERSION).then((c) => Promise.all(CORE.map((u) => c.add(new Request(u, { cache: 'reload' }))))));
 });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION && k !== FONT_CACHE && k !== 'sakinah-tafsir').map((k) => caches.delete(k)))).then(() => self.clients.claim())
@@ -47,14 +48,8 @@ self.addEventListener('fetch', (e) => {
     }).catch(() => Response.error()));
     return;
   }
-  // تفاسير quran.com: الشبكة أولًا ثم الكاش (الصفحة تخزّنها أيضًا عبر Cache API)
-  if (url.hostname === 'api.quran.com') {
-    e.respondWith(caches.open('sakinah-tafsir').then(async (c) => {
-      try { const res = await fetch(req); if (res && res.ok) c.put(req, res.clone()); return res; }
-      catch { return (await c.match(req)) || Response.error(); }
-    }));
-    return;
-  }
+  // تفاسير quran.com: تخزّنها الصفحة نفسها في Cache API (tafsir.js) فلا نكرّرها هنا
+  if (url.hostname === 'api.quran.com') return;
   if (sameOrigin) {
     e.respondWith(
       caches.match(req).then((cached) => {

@@ -1,0 +1,59 @@
+# اختبارات سكينة على كل دفعة وطلب دمج: وحدة وبيانات، ثم متصفح حقيقي (Chromium)، ثم النسخة أحادية الملف.
+# مدوّنة الصحيحين المرجعية (17 م.ب) تُجلب مرة وتُخزَّن في كاش الإجراءات كي يعمل اختبار المطابقة الحرفية للأحاديث في CI أيضًا.
+name: Sakinah CI
+
+on:
+  push:
+    branches: ['claude/islamic-app-development-tpmkko', 'main']
+    paths: ['sakinah/**', '.github/workflows/ci.yml']
+  pull_request:
+    paths: ['sakinah/**', '.github/workflows/ci.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: sakinah
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: sakinah/package-lock.json
+      - name: تثبيت الاعتماديات
+        run: npm ci
+      - name: مدوّنة الصحيحين المرجعية (كاش)
+        id: corpus
+        uses: actions/cache@v4
+        with:
+          path: sakinah/tests/fixtures/corpus
+          key: hadith-corpus-v1
+      - name: جلب المدوّنة إن لم تكن في الكاش
+        if: steps.corpus.outputs.cache-hit != 'true'
+        run: node tools/fetch-corpus.mjs
+      - name: اختبارات الوحدة والبيانات
+        run: npm test
+      - name: متصفح Chromium
+        run: npx playwright install --with-deps chromium
+      - name: اختبار التصفح (التطبيق)
+        run: node tests/e2e/smoke.mjs
+      - name: النسخة أحادية الملف
+        run: node tools/build-standalone.mjs && node tests/e2e/standalone.mjs
+      - name: لقطات الاختبار
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: sakinah/test-results
+          retention-days: 7

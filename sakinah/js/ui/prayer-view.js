@@ -45,7 +45,7 @@ export function mount(container, app) {
     els = {};
     const bell = (key) => {
       const on = s.notifications.enabled && s.notifications.prayers[key];
-      return h('button', { class: `bell ${on ? 'on' : ''}`, 'aria-label': `تنبيه ${PRAYER_NAMES_AR[key]}`, title: on ? 'التنبيه مفعّل' : 'التنبيه متوقف', onclick: async () => {
+      return h('button', { class: `bell ${on ? 'on' : ''}`, 'aria-label': `تنبيه ${PRAYER_NAMES_AR[key]}`, 'aria-pressed': on ? 'true' : 'false', title: on ? 'التنبيه مفعّل' : 'التنبيه متوقف', onclick: async () => {
         if (!app.settings.notifications.enabled) {
           // أول تفعيل: نطلب الإذن ونفعّل هذه الصلاة تحديدًا
           const ok = await app.enableNotifications(true); if (!ok) return;
@@ -82,6 +82,7 @@ export function mount(container, app) {
       h('div', { class: 'grid-2' },
         h('button', { class: 'btn btn-outline', onclick: openMonth }, h('span', { html: icon('calendar') }), ' جدول الشهر'),
         h('button', { class: 'btn btn-outline', onclick: exportICS }, h('span', { html: icon('download') }), ' تصدير للتقويم')),
+      icsExpiryNotice(),
       h('p', { class: 'tiny', style: { textAlign: 'center', marginTop: '12px' } },
         `طريقة الحساب: ${app.methodName()}${s.madhab === 'hanafi' ? ' · العصر: حنفي' : ''}${tl.times.resolved.polarResolved ? ' · حُسبت بأقرب خط عرض (منطقة قطبية)' : ''} · `,
         h('a', { href: '#/settings', onclick: (e) => { e.preventDefault(); app.navigate('settings'); } }, 'تغيير')));
@@ -115,7 +116,8 @@ export function mount(container, app) {
       title.textContent = `${MONTHS_AR[m - 1]} ${app.num(y)}`;
       const today = civilDate(new Date(), app.tz);
       render(wrap, h('table', { class: 'month' },
-        h('thead', {}, h('tr', {}, h('th', {}, 'اليوم'), ...PRAYERS.map((k) => h('th', {}, PRAYER_NAMES_AR[k])))),
+        h('caption', { class: 'sr-only' }, 'مواقيت الصلاة للشهر'),
+        h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'اليوم'), ...PRAYERS.map((k) => h('th', { scope: 'col' }, PRAYER_NAMES_AR[k])))),
         h('tbody', {}, rows.map((r) => h('tr', { class: today.year === y && today.month === m && today.day === r.date.day ? 'today' : '' },
           h('td', {}, `${app.num(r.date.day)} ${['أحد', 'اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'][new Date(Date.UTC(y, m - 1, r.date.day)).getUTCDay()]}`),
           ...PRAYERS.map((k) => h('td', { class: 'ltr' }, app.fmt(r[k]))))))));
@@ -130,14 +132,25 @@ export function mount(container, app) {
       h('p', { class: 'tiny', style: { marginTop: '10px' } }, `الموقع: ${describeLocation(app.location)} · الطريقة: ${app.methodName()}`)) });
   }
 
+  /** تقويم مصدَّر قارب الانتهاء (≤ 7 أيام) أو انتهى: تذكير بإعادة التصدير كي لا تختفي المنبّهات بصمت */
+  function icsExpiryNotice() {
+    const until = app.settings.icsUntil; if (!until) return null;
+    const [y, m, d] = until.split('-').map(Number); const today = civilDate(new Date(), app.tz);
+    const daysLeft = Math.round((Date.UTC(y, m - 1, d) - Date.UTC(today.year, today.month - 1, today.day)) / 86400000);
+    if (daysLeft > 7) return null;
+    return h('div', { class: 'notice', style: { marginTop: '10px' } }, h('span', { html: icon('warning') }),
+      h('span', {}, daysLeft < 0 ? 'انتهت مدة تقويم المواقيت الذي صدّرته إلى هاتفك؛ صدّره من جديد لتستمر المنبّهات.' : `يبقى ${app.num(Math.max(daysLeft, 0))} ${daysLeft === 1 ? 'يوم' : 'أيام'} على انتهاء تقويم المواقيت المصدَّر — صدّره من جديد.`),
+      h('button', { class: 'btn btn-sm btn-outline', onclick: exportICS }, 'تصدير'));
+  }
   function exportICS() {
     const c = app.coords(); if (!c) return;
     const start = civilDate(new Date(), app.tz); const days = [];
-    for (let i = 0; i < 30; i++) { const d = addDays(start, i); days.push(app.timesFor(d)); }
+    for (let i = 0; i < 90; i++) { const d = addDays(start, i); days.push(app.timesFor(d)); }
     const prefs = app.settings.notifications;
     const ics = buildICS(days, { locationName: describeLocation(app.location), prayers: { fajr: true, dhuhr: true, asr: true, maghrib: true, isha: true }, preMinutes: prefs.preMinutes || 0, includeSunrise: false });
     downloadFile(`sakinah-prayer-times-${start.year}-${String(start.month).padStart(2, '0')}.ics`, ics);
-    toast('تم إنشاء ملف التقويم لـ 30 يومًا مع منبّهات — افتحه لإضافته إلى تقويم هاتفك', 5000);
+    const until = addDays(start, 89); app.set('icsUntil', `${until.year}-${String(until.month).padStart(2, '0')}-${String(until.day).padStart(2, '0')}`);
+    toast('تم إنشاء ملف التقويم لـ 90 يومًا مع منبّهات — افتحه لإضافته إلى تقويم هاتفك؛ سيذكّرك التطبيق قبل انتهائه', 5000);
   }
 
   // إعادة البناء فقط عند تغيّر مدخلات الحساب أو اليوم (لا مع كل حفظ في التطبيق كنقرة ذكر)، وعند الإخفاء نؤجّلها إلى العودة

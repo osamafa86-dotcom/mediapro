@@ -61,15 +61,16 @@ test('نص كل حديث مطابق حرفيًا لمتن الصحيح المر�
       const other = corpora[h.alsoIn.collection].get(String(h.alsoIn.number));
       if (!other) failures.push(`${h.id}: alsoIn ${h.alsoIn.collection} ${h.alsoIn.number} not found in corpus`);
       else {
-        // تحقق مرن: أي أربع كلمات متتالية من المتن (بعد ﷺ) موجودة في الرواية الأخرى (قد يختلف اللفظ يسيرًا)
+        // الرواية الأخرى قد تختلف ألفاظها (متفق عليه لا يعني تطابق النص)، فالمعيار: نسبة الكلمات المميِّزة للمتن (≥ 3 أحرف، بلا الكلمات الشائعة)
+        // الموجودة في الرواية الأخرى ≥ 50%. قياسًا: كل الإحالات الصحيحة 0.56–1.0 (الوسيط 0.94)، ورقم عشوائي خاطئ 0.05 في المتوسط (0.3% فقط تتجاوز 0.5)
+        const STOP = new Set(['قال', 'رسول', 'الله', 'ﷺ', 'عن', 'من', 'في', 'ان', 'لا', 'ما', 'الا', 'او', 'ثم', 'على', 'الي', 'عليه', 'له', 'لها', 'بن', 'ابي', 'ابن', 'يا', 'هذا', 'ذلك', 'كان', 'حتي', 'اذا', 'فان', 'ولا', 'وان', 'قد', 'كل', 'الذي', 'التي']);
         const words = normalizeArabic(h.text).split(' ');
         const probeStart = Math.max(0, words.indexOf('ﷺ') + 1);
-        const body = words.slice(probeStart);
-        const others = other.map(t => normalizeArabic(t));
-        let okOther = false;
-        const win = Math.min(4, body.length);
-        for (let i = 0; i + win <= body.length && !okOther; i++) { const probe = body.slice(i, i + win).join(' '); okOther = others.some(t => t.includes(probe)); }
-        if (!okOther) failures.push(`${h.id}: alsoIn ${h.alsoIn.collection} ${h.alsoIn.number} shares no 4-word window with the matn (may be a different wording — verify manually)`);
+        const distinctive = [...new Set(words.slice(probeStart).filter((w) => w.length >= 3 && !STOP.has(w)))];
+        const otherText = other.map((t) => normalizeArabic(t)).join(' ');
+        const hits = distinctive.filter((w) => otherText.includes(w)).length;
+        const ratio = distinctive.length ? hits / distinctive.length : 0;
+        if (ratio < 0.5) failures.push(`${h.id}: alsoIn ${h.alsoIn.collection} ${h.alsoIn.number} shares only ${(ratio * 100).toFixed(0)}% of distinctive words with the matn — likely a wrong number`);
       }
     }
   }

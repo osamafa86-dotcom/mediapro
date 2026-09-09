@@ -107,9 +107,9 @@ export function similarity(a, b) { const m = Math.max(a.length, b.length); retur
  * ويتجاهل الكلمات غير المطابقة (تكرار، تلعثم) بدل أن يتعطل.
  */
 export class HifzMatcher {
-  constructor(words, { threshold = 0.66, lookahead = 2 } = {}) {
+  constructor(words, { threshold = 0.66, lookahead = 2, lookaheadThreshold = 0.85 } = {}) {
     this.words = words; // [{norm, ...}] الكلمات المنطوقة فقط
-    this.pos = 0; this.threshold = threshold; this.lookahead = lookahead;
+    this.pos = 0; this.threshold = threshold; this.lookahead = lookahead; this.lookaheadThreshold = lookaheadThreshold; // القفز فوق كلمة يتطلب تطابقًا أوثق
     this.matched = 0; this.skipped = 0; this.unmatched = 0;
   }
   /** يعالج نصًا منطوقًا (كلمة أو أكثر) ويعيد قائمة فهارس الكلمات التي كُشفت الآن */
@@ -120,8 +120,8 @@ export class HifzMatcher {
       if (this.pos >= this.words.length) break;
       let hit = -1;
       for (let k = 0; k <= this.lookahead && this.pos + k < this.words.length; k++) {
-        const exp = this.words[this.pos + k].norm;
-        if (exp === w || similarity(exp, w) >= this.threshold || (w.length >= 4 && exp.length >= 4 && (exp.startsWith(w) || w.startsWith(exp)))) { hit = k; break; }
+        const exp = this.words[this.pos + k].norm; const th = k === 0 ? this.threshold : this.lookaheadThreshold;
+        if (exp === w || similarity(exp, w) >= th || (k === 0 && w.length >= 4 && exp.length >= 4 && (exp.startsWith(w) || w.startsWith(exp)))) { hit = k; break; }
       }
       if (hit < 0) { this.unmatched++; continue; }
       for (let k = 0; k < hit; k++) revealed.push(this.pos + k); // كلمات متخطّاة تُكشف أيضًا

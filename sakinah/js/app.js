@@ -5,6 +5,7 @@ import * as store from './platform/storage.js';
 import { dayTimeline, computePrayerTimes, civilDate, formatTime, defaultParams, PRAYER_NAMES_AR, addDays, localNoonUTC } from './core/prayer-times.js';
 import { defaultMethodFor, METHODS } from './core/methods.js';
 import { hijriDate, isRamadan, gregorianFormatted } from './core/hijri.js';
+import { VERSION } from './version.js';
 import { detectLocation, locationFromCity, locationFromCoords, searchCities, describeLocation, deviceTimeZone, isGeolocationSupported } from './platform/location.js';
 import * as notif from './platform/notifications.js';
 import { h, icon, initSheet, openSheet, closeSheet, toast, render, fmtNum, vibrate } from './ui/components.js';
@@ -29,7 +30,7 @@ const VIEWS = {
 const TABS = ['prayer', 'quran', 'qibla', 'adhkar', 'more'];
 
 export const app = {
-  version: '1.1.0',
+  version: VERSION,
   current: 'prayer',
   mounted: {},
   installPrompt: null,
@@ -84,7 +85,8 @@ export const app = {
     if (this.mounted[view] && this.mounted[view].show) this.mounted[view].show();
     // يُحافَظ على معاملات الرابط (مثل #/quran?p=520) عند بقاء الشاشة نفسها
     const hash = `#/${view}`;
-    if (location.hash.split('?')[0] !== hash) { if (replace) history.replaceState(null, '', hash); else history.pushState(null, '', hash); }
+    // زر الرجوع: التبويبات لا تتراكم في السجل؛ الانتقال من الرئيسية (الصلاة) يدفع حالة واحدة كي يعود الرجوع إليها ثم يخرج (كسلوك التطبيقات الأصلية)
+    if (location.hash.split('?')[0] !== hash) { const fromHome = this.current === 'prayer' && view !== 'prayer'; if (replace || !fromHome) history.replaceState(null, '', hash); else history.pushState(null, '', hash); }
     window.scrollTo({ top: 0 });
   },
 
@@ -164,6 +166,8 @@ export const app = {
     const perm = await notif.requestPermission();
     if (perm !== 'granted') { toast(perm === 'unsupported' ? 'المتصفح لا يدعم الإشعارات' : 'لم يُمنح إذن الإشعارات', 3500); this.set('notifications.enabled', false); return false; }
     notif.unlockAudio();
+    // طلب تخزين دائم: يمنع Safari وغيره من إخلاء بيانات التطبيق (العلامات والتقدّم) بعد مدة من عدم الاستخدام
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch { /* تجاهل */ }
     this.set('notifications.enabled', true);
     toast('تم تفعيل التذكير بمواعيد الصلاة');
     return true;
@@ -237,14 +241,50 @@ function boot() {
 
   // عامل الخدمة
   if ('serviceWorker' in navigator && location.protocol !== 'file:' && !window.SAKINAH_STANDALONE && !window.SAKINAH_NATIVE) {
-    navigator.serviceWorker.register('sw.js').catch((e) => console.warn('SW registration failed', e));
+    navigator.serviceWorker.register('sw.js').then((reg) => watchForUpdate(reg)).catch((e) => console.warn('SW registration failed', e));
   }
-  // تحديث الموقع بصمت إذا كان من GPS وقديمًا (> 12 ساعة)
+  // تحديث الموقع بصمت إذا كان من GPS وقديمًا (> 12 ساعة): permissions.query غير متاح في Safari فنجرّب مباشرة (الإذن مُنح من قبل ما دام المصدر GPS)
   const loc = app.location;
-  if (loc && loc.source === 'gps' && Date.now() - (loc.updatedAt || 0) > 12 * 3600e3 && navigator.permissions) {
-    navigator.permissions.query({ name: 'geolocation' }).then((p) => { if (p.state === 'granted') app.detectLocation({ silent: true }); }).catch(() => {});
+  if (loc && loc.source === 'gps' && Date.now() - (loc.updatedAt || 0) > 12 * 3600e3) {
+    const refresh = () => app.detectLocation({ silent: true });
+    if (navigator.permissions && navigator.permissions.query) navigator.permissions.query({ name: 'geolocation' }).then((p) => { if (p.state === 'granted') refresh(); }).catch(refresh);
+    else refresh();
   }
+  // فشل الحفظ (امتلاء التخزين أو وضع خاص): تنبيه واحد بدل فقد صامت للعلامات والتقدّم
+  let persistWarned = false;
+  store.onPersistError(() => { if (persistWarned) return; persistWarned = true; toast('تعذّر حفظ الإعدادات على هذا الجهاز (التخزين ممتلئ أو معطّل). صدّر نسخة احتياطية من الإعدادات.', 6000); });
 }
+
+/** نسخة جديدة من التطبيق جاهزة: رسالة بزر «تحديث» تُفعّلها وتعيد التحميل مرة واحدة (بدل تفعيل صامت يُشغّل شيفرة قديمة على بيانات جديدة) */
+function watchForUpdate(reg) {
+  let reloading = false;
+  const offer = (sw) => {
+    if (!sw || document.getElementById('update-banner')) return;
+    const banner = h('div', { id: 'update-banner', class: 'update-banner', role: 'status' },
+      h('span', {}, 'نسخة جديدة من سكينة جاهزة'),
+      h('button', { class: 'btn btn-primary btn-sm', onclick: () => { sw.postMessage({ type: 'skip-waiting' }); banner.remove(); } }, 'تحديث'),
+      h('button', { class: 'icon-btn', 'aria-label': 'لاحقًا', onclick: () => banner.remove() }, h('span', { html: icon('close') })));
+    document.body.append(banner);
+  };
+  if (reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
+  reg.addEventListener('updatefound', () => {
+    const nw = reg.installing; if (!nw) return;
+    nw.addEventListener('statechange', () => { if (nw.state === 'installed' && navigator.serviceWorker.controller) offer(nw); });
+  });
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (reloading) return; reloading = true; location.reload(); });
+  // فحص دوري كل 6 ساعات للجلسات الطويلة
+  setInterval(() => reg.update().catch(() => {}), 6 * 3600e3);
+}
+
+// معالج أخطاء عام: الأعطال لا تبقى صامتة (تنبيه مقتضب مرة كل نصف دقيقة + سجل في الكونسول وآخر خطأ للتشخيص)
+let lastErrorToast = 0;
+function reportError(msg) {
+  try { sessionStorage.setItem('sakinah:lastError', `${new Date().toISOString()} ${msg}`); } catch { /* تجاهل */ }
+  if (Date.now() - lastErrorToast < 30000) return; lastErrorToast = Date.now();
+  toast('حدث خطأ غير متوقع — إن تكرر فأعد تحميل التطبيق', 4000);
+}
+window.addEventListener('error', (e) => { console.error(e.error || e.message); reportError(e.message || String(e.error)); });
+window.addEventListener('unhandledrejection', (e) => { console.error(e.reason); reportError(e.reason && e.reason.message ? e.reason.message : String(e.reason)); });
 
 document.addEventListener('DOMContentLoaded', boot);
 window.sakinah = app;

@@ -4,6 +4,8 @@
 import { h, icon, render, openSheet, closeSheet, toast, switchEl, stepper, settingRow } from './components.js';
 import { METHODS, METHOD_ORDER, defaultMethodFor } from '../core/methods.js';
 import { PRAYERS, PRAYER_NAMES_AR, HIGH_LATITUDE_RULE_NAMES_AR } from '../core/prayer-times.js';
+import * as store from '../platform/storage.js';
+import { downloadFile } from '../platform/notifications.js';
 import { describeLocation, deviceTimeZone } from '../platform/location.js';
 import * as notif from '../platform/notifications.js';
 import { resetAll } from '../platform/storage.js';
@@ -76,6 +78,21 @@ export function mount(container, app) {
         h('div', { class: 'field' }, h('label', {}, 'تصحيح الانحراف المغناطيسي'),
           select(s.compass.declinationMode, [['auto', 'تلقائي — إضافة انحراف WMM2025 (موصى به)'], ['off', 'بدون تصحيح (شمال مغناطيسي)']], (v) => app.set('compass.declinationMode', v)),
           h('div', { class: 'tiny' }, 'مستشعرات الهواتف تعطي الشمال المغناطيسي على iOS وAndroid؛ التصحيح يحوّله إلى الشمال الحقيقي الذي يُحسب عليه اتجاه القبلة.'))),
+
+      section('النسخ الاحتياطي', 'download',
+        settingRow('تصدير الإعدادات والعلامات', 'ملف JSON يحوي الموقع والطريقة والتذكيرات وعلامات المصحف وموضع القراءة وتقدّم الأذكار',
+          h('button', { class: 'btn btn-sm btn-soft', onclick: () => { downloadFile(`sakinah-backup-${app.todayKey()}.json`, store.exportJSON(), 'application/json;charset=utf-8'); toast('تم إنشاء ملف النسخة الاحتياطية'); } }, 'تصدير')),
+        settingRow('استيراد نسخة احتياطية', 'يستبدل الإعدادات الحالية بما في الملف', (() => {
+          const input = h('input', { type: 'file', accept: 'application/json,.json', style: { display: 'none' } });
+          input.addEventListener('change', async () => {
+            const f = input.files && input.files[0]; if (!f) return;
+            const r = store.importJSON(await f.text());
+            if (r.ok) { toast('تم استيراد النسخة الاحتياطية'); app.applyTheme(); app.applyTextScale(); app.emit('change'); }
+            else toast(r.error === 'not-sakinah' ? 'الملف ليس نسخة احتياطية من سكينة' : 'تعذّر قراءة الملف', 3500);
+            input.value = '';
+          });
+          return h('span', {}, input, h('button', { class: 'btn btn-sm btn-outline', onclick: () => input.click() }, 'استيراد'));
+        })())),
 
       section('حول التطبيق', 'info',
         h('div', { class: 'about' },

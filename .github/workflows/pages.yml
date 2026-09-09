@@ -18,7 +18,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sakinah
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: لا نشر بلا اختبارات خضراء
+        run: npm test
   build:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,8 +43,8 @@ jobs:
         run: |
           cd sakinah
           node tools/build-www.mjs
-          # على GitHub Pages يعمل عامل الخدمة والمسارات النسبية كما هي؛ نزيل علم الغلاف الأصلي
-          sed -i 's/<script>window.SAKINAH_NATIVE = true;<\/script>//' www/index.html
+          # على GitHub Pages يعمل عامل الخدمة والمسارات النسبية كما هي؛ نزيل علم الغلاف الأصلي الذي يضيفه build-www في boot-theme.js
+          sed -i '1{/window.SAKINAH_NATIVE = true;/d}' www/js/boot-theme.js
           touch www/.nojekyll
       - uses: actions/configure-pages@v5
         with:
