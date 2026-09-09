@@ -60,13 +60,31 @@ await page.screenshot({ animations: 'disabled', path: path.join(outDir, '02-mont
 await page.locator('#sheet-close').click();
 
 await page.locator('#tab-qibla').click();
-await page.locator('.compass-rose').waitFor();
-const deg = await page.locator('.compass-center .deg').textContent();
-check(/^15[0-9]|^16[0-9]/.test(deg.replace(/[^\d]/g, '').slice(0, 3)), `اتجاه القبلة لعمّان ≈ 158°: ${deg}`);
-const kv = await page.locator('.kv').first().textContent();
-check(/كم/.test(kv) && /الانحراف/.test(kv), 'المسافة والانحراف المغناطيسي معروضان');
-check(!/غير متاح/.test(kv), `الانحراف المغناطيسي محسوب من WMM: ${kv.match(/[+−]\s?[\d.]+°\s?\S+/)?.[0] || '؟'}`);
-check(/الشمس في اتجاه القبلة/.test(await page.textContent('#view-qibla')), 'بطاقة التحقق بالشمس');
+await page.locator('.compass-wrap').waitFor();
+await page.waitForTimeout(300);
+const big = await page.locator('.big-num').textContent();
+check(/^15[0-9]|^16[0-9]/.test(big.replace(/[^\d]/g, '').slice(0, 3)), `اتجاه القبلة لعمّان ≈ 158° (بلا مستشعر يُعرض الاتجاه من الشمال): ${big}`);
+check((await page.locator('.compass-wrap .needle').count()) === 1 && (await page.locator('.compass-wrap .start-overlay[hidden]').count()) === 1, 'سهم واحد، وتشغيل تلقائي دون زرّ حيث لا يلزم إذن');
+// محاكاة مستشعر أندرويد (deviceorientationabsolute): alpha = 360 − الاتجاه المغناطيسي
+const fire = (alpha, beta = 0, gamma = 0) => page.evaluate(([a, b, g]) => window.dispatchEvent(new DeviceOrientationEvent('deviceorientationabsolute', { alpha: a, beta: b, gamma: g, absolute: true })), [alpha, beta, gamma]);
+for (let i = 0; i < 12; i++) { await fire(300, 3, -2); await page.waitForTimeout(30); }
+await page.waitForTimeout(250);
+check(/أدر الهاتف يمينًا/.test(await page.locator('.turn-hint').textContent()) && !(await page.locator('.compass-wrap.aligned').count()), `تعليمة واحدة عند الانحراف: ${(await page.locator('.turn-hint').textContent()).trim()}`);
+check((await page.locator('.compass-wrap .level:not([hidden]).flat').count()) === 1, 'فقاعة الاستواء خضراء والهاتف مستوٍ');
+// عمّان: القبلة ≈ 160.6° حقيقي والانحراف ≈ +5° → اتجاه مغناطيسي ≈ 155.6 → alpha ≈ 204.4
+for (let i = 0; i < 25; i++) { await fire(204.4, 2, 1); await page.waitForTimeout(30); }
+await page.waitForTimeout(350);
+check((await page.locator('.compass-wrap.aligned').count()) === 1 && /أنت متجه إلى القبلة/.test(await page.locator('.turn-hint').textContent()), 'حالة المحاذاة الخضراء عند مطابقة الاتجاه (مع تصحيح الانحراف المغناطيسي)');
+for (let i = 0; i < 12; i++) { await fire(204.4, 55, 10); await page.waitForTimeout(30); }
+await page.waitForTimeout(250);
+check(/أفقيًا/.test(await page.locator('.turn-hint').textContent()), 'طلب وضع الهاتف أفقيًا عند الميل الكبير');
+await page.locator('.icon-btn[aria-label="تفاصيل"]').click();
+const det = await page.locator('#sheet-body').textContent();
+check(/كم/.test(det) && /الانحراف/.test(det) && !/غير متاح/.test(det), `التفاصيل: المسافة والانحراف المغناطيسي من WMM: ${det.match(/[+−]\s?[\d.]+°\s?\S+/)?.[0] || '؟'}`);
+await page.locator('#sheet-close').click();
+await page.getByRole('button', { name: /الشمس/ }).click();
+check(/الشمس في اتجاه القبلة/.test(await page.textContent('#view-qibla')) && (await page.locator('.sun-dial').count()) === 1, 'وضع الشمس: اللحظتان اليوميتان وقرص الشمس/القبلة');
+await page.getByRole('button', { name: /البوصلة/ }).click();
 await page.screenshot({ animations: 'disabled', path: path.join(outDir, '03-qibla.png') });
 
 await page.locator('#tab-adhkar').click();

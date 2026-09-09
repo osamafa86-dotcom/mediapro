@@ -91,7 +91,7 @@ export async function startCompass(onReading, { noReadingTimeoutMs = 4000 } = {}
     if (heading === null || Number.isNaN(heading)) return;
     gotAny = true; clearTimeout(timer);
     if (absolute) gotAbsolute = true;
-    onReading({ magneticHeading: smoother.push(heading), raw: heading, accuracy, source, absolute });
+    onReading({ magneticHeading: smoother.push(heading), raw: heading, accuracy, source, absolute, beta: typeof ev.beta === 'number' ? ev.beta : null, gamma: typeof ev.gamma === 'number' ? ev.gamma : null });
   };
   const absSupported = 'ondeviceorientationabsolute' in window && !isIOS();
   if (absSupported) window.addEventListener('deviceorientationabsolute', handler, true);
@@ -105,6 +105,11 @@ export async function startCompass(onReading, { noReadingTimeoutMs = 4000 } = {}
     },
   };
 }
+
+/** هل يلزم إيماءة مستخدم لطلب إذن المستشعرات (iOS 13+)؟ */
+export function needsPermissionGesture() { return typeof window !== 'undefined' && 'DeviceOrientationEvent' in window && typeof DeviceOrientationEvent.requestPermission === 'function'; }
+/** هل يتوفر الحدث أصلًا في هذا المتصفح؟ */
+export function compassSupported() { return typeof window !== 'undefined' && 'DeviceOrientationEvent' in window; }
 
 /** تحويل الاتجاه المغناطيسي إلى حقيقي وبالعكس */
 export const magneticToTrue = (m, decl) => ((m + decl) % 360 + 360) % 360;

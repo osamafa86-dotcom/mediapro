@@ -233,15 +233,39 @@ table.month td:first-child { text-align: right; font-weight: 700; }
 .table-wrap { overflow-x: auto; }
 
 /* ---------- القبلة ---------- */
-.compass-wrap { position: relative; width: min(78vw, 320px); aspect-ratio: 1; margin: 8px auto 6px; }
-.compass-rose { width: 100%; height: 100%; transition: transform .12s linear; will-change: transform; }
-.compass-pointer { position: absolute; top: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 11px solid transparent; border-right: 11px solid transparent; border-top: 18px solid var(--gold); filter: drop-shadow(0 2px 3px rgba(0,0,0,.25)); }
+.qibla-card { padding-bottom: 12px; }
+.qibla-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.qibla-head h3 { display: flex; align-items: center; gap: 8px; font-size: 17px; margin: 0; }
+.compass-wrap { position: relative; width: min(82vw, 340px); aspect-ratio: 1; margin: 6px auto 4px; }
+.compass-rose { width: 100%; height: 100%; transition: transform .12s linear; will-change: transform; color: var(--text-2); }
+.compass-wrap .needle { position: absolute; inset: 0; color: var(--primary); transition: transform .12s linear, color .3s; will-change: transform; }
+.compass-wrap .needle svg { width: 100%; height: 100%; display: block; }
+.compass-wrap.static .needle { color: var(--text-3); }
+.compass-wrap.aligned .needle { color: var(--ok); }
+.compass-wrap.aligned .compass-rose { filter: drop-shadow(0 0 22px color-mix(in srgb, var(--ok) 65%, transparent)); }
+.compass-wrap.aligned .kaaba-mark circle { stroke: var(--ok); stroke-width: 3; }
 .compass-center { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
-.compass-center .deg { font-size: 34px; font-weight: 900; font-variant-numeric: tabular-nums; direction: ltr; }
-.compass-center .sub { font-size: 12px; color: var(--text-2); font-weight: 700; margin-top: -4px; }
-.compass-wrap.aligned .compass-rose { filter: drop-shadow(0 0 18px color-mix(in srgb, var(--ok) 60%, transparent)); }
-.turn-hint { text-align: center; font-weight: 800; font-size: 17px; margin: 4px 0 12px; min-height: 26px; }
-.turn-hint.ok { color: var(--ok); }
+.compass-center .big-num { position: relative; top: 26%; font-size: 30px; font-weight: 900; font-variant-numeric: tabular-nums; direction: ltr; color: var(--text); background: color-mix(in srgb, var(--bg-elev) 85%, transparent); padding: 2px 10px; border-radius: 12px; line-height: 1.2; }
+.compass-wrap.aligned .big-num { color: var(--ok); }
+.compass-center .ok-mark svg { width: 30px; height: 30px; stroke-width: 3.2; }
+.compass-wrap .level { position: absolute; left: 2%; bottom: 2%; width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--line); background: var(--bg-soft); display: grid; place-items: center; }
+.compass-wrap .level::before { content: ''; position: absolute; width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--text-3); opacity: .6; }
+.compass-wrap .level i { display: block; width: 10px; height: 10px; border-radius: 50%; background: var(--danger); transition: transform .12s linear, background .3s; }
+.compass-wrap .level.flat i { background: var(--ok); }
+.compass-wrap .start-overlay { position: absolute; inset: 0; display: grid; place-items: center; align-content: center; gap: 8px; background: color-mix(in srgb, var(--bg-elev) 55%, transparent); border-radius: 50%; backdrop-filter: blur(2px); text-align: center; padding: 20px; }
+.compass-wrap .start-overlay small { font-size: 11.5px; color: var(--text-2); max-width: 220px; line-height: 1.6; }
+.turn-hint { text-align: center; font-weight: 900; font-size: 19px; min-height: 30px; margin: 6px 0 2px; color: var(--text); transition: color .3s; }
+.turn-hint.big { font-size: 20px; }
+.turn-hint.ok, .turn-hint .ok { color: var(--ok); }
+.turn-hint.ok::before { content: '✓ '; }
+.turn-hint.warn, .turn-hint .warn { color: var(--gold); font-size: 16px; }
+.qibla-foot { text-align: center; margin-top: 8px; }
+.calib { display: flex; align-items: center; gap: 10px; background: var(--gold-soft); color: var(--gold); border-radius: 12px; padding: 8px 12px; margin-top: 8px; font-size: 13px; font-weight: 700; line-height: 1.6; }
+.calib.danger { background: var(--danger-soft); color: var(--danger); }
+.calib .fig8 { width: 52px; height: 26px; flex: 0 0 auto; }
+.calib svg:not(.fig8) { width: 20px; height: 20px; flex: 0 0 auto; }
+.sun-mode .sun-dial { width: min(60vw, 240px); margin: 6px auto; }
+.sun-mode .sun-dial svg { width: 100%; height: 100%; display: block; }
 .kv { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .kv div { background: var(--bg-soft); border-radius: 12px; padding: 10px 8px; text-align: center; }
 .kv .v { font-weight: 900; font-size: 16px; font-variant-numeric: tabular-nums; direction: ltr; }
