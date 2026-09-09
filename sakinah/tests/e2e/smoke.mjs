@@ -229,6 +229,8 @@ await page.evaluate(() => document.querySelector('.mr-star[data-juz="16"]').clic
 check(await pageSettled('302'), 'نجمة الجزء 16 تنتقل إلى صفحته 302');
 await page.evaluate(() => document.querySelector('.mr-sname[data-surah="18"]').click());
 check(await pageSettled('293'), 'النقر على اسم السورة يعود إلى أولها');
+// زر رجوع دائم أعلى الصفحة (لا يحتاج إظهار الأدوات)
+check(await page.locator('.mr-exit').isVisible() && (await page.locator('.mr-exit').textContent()).includes('رجوع'), 'زر «رجوع» دائم أعلى الصفحة');
 // النقر يخفي الأطر (شاشة كاملة) ثم يعيدها
 // القراءة بملء الشاشة: الأدوات مخفية افتراضيًا، نقرة تُظهرها، نقرة أخرى تخفيها، ونقرتان تفتحان التنقل والبحث
 check(!(await page.evaluate(() => document.querySelector('.mreader').classList.contains('chrome'))), 'القارئ يفتح بملء الشاشة دون أدوات');
@@ -247,6 +249,42 @@ await page.locator('#sheet-body input[type=search]').fill('الكهف 10');
 await page.waitForTimeout(200);
 check(/الكهف · آية 10|الكهف · آية ١٠/.test(await page.locator('#sheet-body .surah-row .nm').first().textContent()), 'البحث «الكهف 10» يقترح الآية العاشرة');
 await page.locator('#sheet-close').click();
+// تبويبات الانتقال: الأحزاب → الحزب 31 (بداية الجزء 16) → الصفحة 302 ثم العودة
+await showTools();
+await page.locator('.mr-btn[aria-label="الانتقال والبحث"]').click();
+await page.locator('.goto-tabs button', { hasText: 'الأحزاب' }).click();
+check((await page.locator('#sheet-body .goto-list .surah-row').count()) === 60, 'تبويب الأحزاب يعرض 60 حزبًا');
+await page.locator('#sheet-body .goto-list .surah-row', { hasText: 'الحزب 31' }).first().click();
+check(await pageSettled('302'), 'الحزب 31 ينتقل إلى الصفحة 302');
+await showTools();
+await page.locator('.mr-btn[aria-label="الانتقال والبحث"]').click();
+await page.locator('.goto-tabs button', { hasText: 'صفحة' }).click();
+await page.locator('#sheet-body .goto-page input[type=number]').fill('293');
+await page.locator('#sheet-body .goto-page .btn').click();
+check(await pageSettled('293'), 'تبويب الصفحة ينتقل إلى 293');
+// العرض والألوان: سمة سكري (ورق #f3e6c9)، تدرّج، داكن، ثم العودة إلى الكريمي
+await showTools();
+await page.locator('.mr-btn[aria-label="العرض والألوان"]').click();
+await page.locator('#sheet-body .theme-swatch').first().waitFor();
+check((await page.locator('#sheet-body .theme-swatch').count()) >= 12, `نافذة العرض تعرض ${await page.locator('#sheet-body .theme-swatch').count()} سمة للصفحة`);
+await page.locator('#sheet-body .theme-swatch[data-id="sugar"]').click();
+await page.waitForTimeout(150);
+const sugarBg = await page.evaluate(() => getComputedStyle(document.querySelector('.mr-slide[data-page="293"] .mp')).backgroundColor);
+check((await page.locator('.mreader').getAttribute('data-theme')) === 'sugar' && sugarBg === 'rgb(243, 230, 201)' && (await page.evaluate(() => window.sakinah.settings.quran.theme)) === 'sugar', `سمة «سكري» تُطبَّق على الصفحة وتُحفظ (${sugarBg})`);
+await page.locator('#sheet-body .theme-swatch[data-id="dawn"]').click();
+await page.waitForTimeout(150);
+check(/linear-gradient/.test(await page.evaluate(() => getComputedStyle(document.querySelector('.mr-slide[data-page="293"] .mp')).backgroundImage)), 'سمة «تدرّج الفجر» تُظهر تدرّجًا هادئًا على الصفحة');
+await page.screenshot({ animations: 'disabled', path: path.join(outDir, '08b-quran-display-sheet.png') });
+await page.locator('#sheet-body .theme-swatch[data-id="midnight"]').click();
+await page.waitForTimeout(150);
+check((await page.evaluate(() => document.querySelector('.mreader').classList.contains('night') && document.querySelector('.mr-slide[data-page="293"] .mp').classList.contains('night'))) && (await page.evaluate(() => window.sakinah.settings.quran.themeDark)) === 'midnight', 'سمة «أزرق ليلي» داكنة وتُذكر للتبديل السريع');
+await page.locator('#sheet-body .theme-swatch[data-id="cream"]').click();
+await page.locator('#sheet-body input[type=range][aria-label="تعتيم الصفحة"]').fill('30');
+await page.waitForTimeout(100);
+check((await page.evaluate(() => Number(document.querySelector('.mr-dim').style.opacity))) === 0.3 && (await page.evaluate(() => window.sakinah.settings.quran.dim)) === 0.3, 'التعتيم يُطبَّق طبقةً فوق الصفحة ويُحفظ');
+await page.locator('#sheet-body input[type=range][aria-label="تعتيم الصفحة"]').fill('0');
+await page.locator('#sheet-close').click();
+await page.screenshot({ animations: 'disabled', path: path.join(outDir, '08b-quran-themes.png') });
 await page.waitForTimeout(500);
 await page.touchscreen.tap(6, 422); await page.waitForTimeout(450); // إظهار الأدوات للزرّ الليلي
 await showTools();
@@ -308,8 +346,8 @@ check(/العفاسي/.test(await page.locator('#audio-bar .who').textContent())
 await page.locator('#audio-bar').getByRole('button', { name: 'إغلاق' }).click();
 check((await page.locator('#audio-bar').count()) === 0, 'إغلاق شريط التلاوة');
 // العودة للفهرس: بطاقة المتابعة تعرض آخر موضع، والعلامة في قائمة العلامات
-await showTools();
-await page.locator('.mr-btn[aria-label="الفهرس"]').click();
+if (await chromeOn()) { await page.touchscreen.tap(6, 422); await page.waitForTimeout(400); }
+await page.locator('.mr-exit').click();
 await page.locator('.resume-card').waitFor();
 check(/الإسراء/.test(await page.locator('.resume-card').textContent()) && /293/.test(await page.locator('.resume-card').textContent()), `بطاقة متابعة القراءة تحفظ الموضع (الإسراء، ص 293): ${(await page.locator('.resume-card').textContent()).replace(/\s+/g, ' ').trim()}`);
 check((await page.locator('.mreader').getAttribute('hidden')) !== null && (await page.evaluate(() => location.hash)) === '#/quran', 'إغلاق القارئ يعيد الرابط #/quran');

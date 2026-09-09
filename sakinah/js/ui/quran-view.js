@@ -5,7 +5,8 @@
  */
 import { h, icon, render, openSheet, closeSheet, toast, copyText, shareText, vibrate, switchEl } from './components.js';
 import { openShareCardSheet } from './share-sheet.js';
-import { loadQuran, isLoaded, pageAyahs, surahAyahs, surahInfo, pageLabel, getAyah, getAyahBySurah, tokenize, HifzMatcher, searchText, refLabel, SURAHS, JUZ_STARTS, TOTAL_PAGES } from '../core/quran.js';
+import { MUSHAF_THEMES, THEME_GROUPS } from '../core/mushaf-themes.js';
+import { loadQuran, isLoaded, pageAyahs, surahAyahs, surahInfo, pageLabel, getAyah, getAyahBySurah, tokenize, HifzMatcher, searchText, refLabel, SURAHS, JUZ_STARTS, TOTAL_PAGES , hizbStartPage } from '../core/quran.js';
 import { loadMushafLayout, isMushafLoaded } from '../core/mushaf.js';
 import { foldDigits, normalizeForMatch } from '../core/quran.js';
 import { createMushafReader } from './mushaf-reader.js';
@@ -50,6 +51,7 @@ export function mount(container, app) {
     onAyahTap: (n) => { selectAyah(n); return true; },
     onAyahBarClosed: () => clearSelection(),
     onOptions: () => readerOptions(),
+    onDisplay: () => displaySheet(),
     onHifzToggle: () => (hifz ? exitHifz() : startHifz(pageAyahs(page())[0].n)),
     onBookmark: (p) => toggleBookmark((hifz ? null : selectedOnPage(p)) || pageAyahs(p)[0].n),
     onPageChange: (p, { fromScroll }) => { trackDwell(p); if (hifz && p !== hifz.page) { exitHifz(); toast('انتهت مراجعة الحفظ بتغيير الصفحة', 2500); } if (selected && getAyah(selected).page !== p) clearSelection(); scheduleSaveLastRead(); syncUrl(p); if (fromScroll) vibrate(6); },
@@ -253,11 +255,22 @@ export function mount(container, app) {
     };
     let navDebounce = null; input.addEventListener('input', () => { clearTimeout(navDebounce); navDebounce = setTimeout(draw, 120); });
     const pageIn = h('input', { class: 'input ltr', type: 'number', min: 1, max: TOTAL_PAGES, value: page(), 'aria-label': 'رقم الصفحة', style: { width: '90px' } });
-    openSheet({ title: 'التنقل والبحث', content: h('div', { class: 'stack' },
-      h('div', { class: 'search', style: { marginBottom: 0 } }, input, h('span', { html: icon('search') })),
-      h('div', { class: 'row' }, h('span', { class: 'tiny' }, 'صفحة'), pageIn, h('button', { class: 'btn btn-outline btn-sm', onclick: () => go(Math.min(TOTAL_PAGES, Math.max(1, +pageIn.value || 1))) }, 'انتقال'),
-        h('span', { style: { flex: 1 } }), h('button', { class: 'btn btn-soft btn-sm', onclick: () => { closeSheet(); closeReader(); } }, h('span', { html: icon('list') }), ' الفهرس')),
-      results) });
+    const pageRange = h('input', { class: 'range', type: 'range', min: 1, max: TOTAL_PAGES, value: page(), 'aria-label': 'شريط الصفحات' });
+    const pageInfo = h('div', { class: 'tiny' });
+    const describePage = (n) => { const a = pageAyahs(n)[0]; return a ? `${surahInfo(a.surah).name} · الجزء ${app.num(pageLabel(n).juz)} · الحزب ${app.num(pageLabel(n).hizb)}` : ''; };
+    const syncPage = (n) => { n = Math.min(TOTAL_PAGES, Math.max(1, +n || 1)); pageIn.value = n; pageRange.value = n; pageInfo.textContent = `الصفحة ${app.num(n)} — ${describePage(n)}`; };
+    pageIn.addEventListener('input', () => syncPage(pageIn.value)); pageRange.addEventListener('input', () => syncPage(pageRange.value)); syncPage(page());
+    const cur = pageLabel(page());
+    const searchPane = h('div', { class: 'stack' }, h('div', { class: 'search', style: { marginBottom: 0 } }, input, h('span', { html: icon('search') })), results);
+    const juzPane = h('div', { class: 'goto-list city-list' }, ...JUZ_STARTS.map((j) => h('button', { class: `surah-row ${cur.juz === j.juz ? 'cur' : ''}`, onclick: () => go(j.page) }, h('span', { class: 'num' }, app.num(j.juz)), h('span', {}, h('div', { class: 'nm' }, `الجزء ${app.num(j.juz)}`), h('div', { class: 'info' }, `${surahInfo(j.surah).name} · آية ${app.num(j.ayah)}`)), h('span', { class: 'pg' }, `ص ${app.num(j.page)}`))));
+    const hizbPane = h('div', { class: 'goto-list city-list' }, ...Array.from({ length: 60 }, (_, i) => i + 1).map((hz) => { const p = hizbStartPage(hz); return h('button', { class: `surah-row ${cur.hizb === hz ? 'cur' : ''}`, onclick: () => go(p) }, h('span', { class: 'num' }, app.num(hz)), h('span', {}, h('div', { class: 'nm' }, `الحزب ${app.num(hz)}`), h('div', { class: 'info' }, `الجزء ${app.num(Math.ceil(hz / 2))} · ${surahInfo(pageAyahs(p)[0].surah).name}`)), h('span', { class: 'pg' }, `ص ${app.num(p)}`)); }));
+    const pagePane = h('div', { class: 'stack' }, h('div', { class: 'goto-page' }, pageIn, h('button', { class: 'btn btn-primary btn-sm', onclick: () => go(+pageIn.value) }, 'انتقال')), pageRange, pageInfo);
+    const panes = { search: searchPane, juz: juzPane, hizb: hizbPane, page: pagePane };
+    let navTab = 'search'; const paneHost = h('div', {});
+    const tabs = h('div', { class: 'segmented goto-tabs' }, ...[['search', 'بحث وسور'], ['juz', 'الأجزاء'], ['hizb', 'الأحزاب'], ['page', 'صفحة']].map(([k, l]) => h('button', { class: k === navTab ? 'active' : '', onclick: (e) => { navTab = k; [...tabs.children].forEach((b) => b.classList.toggle('active', b === e.currentTarget)); render(paneHost, panes[k]); if (k !== 'search') { const c = panes[k].querySelector('.surah-row.cur'); if (c) c.scrollIntoView({ block: 'center' }); } } }, l)));
+    render(paneHost, searchPane);
+    openSheet({ title: 'التنقل والبحث', content: h('div', { class: 'stack' }, tabs, paneHost,
+      h('div', { class: 'row' }, h('span', { style: { flex: 1 } }), h('button', { class: 'btn btn-soft btn-sm', onclick: () => { closeSheet(); closeReader(); } }, h('span', { html: icon('list') }), ' الفهرس'))) });
     draw(); setTimeout(() => input.focus(), 80);
   }
 
@@ -284,13 +297,9 @@ export function mount(container, app) {
       h('div', { class: 'field' }, h('label', {}, 'الانتقال إلى سورة وآية'), h('div', { class: 'row' }, surahSel, ayahIn, h('button', { class: 'btn btn-primary btn-sm', onclick: () => jump(+surahSel.value, +ayahIn.value || 1) }, 'انتقال'))),
       h('div', { class: 'field' }, h('label', {}, 'الانتقال إلى صفحة'), h('div', { class: 'row' }, pageIn, h('button', { class: 'btn btn-outline btn-sm', onclick: () => { closeSheet(); reader.goto(Math.min(TOTAL_PAGES, Math.max(1, +pageIn.value || 1)), { smooth: false }); } }, 'انتقال'))),
       h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'تشغيل تلاوة الصفحة'), h('div', { class: 'desc' }, 'من أول آية في الصفحة الحالية')), h('button', { class: 'btn btn-soft btn-sm', onclick: () => { closeSheet(); playFrom(pageAyahs(page())[0].n, 'page'); } }, h('span', { html: icon('play') }), ' تشغيل')),
-      h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'الوضع الليلي للمصحف'), h('div', { class: 'desc' }, 'صفحة داكنة مريحة للعين')), switchEl(reader.isNight, (v) => reader.setNight(v, true))),
-      h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'لون الورق'), h('div', { class: 'desc' }, 'كريمي كالمصحف المطبوع أو أبيض')), h('div', { class: 'segmented', style: { minWidth: '150px' } }, ...[['cream', 'كريمي'], ['white', 'أبيض']].map(([k, l]) => h('button', { class: (s.paper || 'cream') === k ? 'active' : '', onclick: (e) => { saveQ({ paper: k }); reader.setPaper(k); e.currentTarget.parentElement.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b === e.currentTarget)); } }, l)))),
+      h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'العرض والألوان'), h('div', { class: 'desc' }, 'لون الصفحة (كريمي، أبيض، سكري، تدرّجات، داكن)، التعتيم، حجم الخط وطريقة العرض')), h('button', { class: 'btn btn-soft btn-sm', onclick: () => { closeSheet(); displaySheet(); } }, h('span', { html: icon('sun') }), ' فتح')),
       h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'متابعة التلاوة بقلب الصفحات'), h('div', { class: 'desc' }, 'الانتقال تلقائيًا إلى صفحة الآية الجارية')), switchEl(s.follow, (v) => saveQ({ follow: v }))),
       h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'في المراجعة: إظهار الكلمة الحالية فقط'), h('div', { class: 'desc' }, 'الكلمات السابقة تبقى مخفية كما في تطبيقات الحفظ')), switchEl(s.hifzOnlyCurrent, (v) => { saveQ({ hifzOnlyCurrent: v }); const el = reader.pageEl(page()); if (el) el.classList.toggle('only-current', v); })),
-      h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'طريقة العرض'), h('div', { class: 'desc' }, 'صفحات المصحف المطبوع، أو نص متدفق بحجم خط قابل للتغيير')), h('div', { class: 'segmented', style: { minWidth: '170px' } }, ...[['pages', 'صفحات'], ['text', 'نص']].map(([k, l]) => h('button', { class: (s.view || 'pages') === k ? 'active' : '', onclick: (e) => { saveQ({ view: k }); reader.setTextMode(k === 'text'); e.currentTarget.parentElement.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b === e.currentTarget)); const sr = document.getElementById('text-size-row'); if (sr) sr.hidden = k !== 'text'; } }, l)))),
-      h('div', { class: 'setting-row', id: 'text-size-row', hidden: (s.view || 'pages') !== 'text' }, h('div', { class: 'label' }, 'حجم الخط (وضع النص)'), h('div', { class: 'text-scale-ctl' },
-        h('button', { onclick: () => setScale(-0.1) }, 'أ-'), h('button', { onclick: () => setScale(0.1) }, 'أ+'))),
       h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'تظليل الكلمة أثناء التلاوة'), h('div', { class: 'desc' }, 'كلمةً كلمة مع القرّاء الذين تتوفر توقيتاتهم (يُستخدم مصدر quran.com)')), switchEl(s.wordHighlight !== false, (v) => { saveQ({ wordHighlight: v }); player.setWords(v); })),
       h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'التلاوات دون اتصال'), h('div', { class: 'desc' }, 'تنزيل سور كاملة لقارئك المفضّل لسماعها بلا إنترنت')), h('button', { class: 'btn btn-outline btn-sm', onclick: () => { closeSheet(); openDownloads(q().reciter, pageAyahs(page())[0].surah); } }, h('span', { html: icon('download') }), ' إدارة')),
       h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'خطة الختمة'), h('div', { class: 'desc' }, q().khatmah ? `${app.num(q().khatmah.dailyPages)} صفحات يوميًا` : 'هدف يومي وتذكير ومتابعة التقدّم')), h('button', { class: 'btn btn-outline btn-sm', onclick: () => { closeSheet(); khatmahSheet(); } }, q().khatmah ? 'تعديل' : 'إنشاء')),
@@ -298,6 +307,32 @@ export function mount(container, app) {
       h('p', { class: 'tiny' }, 'الصفحات بخطوط مجمع الملك فهد لطباعة المصحف الشريف (مصحف المدينة، حفص عن عاصم) مطابقةً للمصحف المطبوع سطرًا بسطر. النص: Tanzil. التلاوات: Islamic Network. انقر الصفحة لإظهار الأدوات، وانقر مرتين للتنقل والبحث، واضغط مطوّلًا على آية لقائمتها.')) });
   }
 
+  function setLineHeight(d) { const vv = Math.min(2.8, Math.max(1.6, +((q().lineHeight || 2.15) + d).toFixed(2))); saveQ({ lineHeight: vv }); document.documentElement.style.setProperty('--quran-lh', String(vv)); }
+  /** العرض والألوان: سمة الصفحة (فاتح/تدرّجات/داكن)، تعتيم، إبقاء الشاشة مضاءة، طريقة العرض وحجم الخط */
+  function displaySheet() {
+    const s = q();
+    const swatches = [];
+    const refreshSwatches = () => { for (const b of swatches) { const on = b.dataset.id === reader.theme; b.classList.toggle('active', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); } };
+    const swatch = (t) => { const b = h('button', { class: 'theme-swatch', dataset: { id: t.id }, 'aria-label': `لون الصفحة: ${t.name}`, onclick: () => { reader.setTheme(t.id, true); refreshSwatches(); } }, h('span', { class: 'sw', style: { background: t.gradient || t.paper, color: t.ink } }, 'ق'), h('span', {}, t.name)); swatches.push(b); return b; };
+    const grid = h('div', { class: 'theme-groups' }, ...THEME_GROUPS.map(([g, label]) => h('div', {}, h('div', { class: 'theme-group-title' }, label), h('div', { class: 'theme-grid' }, ...MUSHAF_THEMES.filter((t) => t.group === g).map(swatch)))));
+    refreshSwatches();
+    const dimLabel = h('label', {}, 'تعتيم الصفحة');
+    const dim = h('input', { class: 'range', type: 'range', min: 0, max: 60, step: 5, value: Math.round((s.dim || 0) * 100), 'aria-label': 'تعتيم الصفحة' });
+    const dimText = () => { dimLabel.textContent = +dim.value > 0 ? `تعتيم الصفحة (${app.num(+dim.value)}٪)` : 'تعتيم الصفحة'; };
+    dim.addEventListener('input', () => { reader.setDim(dim.value / 100); dimText(); }); dim.addEventListener('change', () => saveQ({ dim: dim.value / 100 })); dimText();
+    const isText = (s.view || 'pages') === 'text';
+    const viewSeg = h('div', { class: 'segmented' }, ...[['pages', 'صفحات المصحف'], ['text', 'نص متدفق']].map(([k, l]) => h('button', { class: (s.view || 'pages') === k ? 'active' : '', onclick: () => { if ((q().view || 'pages') === k) return; saveQ({ view: k }); reader.setTextMode(k === 'text'); closeSheet(); displaySheet(); } }, l)));
+    openSheet({ title: 'العرض والألوان', content: h('div', { class: 'stack' },
+      h('div', { class: 'field' }, h('label', {}, 'لون الصفحة'), grid),
+      h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'الوضع الليلي يتبع النظام'), h('div', { class: 'desc' }, 'سمة داكنة مع الوضع الليلي للجهاز، وإلا آخر سمة فاتحة اخترتها')),
+        switchEl(!!s.themeAuto, (on) => { saveQ({ themeAuto: on }); reader.setTheme(on && matchMedia('(prefers-color-scheme: dark)').matches ? (q().themeDark || 'dark') : (q().themeLight || 'cream')); refreshSwatches(); }, 'الوضع الليلي يتبع النظام')),
+      h('div', { class: 'field' }, dimLabel, dim, h('div', { class: 'tiny' }, 'يخفّض إضاءة الصفحة للقراءة ليلًا دون تغيير سطوع الجهاز')),
+      h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'إبقاء الشاشة مضاءة'), h('div', { class: 'desc' }, 'لا تنطفئ الشاشة ما دام المصحف مفتوحًا')), switchEl(s.keepAwake !== false, (on) => { saveQ({ keepAwake: on }); reader.setKeepAwake(on); }, 'إبقاء الشاشة مضاءة')),
+      h('div', { class: 'field' }, h('label', {}, 'طريقة العرض'), viewSeg, h('div', { class: 'tiny' }, isText ? 'نص متدفق بحجم خط وتباعد أسطر قابلين للتغيير' : 'صفحات مصحف المدينة كما في المطبوع سطرًا بسطر')),
+      isText ? h('div', { class: 'setting-row' }, h('div', { class: 'label' }, 'حجم الخط'), h('div', { class: 'text-scale-ctl' }, h('button', { onclick: () => setScale(-0.1), 'aria-label': 'تصغير الخط' }, 'أ-'), h('button', { onclick: () => setScale(0.1), 'aria-label': 'تكبير الخط' }, 'أ+'))) : null,
+      isText ? h('div', { class: 'setting-row' }, h('div', { class: 'label' }, 'تباعد الأسطر'), h('div', { class: 'text-scale-ctl' }, h('button', { onclick: () => setLineHeight(-0.15), 'aria-label': 'تقليل التباعد' }, '−'), h('button', { onclick: () => setLineHeight(0.15), 'aria-label': 'زيادة التباعد' }, '+'))) : null,
+      h('button', { class: 'btn btn-outline btn-block', onclick: () => { closeSheet(); readerOptions(); } }, h('span', { html: icon('settings') }), ' سائر خيارات المصحف')) });
+  }
   function setScale(d) { const v = Math.min(1.8, Math.max(0.7, +((q().fontScale || 1) + d).toFixed(2))); saveQ({ fontScale: v }); document.documentElement.style.setProperty('--quran-scale', String(v)); reader.relayout(); }
 
   /* ---------- العلامات مع ملاحظة ولون ---------- */
@@ -578,6 +613,7 @@ export function mount(container, app) {
   }
   async function build() {
     document.documentElement.style.setProperty('--quran-scale', String(q().fontScale || 1));
+    document.documentElement.style.setProperty('--quran-lh', String(q().lineHeight || 2.15));
     const m = location.hash.match(/^#\/quran\?p=(\d+)/);
     if (m && +m[1] >= 1 && +m[1] <= TOTAL_PAGES) { if (!(await ensureLoaded())) return; indexScreen(); if (!reader.isOpen) { reader.show(+m[1]); saveLastRead(null); } }
     else if (reader.isOpen) reader.goto(reader.page, { smooth: false });

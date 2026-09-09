@@ -5,6 +5,7 @@
  * التنقل والبحث، والضغط المطوّل يفتح قائمة الآية. يعرض الصفحات عبر js/ui/mushaf-page.js وعند تعذّر الخط يعرض البديل النصي.
  */
 import { h, icon, render, vibrate } from './components.js';
+import { themeById, isDarkTheme, themeVars, migrateTheme } from '../core/mushaf-themes.js';
 import { renderMushafPage, mountMushafPage, renderTextPage, fitMushafPage, preloadPageFonts, releasePageFonts, ensureSurahNamesFont, surahNameText, markAyah, clearMarks, wordEl } from './mushaf-page.js';
 import { juzName } from '../core/mushaf.js';
 import { pageAyahs, pageLabel, surahInfo, SURAHS, JUZ_STARTS, TOTAL_PAGES } from '../core/quran.js';
@@ -28,8 +29,8 @@ export function createMushafReader(app, cb = {}) {
   /* ---------- الطبقة العلوية ---------- */
   const btn = (name, label, on, cls = '') => h('button', { class: `mr-btn ${cls}`, 'aria-label': label, title: label, onclick: on }, h('span', { html: icon(name) }));
   const topBar = h('div', { class: 'mr-topbar' },
-    h('div', { class: 'mr-group' }, btn('list', 'الفهرس', () => cb.onIndex && cb.onIndex()), btn('search', 'التنقل والبحث', () => cb.onQuickNav && cb.onQuickNav())),
-    h('div', { class: 'mr-group' }, btn('eyeOff', 'مراجعة الحفظ', () => cb.onHifzToggle && cb.onHifzToggle(), 'mr-hifz-btn'), btn('settings', 'خيارات', () => cb.onOptions && cb.onOptions())));
+    h('div', { class: 'mr-group' }, btn('close', 'العودة إلى التطبيق', () => cb.onIndex && cb.onIndex(), 'mr-close'), btn('list', 'الفهرس', () => cb.onIndex && cb.onIndex()), btn('search', 'الانتقال والبحث', () => cb.onQuickNav && cb.onQuickNav())),
+    h('div', { class: 'mr-group' }, btn('sun', 'العرض والألوان', () => cb.onDisplay && cb.onDisplay(), 'mr-display-btn'), btn('eyeOff', 'مراجعة الحفظ', () => cb.onHifzToggle && cb.onHifzToggle(), 'mr-hifz-btn'), btn('settings', 'خيارات', () => cb.onOptions && cb.onOptions())));
   const strip = h('div', { class: 'mr-surahs', role: 'listbox', 'aria-label': 'السور' });
   for (const s of SURAHS) {
     strip.append(h('button', { class: 'mr-sname', role: 'option', dataset: { surah: String(s.n) }, 'aria-label': `سورة ${s.name}`, onclick: () => { touchChrome(); if (surahOfPage(page) !== s.n || pageAyahs(page)[0].ayah !== 1) goto(s.page, { smooth: true }); } },
@@ -51,9 +52,14 @@ export function createMushafReader(app, cb = {}) {
   const stars = h('div', { class: 'mr-stars', role: 'listbox', 'aria-label': 'الأجزاء' });
   for (const j of JUZ_STARTS) stars.append(h('button', { class: 'mr-star', role: 'option', dataset: { juz: String(j.juz) }, 'aria-label': `الجزء ${j.juz}`, onclick: () => { touchChrome(); goto(j.page, { smooth: true }); } }, h('i'), h('b', {}, arabicDigits(j.juz))));
   const bottom = h('div', { class: 'mr-bottom' }, h('div', { class: 'mr-bar' }, bmBtn, juzEl, nightBtn), h('div', { class: 'mr-stars-wrap' }, stars, h('div', { class: 'mr-star-sel', 'aria-hidden': 'true' })));
-  const hint = h('div', { class: 'mr-hint', hidden: true }, 'انقر آيةً لخياراتها (تفسير، استماع…) · انقر هامش الصفحة لإظهار الأدوات · انقر مرتين للتنقل والبحث');
+  const hint = h('div', { class: 'mr-hint', hidden: true }, 'زر «رجوع» أعلى الصفحة يعيدك إلى التطبيق · انقر آيةً لخياراتها (تفسير، استماع…) · انقر هامش الصفحة لإظهار الأدوات · انقر مرتين للانتقال');
   const ayahBar = h('div', { class: 'mr-ayahbar', hidden: true });
-  root.append(stage, top, bottom, ayahBar, hint);
+  const exitBtn = h('button', { class: 'mr-exit', 'aria-label': 'العودة إلى التطبيق', onclick: () => cb.onIndex && cb.onIndex() }, h('span', { html: icon('close') }), h('span', { class: 'lbl' }, 'رجوع'));
+  const dimmer = h('div', { class: 'mr-dim', 'aria-hidden': 'true' });
+  root.append(stage, dimmer, top, bottom, ayahBar, hint, exitBtn);
+  let exitTimer = null; let keepAwake = true; let themeId = 'cream';
+  /** زر الرجوع يبقى ظاهرًا دائمًا ويخفت بعد ثوانٍ كي لا يشغل عن القراءة */
+  function scheduleExitFade() { clearTimeout(exitTimer); exitBtn.classList.remove('faded'); exitTimer = setTimeout(() => exitBtn.classList.add('faded'), 4000); }
   for (const el of [top, bottom]) el.addEventListener('pointerdown', touchChrome, { passive: true });
 
   /* ---------- الحسابات ---------- */
@@ -108,7 +114,7 @@ export function createMushafReader(app, cb = {}) {
 
   /* ---------- تغيير الصفحة ---------- */
   function setPage(p, { fromScroll = false } = {}) {
-    page = p; refreshWindow(); updateChrome();
+    page = p; refreshWindow(); updateChrome(); scheduleExitFade();
     cb.onPageChange && cb.onPageChange(p, { fromScroll });
   }
   function goto(p, { smooth = true } = {}) {
@@ -191,12 +197,22 @@ export function createMushafReader(app, cb = {}) {
   }
   function setAyahBar(el) { render(ayahBar, el); ayahBar.hidden = !el; }
   function touchChrome() { if (root.classList.contains('chrome')) { clearTimeout(hideTimer); hideTimer = setTimeout(() => { if (!hifz) setChrome(false); }, CHROME_AUTOHIDE_MS); } }
-  function setNight(on, persist = false) {
-    root.classList.toggle('night', on); nightBtn.innerHTML = icon(on ? 'sun' : 'moon');
-    for (const e of filled.values()) e.el.classList.toggle('night', on);
-    if (persist) app.update({ quran: { night: on } });
+  /** تطبيق سمة الصفحة (core/mushaf-themes.js) على جذر القارئ؛ persist يحفظها ويذكر آخر سمة فاتحة/داكنة للتبديل السريع */
+  function setTheme(id, persist = false) {
+    const t = themeById(id); themeId = t.id; const dark = isDarkTheme(t.id);
+    for (const [k, v] of Object.entries(themeVars(t))) root.style.setProperty(k, v);
+    root.dataset.theme = t.id; root.classList.toggle('night', dark); nightBtn.innerHTML = icon(dark ? 'sun' : 'moon');
+    for (const e of filled.values()) e.el.classList.toggle('night', dark);
+    if (persist) app.update({ quran: { theme: t.id, night: dark, ...(dark ? { themeDark: t.id } : { themeLight: t.id }) } });
   }
-  function setPaper(kind) { root.classList.toggle('paper-white', kind === 'white'); }
+  /** تبديل سريع فاتح/داكن (زر القمر): آخر سمة داكنة أو فاتحة اختارها المستخدم */
+  function setNight(on, persist = false) { const qs = app.settings.quran; setTheme(on ? (qs.themeDark || 'dark') : (qs.themeLight || 'cream'), persist); }
+  function resolveTheme(qs) { return qs.themeAuto && typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches ? (qs.themeDark || 'dark') : migrateTheme(qs); }
+  const onScheme = () => { if (open && app.settings.quran.themeAuto) setTheme(resolveTheme(app.settings.quran)); };
+  function setPaper() { /* قديم: استُبدل بالسمات */ }
+  /** تعتيم الصفحة (0..0.7) للقراءة الليلية دون تغيير سطوع الجهاز */
+  function setDim(v) { dimmer.style.opacity = String(Math.min(0.7, Math.max(0, Number(v) || 0))); }
+  function setKeepAwake(on) { keepAwake = on !== false; if (!open) return; if (keepAwake) requestWakeLock(); else if (wakeLock) { try { wakeLock.release(); } catch { /* تجاهل */ } wakeLock = null; } }
   function setTextMode(on) { if (textMode === on) return; textMode = on; root.classList.toggle('text-mode', on); if (open) { for (const p of [...filled.keys()]) unfill(p); refreshWindow(); } }
   function setHifz(on) { hifz = on; root.classList.toggle('hifz', on); for (const e of filled.values()) e.el.classList.toggle('hifz', on); topBar.querySelector('.mr-hifz-btn').classList.toggle('active', on); if (on) setChrome(false); }
   function refreshBookmark() {
@@ -207,6 +223,7 @@ export function createMushafReader(app, cb = {}) {
   /** إعادة ملاءمة الصفحات عند تغيّر الأبعاد؛ التمرير إلى الصفحة فقط إن تغيّر العرض (وإلا قطع حركةً جارية أو سحبةً بيد المستخدم) */
   function relayout({ scroll = false } = {}) { for (const e of filled.values()) fitMushafPage(e.el); const W = stage.clientWidth; if (page && (scroll || W !== lastW)) scrollToPage(page, 'instant'); lastW = W; }
   async function requestWakeLock() {
+    if (!keepAwake) return;
     try { if ('wakeLock' in navigator && document.visibilityState === 'visible') { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch { wakeLock = null; }
   }
   const onVisibility = () => { if (open && document.visibilityState === 'visible' && !wakeLock) requestWakeLock(); };
@@ -220,7 +237,8 @@ export function createMushafReader(app, cb = {}) {
   function show(p, { showHint = false } = {}) {
     if (!root.isConnected) document.body.append(root);
     root.hidden = false; open = true; document.body.classList.add('mreader-open');
-    setNight(!!app.settings.quran.night); setPaper(app.settings.quran.paper || 'cream'); setChrome(false); textMode = app.settings.quran.view === 'text'; root.classList.toggle('text-mode', textMode);
+    const qs = app.settings.quran; keepAwake = qs.keepAwake !== false; setTheme(resolveTheme(qs)); setDim(qs.dim || 0); scheduleExitFade(); setChrome(false);
+    try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', onScheme); } catch { /* تجاهل */ } textMode = app.settings.quran.view === 'text'; root.classList.toggle('text-mode', textMode);
     ensureSurahNamesFont().then(() => root.classList.add('snames')).catch(() => {});
     if (!ro && typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(() => relayout()); ro.observe(stage); }
     page = 0; fill(p); scrollToPage(p, 'instant'); setPage(p);
@@ -232,13 +250,16 @@ export function createMushafReader(app, cb = {}) {
     open = false; root.hidden = true; document.body.classList.remove('mreader-open'); root.classList.remove('chrome'); clearTimeout(hideTimer); setAyahBar(null);
     if (wakeLock) { try { wakeLock.release(); } catch {} wakeLock = null; }
     document.removeEventListener('visibilitychange', onVisibility); document.removeEventListener('keydown', onKey);
+    try { matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', onScheme); } catch { /* تجاهل */ }
+    clearTimeout(exitTimer);
     for (const p of [...filled.keys()]) unfill(p);
   }
 
   return {
     el: root, track,
     get page() { return page; }, get isOpen() { return open; }, get isNight() { return root.classList.contains('night'); }, get chromeShown() { return root.classList.contains('chrome'); },
-    show, hide, goto, setChrome, setNight, setPaper, setTextMode, setHifz, refreshBookmark, relayout, setAyahBar,
+    show, hide, goto, setChrome, setNight, setPaper, setTheme, setDim, setKeepAwake, setTextMode, setHifz, refreshBookmark, relayout, setAyahBar,
+    get theme() { return themeId; },
     get textMode() { return textMode; },
     setPanel(el) { render(panel, el); root.classList.toggle('has-panel', !!el); },
     pageEl(p) { const e = filled.get(p); return e ? e.el : null; },

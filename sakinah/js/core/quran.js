@@ -26,7 +26,7 @@ export async function loadQuran(url = 'data/quran.json') {
 export function setQuranData(raw) {
   const sajda = new Set(raw.sajda || []);
   quran = { edition: raw.edition, ayahs: raw.ayahs.map((r, i) => ({ n: i + 1, surah: r[0], ayah: r[1], page: r[2], juz: r[3], hizbQuarter: r[4], text: r[5], sajda: sajda.has(i + 1) })) };
-  byPage.clear(); bySurah.clear(); searchIdx = null;
+  byPage.clear(); bySurah.clear(); searchIdx = null; hizbPages = null;
   for (const a of quran.ayahs) {
     if (!byPage.has(a.page)) byPage.set(a.page, []); byPage.get(a.page).push(a);
     if (!bySurah.has(a.surah)) bySurah.set(a.surah, []); bySurah.get(a.surah).push(a);
@@ -162,4 +162,12 @@ export function refLabel(a) { return `${surahInfo(a.surah).name}: ${a.ayah}`; }
 /** رقم الآية بالأرقام العربية المشرقية داخل علامة نهاية الآية */
 export function ayahMarker(n, numerals = 'arab') {
   const s = String(n); return numerals === 'arab' ? s.replace(/\d/g, (d) => '٠١٢٣٤٥٦٧٨٩'[d]) : s;
+}
+
+/** أول صفحة يبدأ فيها الحزب (1..60)، أو null */
+let hizbPages = null;
+export function hizbStartPage(hizb) {
+  if (!quran) return null;
+  if (!hizbPages) { hizbPages = new Map(); for (const a of quran.ayahs) { const q = a.hizbQuarter; if ((q - 1) % 4 === 0 && !hizbPages.has(Math.ceil(q / 4))) hizbPages.set(Math.ceil(q / 4), a.page); } }
+  return hizbPages.get(Number(hizb)) || null;
 }

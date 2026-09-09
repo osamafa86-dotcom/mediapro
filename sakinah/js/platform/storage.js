@@ -34,6 +34,8 @@ export const DEFAULT_SETTINGS = {
     bookmarks: [],           // [{ surah, ayah, page, at }]
     reciter: 'ar.alafasy', repeatAyah: 1, repeatRange: false, rate: 1, follow: true,
     fontScale: 1, hifzOnlyCurrent: true, night: false, paper: 'cream', fontsOffline: false, hintShown: false,
+    theme: 'cream', themeLight: 'cream', themeDark: 'dark', themeAuto: false, // سمة الصفحة (core/mushaf-themes.js)؛ night/paper للترقية فقط
+    dim: 0, keepAwake: true, lineHeight: 2.15, // تعتيم الصفحة (0–0.6)، إبقاء الشاشة مضاءة، تباعد الأسطر في وضع النص
     tafsir: 'muyassar', view: 'pages', // view: 'pages' صفحات المصحف | 'text' نص متدفق بحجم قابل للتغيير
     wordHighlight: true,     // تظليل الكلمة أثناء التلاوة (مصدر quran.com للقرّاء الذين تتوفر توقيتاتهم)
     downloads: {},           // { [reciterId]: { [surah]: { files, bytes, at } } }

@@ -397,16 +397,14 @@ details.more[open] summary::before { content: '▾ '; }
    صفحة مصحف المدينة (عارض بدقة الطباعة — js/ui/mushaf-page.js)
    ========================================================================== */
 .mp {
-  --paper: #f6f1e2; --paper-2: #efe7d1; --ink: #1d1a14; --gold-1: #a98a3a; --gold-2: #cfb46f; --gold-3: #e9dcb2; --frame: #2f5a3a; --marker: #8f7430; --rub: #b8336a;
+  --gold-1: #a98a3a; --gold-2: #cfb46f; --gold-3: #e9dcb2; --frame: #2f5a3a; --marker: #8f7430; --rub: #b8336a;
   --mp-hl: rgba(15, 118, 110, .16); --mp-sel: rgba(183, 121, 31, .22); --mp-hide: rgba(60, 50, 20, .07); --mp-hide-line: rgba(60, 50, 20, .25);
   --mp-size: 20px;
-  position: relative; display: flex; flex-direction: column; background: var(--paper); color: var(--ink);
+  position: relative; display: flex; flex-direction: column; background: var(--paper-bg, var(--paper)); color: var(--ink);
   border-radius: 10px; box-shadow: 0 2px 6px rgba(0, 0, 0, .18), 0 12px 30px rgba(0, 0, 0, .22);
   padding: calc(var(--mp-size) * .45) calc(var(--mp-size) * .55) calc(var(--mp-size) * .35);
   direction: rtl; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
 }
-.mreader.paper-white .mp:not(.night) { --paper: #fbfaf6; --paper-2: #f1efe8; }
-.mp.night { --paper: #171916; --paper-2: #21241f; --ink: #ece5d2; --gold-1: #b8993f; --gold-2: #8d7434; --gold-3: #4a3f22; --frame: #5a8a64; --marker: #c9a851; --rub: #e06b95; --mp-hl: rgba(45, 212, 191, .22); --mp-sel: rgba(226, 176, 74, .28); --mp-hide: rgba(255, 245, 210, .06); --mp-hide-line: rgba(255, 245, 210, .25); }
 .mp.night { color-scheme: dark; }
 .mp-head, .mp-foot { font-family: 'Amiri Quran', 'Amiri', 'Scheherazade New', serif; color: var(--ink); opacity: .85; line-height: 1.4; }
 .mp-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: calc(var(--mp-size) * .62); padding: 0 calc(var(--mp-size) * .15); }
@@ -465,9 +463,8 @@ details.more[open] summary::before { content: '▾ '; }
 /* ==========================================================================
    قارئ المصحف بملء الشاشة (js/ui/mushaf-reader.js)
    ========================================================================== */
-.mreader { --chrome: rgba(24, 36, 22, .94); --chrome-2: rgba(38, 58, 36, .9); --chrome-ink: #f1ead6; --chrome-gold: #cdb371; position: fixed; inset: 0; z-index: 44; background: #f6f1e2; color: var(--chrome-ink); direction: rtl; overflow: hidden; -webkit-user-select: none; user-select: none; }
-.mreader.paper-white { background: #fbfaf6; }
-.mreader.night { background: #171916; --chrome: rgba(12, 16, 12, .94); --chrome-2: rgba(26, 32, 25, .92); --chrome-gold: #a8914f; }
+.mreader { --paper: #f6f1e2; --paper-2: #efe7d1; --ink: #1d1a14; --chrome: rgba(24, 36, 22, .94); --chrome-2: rgba(38, 58, 36, .9); --chrome-ink: #f1ead6; --chrome-gold: #cdb371; position: fixed; inset: 0; z-index: 44; background: var(--reader-bg, var(--paper-2)); transition: background .35s; color: var(--chrome-ink); direction: rtl; overflow: hidden; -webkit-user-select: none; user-select: none; }
+.mreader.night { --chrome: rgba(12, 16, 12, .94); --chrome-2: rgba(26, 32, 25, .92); --chrome-gold: #a8914f; }
 .mreader[hidden] { display: none; }
 /* منصة الصفحات: الشاشة كلها */
 .mr-stage { position: absolute; inset: 0; }
@@ -667,3 +664,25 @@ body.onboarding { overflow: hidden; }
 
 /* روابط داخل النص: تمييز لا يعتمد على اللون وحده (إتاحة) */
 p a, .tiny a, .refline a, li a { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+
+/* ---------- المرحلة 5 للمصحف: زر الرجوع الدائم، التعتيم، شبكة السمات، تبويبات الانتقال ---------- */
+.mr-exit { position: absolute; top: calc(var(--safe-t) + 8px); right: 10px; z-index: 3; display: inline-flex; align-items: center; gap: 5px; height: 34px; padding: 0 12px 0 9px; border: 0; border-radius: 999px; background: var(--chrome); color: var(--chrome-ink); font-weight: 800; font-size: .8125rem; box-shadow: 0 2px 8px rgba(0,0,0,.22); opacity: .92; transition: opacity .35s, transform .2s; cursor: pointer; }
+.mr-exit svg { width: 16px; height: 16px; }
+.mr-exit.faded { opacity: .38; }
+.mr-exit:active { transform: scale(.96); opacity: 1; }
+.mreader.chrome .mr-exit, .mreader.has-panel .mr-exit, .mreader.hifz .mr-exit { opacity: 0; pointer-events: none; }
+.mr-dim { position: absolute; inset: 0; z-index: 1; background: #000; opacity: 0; pointer-events: none; transition: opacity .3s; }
+.theme-groups { display: flex; flex-direction: column; gap: 10px; }
+.theme-group-title { font-size: .78rem; font-weight: 800; color: var(--text-3); margin: 2px 0 6px; }
+.theme-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.theme-swatch { display: flex; flex-direction: column; align-items: center; gap: 5px; background: none; border: 0; padding: 4px 2px; border-radius: 12px; color: var(--text-2); font-size: .72rem; font-weight: 700; cursor: pointer; }
+.theme-swatch .sw { width: 52px; height: 52px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; font-family: 'Amiri Quran', 'Amiri', serif; font-size: 1.35rem; line-height: 1; box-shadow: inset 0 0 0 2px rgba(255,255,255,.35); transition: transform .12s, border-color .2s; }
+.theme-swatch.active .sw { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft), inset 0 0 0 2px rgba(255,255,255,.35); transform: scale(1.06); }
+.theme-swatch.active { color: var(--primary-strong); }
+.theme-swatch:active .sw { transform: scale(.95); }
+.range { width: 100%; accent-color: var(--primary); }
+.goto-tabs { margin-bottom: 8px; }
+.goto-list { max-height: 48vh; overflow-y: auto; margin: 0 -6px; }
+.goto-page { display: flex; align-items: center; gap: 10px; }
+.goto-page input[type=number] { width: 88px; }
+.mreader.text-mode .mp.mp-full .mp-body.text { line-height: var(--quran-lh, 2.15); }
