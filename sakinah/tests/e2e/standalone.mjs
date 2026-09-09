@@ -21,9 +21,13 @@ await page.locator('#tab-qibla').click(); await page.locator('.compass-rose').wa
 ok(!/غير متاح/.test(await page.locator('.kv').first().textContent()), 'WMM2025 يعمل داخل الملف الواحد');
 await page.locator('#tab-quran').click(); await page.locator('#view-quran .surah-row').first().waitFor();
 ok((await page.locator('#view-quran .surah-row').count()) === 114, 'المصحف مضمّن: 114 سورة بلا شبكة');
-await page.locator('#view-quran .surah-row').nth(1).click(); await page.locator('.mushaf').waitFor();
-ok((await page.locator('.mushaf .ayah').count()) >= 4, 'قارئ المصحف يعرض صفحة البقرة');
-await page.locator('.quran-top .icon-btn').first().click();
+// خطوط الصفحات محجوبة هنا (لا شبكة) فيُختبر البديل النصي بالبنية نفسها
+await page.route(/cdn\.jsdelivr\.net/, (r) => r.abort());
+await page.locator('#view-quran .surah-row').nth(1).click(); await page.locator('.mreader:not([hidden])').waitFor();
+await page.locator('.mr-slide[data-page="2"] .mp.ready').waitFor({ timeout: 20000 });
+ok((await page.locator('.mr-slide[data-page="2"] .mp.mp-text .mw[data-k]').count()) >= 20 && (await page.locator('.mr-slide[data-page="2"] .mh').count()) === 1, 'قارئ المصحف يعرض صفحة البقرة (البديل النصي دون خطوط)');
+ok(/الأَوَّلُ/.test(await page.locator('.mr-juz').textContent()), 'شريط الجزء يعمل داخل الملف الواحد');
+await page.locator('.mr-btn[aria-label="الفهرس"]').click();
 await page.locator('#tab-adhkar').click(); ok((await page.locator('.dhikr').count()) >= 20, 'الأذكار');
 await page.locator('#tab-more').click(); await page.getByRole('button', { name: /الأحاديث/ }).first().click(); ok((await page.locator('#view-hadith .hadith').count()) >= 10, 'الأحاديث');
 await page.locator('#btn-settings').click(); ok((await page.locator('#view-settings select').count()) >= 3, 'الإعدادات');

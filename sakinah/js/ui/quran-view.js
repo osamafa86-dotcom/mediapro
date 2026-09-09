@@ -1,33 +1,82 @@
 /**
- * شاشة المصحف: فهرس السور/الأجزاء/العلامات، قارئ بصفحات مصحف المدينة، تلاوة آية بآية مع تظليل وتكرار،
- * حفظ موضع القراءة والعلامات، ووضع مراجعة الحفظ (إخفاء الصفحة وكشف الكلمات المنطوقة عبر التعرّف على الصوت أو النقر).
+ * شاشة المصحف: فهرس السور/الأجزاء/العلامات مع البحث، وقارئ غامر بصفحات مصحف المدينة بدقة الطباعة (js/ui/mushaf-reader.js)،
+ * تلاوة آية بآية مع تظليل وتكرار ومتابعة بقلب الصفحات، حفظ موضع القراءة والعلامات،
+ * ووضع مراجعة الحفظ (إخفاء الكلمات وكشف المنطوق منها عبر التعرّف على الصوت أو النقر).
  */
 import { h, icon, render, openSheet, closeSheet, toast, copyText, shareText, vibrate, switchEl } from './components.js';
-import { loadQuran, isLoaded, pageAyahs, surahAyahs, surahInfo, surahsStartingOn, pageLabel, getAyah, getAyahBySurah, tokenize, HifzMatcher, searchText, refLabel, ayahMarker, SURAHS, JUZ_STARTS, TOTAL_PAGES, BASMALA } from '../core/quran.js';
+import { loadQuran, isLoaded, pageAyahs, surahAyahs, surahInfo, pageLabel, getAyah, getAyahBySurah, tokenize, HifzMatcher, searchText, refLabel, SURAHS, JUZ_STARTS, TOTAL_PAGES } from '../core/quran.js';
+import { loadMushafLayout, isMushafLoaded } from '../core/mushaf.js';
+import { createMushafReader } from './mushaf-reader.js';
+import { wordEl } from './mushaf-page.js';
+import { downloadAllPageFonts, offlineFontsCount } from '../platform/mushaf-fonts.js';
 import { AyahPlayer, RECITERS } from '../platform/audio.js';
 import { SpeechListener, isSpeechSupported } from '../platform/speech.js';
 
 const player = new AyahPlayer();
 
 export function mount(container, app) {
-  let mode = 'index'; let page = 1; let indexTab = 'surahs'; let query = '';
-  let selectedAyah = null; let playingAyah = null; let hifz = null; let speech = null;
-  let els = {}; let touchX = null;
+  let indexTab = 'surahs'; let query = ''; let focusSearch = false;
+  let playingAyah = null; let hifz = null; let speech = null; let saveTimer = null;
   const q = () => app.settings.quran;
   const saveQ = (patch) => app.update({ quran: patch });
+  const page = () => reader.page;
+
+  /* ---------- القارئ ---------- */
+  const reader = createMushafReader(app, {
+    onIndex: () => closeReader(),
+    onSearch: () => { focusSearch = true; closeReader(); },
+    onOptions: () => readerOptions(),
+    onHifzToggle: () => (hifz ? exitHifz() : startHifz(pageAyahs(page())[0].n)),
+    onBookmark: (p) => toggleBookmark((hifz ? null : selectedOnPage(p)) || pageAyahs(p)[0].n),
+    onPageChange: (p, { fromScroll }) => { if (hifz && p !== hifz.page) exitHifz(); scheduleSaveLastRead(); syncUrl(p); if (fromScroll) vibrate(6); },
+    onTap: (w) => { if (hifz) { onHifzTap(); return true; } return false; },
+    onLongPress: (n) => ayahActions(getAyah(n)),
+    onPageReady: (p) => { if (playingAyah) reader.mark(playingAyah, 'hl'); if (hifz && hifz.page === p) applyHifzToPage(); },
+    onFallback: (p) => { if (!fallbackWarned) { fallbackWarned = true; toast('تعذّر تحميل خط الصفحة — عُرض النص بخط بديل. تتوفر الخطوط عند الاتصال بالإنترنت أو بعد تنزيلها من الخيارات.', 5000); } },
+  });
+  let fallbackWarned = false;
+  function selectedOnPage(p) { return null; }
+  function syncUrl(p) { const target = `#/quran?p=${p}`; if (location.hash !== target) history.replaceState(null, '', target); }
+  function openReader(p, ayah = null) {
+    hifz = null; stopSpeech();
+    if (!reader.isOpen) { if (!/^#\/quran\?p=/.test(location.hash)) history.pushState(null, '', `#/quran?p=${p}`); reader.show(p); }
+    else reader.goto(p, { smooth: false });
+    if (ayah) setTimeout(() => flashAyah(ayah.n), 400);
+    saveLastRead(ayah);
+  }
+  function closeReader() {
+    if (!reader.isOpen) return;
+    stopSpeech(); hifz = null; reader.setHifz(false); reader.setPanel(null); reader.hide();
+    if (/^#\/quran\?p=/.test(location.hash)) history.replaceState(null, '', '#/quran');
+    indexScreen();
+  }
+  window.addEventListener('popstate', () => { if (reader.isOpen && !/^#\/quran\?p=/.test(location.hash)) { stopSpeech(); hifz = null; reader.setHifz(false); reader.setPanel(null); reader.hide(); if (app.current === 'quran') indexScreen(); } });
+  function flashAyah(n) { reader.mark(n, 'sel'); setTimeout(() => reader.mark(n, 'sel', false), 1600); }
+  function saveLastRead(ayah) {
+    const a = ayah || (reader.isOpen ? pageAyahs(page())[0] : null); if (!a) return;
+    saveQ({ lastRead: { page: a.page, surah: a.surah, ayah: a.ayah, at: Date.now() } });
+  }
+  function scheduleSaveLastRead() { clearTimeout(saveTimer); saveTimer = setTimeout(() => saveLastRead(null), 900); }
+  function isBookmarked(n) { const a = getAyah(n); return (q().bookmarks || []).some((b) => b.surah === a.surah && b.ayah === a.ayah); }
+  function toggleBookmark(n) {
+    const a = getAyah(n); const bms = q().bookmarks || [];
+    if (isBookmarked(n)) { saveQ({ bookmarks: bms.filter((b) => !(b.surah === a.surah && b.ayah === a.ayah)) }); toast('أُزيلت العلامة'); }
+    else { saveQ({ bookmarks: [...bms, { surah: a.surah, ayah: a.ayah, page: a.page, at: Date.now() }] }); toast(`أُضيفت علامة عند ${refLabel(a)}`); vibrate(10); }
+    reader.refreshBookmark();
+  }
 
   /* ---------- تحميل ---------- */
   async function ensureLoaded() {
-    if (isLoaded()) return true;
-    render(container, h('div', { class: 'card', style: { textAlign: 'center', padding: '40px 16px' } }, h('span', { class: 'spinner' }), h('p', { class: 'muted', style: { marginTop: '10px' } }, 'جارٍ تحميل نص المصحف…')));
-    try { await loadQuran(); return true; }
-    catch (e) { render(container, h('div', { class: 'card' }, h('div', { class: 'notice danger' }, h('span', { html: icon('warning') }), 'تعذّر تحميل نص المصحف. يلزم اتصال بالإنترنت لأول مرة فقط.'), h('button', { class: 'btn btn-primary btn-block', style: { marginTop: '10px' }, onclick: build }, 'إعادة المحاولة'))); return false; }
+    if (isLoaded() && isMushafLoaded()) return true;
+    render(container, h('div', { class: 'card', style: { textAlign: 'center', padding: '40px 16px' } }, h('span', { class: 'spinner' }), h('p', { class: 'muted', style: { marginTop: '10px' } }, 'جارٍ تحميل المصحف…')));
+    try { await Promise.all([loadQuran(), loadMushafLayout()]); return true; }
+    catch (e) { render(container, h('div', { class: 'card' }, h('div', { class: 'notice danger' }, h('span', { html: icon('warning') }), 'تعذّر تحميل بيانات المصحف. يلزم اتصال بالإنترنت لأول مرة فقط.'), h('button', { class: 'btn btn-primary btn-block', style: { marginTop: '10px' }, onclick: build }, 'إعادة المحاولة'))); return false; }
   }
 
   /* ---------- الفهرس ---------- */
   function indexScreen() {
     const last = q().lastRead;
-    const input = h('input', { class: 'input', type: 'search', placeholder: 'ابحث عن سورة أو آية…', value: query });
+    const input = h('input', { class: 'input', type: 'search', placeholder: 'ابحث عن سورة أو آية أو رقم صفحة…', value: query });
     input.addEventListener('input', () => { query = input.value; drawList(); });
     const listEl = h('div', {});
     const drawList = () => {
@@ -53,105 +102,26 @@ export function mount(container, app) {
           h('span', { class: 'num', html: icon('bookmarkFill') }), h('span', {}, h('div', { class: 'nm' }, `${surahInfo(b.surah).name}: ${app.num(b.ayah)}`), h('div', { class: 'info' }, new Date(b.at).toLocaleDateString('ar', { day: 'numeric', month: 'long' }))),
           h('span', { class: 'pg' }, `ص ${app.num(b.page)}`),
           h('button', { class: 'icon-btn', style: { width: '32px', height: '32px' }, 'aria-label': 'حذف', onclick: (e) => { e.stopPropagation(); saveQ({ bookmarks: bms.filter((x) => !(x.surah === b.surah && x.ayah === b.ayah)) }); drawList(); } }, h('span', { html: icon('close') }))))
-          : h('div', { class: 'empty' }, 'لا علامات بعد — اضغط على آية في القارئ ثم «إضافة علامة»'));
+          : h('div', { class: 'empty' }, 'لا علامات بعد — اضغط زر العلامة في القارئ أو اضغط مطوّلًا على آية'));
       }
     };
     render(container,
       last ? h('div', { class: 'resume-card' }, h('div', {}, h('small', {}, 'متابعة القراءة'), h('b', {}, `${surahInfo(last.surah).name} · آية ${app.num(last.ayah)}`), h('small', {}, `الصفحة ${app.num(last.page)} · الجزء ${app.num(pageLabel(last.page).juz)}`)),
         h('button', { class: 'btn btn-sm', onclick: () => openReader(last.page, getAyahBySurah(last.surah, last.ayah)) }, h('span', { html: icon('play') }), ' متابعة'))
-        : h('div', { class: 'resume-card' }, h('div', {}, h('small', {}, 'ابدأ القراءة'), h('b', {}, 'المصحف الشريف'), h('small', {}, 'رواية حفص عن عاصم · 604 صفحات')), h('button', { class: 'btn btn-sm', onclick: () => openReader(1) }, 'فتح')),
+        : h('div', { class: 'resume-card' }, h('div', {}, h('small', {}, 'ابدأ القراءة'), h('b', {}, 'المصحف الشريف'), h('small', {}, 'مصحف المدينة النبوية · حفص عن عاصم · 604 صفحات')), h('button', { class: 'btn btn-sm', onclick: () => openReader(1) }, 'فتح')),
       h('div', { class: 'search' }, input, h('span', { html: icon('search') })),
       h('div', { class: 'segmented', style: { marginBottom: '10px' } },
         ...[['surahs', 'السور'], ['juz', 'الأجزاء'], ['bookmarks', 'العلامات']].map(([k, l]) => h('button', { class: indexTab === k ? 'active' : '', onclick: () => { indexTab = k; drawList(); container.querySelectorAll('.segmented button').forEach((b) => b.classList.toggle('active', b.textContent === l)); } }, l))),
       h('div', { class: 'card', style: { padding: '4px 10px' } }, listEl));
     drawList();
+    if (focusSearch) { focusSearch = false; setTimeout(() => input.focus(), 50); }
   }
   const surahRow = (s) => h('button', { class: 'surah-row', onclick: () => openReader(s.page, getAyahBySurah(s.n, 1)) },
     h('span', { class: 'num' }, app.num(s.n)), h('span', {}, h('div', { class: 'nm' }, `سورة ${s.name}`), h('div', { class: 'info' }, `${s.type} · ${app.num(s.ayahs)} آية`)), h('span', { class: 'pg' }, `ص ${app.num(s.page)}`));
 
-  /* ---------- القارئ ---------- */
-  function openReader(p, ayah = null) { mode = 'reader'; page = p; selectedAyah = ayah ? ayah.n : null; hifz = null; stopSpeech(); readerScreen(); if (ayah) setTimeout(() => scrollToAyah(ayah.n), 60); saveLastRead(ayah); }
-  function saveLastRead(ayah) {
-    const a = ayah || pageAyahs(page)[0]; if (!a) return;
-    saveQ({ lastRead: { page: a.page, surah: a.surah, ayah: a.ayah, at: Date.now() } });
-  }
-  function gotoPage(p, { keepHifz = false } = {}) {
-    if (p < 1 || p > TOTAL_PAGES) return;
-    page = p; selectedAyah = null;
-    if (!keepHifz) { hifz = null; stopSpeech(); }
-    readerScreen(); saveLastRead(null); window.scrollTo({ top: 0 });
-  }
-  function isBookmarked(n) { const a = getAyah(n); return (q().bookmarks || []).some((b) => b.surah === a.surah && b.ayah === a.ayah); }
-  function toggleBookmark(n) {
-    const a = getAyah(n); const bms = q().bookmarks || [];
-    if (isBookmarked(n)) { saveQ({ bookmarks: bms.filter((b) => !(b.surah === a.surah && b.ayah === a.ayah)) }); toast('أُزيلت العلامة'); }
-    else { saveQ({ bookmarks: [...bms, { surah: a.surah, ayah: a.ayah, page: a.page, at: Date.now() }] }); toast(`أُضيفت علامة عند ${refLabel(a)}`); }
-    readerScreen();
-  }
-
-  function renderAyah(a) {
-    const words = tokenize(a.text);
-    const span = h('span', { class: `ayah ${playingAyah === a.n ? 'playing' : ''} ${selectedAyah === a.n ? 'selected' : ''}`, dataset: { n: String(a.n) }, onclick: () => ayahActions(a) });
-    let spokenIdx = 0;
-    words.forEach((w, i) => {
-      const cls = w.spoken ? 'w spoken' : 'w mark';
-      const el = h('span', { class: cls }, w.raw);
-      if (w.spoken) { el.dataset.k = String(spokenIdx++); }
-      span.append(el, i < words.length - 1 ? ' ' : '');
-    });
-    if (a.sajda) span.append(h('span', { class: 'sajda-mark', title: 'سجدة تلاوة' }, '۩'));
-    span.append(' ', h('span', { class: 'end' }, `۝${ayahMarker(a.ayah, 'arab')}`), ' ');
-    return span;
-  }
-
-  function readerScreen() {
-    const ayahs = pageAyahs(page); if (!ayahs.length) return;
-    const starts = surahsStartingOn(page); const lbl = pageLabel(page);
-    const first = ayahs[0];
-    // العنوان: سورة الآية المقصودة إن فُتحت الصفحة من الفهرس، وإلا سورة أول آية في الصفحة
-    const titleSurah = selectedAyah && getAyah(selectedAyah) && getAyah(selectedAyah).page === page ? getAyah(selectedAyah).surah : first.surah;
-    const title = `سورة ${surahInfo(titleSurah).name}`;
-    const mushaf = h('div', { class: `mushaf ${hifz ? 'hifz' : ''} ${hifz && q().hifzOnlyCurrent ? 'only-current' : ''}` });
-    let currentSurah = null;
-    for (const a of ayahs) {
-      if (a.ayah === 1 && starts.includes(a.surah)) {
-        const s = surahInfo(a.surah);
-        mushaf.append(h('div', { class: 'surah-head' }, `سورة ${s.name}`, h('small', {}, `${s.type} · ${app.num(s.ayahs)} آية`)));
-        if (a.surah !== 1 && a.surah !== 9) mushaf.append(h('div', { class: 'basmala' }, BASMALA));
-      }
-      currentSurah = a.surah;
-      mushaf.append(renderAyah(a));
-    }
-    const wrap = h('div', { class: 'mushaf-wrap' }, mushaf,
-      h('div', { class: 'page-foot' }, h('span', {}, `الجزء ${app.num(lbl.juz)} · الحزب ${app.num(lbl.hizb)}`), h('span', {}, `صفحة ${app.num(page)} / ${app.num(TOTAL_PAGES)}`)));
-    wrap.addEventListener('touchstart', (e) => { touchX = e.touches[0].clientX; }, { passive: true });
-    wrap.addEventListener('touchend', (e) => { if (touchX === null) return; const dx = e.changedTouches[0].clientX - touchX; touchX = null; if (Math.abs(dx) > 70) gotoPage(dx > 0 ? page + 1 : page - 1, { keepHifz: false }); }, { passive: true });
-    const pageInput = h('input', { class: 'input ltr', type: 'number', min: 1, max: TOTAL_PAGES, value: page, 'aria-label': 'رقم الصفحة' });
-    pageInput.addEventListener('change', () => gotoPage(Math.min(TOTAL_PAGES, Math.max(1, +pageInput.value || 1))));
-    els = {};
-    els.hifzPanel = h('div', {});
-    render(container,
-      h('div', { class: 'quran-top' },
-        h('button', { class: 'icon-btn', 'aria-label': 'الفهرس', onclick: () => { mode = 'index'; stopSpeech(); hifz = null; indexScreen(); } }, h('span', { html: icon('list') })),
-        h('div', { style: { flex: 1, textAlign: 'center' } }, h('div', { class: 'title' }, title), h('div', { class: 'sub' }, `الجزء ${app.num(lbl.juz)} · صفحة ${app.num(page)}`)),
-        h('div', { class: 'actions' },
-          h('button', { class: `icon-btn ${hifz ? 'fav' : ''}`, 'aria-label': 'وضع مراجعة الحفظ', title: 'مراجعة الحفظ', style: hifz ? { color: 'var(--primary)', borderColor: 'var(--primary)' } : null, onclick: () => (hifz ? exitHifz() : startHifz(ayahs[0].n)) }, h('span', { html: icon(hifz ? 'eye' : 'eyeOff') })),
-          h('button', { class: 'icon-btn', 'aria-label': 'خيارات', onclick: readerOptions }, h('span', { html: icon('settings') })))),
-      els.hifzPanel, wrap,
-      h('div', { class: 'page-nav' },
-        h('button', { class: 'btn btn-outline btn-sm', onclick: () => gotoPage(page - 1) }, '‹ السابقة'),
-        h('div', { class: 'row', style: { gap: '6px' } }, pageInput, h('button', { class: 'btn btn-soft btn-sm', onclick: () => playFrom(ayahs[0].n, 'page') }, h('span', { html: icon('play') }), ' الصفحة')),
-        h('button', { class: 'btn btn-outline btn-sm', onclick: () => gotoPage(page + 1) }, 'التالية ›')));
-    els.mushaf = mushaf;
-    if (hifz) drawHifzPanel();
-    renderAudioBar();
-  }
-  function scrollToAyah(n) { const el = container.querySelector(`.ayah[data-n="${n}"]`); if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
-
+  /* ---------- قائمة الآية (ضغطة مطوّلة) ---------- */
   function ayahActions(a) {
-    if (hifz) return; // في وضع المراجعة النقر يكشف الكلمة
-    selectedAyah = a.n; container.querySelectorAll('.ayah.selected').forEach((e) => e.classList.remove('selected'));
-    const el = container.querySelector(`.ayah[data-n="${a.n}"]`); if (el) el.classList.add('selected');
+    reader.clearMarks('sel'); reader.mark(a.n, 'sel');
     const txt = `${a.text} ﴿${a.ayah}﴾\n[${refLabel(a)}]`;
     openSheet({ title: refLabel(a), content: h('div', { class: 'stack' },
       h('p', { class: 'matn', style: { fontFamily: "'Amiri Quran', Amiri, serif", fontSize: '19px', lineHeight: '2.1' } }, a.text),
@@ -163,26 +133,38 @@ export function mount(container, app) {
         h('button', { class: 'btn btn-outline', onclick: () => { closeSheet(); startHifz(a.n); } }, h('span', { html: icon('eyeOff') }), ' مراجعة الحفظ من هنا'),
         h('button', { class: 'btn btn-outline', onclick: () => shareText('آية من القرآن الكريم', txt) }, h('span', { html: icon('share') }), ' مشاركة'),
         h('button', { class: 'btn btn-outline', onclick: () => copyText(txt) }, h('span', { html: icon('copy') }), ' نسخ'))),
-      onClose: () => { const e2 = container.querySelector(`.ayah[data-n="${a.n}"]`); if (e2 && !hifz) e2.classList.remove('selected'); } });
+      onClose: () => reader.clearMarks('sel') });
   }
 
+  /* ---------- خيارات القارئ ---------- */
   function readerOptions() {
     const s = q();
     const jump = (surah, ayah) => { const a = getAyahBySurah(surah, ayah) || getAyahBySurah(surah, 1); closeSheet(); openReader(a.page, a); };
-    const surahSel = h('select', { class: 'input' }, ...SURAHS.map((x) => h('option', { value: x.n }, `${x.n}. ${x.name}`)));
+    const surahSel = h('select', { class: 'input' }, ...SURAHS.map((x) => h('option', { value: x.n, selected: x.n === pageAyahs(page())[0].surah }, `${x.n}. ${x.name}`)));
     const ayahIn = h('input', { class: 'input ltr', type: 'number', min: 1, value: 1, placeholder: 'آية' });
-    const juzSel = h('select', { class: 'input' }, h('option', { value: '' }, 'الجزء…'), ...JUZ_STARTS.map((j) => h('option', { value: j.page }, `الجزء ${j.juz}`)));
-    juzSel.addEventListener('change', () => { if (juzSel.value) { closeSheet(); gotoPage(+juzSel.value); } });
+    const pageIn = h('input', { class: 'input ltr', type: 'number', min: 1, max: TOTAL_PAGES, value: page(), 'aria-label': 'رقم الصفحة' });
+    const fontsRow = h('div', {});
+    const drawFonts = async () => {
+      const n = await offlineFontsCount();
+      render(fontsRow, h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'خطوط الصفحات دون اتصال'), h('div', { class: 'desc' }, n >= TOTAL_PAGES ? 'كل الصفحات محفوظة على الجهاز ✓' : `${app.num(n)} / ${app.num(TOTAL_PAGES)} صفحة محفوظة · الحجم الكلي ≈ ٣٥ م.ب`)),
+        n >= TOTAL_PAGES ? null : h('button', { class: 'btn btn-outline btn-sm', onclick: async (e) => {
+          const b = e.currentTarget; b.disabled = true;
+          try { await downloadAllPageFonts((done, total) => { b.textContent = `${app.num(Math.round(done / total * 100))}٪`; }); toast('اكتمل تنزيل خطوط المصحف — يعمل المصحف الآن دون اتصال'); saveQ({ fontsOffline: true }); }
+          catch { toast('تعذّر إكمال التنزيل — تحقق من الاتصال ثم أعد المحاولة', 4000); }
+          drawFonts();
+        } }, h('span', { html: icon('download') }), ' تنزيل')));
+    };
+    drawFonts();
     openSheet({ title: 'خيارات المصحف', content: h('div', { class: 'stack' },
       h('div', { class: 'field' }, h('label', {}, 'الانتقال إلى سورة وآية'), h('div', { class: 'row' }, surahSel, ayahIn, h('button', { class: 'btn btn-primary btn-sm', onclick: () => jump(+surahSel.value, +ayahIn.value || 1) }, 'انتقال'))),
-      h('div', { class: 'field' }, h('label', {}, 'الانتقال إلى جزء'), juzSel),
-      h('div', { class: 'setting-row' }, h('div', { class: 'label' }, 'حجم الخط'), h('div', { class: 'text-scale-ctl' },
-        h('button', { onclick: () => setScale(-0.1) }, 'أ-'), h('button', { onclick: () => setScale(0.1) }, 'أ+'))),
+      h('div', { class: 'field' }, h('label', {}, 'الانتقال إلى صفحة'), h('div', { class: 'row' }, pageIn, h('button', { class: 'btn btn-outline btn-sm', onclick: () => { closeSheet(); reader.goto(Math.min(TOTAL_PAGES, Math.max(1, +pageIn.value || 1)), { smooth: false }); } }, 'انتقال'))),
+      h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'تشغيل تلاوة الصفحة'), h('div', { class: 'desc' }, 'من أول آية في الصفحة الحالية')), h('button', { class: 'btn btn-soft btn-sm', onclick: () => { closeSheet(); playFrom(pageAyahs(page())[0].n, 'page'); } }, h('span', { html: icon('play') }), ' تشغيل')),
+      h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'الوضع الليلي للمصحف'), h('div', { class: 'desc' }, 'صفحة داكنة مريحة للعين')), switchEl(reader.isNight, (v) => reader.setNight(v, true))),
       h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'متابعة التلاوة بقلب الصفحات'), h('div', { class: 'desc' }, 'الانتقال تلقائيًا إلى صفحة الآية الجارية')), switchEl(s.follow, (v) => saveQ({ follow: v }))),
-      h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'في المراجعة: إظهار الكلمة الحالية فقط'), h('div', { class: 'desc' }, 'الكلمات السابقة تبقى مخفية كما في تطبيقات الحفظ')), switchEl(s.hifzOnlyCurrent, (v) => { saveQ({ hifzOnlyCurrent: v }); if (els.mushaf) els.mushaf.classList.toggle('only-current', v); })),
-      h('p', { class: 'tiny' }, 'النص: مصحف المدينة برواية حفص عن عاصم (Tanzil.net). التلاوات: Islamic Network. اسحب الصفحة يمينًا ويسارًا للتنقل.')) });
+      h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'في المراجعة: إظهار الكلمة الحالية فقط'), h('div', { class: 'desc' }, 'الكلمات السابقة تبقى مخفية كما في تطبيقات الحفظ')), switchEl(s.hifzOnlyCurrent, (v) => { saveQ({ hifzOnlyCurrent: v }); const el = reader.pageEl(page()); if (el) el.classList.toggle('only-current', v); })),
+      fontsRow,
+      h('p', { class: 'tiny' }, 'الصفحات بخطوط مجمع الملك فهد لطباعة المصحف الشريف (مصحف المدينة، حفص عن عاصم) مطابقةً للمصحف المطبوع سطرًا بسطر. النص: Tanzil. التلاوات: Islamic Network. انقر الصفحة لإخفاء الأطر، واضغط مطوّلًا على آية لقائمتها.')) });
   }
-  function setScale(d) { const v = Math.min(1.8, Math.max(0.7, +((q().fontScale || 1) + d).toFixed(2))); saveQ({ fontScale: v }); document.documentElement.style.setProperty('--quran-scale', String(v)); }
 
   /* ---------- التلاوة ---------- */
   function playFrom(n, scope) {
@@ -195,18 +177,17 @@ export function mount(container, app) {
   }
   player.on('ayah', ({ ayah }) => {
     playingAyah = ayah; const a = getAyah(ayah);
-    if (mode === 'reader' && q().follow && a.page !== page && !hifz) { page = a.page; readerScreen(); }
-    container.querySelectorAll('.ayah.playing').forEach((e) => e.classList.remove('playing'));
-    const el = container.querySelector(`.ayah[data-n="${ayah}"]`); if (el) { el.classList.add('playing'); if (mode === 'reader') el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+    reader.clearMarks('hl'); reader.mark(ayah, 'hl');
+    if (reader.isOpen && q().follow && a.page !== page() && !hifz) reader.goto(a.page, { smooth: true });
     renderAudioBar();
   });
-  player.on('state', (st) => { if (st === 'stopped' || st === 'ended') { playingAyah = null; container.querySelectorAll('.ayah.playing').forEach((e) => e.classList.remove('playing')); } renderAudioBar(); });
+  player.on('state', (st) => { if (st === 'stopped' || st === 'ended') { playingAyah = null; reader.clearMarks('hl'); } renderAudioBar(); });
   player.on('time', ({ t, d }) => { const bar = document.querySelector('.audio-bar .bar i'); if (bar && d) bar.style.width = `${(t / d) * 100}%`; });
-  player.on('error', ({ ayah, code }) => { if (code !== 'play') toast('تعذّر تحميل التلاوة — تحقق من الاتصال بالإنترنت', 3500); });
+  player.on('error', ({ code }) => { if (code !== 'play') toast('تعذّر تحميل التلاوة — تحقق من الاتصال بالإنترنت', 3500); });
 
   function renderAudioBar() {
     let bar = document.getElementById('audio-bar');
-    if (!player.current) { if (bar) bar.remove(); document.body.classList.remove('has-audio'); return; }
+    if (!player.current) { if (bar) bar.remove(); document.body.classList.remove('has-audio'); reader.relayout(); return; }
     const a = getAyah(player.current); const rec = RECITERS.find((r) => r.id === player.reciter) || RECITERS[0];
     const content = h('div', {},
       h('div', { class: 'row1' },
@@ -222,9 +203,10 @@ export function mount(container, app) {
         h('button', { class: `chip chip-btn ${player.repeatAyah > 1 ? 'active' : ''}`, onclick: () => { const opts = [1, 2, 3, 5, 10]; const nx = opts[(opts.indexOf(player.repeatAyah) + 1) % opts.length]; player.repeatAyah = nx; saveQ({ repeatAyah: nx }); renderAudioBar(); } }, h('span', { html: icon('repeat') }), ` الآية ×${app.num(player.repeatAyah)}`),
         h('button', { class: `chip chip-btn ${player.repeatRange ? 'active' : ''}`, onclick: () => { player.repeatRange = !player.repeatRange; saveQ({ repeatRange: player.repeatRange }); renderAudioBar(); } }, 'تكرار المقطع'),
         h('button', { class: 'chip chip-btn', onclick: () => { const opts = [0.75, 1, 1.25, 1.5]; const nx = opts[(opts.indexOf(player.rate) + 1) % opts.length]; player.setRate(nx); saveQ({ rate: nx }); renderAudioBar(); } }, `السرعة ${app.num(player.rate, 2).replace(/\.?0+$/, '')}×`),
-        mode === 'reader' && a.page !== page ? h('button', { class: 'chip chip-btn', onclick: () => gotoPage(a.page) }, `الانتقال إلى ص ${app.num(a.page)}`) : null));
+        reader.isOpen && a.page !== page() ? h('button', { class: 'chip chip-btn', onclick: () => reader.goto(a.page, { smooth: false }) }, `الانتقال إلى ص ${app.num(a.page)}`) : null,
+        !reader.isOpen && app.current === 'quran' ? h('button', { class: 'chip chip-btn', onclick: () => openReader(a.page) }, 'فتح الصفحة') : null));
     if (!bar) { bar = h('div', { class: 'audio-bar', id: 'audio-bar', role: 'region', 'aria-label': 'مشغّل التلاوة' }); document.body.append(bar); }
-    render(bar, content); document.body.classList.add('has-audio');
+    render(bar, content); document.body.classList.add('has-audio'); reader.relayout();
   }
   function pickReciter() {
     openSheet({ title: 'اختيار القارئ', content: h('div', { class: 'city-list' }, ...RECITERS.map((r) => h('button', { class: 'surah-row', onclick: () => { saveQ({ reciter: r.id }); player.setReciter(r.id); closeSheet(); renderAudioBar(); } },
@@ -233,59 +215,64 @@ export function mount(container, app) {
 
   /* ---------- مراجعة الحفظ ---------- */
   function startHifz(fromAyah) {
-    const ayahs = pageAyahs(page);
-    // جمع الكلمات المنطوقة من آية البداية حتى نهاية الصفحة
+    const p = getAyah(fromAyah).page;
+    if (p !== page()) reader.goto(p, { smooth: false });
     const words = []; // { n, k, norm, raw }
-    for (const a of ayahs) {
+    for (const a of pageAyahs(p)) {
       if (a.n < fromAyah) continue;
-      const toks = tokenize(a.text).filter((w) => w.spoken);
-      toks.forEach((w, k) => words.push({ n: a.n, k, norm: w.norm, raw: w.raw }));
+      tokenize(a.text).filter((w) => w.spoken).forEach((w, k) => words.push({ n: a.n, k, norm: w.norm, raw: w.raw }));
     }
-    hifz = { from: fromAyah, words, matcher: new HifzMatcher(words), listening: false, heard: '', hints: 0 };
+    hifz = { page: p, from: fromAyah, words, matcher: new HifzMatcher(words), listening: false, heard: '', hints: 0 };
     player.stop();
-    readerScreen();
-    // الآيات قبل البداية تبقى ظاهرة
-    els.mushaf.querySelectorAll('.ayah').forEach((el) => { if (+el.dataset.n < fromAyah) el.querySelectorAll('.w.spoken').forEach((w) => w.classList.add('revealed')); });
-    els.mushaf.addEventListener('click', onHifzTap);
-    highlightCurrent();
+    reader.setHifz(true); reader.setZen(false);
+    applyHifzToPage();
     drawHifzPanel();
-    if (!isSpeechSupported()) toast('التعرّف على الصوت غير متاح في هذا المتصفح — اضغط على الصفحة لكشف الكلمة التالية', 4500);
+    if (!isSpeechSupported()) toast('التعرّف على الصوت غير متاح في هذا المتصفح — انقر الصفحة لكشف الكلمة التالية', 4500);
   }
-  function exitHifz() { stopSpeech(); hifz = null; readerScreen(); }
-  function wordEl(i) { const w = hifz.words[i]; return els.mushaf.querySelector(`.ayah[data-n="${w.n}"] .w.spoken[data-k="${w.k}"]`); }
+  function applyHifzToPage() {
+    const el = reader.pageEl(hifz.page); if (!el) return;
+    el.classList.add('hifz'); el.classList.toggle('only-current', !!q().hifzOnlyCurrent);
+    // الآيات قبل البداية تبقى ظاهرة، والكلمات المكشوفة تبقى مكشوفة (عند إعادة الرسم)
+    el.querySelectorAll('.mw[data-k]').forEach((w) => { if (+w.dataset.n < hifz.from) w.classList.add('revealed'); });
+    for (let i = 0; i < hifz.matcher.pos; i++) { const w = hifzWordEl(i); if (w) w.classList.add('revealed'); }
+    markLast(); highlightCurrent();
+  }
+  function exitHifz() { stopSpeech(); hifz = null; reader.setHifz(false); reader.setPanel(null); reader.clearMarks('revealed'); reader.clearMarks('current'); reader.clearMarks('last'); }
+  /** آخر كلمة كُشفت تبقى ظاهرة في وضع «الكلمة الحالية فقط» */
+  function markLast() { reader.clearMarks('last'); if (hifz.matcher.pos > 0) { const el = hifzWordEl(hifz.matcher.pos - 1); if (el) el.classList.add('last'); } }
+  function hifzWordEl(i) { const w = hifz.words[i]; const el = reader.pageEl(hifz.page); return el ? wordEl(el, w.n, w.k) : null; }
   function highlightCurrent() {
-    els.mushaf.querySelectorAll('.w.current').forEach((e) => e.classList.remove('current'));
+    reader.clearMarks('current');
     if (hifz.matcher.done) return;
-    const el = wordEl(hifz.matcher.pos); if (el) el.classList.add('current');
+    const el = hifzWordEl(hifz.matcher.pos); if (el) el.classList.add('current');
   }
   function reveal(indices) {
-    for (const i of indices) { const el = wordEl(i); if (el) { el.classList.add('revealed'); } }
-    if (indices.length) { const last = wordEl(indices[indices.length - 1]); if (last) last.scrollIntoView({ block: 'center', behavior: 'smooth' }); vibrate(10); }
+    for (const i of indices) { const el = hifzWordEl(i); if (el) el.classList.add('revealed'); }
+    if (indices.length) { vibrate(10); markLast(); }
     highlightCurrent(); drawHifzPanel();
     if (hifz.matcher.done) onHifzDone();
   }
-  function onHifzTap(e) { if (!hifz) return; e.preventDefault(); const i = hifz.matcher.hint(); if (i !== null) { hifz.hints++; reveal([i]); } }
+  function onHifzTap() { if (!hifz) return; const i = hifz.matcher.hint(); if (i !== null) { hifz.hints++; reveal([i]); } }
   function onHifzDone() {
     stopSpeech();
     const m = hifz.matcher;
     toast(`أتممت الصفحة ✓ كلمات صحيحة: ${app.num(m.matched)} · تلميحات: ${app.num(hifz.hints)}`, 5000);
-    if (page < TOTAL_PAGES) setTimeout(() => { if (hifz && page < TOTAL_PAGES) { const next = page + 1; gotoPage(next, { keepHifz: true }); startHifz(pageAyahs(next)[0].n); } }, 2500);
+    if (hifz.page < TOTAL_PAGES) setTimeout(() => { if (hifz && hifz.page < TOTAL_PAGES) { const next = hifz.page + 1; startHifz(pageAyahs(next)[0].n); } }, 2500);
   }
   function drawHifzPanel() {
-    if (!hifz || !els.hifzPanel) return;
+    if (!hifz) return;
     const m = hifz.matcher; const cur = m.done ? null : hifz.words[m.pos];
     const revealedLast = m.pos > 0 ? hifz.words[m.pos - 1] : null;
     const micBtn = h('button', { class: `btn ${hifz.listening ? 'btn-primary mic-btn listening' : 'btn-primary mic-btn'}`, onclick: toggleSpeech, disabled: !isSpeechSupported() },
-      h('span', { html: icon(hifz.listening ? 'micOff' : 'mic') }), hifz.listening ? ' إيقاف الاستماع' : ' ابدأ التسميع');
-    render(els.hifzPanel, h('div', { class: 'hifz-panel' },
-      h('div', { class: 'row between' }, h('b', {}, 'مراجعة الحفظ'), h('span', { class: 'tiny' }, `${app.num(m.pos)} / ${app.num(hifz.words.length)} كلمة`)),
+      h('span', { html: icon(hifz.listening ? 'micOff' : 'mic') }), hifz.listening ? ' إيقاف' : ' ابدأ التسميع');
+    reader.setPanel(h('div', { class: 'hifz-panel' },
+      h('div', { class: 'row between' }, h('b', {}, 'مراجعة الحفظ'), h('span', { class: 'tiny' }, `${app.num(m.pos)} / ${app.num(hifz.words.length)} كلمة`), h('button', { class: 'icon-btn', 'aria-label': 'إنهاء المراجعة', onclick: exitHifz }, h('span', { html: icon('close') }))),
       h('div', { class: 'hifz-word' }, m.done ? h('span', {}, '✓ أحسنت') : revealedLast ? h('span', {}, revealedLast.raw) : h('small', {}, hifz.listening ? 'استمع… ابدأ التلاوة' : 'اضغط «ابدأ التسميع» أو انقر الصفحة لكشف كلمة')),
       h('div', { class: 'hifz-heard' }, hifz.heard),
       h('div', { class: 'hifz-progress' }, h('i', { style: { width: `${m.progress * 100}%` } })),
       h('div', { class: 'hifz-ctl' }, micBtn,
         h('button', { class: 'btn btn-outline', onclick: () => { const i = m.hint(); if (i !== null) { hifz.hints++; reveal([i]); } } }, h('span', { html: icon('eye') }), ' تلميح'),
-        h('button', { class: 'btn btn-outline', onclick: () => { if (cur) { const idx = []; while (!m.done && hifz.words[m.pos].n === cur.n) idx.push(m.hint()); hifz.hints += idx.length; reveal(idx); } } }, 'كشف الآية')),
-      !isSpeechSupported() ? h('div', { class: 'notice', style: { marginTop: '8px' } }, h('span', { html: icon('info') }), 'التعرّف على الصوت متاح في Chrome وSafari مع اتصال بالإنترنت. يمكنك المراجعة بالنقر على الصفحة لكشف الكلمة التالية.') : null));
+        h('button', { class: 'btn btn-outline', onclick: () => { if (cur) { const idx = []; while (!m.done && hifz.words[m.pos].n === cur.n) idx.push(m.hint()); hifz.hints += idx.length; reveal(idx); } } }, 'كشف الآية'))));
   }
   function toggleSpeech() {
     if (!hifz) return;
@@ -296,9 +283,7 @@ export function mount(container, app) {
           if (!hifz) return;
           hifz.heard = interim || hifz.heard;
           if (finals.length) { for (const alts of finals) { const r = hifz.matcher.feed(alts[0]); if (!r.length && alts[1]) reveal(hifz.matcher.feed(alts[1])); else reveal(r); } hifz.heard = finals.map((a) => a[0]).join(' '); }
-          else if (interim) { // نستخدم النتائج المؤقتة لكشف أسرع (الكلمات المطابقة فقط)
-            reveal(hifz.matcher.feed(interim));
-          }
+          else if (interim) reveal(hifz.matcher.feed(interim)); // النتائج المؤقتة لكشف أسرع (الكلمات المطابقة فقط)
           drawHifzPanel();
         },
         onState: (st) => { if (hifz) { hifz.listening = st === 'listening'; drawHifzPanel(); } },
@@ -312,9 +297,15 @@ export function mount(container, app) {
   async function build() {
     if (!(await ensureLoaded())) return;
     document.documentElement.style.setProperty('--quran-scale', String(q().fontScale || 1));
-    if (mode === 'reader') readerScreen(); else indexScreen();
+    const m = location.hash.match(/^#\/quran\?p=(\d+)/);
+    if (m && +m[1] >= 1 && +m[1] <= TOTAL_PAGES) { indexScreen(); if (!reader.isOpen) { reader.show(+m[1]); saveLastRead(null); } }
+    else if (reader.isOpen) reader.goto(reader.page, { smooth: false }); else indexScreen();
   }
-  app.on('change', () => { if (app.current === 'quran' && mode === 'index' && isLoaded()) indexScreen(); });
+  app.on('change', () => { if (app.current === 'quran' && !reader.isOpen && isLoaded()) indexScreen(); });
   build();
-  return { refresh: build, show: () => { if (isLoaded()) { if (mode === 'index') indexScreen(); renderAudioBar(); } else build(); }, hide: () => { stopSpeech(); if (hifz) hifz.listening = false; } };
+  return {
+    refresh: build,
+    show: () => { if (isLoaded() && isMushafLoaded()) { const m = location.hash.match(/^#\/quran\?p=(\d+)/); if (m && !reader.isOpen) reader.show(+m[1]); else if (!reader.isOpen) indexScreen(); renderAudioBar(); } else build(); },
+    hide: () => { stopSpeech(); if (hifz) hifz.listening = false; if (reader.isOpen) { hifz = null; reader.setHifz(false); reader.setPanel(null); reader.hide(); } },
+  };
 }

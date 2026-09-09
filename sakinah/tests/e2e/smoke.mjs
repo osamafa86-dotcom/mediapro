@@ -7,6 +7,7 @@ import { chromium } from 'playwright';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 const root = path.resolve(new URL('../..', import.meta.url).pathname);
 const outDir = process.env.SHOTS_DIR || path.join(root, 'test-results');
@@ -81,6 +82,14 @@ check(/\/\s*\d+|\d+\s*\//.test((await page.locator('.ring output').textContent()
 await page.screenshot({ animations: 'disabled', path: path.join(outDir, '04-adhkar.png') });
 
 // ---- المصحف ----
+// خطوط صفحات المصحف من jsDelivr: تُقدَّم من كاش محلي (تُنزَّل بـ curl عند الحاجة)؛ وإن تعذّر يُختبر البديل النصي
+const fontCache = path.join(outDir, 'font-cache'); fs.mkdirSync(fontCache, { recursive: true });
+let fontsServed = 0;
+await page.route(/^https:\/\/cdn\.jsdelivr\.net\//, (route) => {
+  const url = route.request().url(); const f = path.join(fontCache, url.split('/').slice(-2).join('_'));
+  try { if (!fs.existsSync(f)) execFileSync('curl', ['-sS', '-f', '-m', '60', '-o', f, url]); fontsServed++; route.fulfill({ status: 200, contentType: 'font/woff2', body: fs.readFileSync(f), headers: { 'access-control-allow-origin': '*' } }); }
+  catch { route.abort(); }
+});
 await page.locator('#tab-quran').click();
 await page.locator('.surah-row').first().waitFor({ timeout: 20000 });
 check((await page.locator('#view-quran .surah-row').count()) === 114, 'فهرس السور: 114 سورة');
@@ -88,42 +97,83 @@ await page.locator('#view-quran .search input').fill('الكهف');
 await page.waitForTimeout(150);
 check(/الكهف/.test(await page.locator('#view-quran .surah-row').first().textContent()), 'البحث عن سورة الكهف');
 await page.locator('#view-quran .surah-row').first().click();
-await page.locator('.mushaf').waitFor();
-check(/الكهف/.test(await page.locator('.quran-top .title').textContent()), 'القارئ يفتح سورة الكهف');
-check((await page.locator('.mushaf .ayah').count()) >= 4 && /سورة الكهف/.test(await page.locator('.surah-head').first().textContent()), 'صفحة المصحف تعرض الآيات وترويسة السورة والبسملة');
-check(/293/.test((await page.locator('.page-foot').textContent()).replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))), 'سورة الكهف تبدأ في الصفحة 293');
-await page.locator('.page-nav .btn-outline').last().click(); // التالية
-await page.waitForTimeout(100);
-check(/294/.test((await page.locator('.page-foot').textContent()).replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))), 'الانتقال إلى الصفحة التالية');
+await page.locator('.mreader:not([hidden])').waitFor();
+await page.locator('.mr-slide[data-page="293"] .mp.ready').waitFor({ timeout: 30000 });
+const mushafMode = await page.evaluate(() => document.querySelector('.mr-slide[data-page="293"] .mp').classList.contains('mp-text') ? 'text' : 'qcf');
+check(true, `القارئ يفتح سورة الكهف في الصفحة 293 (العرض: ${mushafMode === 'qcf' ? 'خطوط المصحف' : 'بديل نصي'})`);
+check(/^#\/quran\?p=293$/.test(await page.evaluate(() => location.hash)), 'رابط الصفحة #/quran?p=293');
+// الصفحة 293 تبدأ بخواتيم الإسراء وتحوي ترويسة الكهف في سطرها العاشر (كما في المصحف المطبوع)؛ الشريط يعرض سورة أول الصفحة
+check((await page.locator('.mr-sname.cur').getAttribute('data-surah')) === '17' && /الإسراء/.test(await page.locator('.mr-sname.cur').getAttribute('aria-label')), 'شريط السور يضع سورة أول الصفحة (الإسراء) في الإطار');
+check(/الخَامِسَ عَشَرَ/.test(await page.locator('.mr-juz').textContent()) && (await page.locator('.mr-star.cur').getAttribute('data-juz')) === '15', 'شريط الجزء والنجوم: الجزء الخامس عشر');
+if (mushafMode === 'qcf') {
+  const lines = await page.evaluate(() => [...document.querySelectorAll('.mr-slide[data-page="293"] .mp .ml')].map((l) => l.className));
+  check(lines.length === 15 && lines[9].includes('mh') && lines[10].includes('mb') && lines.filter((c) => c.includes('mt')).length === 13, 'صفحة 293: 15 سطرًا — ترويسة الكهف في السطر العاشر ثم البسملة و13 سطر كلمات');
+  check((await page.locator('.mr-slide[data-page="293"] .mh[data-surah="18"] .sname').count()) === 1, 'ترويسة سورة الكهف بخط أسماء السور');
+  const fit = await page.evaluate(() => { const body = document.querySelector('.mr-slide[data-page="293"] .mp-body'); const W = body.clientWidth; const ws = [...body.querySelectorAll('.mlw')].map((l) => l.getBoundingClientRect().width); return { W, max: Math.max(...ws), min: Math.min(...ws) }; });
+  check(fit.max <= fit.W + 1 && fit.max >= fit.W * 0.97, `الأسطر تملأ عرض الصفحة (${Math.round(fit.max)}/${Math.round(fit.W)}px)`);
+  check((await page.locator('.mr-slide[data-page="293"] .mw[data-n][data-k]').count()) > 100 && (await page.locator('.mr-slide[data-page="293"] .me').count()) === (await page.evaluate(() => document.querySelectorAll('.mr-slide[data-page="293"] .me').length)), 'الكلمات تحمل رقم الآية وفهرس الكلمة');
+}
+await page.locator('.mr-slide[data-page="294"] .mp.ready').waitFor({ timeout: 30000 });
 await page.screenshot({ path: path.join(outDir, '08-quran.png') });
-// علامة وموضع قراءة عبر قائمة الآية
-await page.locator('.mushaf .ayah').first().click();
-await page.getByRole('button', { name: /إضافة علامة/ }).click();
-await page.waitForTimeout(400);
-check(/أُضيفت علامة/.test(await page.locator('#toast').textContent()), 'إضافة علامة عند الآية');
+// الانتقال بالأسهم (لوحة المفاتيح) وبالنجوم
+await page.keyboard.press('ArrowLeft');
+await page.waitForTimeout(700);
+check((await page.locator('.mreader').getAttribute('data-page')) === '294', 'السهم الأيسر ينتقل إلى الصفحة التالية 294');
+await page.evaluate(() => document.querySelector('.mr-star[data-juz="16"]').click());
+await page.waitForTimeout(700);
+check((await page.locator('.mreader').getAttribute('data-page')) === '302', 'نجمة الجزء 16 تنتقل إلى صفحته 302');
+await page.evaluate(() => document.querySelector('.mr-sname[data-surah="18"]').click());
+await page.waitForTimeout(700);
+check((await page.locator('.mreader').getAttribute('data-page')) === '293', 'النقر على اسم السورة يعود إلى أولها');
+// النقر يخفي الأطر (شاشة كاملة) ثم يعيدها
+await page.locator('.mr-slide[data-page="293"] .mp-body').tap();
+await page.waitForTimeout(500);
+check(await page.evaluate(() => document.querySelector('.mreader').classList.contains('zen')), 'النقر على الصفحة يخفي الأطر');
+await page.locator('.mr-slide[data-page="293"] .mp-body').tap();
+await page.waitForTimeout(500);
+check(!(await page.evaluate(() => document.querySelector('.mreader').classList.contains('zen'))), 'النقر مجددًا يعيد الأطر');
+// الوضع الليلي
+await page.locator('.mr-round[aria-label="الوضع الليلي"]').click();
+check(await page.evaluate(() => document.querySelector('.mreader').classList.contains('night') && document.querySelector('.mr-slide[data-page="293"] .mp').classList.contains('night')), 'الوضع الليلي يطبَّق على القارئ والصفحة');
+await page.screenshot({ path: path.join(outDir, '08b-quran-night.png') });
+await page.locator('.mr-round[aria-label="الوضع الليلي"]').click();
+// علامة عبر زر العلامة ثم عبر قائمة الآية (ضغطة مطوّلة)
+await page.locator('.mr-round[aria-label="علامة"]').click();
+await page.waitForTimeout(300);
+check(/أُضيفت علامة/.test(await page.locator('#toast').textContent()) && (await page.locator('.mr-round[aria-label="علامة"].active').count()) === 1, 'زر العلامة يضيف علامة للصفحة');
+const w0 = page.locator('.mr-slide[data-page="293"] .mw[data-k]').nth(3); const bb = await w0.boundingBox();
+await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2); await page.mouse.down(); await page.waitForTimeout(650); await page.mouse.up();
+await page.locator('#sheet:not([hidden])').waitFor({ timeout: 3000 }).catch(() => {});
+check(/الإسراء: \d+/.test(await page.locator('#sheet-title').textContent()) && (await page.locator('.mw.sel').count()) > 3, 'الضغط المطوّل على كلمة يفتح قائمة الآية ويظلّلها');
+if (!(await page.evaluate(() => document.getElementById('sheet').hidden))) { await page.getByRole('button', { name: /موضع القراءة/ }).click(); await page.waitForTimeout(300); }
 // وضع مراجعة الحفظ: الكلمات مخفية ثم تُكشف بالنقر
-await page.locator('.quran-top .actions .icon-btn').first().click();
+await page.locator('.mr-hifz-btn').click();
 await page.locator('.hifz-panel').waitFor();
-const hiddenBefore = await page.locator('.mushaf.hifz .w.spoken:not(.revealed)').count();
+const hiddenBefore = await page.locator('.mr-slide[data-page="293"] .mp.hifz .mw[data-k]:not(.revealed)').count();
 check(hiddenBefore > 20, `وضع المراجعة يخفي الكلمات (${hiddenBefore} كلمة)`);
 await page.getByRole('button', { name: /تلميح/ }).click();
 await page.getByRole('button', { name: /تلميح/ }).click();
-check((await page.locator('.mushaf.hifz .w.spoken.revealed').count()) === 2, 'التلميح يكشف الكلمة التالية بالترتيب');
-check(/2\s*\/|٢\s*\//.test(await page.locator('.hifz-panel .tiny').textContent()), 'عدّاد التقدّم يعرض 2 كلمة');
+check((await page.locator('.mr-slide[data-page="293"] .mw.revealed').count()) === 2, 'التلميح يكشف الكلمة التالية بالترتيب');
+await page.locator('.mr-slide[data-page="293"] .mp-body').tap();
+check((await page.locator('.mr-slide[data-page="293"] .mw.revealed').count()) === 3, 'النقر على الصفحة في المراجعة يكشف كلمة');
+check(/3\s*\/|٣\s*\//.test(await page.locator('.hifz-panel .tiny').textContent()), 'عدّاد التقدّم يعرض 3 كلمات');
 await page.screenshot({ path: path.join(outDir, '09-hifz.png') });
-await page.locator('.quran-top .actions .icon-btn').first().click(); // خروج من وضع المراجعة
-check((await page.locator('.mushaf.hifz').count()) === 0, 'الخروج من وضع المراجعة');
-// التشغيل: يظهر شريط التلاوة (الصوت محجوب في الاختبار)
+await page.locator('.mr-hifz-btn').click(); // خروج من وضع المراجعة
+check((await page.locator('.mp.hifz').count()) === 0 && (await page.locator('.hifz-panel').count()) === 0, 'الخروج من وضع المراجعة');
+// التشغيل من الخيارات: يظهر شريط التلاوة (الصوت محجوب في الاختبار)
 await page.route(/cdn\.islamic\.network/, (r) => r.abort());
-await page.getByRole('button', { name: /الصفحة/ }).click();
+await page.locator('.mr-btn[aria-label="خيارات"]').click();
+await page.getByRole('button', { name: /تشغيل/ }).click();
 await page.locator('#audio-bar').waitFor({ timeout: 5000 });
 check(/العفاسي/.test(await page.locator('#audio-bar .who').textContent()), 'شريط التلاوة يعرض القارئ الافتراضي');
 await page.locator('#audio-bar').getByRole('button', { name: 'إغلاق' }).click();
 check((await page.locator('#audio-bar').count()) === 0, 'إغلاق شريط التلاوة');
-// العودة للفهرس: بطاقة المتابعة تعرض آخر موضع
-await page.locator('.quran-top .icon-btn').first().click();
+// العودة للفهرس: بطاقة المتابعة تعرض آخر موضع، والعلامة في قائمة العلامات
+await page.locator('.mr-btn[aria-label="الفهرس"]').click();
 await page.locator('.resume-card').waitFor();
-check(/الكهف/.test(await page.locator('.resume-card').textContent()), 'بطاقة متابعة القراءة تحفظ الموضع');
+check(/الإسراء/.test(await page.locator('.resume-card').textContent()) && /293/.test(await page.locator('.resume-card').textContent()), 'بطاقة متابعة القراءة تحفظ الموضع (الإسراء، ص 293)');
+check((await page.locator('.mreader').getAttribute('hidden')) !== null && (await page.evaluate(() => location.hash)) === '#/quran', 'إغلاق القارئ يعيد الرابط #/quran');
+console.log(`  (خطوط المصحف المقدَّمة من الكاش: ${fontsServed})`);
 
 await page.locator('#tab-more').click();
 await page.getByRole('button', { name: /الأحاديث/ }).first().click();

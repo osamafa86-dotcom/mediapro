@@ -1,5 +1,6 @@
 /* سكينة — عامل الخدمة: عمل دون اتصال + إشعارات */
-const VERSION = 'sakinah-v1.1.0';
+const VERSION = 'sakinah-v1.2.0';
+const FONT_CACHE = 'sakinah-mushaf-fonts'; // خطوط صفحات المصحف (تُملأ عند الطلب أو بالتنزيل الكامل من الخيارات)
 const CORE = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
   './js/app.js', './js/ui/components.js', './js/ui/prayer-view.js', './js/ui/qibla-view.js', './js/ui/adhkar-view.js',
@@ -8,6 +9,7 @@ const CORE = [
   './js/platform/storage.js', './js/platform/location.js', './js/platform/compass.js', './js/platform/notifications.js',
   './js/data/adhkar.js', './js/data/hadith.js', './js/data/hadith/part-a.js', './js/data/hadith/part-b.js', './js/data/cities.js',
   './js/data/quran-meta.js', './js/core/quran.js', './js/platform/audio.js', './js/platform/speech.js', './js/ui/quran-view.js', './js/ui/more-view.js', './data/quran.json',
+  './js/core/mushaf.js', './js/ui/mushaf-page.js', './js/ui/mushaf-reader.js', './js/platform/mushaf-fonts.js', './js/data/bismillah.js', './data/mushaf-layout.json',
   './assets/icons/icon.svg', './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/fonts/AmiriQuran.woff2',
 ];
 // ورقة أنماط الخطوط (ملفات الخطوط نفسها تُخزَّن عند أول طلب عبر معالج fetch)
@@ -21,7 +23,7 @@ self.addEventListener('install', (e) => {
   ])).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION && k !== FONT_CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 
 // استراتيجية: الملفات المحلية = الكاش أولًا مع تحديث بالخلفية؛ الخطوط = الكاش أولًا؛ الشبكة الخارجية الأخرى = الشبكة أولًا
@@ -31,6 +33,14 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   const sameOrigin = url.origin === self.location.origin;
   const isFont = /fonts\.(googleapis|gstatic)\.com$/.test(url.hostname);
+  // خطوط صفحات المصحف: الكاش أولًا (كاش دائم لا يُحذف مع ترقية الإصدار)، وتُخزَّن عند أول تحميل
+  if (url.hostname === 'cdn.jsdelivr.net' && /\/fonts\/quran\//.test(url.pathname)) {
+    e.respondWith(caches.open(FONT_CACHE).then(async (c) => {
+      const hit = await c.match(req); if (hit) return hit;
+      const res = await fetch(req); if (res && res.ok) c.put(req, res.clone()); return res;
+    }).catch(() => Response.error()));
+    return;
+  }
   if (sameOrigin || isFont) {
     e.respondWith(
       caches.match(req).then((cached) => {

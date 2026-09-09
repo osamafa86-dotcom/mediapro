@@ -82,8 +82,9 @@ export const app = {
     }
     if (prev !== view && this.mounted[prev] && this.mounted[prev].hide) this.mounted[prev].hide();
     if (this.mounted[view] && this.mounted[view].show) this.mounted[view].show();
+    // يُحافَظ على معاملات الرابط (مثل #/quran?p=520) عند بقاء الشاشة نفسها
     const hash = `#/${view}`;
-    if (location.hash !== hash) { if (replace) history.replaceState(null, '', hash); else history.pushState(null, '', hash); }
+    if (location.hash.split('?')[0] !== hash) { if (replace) history.replaceState(null, '', hash); else history.pushState(null, '', hash); }
     window.scrollTo({ top: 0 });
   },
 
