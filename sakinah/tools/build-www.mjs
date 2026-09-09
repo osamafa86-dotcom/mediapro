@@ -42,6 +42,7 @@ const boot = path.join(out, 'js/boot-theme.js');
 // خطوط صفحات المصحف الـ604 (وخط أسماء السور، ≈48 م.ب) تُضمَّن داخل التطبيق كي تُعرض الصفحات فورًا ودون اتصال (لا عامل خدمة في الغلاف)
 // تُجلب من CDN مرة واحدة إلى .cache/fonts-qcf ثم تُنسخ؛ SAKINAH_SKIP_FONTS=1 يتخطاها (تجارب محلية)
 const fontsFlag = process.env.SAKINAH_SKIP_FONTS ? '' : await bundleFonts();
-fs.writeFileSync(boot, 'window.SAKINAH_NATIVE = true;\n' + fontsFlag + fs.readFileSync(boot, 'utf8'));
+const buildFlag = /^\d+$/.test(process.env.BUILD_NUMBER || '') ? `window.SAKINAH_BUILD = ${process.env.BUILD_NUMBER};\n` : '';
+fs.writeFileSync(boot, 'window.SAKINAH_NATIVE = true;\n' + fontsFlag + buildFlag + fs.readFileSync(boot, 'utf8'));
 if (!fs.readFileSync(path.join(out, 'index.html'), 'utf8').includes('js/boot-theme.js')) throw new Error('index.html لا يحمّل boot-theme.js');
 console.log('www/ ready');

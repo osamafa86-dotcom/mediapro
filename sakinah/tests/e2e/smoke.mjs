@@ -203,8 +203,9 @@ check(/الكهف/.test(await page.locator('#view-quran .surah-row').first().tex
 await a11y('فهرس المصحف');
 await page.locator('#view-quran .surah-row').first().click();
 await page.locator('.mreader:not([hidden])').waitFor();
-await page.locator('.mr-slide[data-page="293"] .mp.ready').waitFor({ timeout: 30000 });
+await page.locator('.mr-slide[data-page="293"] .mp.ready:not(.interim)').waitFor({ timeout: 30000 }); // الصفحة النهائية لا النص المؤقت ريثما يصل الخط
 const mushafMode = await page.evaluate(() => document.querySelector('.mr-slide[data-page="293"] .mp').classList.contains('mp-text') ? 'text' : 'qcf');
+check(mushafMode === 'qcf', `صفحة المصحف بخطوط الصفحات (${mushafMode})`);
 check(true, `القارئ يفتح سورة الكهف في الصفحة 293 (العرض: ${mushafMode === 'qcf' ? 'خطوط المصحف' : 'بديل نصي'})`);
 check(/^#\/quran\?p=293$/.test(await page.evaluate(() => location.hash)), 'رابط الصفحة #/quran?p=293');
 // الصفحة 293 تبدأ بخواتيم الإسراء وتحوي ترويسة الكهف في سطرها العاشر (كما في المصحف المطبوع)؛ الشريط يعرض سورة أول الصفحة
@@ -225,19 +226,37 @@ await page.screenshot({ path: path.join(outDir, '08-quran.png') });
 const pageSettled = async (p) => { try { await waitFor((x) => document.querySelector('.mreader').dataset.page === x && !document.querySelector('.mreader').dataset.anim, p); } catch { /* الفحص أدناه يُبلغ */ } await page.waitForTimeout(300); return (await page.locator('.mreader').getAttribute('data-page')) === p; };
 await page.keyboard.press('ArrowLeft');
 check(await pageSettled('294'), 'السهم الأيسر ينتقل إلى الصفحة التالية 294');
-// خط الصفحة بطيء (شبكة): النص يظهر فورًا بخط أميري قرآن، ثم تحلّ صفحة المصحف محلّه عند وصول الخط
+// الملء الفوري أثناء التمرير: بمجرد تجاوز الصفحة منتصف الشاشة تُرسم هي وجارتها قبل «استقرار» التمرير (على iOS يتأخر الاستقرار نحو ثانية)
+{
+  const before = await page.evaluate(() => ({ 298: !!document.querySelector('.mr-slide[data-page="298"] .mp'), 299: !!document.querySelector('.mr-slide[data-page="299"] .mp') }));
+  // نراقب كل 4 م.ث: لحظة ظهور صفحة 298 يجب أن تكون الصفحة الحالية ما زالت 294 (أي قبل الاستقرار الذي يأتي بعد 120 م.ث من آخر حدث تمرير)
+  const eager = await page.evaluate(() => new Promise((resolve) => {
+    // scroll-snap-stop: always يقصر التمرير البرمجي على صفحة واحدة، فنعطّل الالتصاق مؤقتًا لمحاكاة قفزة تمرير طويلة ثم نعيده بعد الفحص
+    const t = document.querySelector('.mr-track'); t.style.scrollSnapType = 'none'; t.scrollBy({ left: -t.clientWidth * 4, behavior: 'instant' }); const t0 = performance.now();
+    const tick = () => {
+      const has = !!document.querySelector('.mr-slide[data-page="298"] .mp'); const cur = document.querySelector('.mreader').dataset.page; const dt = performance.now() - t0;
+      if (has || dt > 1000) resolve({ has, cur, dt: Math.round(dt), 299: !!document.querySelector('.mr-slide[data-page="299"] .mp'), ph: !!document.querySelector('.mr-slide[data-page="298"] .mr-ph') }); else setTimeout(tick, 4);
+    }; tick();
+  }));
+  check(!before[298] && !before[299] && eager.has && eager[299] && !eager.ph && eager.cur === '294', `الصفحة 298 وجارتها 299 تُرسمان فورًا أثناء التمرير قبل استقرار الصفحة الحالية (بعد ${eager.dt} م.ث، الحالية ${eager.cur}، قبلًا ${before[298]}/${before[299]})`);
+  await pageSettled('298');
+  await page.evaluate(() => { document.querySelector('.mr-track').style.scrollSnapType = ''; });
+  await page.evaluate(() => window.sakinah.quranReader.goto(294, { smooth: false }));
+  await pageSettled('294');
+}
+// خط الصفحة بطيء (شبكة) لصفحة خارج نافذة التحميل المسبق: النص يظهر فورًا بخط أميري قرآن، ثم تحلّ صفحة المصحف محلّه عند وصول الخط
 if (mushafMode === 'qcf') {
-  await page.route(/\/woff2\/p289\.woff2$/, async (route) => { await new Promise((r) => setTimeout(r, 1500)); const f = path.join(fontCache, 'woff2_p289.woff2'); try { if (!fs.existsSync(f)) execFileSync('curl', ['-sS', '-f', '-m', '60', '-o', f, route.request().url()]); await route.fulfill({ status: 200, contentType: 'font/woff2', body: fs.readFileSync(f), headers: { 'access-control-allow-origin': '*' } }); } catch { await route.abort(); } });
-  await page.evaluate(() => window.sakinah.quranReader.goto(289, { smooth: false }));
+  await page.route(/\/woff2\/p250\.woff2$/, async (route) => { await new Promise((r) => setTimeout(r, 1500)); const f = path.join(fontCache, 'woff2_p250.woff2'); try { if (!fs.existsSync(f)) execFileSync('curl', ['-sS', '-f', '-m', '60', '-o', f, route.request().url()]); await route.fulfill({ status: 200, contentType: 'font/woff2', body: fs.readFileSync(f), headers: { 'access-control-allow-origin': '*' } }); } catch { await route.abort(); } });
+  await page.evaluate(() => window.sakinah.quranReader.goto(250, { smooth: false }));
   await page.waitForTimeout(400);
-  const interim = await page.evaluate(() => { const s = document.querySelector('.mr-slide[data-page="289"]'); const t = s.querySelector('.mp.mp-text.interim'); return { interim: !!t, words: t ? t.querySelectorAll('.mw').length : 0, ready: t ? t.classList.contains('ready') : false }; });
+  const interim = await page.evaluate(() => { const s = document.querySelector('.mr-slide[data-page="250"]'); const t = s.querySelector('.mp.mp-text.interim'); return { interim: !!t, words: t ? t.querySelectorAll('.mw').length : 0, ready: t ? t.classList.contains('ready') : false }; });
   check(interim.interim && interim.words > 50, `الخط بطيء: النص يظهر فورًا بخط بديل (${interim.words} كلمة خلال 400 م.ث)`);
-  await page.locator('.mr-slide[data-page="289"] .mp.ready:not(.mp-text)').waitFor({ timeout: 10000 });
-  const swapped = await page.evaluate(() => { const s = document.querySelector('.mr-slide[data-page="289"]'); return { qcf: !!s.querySelector('.mp.ready:not(.mp-text) .mlw'), interim: !!s.querySelector('.mp.interim'), n: s.querySelectorAll('.mp').length }; });
+  await page.locator('.mr-slide[data-page="250"] .mp.ready:not(.mp-text)').waitFor({ timeout: 10000 });
+  const swapped = await page.evaluate(() => { const s = document.querySelector('.mr-slide[data-page="250"]'); return { qcf: !!s.querySelector('.mp.ready:not(.mp-text) .mlw'), interim: !!s.querySelector('.mp.interim'), n: s.querySelectorAll('.mp').length }; });
   check(swapped.qcf && !swapped.interim && swapped.n === 1, 'عند وصول الخط تحلّ صفحة المصحف محلّ النص المؤقت');
-  const cached = await page.evaluate(async () => { try { const c = await caches.open('sakinah-mushaf-fonts'); const keys = await c.keys(); return keys.some((k) => /p289\.woff2$/.test(k.url)); } catch { return null; } });
+  const cached = await page.evaluate(async () => { try { const c = await caches.open('sakinah-mushaf-fonts'); const keys = await c.keys(); return keys.some((k) => /p250\.woff2$/.test(k.url)); } catch { return null; } });
   check(cached !== false, `خط الصفحة يُحفظ في كاش الجهاز من الصفحة نفسها دون عامل خدمة (${cached})`);
-  await page.unroute(/\/woff2\/p289\.woff2$/);
+  await page.unroute(/\/woff2\/p250\.woff2$/);
   await page.evaluate(() => window.sakinah.quranReader.goto(294, { smooth: false }));
   await pageSettled('294');
 }

@@ -61,7 +61,7 @@ export function createMushafReader(app, cb = {}) {
   root.append(stage, dimmer, top, bottom, ayahBar, hint, exitBtn);
   let exitTimer = null; let keepAwake = true; let themeId = 'cream';
   let vertical = false; let auto = null; let autoSpeed = 40; let tajweedFn = null; let pull = null; let fitText = true; let textFont = 'amiri'; let dir = 1; // اتجاه القراءة الأخير (+1 تقدّم)
-  const INTERIM_MS = 150; // مهلة وصول خط الصفحة من الكاش قبل عرض النص البديل فورًا
+  const INTERIM_MS = 220; // مهلة وصول خط الصفحة من الكاش/التطبيق قبل عرض النص البديل (أطول من قراءة الكاش كي لا يومض النص ثم الصفحة)
   const pullHint = h('div', { class: 'mr-pull', 'aria-hidden': 'true' }, 'اسحب لأسفل للإغلاق');
   root.append(pullHint);
   /** زر الرجوع يبقى ظاهرًا دائمًا ويخفت بعد ثوانٍ كي لا يشغل عن القراءة */
@@ -119,7 +119,18 @@ export function createMushafReader(app, cb = {}) {
     }
     if (p !== page) setPage(p, { fromScroll: true });
   }
-  track.addEventListener('scroll', () => { clearTimeout(scrollTimer); scrollTimer = setTimeout(onScrollSettled, 120); }, { passive: true });
+  /**
+   * ملء فوري أثناء التمرير: لا ننتظر «استقرار» التمرير (على iOS يتأخر نحو ثانية بعد كل تقليب بسبب التباطؤ والالتصاق) بل نرسم
+   * الصفحة التي تجاوزت منتصف الشاشة وجارتيها فورًا، فيظهر النص لحظة وصول الصفحة. تغيير الصفحة الحالية (الأدوات، الحفظ) يبقى عند الاستقرار.
+   */
+  let eagerRaf = 0; let eagerPage = 0;
+  function eagerFill() {
+    eagerRaf = 0; if (!open) return;
+    const p = pageFromScroll(); if (p === eagerPage) return;
+    const d = p >= eagerPage ? 1 : -1; eagerPage = p;
+    fill(p); fill(p + d); fill(p - d);
+  }
+  track.addEventListener('scroll', () => { if (!eagerRaf) eagerRaf = requestAnimationFrame(eagerFill); clearTimeout(scrollTimer); scrollTimer = setTimeout(onScrollSettled, 120); }, { passive: true });
   track.addEventListener('scrollend', () => { clearTimeout(scrollTimer); onScrollSettled(); });
 
   /* ---------- ملء الصفحات (نافذة حول الصفحة الحالية) ---------- */
@@ -136,7 +147,10 @@ export function createMushafReader(app, cb = {}) {
       filled.set(p, { el, text: true }); requestAnimationFrame(() => fitMushafPage(el));
       cb.onPageReady && cb.onPageReady(p, el); return;
     }
-    const el = renderMushafPage(p, { full: true }); decorate(el);
+    let el;
+    try { el = renderMushafPage(p, { full: true }); }
+    catch (e) { console.warn('mushaf page render failed', p, e); const alt = renderTextPage(p, { full: true, tajweed: tajweedFn, font: textFont }); decorate(alt); render(slide, alt); filled.set(p, { el: alt, text: true }); requestAnimationFrame(() => fitMushafPage(alt)); cb.onPageReady && cb.onPageReady(p, alt); return; }
+    decorate(el);
     render(slide, el);
     const entry = { el, text: false }; filled.set(p, entry);
     // إن لم يصل خط الصفحة خلال لحظة (ليس في كاش الجهاز) يُعرض النص فورًا بخط أميري قرآن المضمّن، ثم تحلّ صفحة المصحف محلّه عند وصوله
@@ -166,7 +180,7 @@ export function createMushafReader(app, cb = {}) {
   }
   function refreshWindow() {
     for (const p of [...filled.keys()]) if (Math.abs(p - page) > 3) unfill(p);
-    fill(page); fill(page + dir); fill(page - dir);
+    fill(page); fill(page + dir); fill(page - dir); fill(page + 2 * dir); eagerPage = page;
     // خطوط الصفحات التالية في اتجاه القراءة تُجلب مسبقًا (٤ صفحات) وصفحة واحدة في الاتجاه المعاكس
     preloadPageFonts([page + 2 * dir, page + 3 * dir, page + 4 * dir, page + 5 * dir, page - 2 * dir]);
     releasePageFonts([page - 3, page - 2, page - 1, page, page + 1, page + 2, page + 3, page + 4 * dir, page + 5 * dir]);

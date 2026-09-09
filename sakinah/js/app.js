@@ -33,6 +33,7 @@ const TABS = ['prayer', 'quran', 'qibla', 'adhkar', 'more'];
 
 export const app = {
   version: VERSION,
+  build: (typeof window !== 'undefined' && window.SAKINAH_BUILD) || null, // رقم بناء التطبيق الأصلي (TestFlight/APK) للتحقق من الإصدار المثبّت
   current: 'prayer',
   mounted: {},
   installPrompt: null,
