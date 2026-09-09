@@ -691,7 +691,7 @@ export function mount(container, app) {
     document.documentElement.style.setProperty('--quran-lh', String(q().lineHeight || 2.15));
     applyTextFont();
     const m = location.hash.match(/^#\/quran\?p=(\d+)/);
-    if (m && +m[1] >= 1 && +m[1] <= TOTAL_PAGES) { if (!(await ensureLoaded())) return; indexScreen(); if (!reader.isOpen) { reader.show(+m[1]); saveLastRead(null); } }
+    if (m && +m[1] >= 1 && +m[1] <= TOTAL_PAGES) { if (!(await ensureLoaded())) return; indexScreen(); if (!reader.isOpen) { reader.show(+m[1]); saveLastRead(null); if (q().tajweed) applyTajweed(true); } }
     else if (reader.isOpen) reader.goto(reader.page, { smooth: false });
     else { indexScreen(); prefetchIdle(); }
   }
