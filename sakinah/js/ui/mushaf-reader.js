@@ -17,7 +17,7 @@ const CHROME_AUTOHIDE_MS = 6000;
 
 /**
  * @param {object} app
- * @param {object} cb ردود: onIndex, onSearch, onOptions, onHifzToggle, onQuickNav, onPageChange(p, {fromScroll}), onTap(wordEl, ev) → true إن استهلك النقرة (التسميع), onAyahTap(n, wordEl) → true إن عُرضت قائمة الآية,
+ * @param {object} cb ردود: onIndex, onSearch, onOptions, onHifzToggle, onQuickNav, onPageChange(p, {fromScroll}), onInterim(p) عند عرض النص ريثما يصل خط الصفحة, onTap(wordEl, ev) → true إن استهلك النقرة (التسميع), onAyahTap(n, wordEl) → true إن عُرضت قائمة الآية,
  *   onLongPress(n, el), onBookmark(p), onPageReady(p, el), onFallback(p)
  */
 export function createMushafReader(app, cb = {}) {
@@ -60,7 +60,8 @@ export function createMushafReader(app, cb = {}) {
   const dimmer = h('div', { class: 'mr-dim', 'aria-hidden': 'true' });
   root.append(stage, dimmer, top, bottom, ayahBar, hint, exitBtn);
   let exitTimer = null; let keepAwake = true; let themeId = 'cream';
-  let vertical = false; let auto = null; let autoSpeed = 40; let tajweedFn = null; let pull = null; let fitText = true; let textFont = 'amiri';
+  let vertical = false; let auto = null; let autoSpeed = 40; let tajweedFn = null; let pull = null; let fitText = true; let textFont = 'amiri'; let dir = 1; // اتجاه القراءة الأخير (+1 تقدّم)
+  const INTERIM_MS = 150; // مهلة وصول خط الصفحة من الكاش قبل عرض النص البديل فورًا
   const pullHint = h('div', { class: 'mr-pull', 'aria-hidden': 'true' }, 'اسحب لأسفل للإغلاق');
   root.append(pullHint);
   /** زر الرجوع يبقى ظاهرًا دائمًا ويخفت بعد ثوانٍ كي لا يشغل عن القراءة */
@@ -138,12 +139,25 @@ export function createMushafReader(app, cb = {}) {
     const el = renderMushafPage(p, { full: true }); decorate(el);
     render(slide, el);
     const entry = { el, text: false }; filled.set(p, entry);
-    mountMushafPage(el).catch(() => {
-      if (filled.get(p) !== entry) return;
-      const alt = renderTextPage(p, { full: true, tajweed: tajweedFn, font: textFont }); decorate(alt);
-      render(slide, alt); entry.el = alt; entry.text = true;
-      cb.onFallback && cb.onFallback(p);
-    }).then(() => { if (filled.get(p) === entry) cb.onPageReady && cb.onPageReady(p, entry.el); });
+    // إن لم يصل خط الصفحة خلال لحظة (ليس في كاش الجهاز) يُعرض النص فورًا بخط أميري قرآن المضمّن، ثم تحلّ صفحة المصحف محلّه عند وصوله
+    const showInterim = () => {
+      if (filled.get(p) !== entry || entry.ready || entry.interim) return;
+      const alt = renderTextPage(p, { full: true, tajweed: tajweedFn, font: textFont }); decorate(alt); alt.classList.add('interim');
+      render(slide, alt); entry.el = alt; entry.text = true; entry.interim = alt;
+      cb.onPageReady && cb.onPageReady(p, alt); cb.onInterim && cb.onInterim(p);
+    };
+    const timer = setTimeout(showInterim, INTERIM_MS);
+    mountMushafPage(el).then(() => {
+      clearTimeout(timer); if (filled.get(p) !== entry) return;
+      entry.ready = true;
+      if (entry.interim) { render(slide, el); el.classList.add('swap'); entry.el = el; entry.text = false; entry.interim = null; fitMushafPage(el); }
+      cb.onPageReady && cb.onPageReady(p, el);
+    }).catch(() => {
+      clearTimeout(timer); if (filled.get(p) !== entry) return;
+      if (!entry.interim) { const alt = renderTextPage(p, { full: true, tajweed: tajweedFn, font: textFont }); decorate(alt); render(slide, alt); entry.el = alt; entry.text = true; cb.onPageReady && cb.onPageReady(p, alt); }
+      else entry.interim.classList.remove('interim');
+      entry.interim = null; cb.onFallback && cb.onFallback(p);
+    });
   }
   function unfill(p) {
     const e = filled.get(p); if (!e) return;
@@ -152,13 +166,15 @@ export function createMushafReader(app, cb = {}) {
   }
   function refreshWindow() {
     for (const p of [...filled.keys()]) if (Math.abs(p - page) > 3) unfill(p);
-    fill(page); fill(page + 1); fill(page - 1);
-    preloadPageFonts([page + 2, page - 2]);
-    releasePageFonts([page - 3, page - 2, page - 1, page, page + 1, page + 2, page + 3]);
+    fill(page); fill(page + dir); fill(page - dir);
+    // خطوط الصفحات التالية في اتجاه القراءة تُجلب مسبقًا (٤ صفحات) وصفحة واحدة في الاتجاه المعاكس
+    preloadPageFonts([page + 2 * dir, page + 3 * dir, page + 4 * dir, page + 5 * dir, page - 2 * dir]);
+    releasePageFonts([page - 3, page - 2, page - 1, page, page + 1, page + 2, page + 3, page + 4 * dir, page + 5 * dir]);
   }
 
   /* ---------- تغيير الصفحة ---------- */
   function setPage(p, { fromScroll = false } = {}) {
+    if (p !== page) dir = p > page ? 1 : -1;
     page = p; refreshWindow(); updateChrome(); scheduleExitFade();
     cb.onPageChange && cb.onPageChange(p, { fromScroll });
   }

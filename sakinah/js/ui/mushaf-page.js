@@ -4,7 +4,7 @@
  * كل كلمة عنصر .mw يحمل data-n (رقم الآية العام) وdata-k (فهرس الكلمة المنطوقة) للتظليل والتسميع؛ وعلامة نهاية الآية .me.
  */
 import { h } from './components.js';
-import { pageLines, pageFontUrl, pageFontFamily, SURAH_NAMES_FONT_URL, surahNameGlyph, juzName } from '../core/mushaf.js';
+import { pageLines, pageFontUrl, pageFontFamily, surahNamesFontUrl, surahNameGlyph, juzName } from '../core/mushaf.js';
 import { pageAyahs, surahInfo, pageLabel, tokenize, ayahMarker } from '../core/quran.js';
 import { BISMILLAH_SVG } from '../data/bismillah.js';
 
@@ -13,6 +13,7 @@ const FULL_LINE_EM = 14.85;
 export const ROW_EM = 1.09; // ارتفاع السطر نسبةً إلى حجم الخط كما في المصحف المطبوع
 const LINES = 15;
 
+const FONT_CACHE = 'sakinah-mushaf-fonts'; // الاسم نفسه في sw.js وmushaf-fonts.js
 const fontPromises = new Map();
 const faces = new Map(); // family → FontFace (لإزالتها من الذاكرة عند الابتعاد عن صفحاتها)
 const FONT_LRU_MAX = 24; // خطوط الصفحات المحتفظ بها في الذاكرة (15–38 ك.ب لكل صفحة)
@@ -30,14 +31,27 @@ export function releasePageFonts(keepPages = []) {
   }
   return removed;
 }
+/**
+ * بيانات الخط: من كاش الجهاز (Cache API — الكاش نفسه الذي يملؤه «تنزيل الخطوط» وعامل الخدمة) أولًا، وإلا من الشبكة ثم تُحفظ.
+ * لا يعتمد على عامل الخدمة، فيعمل داخل الغلاف الأصلي (حيث لا عامل خدمة) وفي المتصفح سواء.
+ */
+async function fontBytes(url) {
+  let cache = null;
+  try { if (typeof caches !== 'undefined' && !/^file:/.test(url)) cache = await caches.open(FONT_CACHE); } catch { cache = null; }
+  if (cache) { try { const hit = await cache.match(url); if (hit) return await hit.arrayBuffer(); } catch { /* نتابع إلى الشبكة */ } }
+  const res = await fetch(url); if (!res.ok) throw new Error(`font ${res.status}`);
+  if (cache && /^https?:/.test(url) && !/^https?:\/\/(localhost|127\.)/.test(url) && !window.SAKINAH_FONTS_BASE) { try { await cache.put(url, res.clone()); } catch { /* كاش ممتلئ أو غير متاح */ } }
+  return await res.arrayBuffer();
+}
 /** تحميل خط عبر FontFace (مرة واحدة لكل عائلة) */
 export function ensureFont(family, url) {
   if (fontPromises.has(family)) return fontPromises.get(family);
   const run = (async () => {
     if (typeof FontFace === 'undefined' || !document.fonts) throw new Error('FontFace unsupported');
     if ([...document.fonts].some((f) => f.family === family && f.status === 'loaded')) return family;
-    const face = new FontFace(family, `url(${url}) format('woff2')`, { display: 'block' });
-    await face.load();
+    let face;
+    try { face = new FontFace(family, await fontBytes(url), { display: 'block' }); await face.load(); }
+    catch { face = new FontFace(family, `url(${url}) format('woff2')`, { display: 'block' }); await face.load(); }
     document.fonts.add(face); faces.set(family, face);
     return family;
   })();
@@ -46,7 +60,7 @@ export function ensureFont(family, url) {
   return run;
 }
 export function ensurePageFont(p) { return ensureFont(pageFontFamily(p), pageFontUrl(p)); }
-export function ensureSurahNamesFont() { return ensureFont('surahnames', SURAH_NAMES_FONT_URL); }
+export function ensureSurahNamesFont() { return ensureFont('surahnames', surahNamesFontUrl()); }
 export function isPageFontReady(p) { const f = fontPromises.get(pageFontFamily(p)); return !!f && [...document.fonts].some((x) => x.family === pageFontFamily(p) && x.status === 'loaded'); }
 /** تحميل مسبق لخطوط صفحات مجاورة دون انتظار */
 export function preloadPageFonts(pages) { for (const p of pages) if (p >= 1 && p <= 604) ensurePageFont(p).catch(() => {}); }

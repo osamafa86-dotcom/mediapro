@@ -412,6 +412,9 @@ details.more[open] summary::before { content: '▾ '; }
 .mp-body { position: relative; display: grid; grid-template-rows: repeat(15, minmax(0, 1fr)); grid-template-columns: minmax(0, 1fr); aspect-ratio: 1 / 1.108; width: 100%; min-height: 0; line-height: 1; direction: rtl; visibility: hidden; }
 .mp.ready .mp-body { visibility: visible; animation: mp-in .25s ease; }
 @keyframes mp-in { from { opacity: 0 } to { opacity: 1 } }
+/* النص المؤقت ريثما يصل خط الصفحة يظهر فورًا بلا تلاشٍ؛ وصفحة المصحف تحلّ محلّه بتلاشٍ قصير */
+.mp.interim .mp-body { animation: none; }
+.mp.swap .mp-body { animation: mp-in .3s ease; }
 .mp.loading .mp-body::after, .mp.font-error .mp-body::after { content: ''; position: absolute; inset: 0; visibility: visible; background: repeating-linear-gradient(180deg, transparent 0 calc(100% / 15 * .3), color-mix(in srgb, var(--ink) 6%, transparent) calc(100% / 15 * .3) calc(100% / 15 * .7), transparent calc(100% / 15 * .7) calc(100% / 15)); border-radius: 4px; animation: mp-pulse 1.4s ease-in-out infinite; }
 .mp.font-error .mp-body::after { animation: none; }
 @keyframes mp-pulse { 0%, 100% { opacity: .5 } 50% { opacity: 1 } }

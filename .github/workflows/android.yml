@@ -29,6 +29,11 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - name: كاش خطوط صفحات المصحف (تُضمَّن داخل التطبيق، ≈48 م.ب من CDN مرة واحدة)
+        uses: actions/cache@v4
+        with:
+          path: sakinah/.cache/fonts-qcf
+          key: sakinah-qcf-fonts-v1
       - name: التبعيات وملفات التشغيل
         run: |
           npm ci

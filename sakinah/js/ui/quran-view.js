@@ -9,7 +9,7 @@ import { MUSHAF_THEMES, THEME_GROUPS } from '../core/mushaf-themes.js';
 import { loadTajweed, tajweedSpans, isTajweedLoaded, TAJWEED_LEGEND } from '../core/tajweed.js';
 import { CHALLENGES, challengeById, challengeProgress, resolveRange, heatmap, estimateMinutes } from '../core/challenges.js';
 import { loadQuran, isLoaded, pageAyahs, surahAyahs, surahInfo, pageLabel, getAyah, getAyahBySurah, tokenize, HifzMatcher, searchText, refLabel, SURAHS, JUZ_STARTS, TOTAL_PAGES , hizbStartPage } from '../core/quran.js';
-import { loadMushafLayout, isMushafLoaded } from '../core/mushaf.js';
+import { loadMushafLayout, isMushafLoaded, fontsBundled } from '../core/mushaf.js';
 import { foldDigits, normalizeForMatch } from '../core/quran.js';
 import { createMushafReader } from './mushaf-reader.js';
 import { wordEl } from './mushaf-page.js';
@@ -61,9 +61,11 @@ export function mount(container, app) {
     onTap: (w) => { if (hifz) { onHifzTap(); return true; } return false; },
     onLongPress: (n) => { selectAyah(n); ayahActions(getAyah(n)); },
     onPageReady: (p) => { if (playingAyah) reader.mark(playingAyah, 'hl'); if (hifz && hifz.page === p) applyHifzToPage(); },
+    onInterim: () => { if (interimHinted || fontsBundled() || q().fontsOffline) return; interimHinted = true; setTimeout(() => { if (reader.isOpen) toast('يظهر النص فورًا بخط بديل ريثما يصل خط الصفحة. لعرض المصحف فورًا دائمًا ودون اتصال: الخيارات ← تنزيل خطوط الصفحات', 6000); }, 1500); },
     onFallback: (p) => { if (!fallbackWarned) { fallbackWarned = true; toast('تعذّر تحميل خط الصفحة — عُرض النص بخط بديل. تتوفر الخطوط عند الاتصال بالإنترنت أو بعد تنزيلها من الخيارات.', 5000); } },
   });
-  let fallbackWarned = false;
+  app.quranReader = reader; // للاختبارات والتشخيص
+  let fallbackWarned = false; let interimHinted = false;
   function selectedOnPage(p) { return selected && getAyah(selected).page === p ? selected : null; }
   /* ---------- تحديد آية وشريط خياراتها ---------- */
   function selectAyah(n) {

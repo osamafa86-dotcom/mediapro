@@ -9,8 +9,12 @@ let layout = null; let loading = null;
 
 /** قاعدة خطوط الصفحات (KFGQPC QCF v1، مثبّتة على إصدار محدد من مستودع quran.com كي لا تتغير الرموز) */
 export const FONT_BASE = 'https://cdn.jsdelivr.net/gh/quran/quran.com-frontend-next@aff1a035b09b66f28047b3216edcae4c5c949a49/public/fonts/quran/';
+/** في الغلاف الأصلي (iOS/Android) تُضمَّن الخطوط الـ604 داخل التطبيق (tools/build-www.mjs) فتُعرض الصفحات فورًا ودون اتصال */
+export function fontBase() { return (typeof window !== 'undefined' && window.SAKINAH_FONTS_BASE) || FONT_BASE; }
+export function fontsBundled() { return typeof window !== 'undefined' && !!window.SAKINAH_FONTS_BASE; }
 export const SURAH_NAMES_FONT_URL = FONT_BASE + 'surah-names/v1/sura_names.woff2';
-export function pageFontUrl(p) { return `${FONT_BASE}hafs/v1/woff2/p${p}.woff2`; }
+export function surahNamesFontUrl() { return fontBase() + 'surah-names/v1/sura_names.woff2'; }
+export function pageFontUrl(p) { return `${fontBase()}hafs/v1/woff2/p${p}.woff2`; }
 export function pageFontFamily(p) { return `qcf-p${p}`; }
 /** رمز اسم السورة في خط أسماء السور: رقم السورة بثلاث خانات */
 export function surahNameGlyph(surah) { return String(surah).padStart(3, '0'); }
