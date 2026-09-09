@@ -2,7 +2,7 @@
  * سكينة — نقطة الدخول: الحالة المشتركة، التنقل، المؤقّتات، التذكيرات، السمة، التثبيت.
  */
 import * as store from './platform/storage.js';
-import { dayTimeline, computePrayerTimes, civilDate, formatTime, defaultParams, PRAYER_NAMES_AR, addDays } from './core/prayer-times.js';
+import { dayTimeline, computePrayerTimes, civilDate, formatTime, defaultParams, PRAYER_NAMES_AR, addDays, localNoonUTC } from './core/prayer-times.js';
 import { defaultMethodFor, METHODS } from './core/methods.js';
 import { hijriDate, isRamadan, gregorianFormatted } from './core/hijri.js';
 import { detectLocation, locationFromCity, locationFromCoords, searchCities, describeLocation, deviceTimeZone, isGeolocationSupported } from './platform/location.js';
@@ -49,7 +49,7 @@ export const app = {
     const s = this.settings;
     return defaultParams({
       method: this.methodId(), madhab: s.madhab, highLatitudeRule: s.highLatitudeRule, adjustments: s.adjustments, custom: s.custom,
-      isRamadan: isRamadan(now, this.tz, s.hijriOffset), tz: this.tz,
+      isRamadan: isRamadan(now, this.tz, s.hijriOffset), tz: this.tz, shafaq: s.shafaq || 'general',
     });
   },
   coords() { const l = this.location; return l ? { latitude: l.lat, longitude: l.lon } : null; },
@@ -57,7 +57,7 @@ export const app = {
     const c = this.coords(); if (!c) return null;
     return dayTimeline(c, this.tz, this.prayerParams(now), now);
   },
-  timesFor(civil) { const c = this.coords(); return c ? computePrayerTimes(c, civil, this.prayerParams(new Date(Date.UTC(civil.year, civil.month - 1, civil.day, 12)))) : null; },
+  timesFor(civil) { const c = this.coords(); return c ? computePrayerTimes(c, civil, this.prayerParams(localNoonUTC(civil, this.tz))) : null; },
   fmt(date) { return formatTime(date, this.tz, { hour12: this.settings.hour12, numerals: this.numerals }); },
   num(n, digits = 0, group = false) { return fmtNum(n, this.numerals, digits, group); },
   hijri(now = new Date()) { return hijriDate(now, this.tz, this.settings.hijriOffset); },

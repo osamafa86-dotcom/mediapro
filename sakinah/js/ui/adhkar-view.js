@@ -5,7 +5,7 @@ import { h, icon, render, toast, vibrate, switchEl } from './components.js';
 import { ADHKAR } from '../data/adhkar.js';
 
 export function mount(container, app) {
-  let period = null; let hideDone = false;
+  let period = null; let hideDone = false; let selfUpdate = false; // selfUpdate: حفظ تقدّم من هذه الشاشة لا يستدعي إعادة بنائها
 
   function autoPeriod() {
     const tl = app.timeline(); const now = new Date();
@@ -13,9 +13,21 @@ export function mount(container, app) {
     const hr = Number(new Intl.DateTimeFormat('en-US', { timeZone: app.tz, hour: 'numeric', hourCycle: 'h23' }).format(now));
     return hr >= 4 && hr < 12 ? 'morning' : 'evening';
   }
+  /**
+   * تقدّم اليوم: أذكار الصباح تُصفَّر مع اليوم المدني، أما أذكار المساء فتمتد إلى فجر اليوم التالي
+   * (من قرأها بعد منتصف الليل لا يفقدها)، فتُصفَّر عند أول فتح بعد الفجر.
+   */
   function progress() {
-    const p = app.settings.adhkarProgress; const key = app.todayKey();
-    if (p.date !== key) { app.replace('adhkarProgress', { date: key, morning: {}, evening: {} }); return app.settings.adhkarProgress; }
+    let p = app.settings.adhkarProgress; const key = app.todayKey();
+    const tl = app.timeline(); const afterFajr = !tl || new Date() >= tl.times.fajr;
+    if (p.date !== key) {
+      p = { date: key, morning: {}, evening: afterFajr ? {} : (p.evening || {}), eveningDate: afterFajr ? key : (p.eveningDate || p.date || key) };
+      selfUpdate = true; app.replace('adhkarProgress', p); selfUpdate = false; return app.settings.adhkarProgress;
+    }
+    if (afterFajr && p.eveningDate && p.eveningDate !== key) {
+      p = { ...p, evening: {}, eveningDate: key };
+      selfUpdate = true; app.replace('adhkarProgress', p); selfUpdate = false; return app.settings.adhkarProgress;
+    }
     return p;
   }
   function items() { return ADHKAR.filter((d) => d.period === 'both' || d.period === period); }
@@ -52,7 +64,7 @@ export function mount(container, app) {
           btn));
       const tap = () => {
         if (count >= tgt) return;
-        count++; const p = progress(); p[period][d.id] = count; app.update({ adhkarProgress: p });
+        count++; const p = progress(); p[period][d.id] = count; selfUpdate = true; app.update({ adhkarProgress: p }); selfUpdate = false;
         vibrate(count >= tgt ? [40, 40, 40] : 15);
         paintBtn();
         if (count >= tgt) { card.classList.add('done'); const nowDone = items().filter((x) => (app.settings.adhkarProgress[period][x.id] || 0) >= target(x)).length; ring.querySelector('output').textContent = `${app.num(nowDone)}/${app.num(list.length)}`; const r = 27, c = 2 * Math.PI * r; ring.querySelector('.fg').setAttribute('stroke-dashoffset', c * (1 - nowDone / list.length)); if (nowDone === list.length) toast('تقبّل الله منك ✦ أتممت أذكار ' + (period === 'morning' ? 'الصباح' : 'المساء'), 4000); if (hideDone) setTimeout(() => card.remove(), 400); }
@@ -79,7 +91,7 @@ export function mount(container, app) {
     const v = Math.min(1.6, Math.max(0.8, +((app.settings.textScale || 1) + d).toFixed(2)));
     app.set('textScale', v); app.applyTextScale();
   }
-  app.on('change', () => { if (app.current === 'adhkar') build(); else period = null; });
+  app.on('change', () => { if (selfUpdate) return; if (app.current === 'adhkar') build(); else period = null; });
   build();
   return { refresh: build, show: () => { period = period || autoPeriod(); build(); } };
 }

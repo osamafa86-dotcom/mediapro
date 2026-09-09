@@ -47,6 +47,8 @@ export function mount(container, app) {
             h('button', { class: s.madhab === 'hanafi' ? 'active' : '', onclick: () => app.set('madhab', 'hanafi') }, 'الحنفي (ظل المثلين)'))),
         h('div', { class: 'field' }, h('label', {}, 'خطوط العرض العالية (حين لا يتحقق الشفق)'),
           select(s.highLatitudeRule, Object.entries(HIGH_LATITUDE_RULE_NAMES_AR), (v) => app.set('highLatitudeRule', v))),
+        app.methodId() === 'MoonsightingCommittee' ? h('div', { class: 'field' }, h('label', {}, 'الشفق المعتمد للعشاء (لجنة رؤية الهلال)'),
+          select(s.shafaq || 'general', [['general', 'عام (بين الأحمر والأبيض)'], ['ahmer', 'الشفق الأحمر (أبكر)'], ['abyad', 'الشفق الأبيض (أبعد)']], (v) => app.set('shafaq', v))) : null,
         settingRow('تعديل يدوي بالدقائق', Object.values(s.adjustments).some((v) => v) ? `مفعّل: ${PRAYERS.filter((k) => s.adjustments[k]).map((k) => `${PRAYER_NAMES_AR[k]} ${s.adjustments[k] > 0 ? '+' : ''}${app.num(s.adjustments[k])}`).join('، ')}` : 'لمطابقة تقويم مسجدك المحلي عند الحاجة',
           h('button', { class: 'btn btn-sm btn-outline', onclick: openAdjustments }, 'تعديل')),
         settingRow('تعديل التاريخ الهجري', 'لمطابقة إعلان الرؤية في بلدك', stepper(s.hijriOffset, { min: -2, max: 2, format: (v) => (v > 0 ? '+' : '') + app.num(v) + ' يوم', onChange: (v) => app.set('hijriOffset', v) }))),

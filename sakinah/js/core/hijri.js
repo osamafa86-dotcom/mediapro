@@ -1,3 +1,4 @@
+import { cachedFormatter } from './intl-cache.js';
 /**
  * التاريخ الهجري (تقويم أم القرى) اعتمادًا على Intl (ICU) المدمج في المتصفح،
  * مع بديل حسابي (التقويم الهجري الجدولي/الكويتي) عند غياب دعم التقويم.
@@ -27,12 +28,12 @@ function supportsUmalqura() {
  */
 export function hijriDate(date = new Date(), tz = 'UTC', offsetDays = 0) {
   // اليوم المدني في منطقة المستخدم، ثم إزاحته بالأيام على مستوى التاريخ (لا بالمللي ثانية) لتفادي أثر التوقيت الصيفي
-  const civ = new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: 'numeric', day: 'numeric' })
+  const civ = cachedFormatter('en-US', { timeZone: tz, year: 'numeric', month: 'numeric', day: 'numeric' })
     .formatToParts(date).reduce((o, p) => (o[p.type] = +p.value, o), {});
   const shifted = new Date(Date.UTC(civ.year, civ.month - 1, civ.day + (offsetDays | 0), 12));
   let day, month, year, source;
   if (supportsUmalqura()) {
-    const parts = new Intl.DateTimeFormat('en-u-ca-islamic-umalqura-nu-latn', { timeZone: 'UTC', day: 'numeric', month: 'numeric', year: 'numeric' })
+    const parts = cachedFormatter('en-u-ca-islamic-umalqura-nu-latn', { timeZone: 'UTC', day: 'numeric', month: 'numeric', year: 'numeric' })
       .formatToParts(shifted).reduce((o, p) => (o[p.type] = p.value, o), {});
     day = +parts.day; month = +parts.month; year = +parts.year; source = 'umalqura';
   } else {
@@ -44,7 +45,7 @@ export function hijriDate(date = new Date(), tz = 'UTC', offsetDays = 0) {
 }
 
 export function weekdayInTz(date, tz) {
-  const w = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short' }).format(date);
+  const w = cachedFormatter('en-US', { timeZone: tz, weekday: 'short' }).format(date);
   return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(w);
 }
 

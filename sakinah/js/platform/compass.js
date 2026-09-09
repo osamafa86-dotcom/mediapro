@@ -57,6 +57,25 @@ export class HeadingSmoother {
 }
 
 /**
+ * تقدير دقة الاتجاه من تذبذب القراءات (للأجهزة التي لا تبلّغ دقة): نأخذ الفرق الثاني بين القراءات المتتالية
+ * (الدوران السلس فرقه الثاني صغير، والضوضاء فرقها الثاني كبير) ونحوّل جذره التربيعي المتوسط إلى ±درجات.
+ */
+export class JitterEstimator {
+  constructor(window = 24) { this.win = window; this.h = []; }
+  push(heading) {
+    const last = this.h[this.h.length - 1];
+    const unwrapped = last === undefined ? heading : last + (((heading - last + 540) % 360) - 180);
+    this.h.push(unwrapped); if (this.h.length > this.win) this.h.shift();
+    if (this.h.length < 12) return null;
+    let sum = 0, n = 0;
+    for (let i = 2; i < this.h.length; i++) { const d2 = this.h[i] - 2 * this.h[i - 1] + this.h[i - 2]; sum += d2 * d2; n++; }
+    const rms = Math.sqrt(sum / n); // للضوضاء البيضاء: تباين الفرق الثاني = 6σ²، والدقة ≈ 2σ
+    return Math.min(90, Math.round((2 * rms) / Math.sqrt(6)));
+  }
+  reset() { this.h = []; }
+}
+
+/**
  * بدء الاستماع للبوصلة.
  * @param {(reading:{magneticHeading:number, accuracy:number|null, source:string, absolute:boolean}|null)=>void} onReading  تُستدعى بـ null إن لم تصل أي قراءة خلال المهلة
  * @returns {Promise<{stop:()=>void, source:string}>}
@@ -72,6 +91,7 @@ export async function startCompass(onReading, { noReadingTimeoutMs = 4000 } = {}
   }
   const smoother = new HeadingSmoother(0.3);
   let source = 'none', gotAbsolute = false, gotAny = false;
+  const jitter = new JitterEstimator();
   // مهلة: بعض الأجهزة (حواسيب، أجهزة بلا مقياس مغناطيسي) تعرّف الحدث ولا ترسل قراءات
   const timer = setTimeout(() => { if (!gotAny) onReading(null); }, noReadingTimeoutMs);
   const handler = (ev) => {
@@ -83,6 +103,7 @@ export async function startCompass(onReading, { noReadingTimeoutMs = 4000 } = {}
     } else if (ev.alpha !== null && ev.alpha !== undefined && (ev.absolute || ev.type === 'deviceorientationabsolute')) {
       heading = headingFromEuler(ev.alpha, ev.beta || 0, ev.gamma || 0, screenAngle());
       absolute = true; source = 'android-absolute';
+      accuracy = jitter.push(heading); // Android لا يعطي دقة؛ نقدّرها من تذبذب القراءات
     } else if (ev.alpha !== null && ev.alpha !== undefined && !gotAbsolute) {
       // اتجاه نسبي فقط (لا مرجع للشمال) — نبلّغ به مع absolute=false ليعرض التطبيق تحذيرًا
       heading = headingFromEuler(ev.alpha, ev.beta || 0, ev.gamma || 0, screenAngle());
@@ -91,7 +112,7 @@ export async function startCompass(onReading, { noReadingTimeoutMs = 4000 } = {}
     if (heading === null || Number.isNaN(heading)) return;
     gotAny = true; clearTimeout(timer);
     if (absolute) gotAbsolute = true;
-    onReading({ magneticHeading: smoother.push(heading), raw: heading, accuracy, source, absolute, beta: typeof ev.beta === 'number' ? ev.beta : null, gamma: typeof ev.gamma === 'number' ? ev.gamma : null, alpha: typeof ev.alpha === 'number' ? ev.alpha : null, webkit: typeof ev.webkitCompassHeading === 'number' ? ev.webkitCompassHeading : null, screen: screenAngle(), at: Date.now() });
+    onReading({ magneticHeading: smoother.push(heading), raw: heading, accuracy, accuracyEstimated: source === 'android-absolute' && accuracy !== null, source, absolute, beta: typeof ev.beta === 'number' ? ev.beta : null, gamma: typeof ev.gamma === 'number' ? ev.gamma : null, alpha: typeof ev.alpha === 'number' ? ev.alpha : null, webkit: typeof ev.webkitCompassHeading === 'number' ? ev.webkitCompassHeading : null, screen: screenAngle(), at: Date.now() });
   };
   const absSupported = 'ondeviceorientationabsolute' in window && !isIOS();
   if (absSupported) window.addEventListener('deviceorientationabsolute', handler, true);

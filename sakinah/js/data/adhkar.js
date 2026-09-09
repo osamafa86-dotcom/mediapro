@@ -227,7 +227,7 @@ export const ADHKAR = [
     id: 'a24',
     hisnId: 98,
     period: 'both',
-    text: 'اللَّهُمَّ صَلِّ وَسَلِّمْ عَلَى نَبَيِّنَا مُحَمَّدٍ',
+    text: 'اللَّهُمَّ صَلِّ وَسَلِّمْ عَلَى نَبِيِّنَا مُحَمَّدٍ',
     repeat: 10,
     reference: 'أخرجه الطبراني بإسنادين أحدهما جيد، انظر مجمع الزوائد 10/120، وصحيح الترغيب والترهيب 1/273.',
     virtue: 'من صلى عليَّ حين يصبح عشرًا وحين يمسي عشرًا أدركته شفاعتي يوم القيامة.',
@@ -236,12 +236,3 @@ export const ADHKAR = [
 ];
 
 /** الأذكار المناسبة لفترة معينة ('morning' | 'evening') مع النص والتكرار المناسبين لها */
-export function adhkarFor(period) {
-  return ADHKAR
-    .filter(a => a.period === 'both' || a.period === period)
-    .map(a => ({
-      ...a,
-      text: (period === 'evening' && a.textEvening) ? a.textEvening : a.text,
-      repeat: (period === 'evening' && a.repeatEvening) ? a.repeatEvening : a.repeat,
-    }));
-}

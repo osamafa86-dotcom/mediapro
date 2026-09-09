@@ -4,7 +4,10 @@
 import { h, icon, render, copyText, shareText } from './components.js';
 import { HADITHS, HADITH_TOPICS, hadithOfDay, hadithReference } from '../data/hadith.js';
 
-const strip = (s) => String(s || '').replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').toLowerCase();
+import { normalizeArabic } from '../core/arabic.js';
+
+// تطبيع موحّد (نفس الذي تستخدمه اختبارات البيانات): البحث بـ«صلى الله عليه وسلم» يجد المتون المكتوبة بـ ﷺ والعكس
+const strip = (s) => normalizeArabic(s).toLowerCase();
 
 export function mount(container, app) {
   let topic = 'all'; let q = ''; let showAll = false;

@@ -194,4 +194,10 @@ export async function shareText(title, text) {
   if (navigator.share) { try { await navigator.share({ title, text }); return; } catch (e) { if (e.name === 'AbortError') return; } }
   copyText(text);
 }
-export function vibrate(pattern) { try { navigator.vibrate && navigator.vibrate(pattern); } catch {} }
+export function vibrate(pattern) {
+  try {
+    const H = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics;
+    if (H) { const strong = Array.isArray(pattern) ? pattern.length > 1 : pattern > 20; (strong ? H.notification({ type: 'SUCCESS' }) : H.impact({ style: 'LIGHT' })).catch(() => {}); return; }
+    navigator.vibrate && navigator.vibrate(pattern);
+  } catch { /* لا اهتزاز */ }
+}

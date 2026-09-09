@@ -19,7 +19,9 @@ async function loadGeomag() {
   return geomagMod;
 }
 
-const ALIGN_DEG = 3; // نطاق اعتبار الاتجاه صحيحًا
+const ALIGN_DEG = 3; // نطاق الدخول في حالة المحاذاة
+const ALIGN_EXIT_DEG = 5; // نطاق الخروج منها (تخلّف يمنع رفرفة اللون والاهتزاز عند الحد)
+const STALE_MS = 2500; // بلا قراءة جديدة طوال هذه المدة نعتبر المستشعر متوقفًا
 const TILT_DEG = 35; // ميل يستدعي طلب وضع الهاتف أفقيًا
 const NEAR_KAABA_M = 120;   // ضمن هذه المسافة أنت في المسجد الحرام: توجّه إلى الكعبة مباشرة ولا معنى لبوصلة تعتمد على الموقع
 const UNCERTAIN_DEG = 6;    // فوق هذا الهامش نُظهر «الاتجاه تقريبي» مع زر تحديد الموقع بدقة عالية
@@ -65,9 +67,17 @@ export function mount(container, app) {
   let mode = 'compass'; let compass = null; let reading = null; let decl = null; let declSource = ''; let info = null;
   let sensor = 'idle'; // idle | starting | live | none | denied | insecure | unsupported
   let els = {}; let generation = 0; let wasAligned = false; let sunTimer = null;
-  let locErr = null; let uncert = 0; let nearKaaba = false; let refining = false;
+  let locErr = null; let uncert = 0; let nearKaaba = false; let refining = false; let declOutOfRange = false;
+  let roseDeg = 0, needleDeg = 0; // زوايا متراكمة غير ملفوفة كي لا يدور السهم دورة كاملة عند عبور الشمال
+  let paintReq = 0, lastBig = '', lastHint = '', calibKey = null, staleTimer = null;
 
-  function stopSensor() { if (compass) { compass.stop(); compass = null; } reading = null; }
+  function stopSensor() { if (compass) { compass.stop(); compass = null; } reading = null; clearInterval(staleTimer); staleTimer = null; }
+  /** تجميع القراءات (حتى 60 في الثانية) في رسمة واحدة لكل إطار */
+  function schedulePaint() {
+    if (paintReq || typeof requestAnimationFrame !== 'function') { if (!paintReq) paint(); return; }
+    paintReq = requestAnimationFrame(() => { paintReq = 0; paint(); });
+  }
+  const hasGesture = () => !needsPermissionGesture() || !!(navigator.userActivation && navigator.userActivation.isActive);
 
   /* ---------- المستشعر ---------- */
   async function start() {
@@ -78,13 +88,18 @@ export function mount(container, app) {
       const c = await startCompass((r) => {
         if (gen !== generation) return;
         if (r === null) { stopSensor(); sensor = 'none'; paint(); return; }
-        if (sensor !== 'live') { sensor = 'live'; }
-        reading = r; paint();
+        reading = r;
+        if (sensor !== 'live') { sensor = 'live'; paint(); } else schedulePaint();
       });
       if (gen !== generation) { c.stop(); return; }
       compass = c;
+      // مراقبة التقادم: iOS قد يوقف القراءات بصمت بعد العودة من الخلفية
+      clearInterval(staleTimer);
+      staleTimer = setInterval(() => { if (gen === generation && sensor === 'live' && reading && Date.now() - reading.at > STALE_MS) { sensor = 'stale'; paint(); } }, 1000);
     } catch (e) {
       if (gen !== generation) return;
+      // رفض بلا تفاعل من المستخدم (فتح مباشر للشاشة على iOS) ليس رفضًا حقيقيًا: نعرض زر البدء
+      if (e.code === 'denied' && needsPermissionGesture() && !(navigator.userActivation && navigator.userActivation.isActive)) { sensor = 'idle'; paint(); return; }
       sensor = e.code === 'denied' ? 'denied' : e.code === 'insecure' ? 'insecure' : 'unsupported'; paint();
     }
   }
@@ -97,12 +112,16 @@ export function mount(container, app) {
   /* ---------- الرسم ---------- */
   function paint() {
     if (!els.rose || !info) return;
-    const heading = trueHeading(); const live = heading !== null;
+    const heading = trueHeading();
+    // «حي» = قراءة مطلقة (مرجعها الشمال) والمستشعر يعمل؛ الاتجاه النسبي يُعرض ثابتًا مع التحذير لا كسهم يوهم بالدقة
+    const live = heading !== null && sensor === 'live' && !!(reading && reading.absolute);
     const shownHeading = live ? heading : 0;
-    els.rose.style.transform = `rotate(${-shownHeading}deg)`;
+    roseDeg += signedDifference(-shownHeading, roseDeg);
+    els.rose.style.transform = `rotate(${roseDeg.toFixed(2)}deg)`;
     const delta = signedDifference(info.bearing, shownHeading);
-    els.needle.style.transform = `rotate(${delta}deg)`;
-    const aligned = live && Math.abs(delta) <= ALIGN_DEG;
+    needleDeg += signedDifference(delta, needleDeg);
+    els.needle.style.transform = `rotate(${needleDeg.toFixed(2)}deg)`;
+    const aligned = live && Math.abs(delta) <= (wasAligned ? ALIGN_EXIT_DEG : ALIGN_DEG);
     const tilt = reading && reading.beta !== null && reading.gamma !== null ? Math.max(Math.abs(reading.beta), Math.abs(reading.gamma)) : 0;
     const tilted = live && tilt > TILT_DEG;
     els.wrap.classList.toggle('aligned', aligned);
@@ -111,15 +130,17 @@ export function mount(container, app) {
     if (aligned && !wasAligned) vibrate([40, 60, 40]);
     wasAligned = aligned;
     // الرقم الكبير والتعليمة الواحدة
+    // لا نعيد بناء العقد إلا عند تغيّر النص (القراءات تصل عشرات المرات في الثانية)
     if (live) {
-      render(els.big, aligned ? h('span', { class: 'ok-mark', html: icon('check') }) : h('span', {}, `${app.num(Math.abs(delta), 0)}°`));
-      render(els.hint, tilted ? h('span', { class: 'warn' }, 'ضع الهاتف أفقيًا (مستويًا) لقراءة أدق')
-        : aligned ? h('span', { class: 'ok' }, uncert > UNCERTAIN_DEG ? `متجه إلى القبلة تقريبًا (±${app.num(Math.ceil(uncert), 0)}°)` : 'أنت متجه إلى القبلة') : h('span', {}, `أدر الهاتف ${delta > 0 ? 'يمينًا' : 'يسارًا'} ${app.num(Math.abs(delta), 0)}°`));
-      els.hint.className = `turn-hint ${aligned ? 'ok' : tilted ? 'warn' : ''}`;
+      const bigKey = aligned ? 'ok' : String(Math.round(Math.abs(delta)));
+      if (bigKey !== lastBig) { lastBig = bigKey; render(els.big, aligned ? h('span', { class: 'ok-mark', html: icon('check') }) : h('span', {}, `${app.num(Math.abs(delta), 0)}°`)); }
+      const hintText = tilted ? 'ضع الهاتف أفقيًا (مستويًا) لقراءة أدق' : aligned ? (uncert > UNCERTAIN_DEG ? `متجه إلى القبلة تقريبًا (±${app.num(Math.ceil(uncert), 0)}°)` : 'أنت متجه إلى القبلة') : `أدر الهاتف ${delta > 0 ? 'يمينًا' : 'يسارًا'} ${app.num(Math.abs(delta), 0)}°`;
+      const hintKey = `${tilted}|${aligned}|${hintText}`;
+      if (hintKey !== lastHint) { lastHint = hintKey; render(els.hint, h('span', { class: aligned ? 'ok' : tilted ? 'warn' : '' }, hintText)); els.hint.className = `turn-hint ${aligned ? 'ok' : tilted ? 'warn' : ''}`; }
     } else {
-      render(els.big, h('span', {}, `${app.num(info.bearing, 0)}°`));
-      const msg = sensor === 'none' || sensor === 'unsupported' ? 'لا توجد بوصلة في هذا الجهاز — القبلة على هذا الاتجاه من الشمال؛ جرّب وضع «الشمس»' : sensor === 'starting' ? 'جارٍ تشغيل البوصلة…' : sensor === 'denied' ? 'لم يُمنح إذن المستشعرات' : sensor === 'insecure' ? 'تعمل البوصلة على HTTPS فقط' : 'اتجاه القبلة من الشمال الحقيقي';
-      render(els.hint, h('span', {}, msg)); els.hint.className = 'turn-hint';
+      const msg = sensor === 'none' || sensor === 'unsupported' ? 'لا توجد بوصلة في هذا الجهاز — القبلة على هذا الاتجاه من الشمال؛ جرّب وضع «الشمس»' : sensor === 'starting' ? 'جارٍ تشغيل البوصلة…' : sensor === 'stale' ? 'توقفت قراءات المستشعر — أعد تشغيل البوصلة' : sensor === 'denied' ? 'لم يُمنح إذن المستشعرات' : sensor === 'insecure' ? 'تعمل البوصلة على HTTPS فقط' : reading && !reading.absolute ? 'اتجاه القبلة من الشمال الحقيقي (المستشعر نسبي فلا يُعتمد عليه)' : 'اتجاه القبلة من الشمال الحقيقي';
+      const key = `static|${msg}`;
+      if (key !== lastHint) { lastHint = key; lastBig = ''; render(els.big, h('span', {}, `${app.num(info.bearing, 0)}°`)); render(els.hint, h('span', {}, msg)); els.hint.className = 'turn-hint'; }
     }
     // فقاعة الاستواء
     if (els.level) {
@@ -133,19 +154,22 @@ export function mount(container, app) {
     if (els.calib) {
       const acc = reading ? accuracyLabel(reading.accuracy) : null;
       const rel = reading && !reading.absolute;
-      if (rel) render(els.calib, h('div', { class: 'calib danger' }, h('span', { html: icon('warning') }),
+      const key = `${rel ? 'rel' : ''}|${acc ? acc.level : ''}|${reading && reading.accuracyEstimated ? 'est' : ''}`;
+      if (key === calibKey) { /* لا تغيير: لا نعيد رسم الكتلة (وإلا أعاد SVG المعايرة حركته كل إطار) */ }
+      else if ((calibKey = key, rel)) render(els.calib, h('div', { class: 'calib danger' }, h('span', { html: icon('warning') }),
         h('span', {}, reading.source === 'relative' && /iP(hone|ad|od)/.test(navigator.userAgent)
           ? 'iPhone يعطي اتجاهًا نسبيًا فقط: البوصلة تحتاج إذن الموقع للتطبيق (الإعدادات ← الخصوصية ← خدمات الموقع ← سكينة) ثم أعد فتح الشاشة، أو استخدم وضع «الشمس».'
           : 'المتصفح يعطي اتجاهًا نسبيًا بلا مرجع للشمال — فعّل الموقع/البوصلة في النظام أو استخدم وضع «الشمس».'),
         h('button', { class: 'btn btn-outline btn-sm', onclick: () => navigator.geolocation && navigator.geolocation.getCurrentPosition(() => { generation++; stopSensor(); sensor = 'idle'; start(); }, () => {}, { timeout: 8000 }) }, 'طلب إذن الموقع')));
-      else if (acc && (acc.level === 'bad' || acc.level === 'low')) render(els.calib, h('div', { class: 'calib' }, h('span', { html: FIG8_SVG }), h('span', {}, `دقة البوصلة ${acc.label} (±${app.num(reading.accuracy, 0)}°) — حرّك الهاتف في الهواء على شكل الرقم 8 بعيدًا عن المعادن والمغناطيس.`)));
+      else if (acc && (acc.level === 'bad' || acc.level === 'low')) render(els.calib, h('div', { class: 'calib' }, h('span', { html: FIG8_SVG }), h('span', {}, `دقة البوصلة ${acc.label} (${reading.accuracyEstimated ? 'تقديرًا من تذبذب القراءات' : `±${app.num(reading.accuracy, 0)}°`}) — حرّك الهاتف في الهواء على شكل الرقم 8 بعيدًا عن المعادن والمغناطيس.`)));
       else render(els.calib);
     }
     // زر البدء (iOS) أو إعادة المحاولة
     if (els.overlay) {
-      const show = sensor === 'idle' || sensor === 'denied' || sensor === 'insecure';
+      const show = sensor === 'idle' || sensor === 'denied' || sensor === 'insecure' || sensor === 'stale';
       els.overlay.hidden = !show;
-      if (show) render(els.overlay, h('button', { class: 'btn btn-primary', onclick: start }, h('span', { html: icon('compass') }), sensor === 'denied' ? ' إعادة طلب الإذن' : ' تشغيل البوصلة'),
+      const restart = () => { generation++; stopSensor(); sensor = 'idle'; start(); };
+      if (show) render(els.overlay, h('button', { class: 'btn btn-primary', onclick: sensor === 'stale' ? restart : start }, h('span', { html: icon('compass') }), sensor === 'denied' ? ' إعادة طلب الإذن' : sensor === 'stale' ? ' إعادة تشغيل البوصلة' : ' تشغيل البوصلة'),
         sensor === 'denied' ? h('small', {}, 'على iOS: الإعدادات ← Safari ← «الحركة والاتجاه»، ثم أعد المحاولة') : null);
     }
   }
@@ -169,6 +193,7 @@ export function mount(container, app) {
       reading ? row('مصدر المستشعر', reading.source === 'ios' ? 'iOS (webkitCompassHeading)' : reading.source === 'android-absolute' ? 'Android (اتجاه مطلق)' : 'اتجاه نسبي') : row('المستشعر', { idle: 'لم يُشغَّل', starting: 'جارٍ التشغيل', none: 'لا قراءات (لا بوصلة)', denied: 'الإذن مرفوض', insecure: 'يلزم HTTPS', unsupported: 'غير مدعوم', live: 'يعمل' }[sensor]),
       acc ? row('دقة المستشعر', `${acc.label}${reading.accuracy !== null ? ` (±${app.num(reading.accuracy, 0)}°)` : ''}`) : null,
       info.antipodal ? h('div', { class: 'notice' }, h('span', { html: icon('warning') }), 'موقعك قريب جدًا من النقطة المقابلة للكعبة؛ اتجاه القبلة هنا غير محدد رياضيًا.') : null,
+      declOutOfRange ? h('div', { class: 'notice' }, h('span', { html: icon('warning') }), 'نموذج الانحراف المغناطيسي WMM2025 صالح رسميًا حتى نهاية 2029؛ القيمة الحالية استقراء قد يخطئ بدرجة أو أكثر. يلزم تحديث التطبيق إلى نموذج WMM2030.') : null,
       uncert > UNCERTAIN_DEG ? h('div', { class: 'notice' }, h('span', { html: icon('warning') }), h('span', {}, `الاتجاه يعتمد على موقعك أكثر من البوصلة: على بعد ${distText(info.distanceKm)} من الكعبة يغيّر خطأ موقعٍ قدره ${app.num(locErr, 0)} م الاتجاهَ حتى ${uncertText()}. حدّد موقعك بدقة عالية من زر GPS في الشاشة.`)) : null,
       h('div', { class: 'notice info' }, h('span', { html: icon('info') }), h('span', {}, 'للتحقق: افتح تطبيق البوصلة في هاتفك (مع تفعيل «الشمال الحقيقي» في iPhone) وقارن اتجاه الهاتف الحقيقي أعلاه مع قراءته؛ إن اختلفا فالمستشعر يحتاج معايرة (حركة 8) أو إبعاده عن المعادن والحافظات المغناطيسية. وللتأكد المطلق استخدم وضع «الشمس» فهو لا يعتمد على المغناطيس.')),
       h('details', { class: 'more' }, h('summary', {}, 'بيانات التشخيص (للدعم الفني)'),
@@ -313,7 +338,7 @@ export function mount(container, app) {
     locErr = locationErrorM(loc); uncert = bearingUncertainty(info.distanceKm, locErr);
     nearKaaba = info.distanceKm * 1000 < NEAR_KAABA_M || uncert >= 90;
     const gm = await loadGeomag();
-    if (gm && gm.declination) { try { decl = gm.declination(loc.lat, loc.lon, 0, new Date()); declSource = 'WMM2025'; } catch (e) { decl = null; } } else decl = null;
+    if (gm && gm.magneticField) { try { const mf = gm.magneticField({ lat: loc.lat, lon: loc.lon, altKm: 0, date: new Date() }); decl = mf.declination; declOutOfRange = !!mf.outOfRange; declSource = 'WMM2025'; } catch (e) { decl = null; } } else decl = null;
     els = {};
     const head = h('div', { class: 'qibla-head' },
       h('h3', {}, h('span', { html: icon('kaaba') }), 'اتجاه القبلة'),
@@ -356,9 +381,14 @@ export function mount(container, app) {
     render(container, h('div', { class: 'card qibla-card' }, head, seg, uncertaintyNotice(loc), els.wrap, els.hint, els.calib, foot));
     paint();
     // تشغيل تلقائي حيث لا يلزم إذن بإيماءة؛ وإلا زرّ واحد فوق البوصلة
-    if (sensor === 'idle' || sensor === 'none') { if (!needsPermissionGesture()) start(); else paint(); }
+    if (sensor === 'idle' || sensor === 'none') { if (hasGesture()) start(); else paint(); }
   }
 
+  // العودة من الخلفية: إعادة تشغيل المستشعر (يصفّر التنعيم ويكشف توقفه الصامت) حيث لا تلزم إيماءة؛ والإخفاء يوقفه توفيرًا للبطارية
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') { if (compass) { generation++; stopSensor(); if (sensor === 'live' || sensor === 'starting' || sensor === 'stale') sensor = 'idle'; } return; }
+    if (app.current === 'qibla' && mode === 'compass' && sensor === 'idle' && !nearKaaba && hasGesture()) start();
+  });
   // إعادة البناء فقط عند تغيّر الموقع أو إعدادات البوصلة (لا عند كل تغيير في الإعدادات، كي لا يُعاد تشغيل المستشعر أثناء الاستخدام)
   let snapshot = JSON.stringify([app.location, app.settings.compass]);
   app.on('change', () => {
@@ -368,7 +398,7 @@ export function mount(container, app) {
   build();
   return {
     refresh: build,
-    show: () => { if (!info) build(); else if (mode === 'compass' && sensor === 'idle' && !nearKaaba) start(); },
+    show: () => { if (!info) build(); else if (mode === 'compass' && sensor === 'idle' && !nearKaaba && hasGesture()) start(); },
     hide: () => { generation++; stopSensor(); clearInterval(sunTimer); sunTimer = null; if (sensor === 'live' || sensor === 'starting') sensor = 'idle'; wasAligned = false; },
   };
 }

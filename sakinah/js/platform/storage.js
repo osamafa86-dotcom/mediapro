@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS = {
   method: 'auto',            // 'auto' أو معرّف طريقة من methods.js
   madhab: 'shafi',           // 'shafi' | 'hanafi'
   highLatitudeRule: 'auto',
+  shafaq: 'general',         // لطريقة Moonsighting فقط: 'general' | 'ahmer' | 'abyad'
   adjustments: { fajr: 0, sunrise: 0, dhuhr: 0, asr: 0, maghrib: 0, isha: 0 },
   custom: { fajrAngle: 18, ishaAngle: 17, ishaInterval: 0, maghribAngle: 0 },
   hijriOffset: 0,

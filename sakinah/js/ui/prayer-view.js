@@ -140,8 +140,11 @@ export function mount(container, app) {
     toast('تم إنشاء ملف التقويم لـ 30 يومًا مع منبّهات — افتحه لإضافته إلى تقويم هاتفك', 5000);
   }
 
-  app.on('change', build);
-  app.on('tick', tick);
+  // إعادة البناء فقط عند تغيّر مدخلات الحساب أو اليوم (لا مع كل حفظ في التطبيق كنقرة ذكر)، وعند الإخفاء نؤجّلها إلى العودة
+  const signature = () => { const s = app.settings; return JSON.stringify([app.location, s.method, s.madhab, s.highLatitudeRule, s.shafaq, s.adjustments, s.custom, s.hijriOffset, s.hour12, s.numerals, s.notifications, s.textScale, app.todayKey()]); };
+  let lastSig = signature(); let dirty = false;
+  app.on('change', () => { const sig = signature(); if (sig === lastSig) return; lastSig = sig; if (app.current === 'prayer') build(); else dirty = true; });
+  app.on('tick', () => { if (app.current === 'prayer') tick(); });
   build();
-  return { refresh: build, show: () => tick() };
+  return { refresh: build, show: () => { if (dirty) { dirty = false; build(); } tick(); } };
 }

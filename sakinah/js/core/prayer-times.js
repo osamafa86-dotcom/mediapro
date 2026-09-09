@@ -16,6 +16,8 @@ export const PRAYER_NAMES_AR = {
   middleOfNight: 'منتصف الليل', lastThird: 'الثلث الأخير',
 };
 
+import { cachedFormatter } from './intl-cache.js';
+
 export const HIGH_LATITUDE_RULES = {
   Auto: 'auto',
   MiddleOfTheNight: 'middleofthenight',
@@ -23,7 +25,7 @@ export const HIGH_LATITUDE_RULES = {
   TwilightAngle: 'twilightangle',
 };
 export const HIGH_LATITUDE_RULE_NAMES_AR = {
-  auto: 'تلقائي (نسبة زاوية الشفق فوق 48°)',
+  auto: 'تلقائي (منتصف الليل، ونسبة زاوية الشفق حين لا يتحقق الشفق أو فوق 48°)',
   middleofthenight: 'منتصف الليل',
   seventhofthenight: 'سُبع الليل',
   twilightangle: 'نسبة زاوية الشفق',
@@ -40,6 +42,7 @@ export function defaultParams(overrides = {}) {
     custom: null,                 // { fajrAngle, ishaAngle, ishaInterval, maghribAngle } للطريقة المخصّصة
     isRamadan: false,             // لتفعيل بديل أم القرى الرمضاني (120 دقيقة)
     rounding: null,               // null = حسب الطريقة
+    shafaq: 'general',            // لطريقة Moonsighting: 'general' | 'ahmer' (الشفق الأحمر) | 'abyad' (الأبيض)
     tz: null,                     // المنطقة الزمنية للمستخدم: تضمن وقوع المواقيت في اليوم المدني المطلوب حتى في المناطق التي يخالف توقيتها خط طولها بأكثر من 12 ساعة (كيريباتي، ساموا…)
     ...overrides,
     ...(overrides.adjustments ? { adjustments: { fajr: 0, sunrise: 0, dhuhr: 0, asr: 0, maghrib: 0, isha: 0, ...overrides.adjustments } } : {}),
@@ -48,9 +51,19 @@ export function defaultParams(overrides = {}) {
 
 /** مكوّنات التاريخ المدني (سنة/شهر/يوم) للحظة معيّنة في منطقة زمنية */
 export function civilDate(date, tz) {
-  const fmt = new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric', month: 'numeric', day: 'numeric' });
+  const fmt = cachedFormatter('en-US', { timeZone: tz, year: 'numeric', month: 'numeric', day: 'numeric' });
   const parts = Object.fromEntries(fmt.formatToParts(date).filter(p => p.type !== 'literal').map(p => [p.type, Number(p.value)]));
   return { year: parts.year, month: parts.month, day: parts.day };
+}
+
+/** لحظة الظهيرة المحلية (12:00 بتوقيت المنطقة) ليوم مدني — للاستعلامات اليومية (رمضان، الهجري) بدل 12:00 UTC التي تقع في يوم آخر شرق +12 */
+export function localNoonUTC(civil, tz) {
+  const fmt = cachedFormatter('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+  const wall = (ms) => { const p = fmt.formatToParts(new Date(ms)).reduce((o, x) => (o[x.type] = x.value, o), {}); return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute); };
+  const target = Date.UTC(civil.year, civil.month - 1, civil.day, 12);
+  let guess = target;
+  for (let i = 0; i < 4; i++) { const next = target - (wall(guess) - guess); if (next === guess) break; guess = next; }
+  return new Date(guess);
 }
 
 export function addDays({ year, month, day }, n) {
@@ -154,9 +167,9 @@ function nightPortions(rule, latitude, fajrAngle, ishaAngle) {
   // تلقائي: فوق 48° نستخدم «نسبة زاوية الشفق» (الافتراضي في AlAdhan) لأنها لا تُقيّد إلا حين يطول الشفق فعلًا صيفًا؛
   // ودونه «منتصف الليل» (لا يُقيّد عمليًا).
   const r = rule === 'auto' ? (latitude > 48 ? 'twilightangle' : 'middleofthenight') : rule;
-  if (r === 'seventhofthenight') return { fajr: 1 / 7, isha: 1 / 7 };
-  if (r === 'twilightangle') return { fajr: fajrAngle / 60, isha: ishaAngle / 60 };
-  return { fajr: 1 / 2, isha: 1 / 2 };
+  if (r === 'seventhofthenight') return { fajr: 1 / 7, isha: 1 / 7, rule: r };
+  if (r === 'twilightangle') return { fajr: fajrAngle / 60, isha: ishaAngle / 60, rule: r };
+  return { fajr: 1 / 2, isha: 1 / 2, rule: r };
 }
 
 /**
@@ -184,7 +197,8 @@ export function computePrayerTimes(coords, date, params = defaultParams(), _shif
   if (params.tz && !_shifted && isValid(dhuhrTime)) {
     const c = civilDate(dhuhrTime, params.tz);
     const diff = Math.round((Date.UTC(c.year, c.month - 1, c.day) - Date.UTC(date.year, date.month - 1, date.day)) / 86400000);
-    if (diff !== 0 && Math.abs(diff) === 1) return computePrayerTimes(coords, addDays(date, -diff), params, true);
+    // نعيد التاريخ المطلوب (لا المُزاح) كي يبقى الجدول الشهري وتظليل «اليوم» على الصف الصحيح
+    if (diff !== 0 && Math.abs(diff) === 1) return { ...computePrayerTimes(coords, addDays(date, -diff), params, true), date };
   }
 
   if ((!isValid(sunriseTime) || !isValid(sunsetTime) || isNaN(tomorrowSolarTime.sunrise)) && params.polarResolution === 'aqrabbalad') {
@@ -209,22 +223,28 @@ export function computePrayerTimes(coords, date, params = defaultParams(), _shif
   // ---- الفجر ----
   let fajrTime = utcDate(date, solarTime.hourAngle(-mp.fajrAngle, false));
   if (isMoonsighting && coords.latitude >= 55) fajrTime = addSeconds(sunriseTime, -night / 7);
+  // «تلقائي» تحت 48°: لا تقييد ما دامت الزاوية تتحقق؛ فإن لم تتحقق (الشفق لا يغيب صيفًا بين ~46.6° و48° لزوايا 19.5–20°)
+  // نلجأ لتلك الصلاة وحدها إلى نسبة زاوية الشفق كما يفعل AlAdhan، بدل قفزة 84 دقيقة من قاعدة منتصف الليل
+  const autoRule = params.highLatitudeRule === 'auto';
+  const fajrPortion = autoRule && !isValid(fajrTime) ? mp.fajrAngle / 60 : portions.fajr;
   const safeFajr = isMoonsighting
     ? seasonAdjustedMorningTwilight(coords.latitude, doy, date.year, sunriseTime)
-    : addSeconds(sunriseTime, -portions.fajr * night);
+    : addSeconds(sunriseTime, -fajrPortion * night);
   let fajrSafe = false;
   if (!isValid(fajrTime) || safeFajr > fajrTime) { fajrTime = safeFajr; fajrSafe = true; }
 
   // ---- العشاء ----
-  let ishaTime, ishaSafe = false;
+  let ishaTime, ishaSafe = false, ishaRuleUsed = null;
   if (mp.ishaInterval > 0) {
     ishaTime = addMinutes(sunsetTime, mp.ishaInterval);
   } else {
     ishaTime = utcDate(date, solarTime.hourAngle(-mp.ishaAngle, true));
     if (isMoonsighting && coords.latitude >= 55) ishaTime = addSeconds(sunsetTime, night / 7);
+    const ishaPortion = autoRule && !isValid(ishaTime) ? mp.ishaAngle / 60 : portions.isha;
+    ishaRuleUsed = ishaPortion === portions.isha ? portions.rule : 'twilightangle';
     const safeIsha = isMoonsighting
       ? seasonAdjustedEveningTwilight(coords.latitude, doy, date.year, sunsetTime, params.shafaq)
-      : addSeconds(sunsetTime, portions.isha * night);
+      : addSeconds(sunsetTime, ishaPortion * night);
     if (!isValid(ishaTime) || safeIsha < ishaTime) { ishaTime = safeIsha; ishaSafe = true; }
   }
 
@@ -247,7 +267,7 @@ export function computePrayerTimes(coords, date, params = defaultParams(), _shif
     maghrib: roundedMinute(addMinutes(maghribTime, adj('maghrib')), rounding),
     isha: roundedMinute(addMinutes(ishaTime, adj('isha')), rounding),
     date, coords,
-    resolved: { method: mp, polarResolved, usedLatitude: usedCoords.latitude, fajrSafe, ishaSafe, nightSeconds: night, dayShifted: _shifted },
+    resolved: { method: mp, polarResolved, usedLatitude: usedCoords.latitude, fajrSafe, ishaSafe, nightSeconds: night, dayShifted: _shifted, rule: portions.rule, fajrRule: fajrSafe ? (fajrPortion === portions.fajr ? portions.rule : 'twilightangle') : null, ishaRule: ishaSafe ? ishaRuleUsed : null },
   };
   return out;
 }
@@ -304,7 +324,7 @@ export function monthTable(coords, year, month, params = defaultParams()) {
 /** تنسيق وقت في منطقة زمنية معيّنة (12/24 ساعة) بالأرقام العربية أو اللاتينية */
 export function formatTime(date, tz, { hour12 = true, numerals = 'latn', locale = 'ar' } = {}) {
   if (!isValid(date)) return '—';
-  return new Intl.DateTimeFormat(`${locale}-u-nu-${numerals}`, { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12 }).format(date);
+  return cachedFormatter(`${locale}-u-nu-${numerals}`, { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12 }).format(date);
 }
 
 export { isValid as isValidDate };

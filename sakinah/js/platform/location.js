@@ -32,8 +32,13 @@ export async function detectLocation(opts = {}) {
   }
   const lat = +pos.coords.latitude.toFixed(5), lon = +pos.coords.longitude.toFixed(5);
   const near = nearestCity(lat, lon);
+  // المنطقة الزمنية: من الجهاز عادةً؛ لكن إن كانت أقرب مدينة (≤ 60 كم) في منطقة تختلف إزاحتها الآن عن منطقة الجهاز
+  // (مسافر لم يغيّر توقيت جهازه) نأخذ منطقة المدينة وإلا انزاحت كل الأوقات بفارق المنطقتين
+  const devTz = deviceTimeZone();
+  const nearKm = near ? haversineKm(lat, lon, near.lat, near.lon) : Infinity;
+  const tz = near && nearKm <= 60 && near.tz && near.tz !== devTz && tzOffsetMinutes(near.tz) !== tzOffsetMinutes(devTz) ? near.tz : devTz;
   const loc = {
-    lat, lon, tz: deviceTimeZone(), accuracy: pos.coords.accuracy ? Math.round(pos.coords.accuracy) : null,
+    lat, lon, tz, tzFromCity: tz !== devTz, accuracy: pos.coords.accuracy ? Math.round(pos.coords.accuracy) : null,
     name: near ? near.nameAr : `${lat.toFixed(3)}, ${lon.toFixed(3)}`, countryCode: near ? near.countryCode : null, countryAr: near ? near.countryAr : '',
     cityId: null, source: 'gps', updatedAt: Date.now(), approxName: true,
   };
@@ -54,6 +59,14 @@ export async function detectLocation(opts = {}) {
     }
   } catch { /* دون اتصال: نكتفي بأقرب مدينة */ }
   return loc;
+}
+
+/** إزاحة منطقة زمنية عن UTC بالدقائق في لحظة معيّنة */
+export function tzOffsetMinutes(tz, date = new Date()) {
+  try {
+    const p = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' }).formatToParts(date).reduce((o, x) => (o[x.type] = x.value, o), {});
+    return Math.round((Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute) - Math.floor(date.getTime() / 60000) * 60000) / 60000);
+  } catch { return 0; }
 }
 
 /** جيوكود عكسي مجاني دون مفتاح (BigDataCloud) — أفضل جهد فقط. الإحداثيات تُقرَّب إلى منزلتين دائمًا حمايةً للخصوصية */
