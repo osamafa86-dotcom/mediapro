@@ -582,3 +582,24 @@ body.mreader-open .tabbar { visibility: hidden; }
 /* وضع النص المتدفق داخل القارئ */
 .mreader.text-mode .mp.mp-full .mp-body.text { font-size: calc(var(--mp-size) * 1.02 * var(--quran-scale, 1)); line-height: 2.15; overflow-y: auto; height: 100%; padding: .2em .4em; }
 .mreader.text-mode .mp.mp-full .mp-mid { align-items: stretch; }
+
+/* ---------- تظليل الكلمة أثناء التلاوة، العلامات الملوّنة، خطة الختمة، التنزيلات ---------- */
+.mp .mw.wl { background: color-mix(in srgb, var(--gold-1) 38%, transparent); border-radius: .18em; box-shadow: 0 0 0 .08em color-mix(in srgb, var(--gold-1) 38%, transparent); transition: background .12s; }
+.mp.night .mw.wl { background: color-mix(in srgb, var(--gold-1) 45%, transparent); }
+.bm-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-inline-end: 6px; vertical-align: middle; background: var(--gold); }
+.bm-dot.green { background: var(--ok); } .bm-dot.red { background: var(--danger); } .bm-dot.blue { background: #2563eb; }
+.bm-colors { display: flex; gap: 8px; }
+.bm-colors button { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; }
+.bm-colors button.on { border-color: var(--text); }
+.bm-note { font-size: .8125rem; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 42vw; }
+.khatmah-card { background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 12px; box-shadow: var(--shadow); }
+.khatmah-card .kh-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.khatmah-card .kh-head b { font-size: 1rem; }
+.khatmah-card .kh-bar { height: 8px; background: var(--bg-soft); border-radius: 4px; overflow: hidden; margin: 10px 0 8px; }
+.khatmah-card .kh-bar i { display: block; height: 100%; background: var(--primary); border-radius: 4px; }
+.khatmah-card .kh-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: .8125rem; color: var(--text-2); }
+.khatmah-card .kh-meta b { color: var(--text); }
+.dl-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--line); }
+.dl-row:last-child { border-bottom: 0; }
+.dl-row .nm { font-weight: 700; } .dl-row .info { font-size: .75rem; color: var(--text-3); }
+.dl-row .prog { font-variant-numeric: tabular-nums; font-size: .8125rem; color: var(--primary); min-width: 44px; text-align: center; }

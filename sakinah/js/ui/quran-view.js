@@ -11,7 +11,11 @@ import { createMushafReader } from './mushaf-reader.js';
 import { wordEl } from './mushaf-page.js';
 import { downloadAllPageFonts, offlineFontsCount } from '../platform/mushaf-fonts.js';
 import { TAFSIR_SOURCES, getTafsir, tafsirSource } from '../core/tafsir.js';
-import { AyahPlayer, RECITERS } from '../platform/audio.js';
+import { AyahPlayer, RECITERS, hasWordTiming, reciterInfo } from '../platform/audio.js';
+import { downloadSurah, deleteSurah, makeLocalResolver, fmtBytes, storedBytes } from '../platform/downloads.js';
+import { makePlan, planStatus, streak, logPage, stats as readStats } from '../core/khatmah.js';
+import { isNative } from '../platform/native.js';
+import * as nativeNotif from '../platform/native-notifications.js';
 import { SpeechListener, isSpeechSupported } from '../platform/speech.js';
 
 const player = new AyahPlayer();
@@ -20,6 +24,8 @@ export function mount(container, app) {
   let indexTab = 'surahs'; let query = ''; let focusSearch = false;
   let playingAyah = null; let hifz = null; let speech = null; let saveTimer = null; let selected = null;
   const q = () => app.settings.quran;
+  player.words = q().wordHighlight !== false;
+  player.localResolver = makeLocalResolver(() => player.reciter);
   const saveQ = (patch) => app.update({ quran: patch });
   const page = () => reader.page;
   /** مطابقة اسم سورة بتطبيع موحّد (همزات، تاء مربوطة، ألف مقصورة) أو بالاسم الإنجليزي */
@@ -45,7 +51,7 @@ export function mount(container, app) {
     onOptions: () => readerOptions(),
     onHifzToggle: () => (hifz ? exitHifz() : startHifz(pageAyahs(page())[0].n)),
     onBookmark: (p) => toggleBookmark((hifz ? null : selectedOnPage(p)) || pageAyahs(p)[0].n),
-    onPageChange: (p, { fromScroll }) => { if (hifz && p !== hifz.page) { exitHifz(); toast('انتهت مراجعة الحفظ بتغيير الصفحة', 2500); } if (selected && getAyah(selected).page !== p) clearSelection(); scheduleSaveLastRead(); syncUrl(p); if (fromScroll) vibrate(6); },
+    onPageChange: (p, { fromScroll }) => { trackDwell(p); if (hifz && p !== hifz.page) { exitHifz(); toast('انتهت مراجعة الحفظ بتغيير الصفحة', 2500); } if (selected && getAyah(selected).page !== p) clearSelection(); scheduleSaveLastRead(); syncUrl(p); if (fromScroll) vibrate(6); },
     onTap: (w) => { if (hifz) { onHifzTap(); return true; } return false; },
     onLongPress: (n) => { selectAyah(n); ayahActions(getAyah(n)); },
     onPageReady: (p) => { if (playingAyah) reader.mark(playingAyah, 'hl'); if (hifz && hifz.page === p) applyHifzToPage(); },
@@ -103,13 +109,16 @@ export function mount(container, app) {
     let scope = 'surah'; let repeat = q().repeatAyah || 1; let reciter = q().reciter;
     const list = h('div', { class: 'listen-reciters' });
     const drawList = () => render(list, ...RECITERS.map((r) => h('button', { class: `surah-row ${r.id === reciter ? 'on' : ''}`, onclick: () => { reciter = r.id; saveQ({ reciter }); drawList(); } },
-      h('span', { class: 'num', html: icon(r.id === reciter ? 'check' : 'mic') }), h('span', {}, h('div', { class: 'nm' }, r.name)))));
+      h('span', { class: 'num', html: icon(r.id === reciter ? 'check' : 'mic') }), h('span', {}, h('div', { class: 'nm' }, r.name), r.qdc ? h('div', { class: 'info' }, 'تظليل كلمة بكلمة' + ((q().downloads || {})[r.id] && Object.keys(q().downloads[r.id]).length ? ' · محفوظ جزئيًا' : '')) : null))));
     const seg = (opts, get, set) => { const el = h('div', { class: 'segmented' }); const draw = () => render(el, ...opts.map(([k, l]) => h('button', { class: get() === k ? 'active' : '', onclick: () => { set(k); draw(); } }, l))); draw(); return el; };
     openSheet({ title: `الاستماع — ${refLabel(a)}`, content: h('div', { class: 'stack' },
       h('div', { class: 'field' }, h('label', {}, 'المدى'), seg([['single', 'هذه الآية'], ['surah', 'من هنا حتى نهاية السورة'], ['page', 'الصفحة']], () => scope, (v) => { scope = v; })),
       h('div', { class: 'field' }, h('label', {}, 'تكرار كل آية'), seg([[1, '×1'], [2, '×2'], [3, '×3'], [5, '×5'], [10, '×10']], () => repeat, (v) => { repeat = v; saveQ({ repeatAyah: v }); })),
       h('div', { class: 'field' }, h('label', {}, 'القارئ'), list),
-      h('button', { class: 'btn btn-primary btn-block', onclick: () => { closeSheet(); player.repeatAyah = repeat; player.setReciter(reciter); playFrom(a.n, scope); } }, h('span', { html: icon('play') }), ' تشغيل')) });
+      h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'تظليل الكلمة أثناء التلاوة'), h('div', { class: 'desc' }, 'للقرّاء الذين تتوفر توقيتات كلماتهم (مصدر quran.com)')), switchEl(q().wordHighlight !== false, (v) => { saveQ({ wordHighlight: v }); player.setWords(v); })),
+      h('div', { class: 'row', style: { gap: '8px' } },
+        h('button', { class: 'btn btn-primary', style: { flex: 1 }, onclick: () => { closeSheet(); player.repeatAyah = repeat; player.setReciter(reciter); playFrom(a.n, scope); } }, h('span', { html: icon('play') }), ' تشغيل'),
+        h('button', { class: 'btn btn-outline', onclick: () => { closeSheet(); openDownloads(reciter, a.surah); } }, h('span', { html: icon('download') }), ' دون اتصال'))) });
     drawList();
   }
   function syncUrl(p) { const target = `#/quran?p=${p}`; if (location.hash !== target) history.replaceState(null, '', target); }
@@ -179,8 +188,10 @@ export function mount(container, app) {
       else {
         const bms = q().bookmarks || [];
         render(listEl, bms.length ? bms.slice().reverse().map((b) => h('button', { class: 'surah-row', onclick: () => openReader(b.page, getAyahBySurah(b.surah, b.ayah)) },
-          h('span', { class: 'num', html: icon('bookmarkFill') }), h('span', {}, h('div', { class: 'nm' }, `${surahInfo(b.surah).name}: ${app.num(b.ayah)}`), h('div', { class: 'info' }, new Date(b.at).toLocaleDateString('ar', { day: 'numeric', month: 'long' }))),
+          h('span', { class: 'num', html: icon('bookmarkFill'), style: { color: b.color === 'green' ? 'var(--ok)' : b.color === 'red' ? 'var(--danger)' : b.color === 'blue' ? '#2563eb' : 'var(--gold)' } }),
+          h('span', {}, h('div', { class: 'nm' }, `${surahInfo(b.surah).name}: ${app.num(b.ayah)}`), b.note ? h('div', { class: 'bm-note' }, b.note) : h('div', { class: 'info' }, new Date(b.at).toLocaleDateString('ar', { day: 'numeric', month: 'long' }))),
           h('span', { class: 'pg' }, `ص ${app.num(b.page)}`),
+          h('button', { class: 'icon-btn', style: { width: '32px', height: '32px' }, 'aria-label': 'تعديل الملاحظة', onclick: (e) => { e.stopPropagation(); const a = getAyahBySurah(b.surah, b.ayah); if (a) bookmarkSheet(a, () => drawList()); } }, h('span', { html: icon('edit') })),
           h('button', { class: 'icon-btn', style: { width: '32px', height: '32px' }, 'aria-label': 'حذف', onclick: (e) => { e.stopPropagation(); saveQ({ bookmarks: bms.filter((x) => !(x.surah === b.surah && x.ayah === b.ayah)) }); drawList(); } }, h('span', { html: icon('close') }))))
           : h('div', { class: 'empty' }, 'لا علامات بعد — اضغط زر العلامة في القارئ أو اضغط مطوّلًا على آية'));
       }
@@ -189,6 +200,7 @@ export function mount(container, app) {
       last ? h('div', { class: 'resume-card' }, h('div', {}, h('small', {}, 'متابعة القراءة'), h('b', {}, `${surahInfo(last.surah).name} · آية ${app.num(last.ayah)}`), h('small', {}, `الصفحة ${app.num(last.page)} · الجزء ${app.num(pageLabel(last.page).juz)}`)),
         h('button', { class: 'btn btn-sm', onclick: () => openReader(last.page, getAyahBySurah(last.surah, last.ayah)) }, h('span', { html: icon('play') }), ' متابعة'))
         : h('div', { class: 'resume-card' }, h('div', {}, h('small', {}, 'ابدأ القراءة'), h('b', {}, 'المصحف الشريف'), h('small', {}, 'مصحف المدينة النبوية · حفص عن عاصم · 604 صفحات')), h('button', { class: 'btn btn-sm', onclick: () => openReader(1) }, 'فتح')),
+      khatmahCard(),
       h('div', { class: 'search' }, input, h('span', { html: icon('search') })),
       h('div', { class: 'segmented', style: { marginBottom: '10px' } },
         ...[['surahs', 'السور'], ['juz', 'الأجزاء'], ['bookmarks', 'العلامات']].map(([k, l]) => h('button', { class: indexTab === k ? 'active' : '', onclick: () => { indexTab = k; drawList(); container.querySelectorAll('.segmented button').forEach((b) => b.classList.toggle('active', b.textContent === l)); } }, l))),
@@ -210,7 +222,7 @@ export function mount(container, app) {
         h('button', { class: 'btn btn-primary', onclick: () => { closeSheet(); openListen(a); } }, h('span', { html: icon('mic') }), ' استماع (اختيار القارئ)'),
         h('button', { class: 'btn btn-outline', onclick: () => { closeSheet(); playFrom(a.n, 'surah'); } }, h('span', { html: icon('play') }), ' تشغيل من هنا'),
         h('button', { class: 'btn btn-outline', onclick: () => { closeSheet(); player.repeatAyah = 3; saveQ({ repeatAyah: 3 }); playFrom(a.n, 'single'); } }, h('span', { html: icon('repeat') }), ' تكرار الآية ×3'),
-        h('button', { class: 'btn btn-outline', onclick: () => { closeSheet(); toggleBookmark(a.n); } }, h('span', { html: icon(isBookmarked(a.n) ? 'bookmarkFill' : 'bookmark') }), isBookmarked(a.n) ? ' إزالة العلامة' : ' إضافة علامة'),
+        h('button', { class: 'btn btn-outline', onclick: () => { closeSheet(); bookmarkSheet(a); } }, h('span', { html: icon(isBookmarked(a.n) ? 'bookmarkFill' : 'bookmark') }), isBookmarked(a.n) ? ' تعديل العلامة' : ' علامة مع ملاحظة'),
         h('button', { class: 'btn btn-outline', onclick: () => { closeSheet(); saveLastRead(a); toast(`حُفظ موضع القراءة عند ${refLabel(a)}`); } }, h('span', { html: icon('check') }), ' موضع القراءة'),
         h('button', { class: 'btn btn-outline', onclick: () => { closeSheet(); startHifz(a.n); } }, h('span', { html: icon('eyeOff') }), ' مراجعة الحفظ من هنا'),
         h('button', { class: 'btn btn-outline', onclick: () => shareText('آية من القرآن الكريم', txt) }, h('span', { html: icon('share') }), ' مشاركة'),
@@ -277,11 +289,135 @@ export function mount(container, app) {
       h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'طريقة العرض'), h('div', { class: 'desc' }, 'صفحات المصحف المطبوع، أو نص متدفق بحجم خط قابل للتغيير')), h('div', { class: 'segmented', style: { minWidth: '170px' } }, ...[['pages', 'صفحات'], ['text', 'نص']].map(([k, l]) => h('button', { class: (s.view || 'pages') === k ? 'active' : '', onclick: (e) => { saveQ({ view: k }); reader.setTextMode(k === 'text'); e.currentTarget.parentElement.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b === e.currentTarget)); const sr = document.getElementById('text-size-row'); if (sr) sr.hidden = k !== 'text'; } }, l)))),
       h('div', { class: 'setting-row', id: 'text-size-row', hidden: (s.view || 'pages') !== 'text' }, h('div', { class: 'label' }, 'حجم الخط (وضع النص)'), h('div', { class: 'text-scale-ctl' },
         h('button', { onclick: () => setScale(-0.1) }, 'أ-'), h('button', { onclick: () => setScale(0.1) }, 'أ+'))),
+      h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'تظليل الكلمة أثناء التلاوة'), h('div', { class: 'desc' }, 'كلمةً كلمة مع القرّاء الذين تتوفر توقيتاتهم (يُستخدم مصدر quran.com)')), switchEl(s.wordHighlight !== false, (v) => { saveQ({ wordHighlight: v }); player.setWords(v); })),
+      h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'التلاوات دون اتصال'), h('div', { class: 'desc' }, 'تنزيل سور كاملة لقارئك المفضّل لسماعها بلا إنترنت')), h('button', { class: 'btn btn-outline btn-sm', onclick: () => { closeSheet(); openDownloads(q().reciter, pageAyahs(page())[0].surah); } }, h('span', { html: icon('download') }), ' إدارة')),
+      h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'خطة الختمة'), h('div', { class: 'desc' }, q().khatmah ? `${app.num(q().khatmah.dailyPages)} صفحات يوميًا` : 'هدف يومي وتذكير ومتابعة التقدّم')), h('button', { class: 'btn btn-outline btn-sm', onclick: () => { closeSheet(); khatmahSheet(); } }, q().khatmah ? 'تعديل' : 'إنشاء')),
       fontsRow,
       h('p', { class: 'tiny' }, 'الصفحات بخطوط مجمع الملك فهد لطباعة المصحف الشريف (مصحف المدينة، حفص عن عاصم) مطابقةً للمصحف المطبوع سطرًا بسطر. النص: Tanzil. التلاوات: Islamic Network. انقر الصفحة لإظهار الأدوات، وانقر مرتين للتنقل والبحث، واضغط مطوّلًا على آية لقائمتها.')) });
   }
 
   function setScale(d) { const v = Math.min(1.8, Math.max(0.7, +((q().fontScale || 1) + d).toFixed(2))); saveQ({ fontScale: v }); document.documentElement.style.setProperty('--quran-scale', String(v)); reader.relayout(); }
+
+  /* ---------- العلامات مع ملاحظة ولون ---------- */
+  function bookmarkSheet(a, onDone) {
+    const bms = q().bookmarks || []; const cur = bms.find((b) => b.surah === a.surah && b.ayah === a.ayah) || null;
+    let color = (cur && cur.color) || 'gold';
+    const note = h('textarea', { class: 'input', rows: 3, placeholder: 'ملاحظة (اختياري): تدبّر، فائدة، تذكير…', maxlength: 500 }); note.value = (cur && cur.note) || '';
+    const colors = h('div', { class: 'bm-colors' });
+    const drawColors = () => render(colors, ...[['gold', 'var(--gold)'], ['green', 'var(--ok)'], ['red', 'var(--danger)'], ['blue', '#2563eb']].map(([k, c]) => h('button', { class: k === color ? 'on' : '', style: { background: c }, 'aria-label': `لون ${k}`, onclick: () => { color = k; drawColors(); } })));
+    drawColors();
+    const save = () => {
+      const rest = bms.filter((b) => !(b.surah === a.surah && b.ayah === a.ayah));
+      saveQ({ bookmarks: [...rest, { surah: a.surah, ayah: a.ayah, page: a.page, at: cur ? cur.at : Date.now(), note: note.value.trim() || undefined, color }] });
+      app.replace('quran.bookmarks', app.settings.quran.bookmarks); // إزالة المفاتيح المحذوفة (note) دون دمج عميق
+      reader.refreshBookmark(); closeSheet(); toast(cur ? 'حُدّثت العلامة' : `أُضيفت علامة عند ${refLabel(a)}`); vibrate(10); onDone && onDone();
+    };
+    openSheet({ title: `علامة — ${refLabel(a)}`, content: h('div', { class: 'stack' },
+      h('p', { class: 'matn', style: { fontFamily: "'Amiri Quran', Amiri, serif", fontSize: '17px', lineHeight: '2' } }, a.text.length > 160 ? a.text.slice(0, 160) + '…' : a.text),
+      h('div', { class: 'field' }, h('label', {}, 'اللون'), colors),
+      h('div', { class: 'field' }, h('label', {}, 'ملاحظة'), note),
+      h('div', { class: 'row', style: { gap: '8px' } },
+        h('button', { class: 'btn btn-primary', style: { flex: 1 }, onclick: save }, cur ? 'حفظ' : 'إضافة العلامة'),
+        cur ? h('button', { class: 'btn btn-outline', onclick: () => { saveQ({ bookmarks: bms.filter((b) => !(b.surah === a.surah && b.ayah === a.ayah)) }); app.replace('quran.bookmarks', app.settings.quran.bookmarks); reader.refreshBookmark(); closeSheet(); toast('أُزيلت العلامة'); onDone && onDone(); } }, 'إزالة') : null)) });
+    setTimeout(() => note.focus({ preventScroll: true }), 350);
+  }
+
+  /* ---------- التلاوات دون اتصال ---------- */
+  function openDownloads(reciterId, focusSurah) {
+    let reciter = reciterId || q().reciter; const running = new Map(); // surah → AbortController
+    const sel = h('select', { class: 'input' }, ...RECITERS.map((r) => h('option', { value: r.id, selected: r.id === reciter }, r.name + (r.qdc ? ' — كلمة بكلمة' : ''))));
+    sel.addEventListener('change', () => { reciter = sel.value; draw(); });
+    const summary = h('div', { class: 'tiny' }); const list = h('div', { class: 'card', style: { padding: '2px 10px' } });
+    const dlOf = () => (q().downloads || {})[reciter] || {};
+    const setDl = (surah, entry) => { const all = { ...(q().downloads || {}) }; const mine = { ...(all[reciter] || {}) }; if (entry) mine[surah] = entry; else delete mine[surah]; all[reciter] = mine; app.replace('quran.downloads', all); };
+    const drawSummary = async () => { const mine = dlOf(); const n = Object.keys(mine).length; const b = Object.values(mine).reduce((t, e) => t + (e.bytes || 0), 0); render(summary, n ? `${app.num(n)} سورة محفوظة لهذا القارئ · ${fmtBytes(b)}` : 'لا سور محفوظة لهذا القارئ بعد'); };
+    const row = (su) => {
+      const mine = dlOf(); const e = mine[su.n]; const ctl = running.get(su.n);
+      const prog = h('span', { class: 'prog' }, ctl ? ctl.label || '…' : '');
+      const btn = h('button', { class: `btn btn-sm ${e ? 'btn-outline' : 'btn-soft'}`, onclick: async () => {
+        if (ctl) { ctl.abort(); running.delete(su.n); draw(); return; }
+        if (e) { await deleteSurah(reciter, su.n, surahAyahs(su.n), { words: q().wordHighlight !== false }); setDl(su.n, null); draw(); toast(`حُذفت تلاوة ${su.name}`); return; }
+        if (!(isLoaded())) { await ensureLoaded(); }
+        const ac = new AbortController(); ac.label = '0٪'; running.set(su.n, ac); draw();
+        try {
+          const r = await downloadSurah(reciter, su.n, surahAyahs(su.n), { signal: ac.signal, words: q().wordHighlight !== false, onProgress: (d, t) => { ac.label = `${app.num(Math.round(d / t * 100))}٪`; const p = list.querySelector(`[data-su="${su.n}"] .prog`); if (p) p.textContent = ac.label; } });
+          setDl(su.n, { files: r.files, bytes: r.bytes, at: Date.now(), words: q().wordHighlight !== false }); toast(`اكتمل تنزيل ${su.name} (${fmtBytes(r.bytes)})`);
+        } catch (err) { if (!/abort/i.test(String(err && err.message))) toast(err && err.message === 'unsupported' ? 'التنزيل غير متاح في هذا المتصفح' : 'تعذّر إكمال التنزيل — تحقق من الاتصال', 3500); }
+        running.delete(su.n); draw();
+      } }, ctl ? 'إيقاف' : e ? 'حذف' : 'تنزيل');
+      return h('div', { class: 'dl-row', dataset: { su: String(su.n) } }, h('span', {}, h('div', { class: 'nm' }, `${app.num(su.n)}. ${su.name}`), h('div', { class: 'info' }, e ? `محفوظة · ${fmtBytes(e.bytes || 0)}${e.words ? ' · كلمة بكلمة' : ''}` : `${app.num(su.ayahs)} آية`)), h('span', { class: 'row', style: { gap: '6px' } }, prog, btn));
+    };
+    const draw = () => { drawSummary(); const ordered = focusSurah ? [SURAHS[focusSurah - 1], ...SURAHS.filter((x) => x.n !== focusSurah)] : SURAHS; render(list, ...ordered.map(row)); };
+    draw();
+    openSheet({ title: 'التلاوات دون اتصال', content: h('div', { class: 'stack' },
+      h('div', { class: 'field' }, h('label', {}, 'القارئ'), sel), summary,
+      h('div', { class: 'row', style: { gap: '8px' } },
+        h('button', { class: 'btn btn-outline btn-sm', onclick: async () => { const j = pageLabel(page()).juz || 1; const surahs = SURAHS.filter((x) => surahAyahs(x.n).some((a) => a.juz === j)); for (const su of surahs) { const el = list.querySelector(`[data-su="${su.n}"] button`); if (el && el.textContent === 'تنزيل') el.click(); } } }, `تنزيل سور الجزء ${app.num(pageLabel(page()).juz || 1)}`),
+        h('button', { class: 'btn btn-outline btn-sm', onclick: async () => { if (!confirm('حذف كل التلاوات المحفوظة لكل القرّاء؟')) return; const { clearAllAudio } = await import('../platform/downloads.js'); await clearAllAudio(); app.replace('quran.downloads', {}); draw(); toast('حُذفت كل التلاوات المحفوظة'); } }, 'حذف الكل')),
+      list,
+      h('p', { class: 'tiny' }, isNative() ? 'تُحفظ الملفات داخل التطبيق وتُشغَّل تلقائيًا دون اتصال.' : 'تُحفظ الملفات في تخزين المتصفح ويقدّمها التطبيق تلقائيًا دون اتصال؛ قد يحذفها المتصفح إن ضاق التخزين.')), onClose: () => { for (const ac of running.values()) ac.abort(); } });
+    storedBytes().then((r) => { if (r && r.files) render(summary, `${summary.textContent} · إجمالي المخزّن ${fmtBytes(r.bytes)}`); });
+  }
+
+  /* ---------- خطة الختمة وإحصاءات القراءة ---------- */
+  let dwellTimer = null; let dwellPage = null;
+  function trackDwell(p) {
+    clearTimeout(dwellTimer); dwellPage = p;
+    dwellTimer = setTimeout(() => { if (reader.isOpen && dwellPage === p) { const log = logPage(q().readLog, app.todayKey(), p); app.replace('quran.readLog', log); } }, 8000);
+  }
+  function khatmahCard() {
+    const plan = q().khatmah; const today = app.todayKey(); const last = q().lastRead;
+    if (!plan) {
+      const st = readStats(q().readLog, today); const sk = streak(q().readLog, today);
+      if (!st.month && !sk) return null;
+      return h('div', { class: 'khatmah-card' }, h('div', { class: 'kh-head' }, h('b', {}, 'قراءتك'), h('button', { class: 'btn btn-sm btn-soft', onclick: khatmahSheet }, 'خطة ختمة')),
+        h('div', { class: 'kh-meta' }, h('span', {}, 'سلسلة الأيام: ', h('b', {}, app.num(sk))), h('span', {}, 'هذا الأسبوع: ', h('b', {}, app.num(st.week)), ' صفحة'), h('span', {}, 'هذا الشهر: ', h('b', {}, app.num(st.month)), ' صفحة')));
+    }
+    const cur = last ? last.page : plan.startPage; const stt = planStatus(plan, cur, q().readLog, today); const sk = streak(q().readLog, today);
+    const [ey, em, ed] = stt.etaKey.split('-').map(Number);
+    return h('div', { class: 'khatmah-card' },
+      h('div', { class: 'kh-head' }, h('b', {}, stt.finished ? 'تقبّل الله ✦ أتممت الختمة' : `خطة الختمة · ${app.num(plan.days)} يومًا`), h('button', { class: 'btn btn-sm btn-soft', onclick: khatmahSheet }, 'تعديل')),
+      h('div', { class: 'kh-bar' }, h('i', { style: { width: `${stt.percent}%` } })),
+      h('div', { class: 'kh-meta' },
+        h('span', {}, h('b', {}, `${app.num(stt.percent)}٪`), ` · ${app.num(stt.done)} من ${app.num(604)} صفحة`),
+        h('span', {}, 'اليوم: ', h('b', {}, `${app.num(stt.todayPages)} / ${app.num(stt.todayTarget)}`), ' صفحة'),
+        stt.behind > 0 ? h('span', { style: { color: 'var(--danger)' } }, `متأخّر ${app.num(stt.behind)} صفحة`) : h('span', { style: { color: 'var(--ok)' } }, 'على الجدول ✓'),
+        h('span', {}, 'سلسلة: ', h('b', {}, app.num(sk)), ' يوم'),
+        h('span', {}, 'الإتمام المتوقع: ', h('b', {}, new Date(Date.UTC(ey, em - 1, ed)).toLocaleDateString('ar', { day: 'numeric', month: 'long', timeZone: 'UTC' })))),
+      h('div', { class: 'row', style: { marginTop: '10px', gap: '8px' } },
+        h('button', { class: 'btn btn-sm btn-primary', onclick: () => openReader(last ? last.page : plan.startPage, last ? getAyahBySurah(last.surah, last.ayah) : null) }, h('span', { html: icon('play') }), stt.todayPages >= stt.todayTarget ? ' أكملت ورد اليوم — تابع' : ' اقرأ ورد اليوم')));
+  }
+  function khatmahSheet() {
+    const plan = q().khatmah; let days = plan ? plan.days : 30; let fromCurrent = true; let reminder = plan ? plan.reminder : null;
+    const daysIn = h('input', { class: 'input ltr', type: 'number', min: 1, max: 604, value: days, style: { width: '90px' } });
+    const chips = h('div', { class: 'chips' });
+    const drawChips = () => render(chips, ...[30, 60, 90, 120].map((d) => h('button', { class: `chip chip-btn ${days === d ? 'active' : ''}`, onclick: () => { days = d; daysIn.value = d; drawChips(); } }, `${app.num(d)} يومًا`)));
+    drawChips(); daysIn.addEventListener('input', () => { days = Math.max(1, Math.min(604, +daysIn.value || 30)); drawChips(); });
+    const timeIn = h('input', { class: 'input ltr', type: 'time', value: reminder || '' , style: { width: '130px' } });
+    const start = h('div', { class: 'segmented' }); const drawStart = () => render(start, h('button', { class: fromCurrent ? 'active' : '', onclick: () => { fromCurrent = true; drawStart(); } }, 'من موضع قراءتي'), h('button', { class: !fromCurrent ? 'active' : '', onclick: () => { fromCurrent = false; drawStart(); } }, 'من الفاتحة')); drawStart();
+    const save = () => {
+      const last = q().lastRead; const startPage = fromCurrent && last ? last.page : 1;
+      const p = makePlan({ startPage, startedAt: app.todayKey(), days, reminder: timeIn.value || null });
+      app.replace('quran.khatmah', p); scheduleKhatmahReminder(p); closeSheet(); toast(`خطة الختمة: ${app.num(p.dailyPages)} صفحات يوميًا`); if (!reader.isOpen) indexScreen();
+    };
+    openSheet({ title: plan ? 'تعديل خطة الختمة' : 'خطة الختمة', content: h('div', { class: 'stack' },
+      h('div', { class: 'field' }, h('label', {}, 'المدة'), chips, h('div', { class: 'row', style: { marginTop: '6px' } }, daysIn, h('span', { class: 'tiny' }, `≈ ${app.num(Math.ceil(604 / days))} صفحات يوميًا`))),
+      h('div', { class: 'field' }, h('label', {}, 'البداية'), start),
+      h('div', { class: 'field' }, h('label', {}, 'تذكير يومي (اختياري)'), h('div', { class: 'row' }, timeIn, h('span', { class: 'tiny' }, isNative() ? 'إشعار يومي من النظام' : 'يعمل ما دام التطبيق مفتوحًا'))),
+      h('div', { class: 'row', style: { gap: '8px' } },
+        h('button', { class: 'btn btn-primary', style: { flex: 1 }, onclick: save }, plan ? 'حفظ' : 'ابدأ الخطة'),
+        plan ? h('button', { class: 'btn btn-outline', onclick: () => { app.replace('quran.khatmah', null); scheduleKhatmahReminder(null); closeSheet(); toast('أُنهيت الخطة'); if (!reader.isOpen) indexScreen(); } }, 'إنهاء') : null)) });
+    daysIn.addEventListener('input', () => { const t = daysIn.parentElement.querySelector('.tiny'); if (t) t.textContent = `≈ ${app.num(Math.ceil(604 / days))} صفحات يوميًا`; });
+  }
+  const KHATMAH_NOTIF_ID = 900001;
+  async function scheduleKhatmahReminder(plan) {
+    const LN = nativeNotif.available() ? (await import('../platform/native.js')).plugin('LocalNotifications') : null;
+    if (!LN) return;
+    try { await LN.cancel({ notifications: [{ id: KHATMAH_NOTIF_ID }] }); } catch { /* تجاهل */ }
+    if (!plan || !plan.reminder) return;
+    const [hh, mm] = plan.reminder.split(':').map(Number);
+    try { await LN.schedule({ notifications: [{ id: KHATMAH_NOTIF_ID, title: 'ورد اليوم من القرآن', body: `${app.num(plan.dailyPages)} صفحات تُبقيك على جدول الختمة`, schedule: { on: { hour: hh, minute: mm }, repeats: true, allowWhileIdle: true }, extra: { url: './index.html#/quran' } }] }); } catch { /* تجاهل */ }
+  }
 
   /* ---------- التلاوة ---------- */
   function playFrom(n, scope) {
@@ -290,16 +426,23 @@ export function mount(container, app) {
     else if (scope === 'page') queue = pageAyahs(a.page).map((x) => x.n);
     else queue = surahAyahs(a.surah).filter((x) => x.n >= n).map((x) => x.n);
     player.reciter = q().reciter; player.repeatAyah = q().repeatAyah || 1; player.repeatRange = !!q().repeatRange; player.setRate(q().rate || 1);
-    player.play(queue, 0, { label: (m) => refLabel(getAyah(m)) });
+    player.words = q().wordHighlight !== false;
+    player.play(queue, 0, { label: (m) => refLabel(getAyah(m)), ayah: (m) => getAyah(m) });
+    renderAudioBar(); // يظهر الشريط فورًا («جارٍ التحميل») دون انتظار جلب بيانات المصدر
   }
   player.on('ayah', ({ ayah }) => {
+    reader.markWord(ayah, null);
     playingAyah = ayah; const a = getAyah(ayah);
     reader.clearMarks('hl'); reader.mark(ayah, 'hl');
     if (reader.isOpen && q().follow && a.page !== page() && !hifz) reader.goto(a.page, { smooth: true });
     renderAudioBar();
   });
-  player.on('state', (st) => { if (st === 'stopped' || st === 'ended') { playingAyah = null; reader.clearMarks('hl'); } renderAudioBar(); });
-  player.on('time', ({ t, d }) => { const bar = document.querySelector('.audio-bar .bar i'); if (bar && d) bar.style.width = `${(t / d) * 100}%`; });
+  player.on('state', (st) => { if (st === 'stopped' || st === 'ended') { playingAyah = null; reader.clearMarks('hl'); reader.markWord(null, null); } renderAudioBar(); });
+  player.on('time', ({ ayah, t, d, word }) => {
+    const bar = document.querySelector('.audio-bar .bar i'); if (bar && d) bar.style.width = `${(t / d) * 100}%`;
+    if (q().wordHighlight !== false && reader.isOpen) reader.markWord(ayah, word ? word - 1 : null);
+  });
+  player.on('sleep', (at) => { if (!at) toast('انتهى مؤقت النوم — توقفت التلاوة', 3000); renderAudioBar(); });
   player.on('error', ({ code, kind }) => {
     if (code === 'play') return;
     toast(kind === 'network' ? 'تعذّر تحميل التلاوة — تحقق من الاتصال بالإنترنت' : kind === 'unavailable' ? 'هذه التلاوة غير متاحة لهذه الآية من هذا القارئ — جرّب قارئًا آخر' : 'تعذّر تشغيل التلاوة — جرّب قارئًا آخر أو أعد المحاولة', 3800);
@@ -311,7 +454,7 @@ export function mount(container, app) {
     const a = getAyah(player.current); const rec = RECITERS.find((r) => r.id === player.reciter) || RECITERS[0];
     const content = h('div', {},
       h('div', { class: 'row1' },
-        h('div', {}, h('div', { class: 'who' }, rec.name), h('div', { class: 'where' }, `${refLabel(a)} · ${app.num(player.index + 1)}/${app.num(player.queue.length)}`)),
+        h('div', {}, h('div', { class: 'who' }, rec.name), h('div', { class: 'where' }, `${refLabel(a)} · ${app.num(player.index + 1)}/${app.num(player.queue.length)}${player.loading ? ' · جارٍ التحميل…' : ''}`)),
         h('div', { class: 'ctl' },
           h('button', { class: 'icon-btn', 'aria-label': 'الآية السابقة', onclick: () => player.prevAyah() }, h('span', { html: icon('skipNext') })),
           h('button', { class: 'icon-btn play', 'aria-label': player.playing ? 'إيقاف مؤقت' : 'تشغيل', onclick: () => player.toggle() }, h('span', { html: icon(player.playing ? 'pause' : 'play') })),
@@ -323,6 +466,7 @@ export function mount(container, app) {
         h('button', { class: `chip chip-btn ${player.repeatAyah > 1 ? 'active' : ''}`, onclick: () => { const opts = [1, 2, 3, 5, 10]; const nx = opts[(opts.indexOf(player.repeatAyah) + 1) % opts.length]; player.repeatAyah = nx; saveQ({ repeatAyah: nx }); renderAudioBar(); } }, h('span', { html: icon('repeat') }), ` الآية ×${app.num(player.repeatAyah)}`),
         h('button', { class: `chip chip-btn ${player.repeatRange ? 'active' : ''}`, onclick: () => { player.repeatRange = !player.repeatRange; saveQ({ repeatRange: player.repeatRange }); renderAudioBar(); } }, 'تكرار المقطع'),
         h('button', { class: 'chip chip-btn', onclick: () => { const opts = [0.75, 1, 1.25, 1.5]; const nx = opts[(opts.indexOf(player.rate) + 1) % opts.length]; player.setRate(nx); saveQ({ rate: nx }); renderAudioBar(); } }, `السرعة ${app.num(player.rate, 2).replace(/\.?0+$/, '')}×`),
+        h('button', { class: `chip chip-btn ${player.sleepAt ? 'active' : ''}`, title: 'مؤقت النوم', onclick: () => { const opts = [0, 15, 30, 45, 60]; const cur = player.sleepAt ? Math.round((player.sleepAt - Date.now()) / 60000) : 0; const nx = opts[(opts.findIndex((o) => o >= cur && (cur === 0 ? o === 0 : true)) + 1) % opts.length]; player.setSleep(nx); toast(nx ? `ستتوقف التلاوة بعد ${app.num(nx)} دقيقة` : 'أُلغي مؤقت النوم', 2500); } }, h('span', { html: icon('moon') }), player.sleepAt ? ` ${app.num(Math.max(1, Math.round((player.sleepAt - Date.now()) / 60000)))} د` : ' النوم'),
         reader.isOpen && a.page !== page() ? h('button', { class: 'chip chip-btn', onclick: () => reader.goto(a.page, { smooth: false }) }, `الانتقال إلى ص ${app.num(a.page)}`) : null,
         !reader.isOpen && app.current === 'quran' ? h('button', { class: 'chip chip-btn', onclick: () => openReader(a.page) }, 'فتح الصفحة') : null));
     if (!bar) { bar = h('div', { class: 'audio-bar', id: 'audio-bar', role: 'region', 'aria-label': 'مشغّل التلاوة' }); document.body.append(bar); }

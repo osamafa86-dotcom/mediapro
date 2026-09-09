@@ -1,6 +1,8 @@
 /* سكينة — عامل الخدمة: عمل دون اتصال + إشعارات */
 const VERSION = 'sakinah-v1.4.0';
 const FONT_CACHE = 'sakinah-mushaf-fonts'; // خطوط صفحات المصحف (تُملأ عند الطلب أو بالتنزيل الكامل من الخيارات)
+const AUDIO_CACHE = 'sakinah-audio'; // تلاوات نُزّلت صراحةً من مدير التنزيلات
+const KEEP = new Set([FONT_CACHE, AUDIO_CACHE, 'sakinah-tafsir', 'sakinah-audio-meta']);
 const CORE = [
   './', './index.html', './manifest.webmanifest', './css/app.css', './css/fonts.css', './js/boot-theme.js',
   './js/app.js', './js/ui/components.js', './js/ui/prayer-view.js', './js/ui/qibla-view.js', './js/ui/adhkar-view.js',
@@ -21,7 +23,7 @@ self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => Promise.all(CORE.map((u) => c.add(new Request(u, { cache: 'reload' }))))));
 });
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION && k !== FONT_CACHE && k !== 'sakinah-tafsir').map((k) => caches.delete(k)))).then(() => self.clients.claim())
+  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION && !KEEP.has(k)).map((k) => caches.delete(k)))).then(() => self.clients.claim())
     .then(() => precacheOptional()));
 });
 // تخزين الملفات الاختيارية على دفعات صغيرة في الخلفية (تُتخطى الموجودة)
@@ -50,6 +52,21 @@ self.addEventListener('fetch', (e) => {
   }
   // تفاسير quran.com: تخزّنها الصفحة نفسها في Cache API (tafsir.js) فلا نكرّرها هنا
   if (url.hostname === 'api.quran.com') return;
+  // التلاوات: من كاش التنزيلات إن وُجدت (مع دعم طلبات Range التي يرسلها Safari لعناصر الصوت)، وإلا الشبكة كما هي دون تخزين
+  if (url.hostname === 'verses.quran.com' || url.hostname === 'cdn.islamic.network') {
+    e.respondWith(caches.open(AUDIO_CACHE).then(async (c) => {
+      const hit = await c.match(req.url);
+      if (!hit) return fetch(req);
+      const range = req.headers.get('range');
+      if (!range) return hit;
+      const buf = await hit.arrayBuffer(); const size = buf.byteLength;
+      const m = /bytes=(\d*)-(\d*)/.exec(range) || [];
+      const start = m[1] ? +m[1] : Math.max(0, size - (+m[2] || 0)); const end = m[2] && m[1] ? Math.min(size - 1, +m[2]) : size - 1;
+      if (start >= size) return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${size}` } });
+      return new Response(buf.slice(start, end + 1), { status: 206, headers: { 'Content-Type': hit.headers.get('content-type') || 'audio/mpeg', 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': String(end - start + 1), 'Accept-Ranges': 'bytes' } });
+    }).catch(() => fetch(req)));
+    return;
+  }
   if (sameOrigin) {
     e.respondWith(
       caches.match(req).then((cached) => {

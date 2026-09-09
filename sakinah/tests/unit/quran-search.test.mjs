@@ -45,8 +45,8 @@ test('تفسير مجموعة آيات يُحلّ إلى نص أول الآيا�
   assert.equal(empty, 0, 'لا آية بلا تفسير على الجهاز');
 });
 test('معدلات البت لكل قارئ متاحة على الخادم (قائمة مُتحقق منها) وروابط الصوت صحيحة', () => {
-  assert.equal(RECITERS.length, 16);
-  for (const r of RECITERS) assert.ok(Array.isArray(r.bitrates) && r.bitrates.length >= 1 && r.bitrates.every((b) => [32, 40, 48, 64, 128, 192].includes(b)), r.id);
+  assert.equal(RECITERS.length, 21);
+  for (const r of RECITERS) assert.ok(Array.isArray(r.bitrates) && (r.bitrates.length >= 1 || r.qdc) && r.bitrates.every((b) => [32, 40, 48, 64, 128, 192].includes(b)), r.id);
   assert.equal(reciterBitrate('ar.abdurrahmaansudais'), 64); assert.equal(reciterBitrate('ar.ibrahimakhbar'), 32); assert.equal(reciterBitrate('ar.alafasy'), 128);
   assert.equal(reciterBitrate('ar.alafasy', 5), 64, 'المحاولات بعد آخر بديل تثبت عليه');
   assert.equal(ayahAudioUrl('ar.abdulsamad', 1), 'https://cdn.islamic.network/quran/audio/64/ar.abdulsamad/1.mp3');

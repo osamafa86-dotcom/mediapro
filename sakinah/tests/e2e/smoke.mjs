@@ -165,15 +165,14 @@ if (mushafMode === 'qcf') {
 await page.locator('.mr-slide[data-page="294"] .mp.ready').waitFor({ timeout: 30000 });
 await page.screenshot({ path: path.join(outDir, '08-quran.png') });
 // الانتقال بالأسهم (لوحة المفاتيح) وبالنجوم
+// الصفحة تُثبت بعد انتهاء التمرير الناعم (قد يطول على أجهزة CI البطيئة): ننتظر الوصول لا مدة ثابتة
+const pageSettled = async (p) => { try { await waitFor((x) => document.querySelector('.mreader').dataset.page === x && !document.querySelector('.mreader').dataset.anim, p); } catch { /* الفحص أدناه يُبلغ */ } await page.waitForTimeout(300); return (await page.locator('.mreader').getAttribute('data-page')) === p; };
 await page.keyboard.press('ArrowLeft');
-await page.waitForTimeout(700);
-check((await page.locator('.mreader').getAttribute('data-page')) === '294', 'السهم الأيسر ينتقل إلى الصفحة التالية 294');
+check(await pageSettled('294'), 'السهم الأيسر ينتقل إلى الصفحة التالية 294');
 await page.evaluate(() => document.querySelector('.mr-star[data-juz="16"]').click());
-await page.waitForTimeout(700);
-check((await page.locator('.mreader').getAttribute('data-page')) === '302', 'نجمة الجزء 16 تنتقل إلى صفحته 302');
+check(await pageSettled('302'), 'نجمة الجزء 16 تنتقل إلى صفحته 302');
 await page.evaluate(() => document.querySelector('.mr-sname[data-surah="18"]').click());
-await page.waitForTimeout(700);
-check((await page.locator('.mreader').getAttribute('data-page')) === '293', 'النقر على اسم السورة يعود إلى أولها');
+check(await pageSettled('293'), 'النقر على اسم السورة يعود إلى أولها');
 // النقر يخفي الأطر (شاشة كاملة) ثم يعيدها
 // القراءة بملء الشاشة: الأدوات مخفية افتراضيًا، نقرة تُظهرها، نقرة أخرى تخفيها، ونقرتان تفتحان التنقل والبحث
 check(!(await page.evaluate(() => document.querySelector('.mreader').classList.contains('chrome'))), 'القارئ يفتح بملء الشاشة دون أدوات');
@@ -217,7 +216,7 @@ check(/تفسير الإسراء: \d+/.test(await page.locator('#sheet-title').t
 await page.locator('#sheet-close').click(); await page.waitForTimeout(500);
 await page.touchscreen.tap(wb.x + wb.width / 2, wb.y + wb.height / 2); await page.waitForTimeout(500);
 await page.locator('.ayahbar .ab-actions button', { hasText: 'استماع' }).click(); await page.waitForTimeout(400);
-check((await page.locator('.listen-reciters .surah-row').count()) === 16 && /الاستماع/.test(await page.locator('#sheet-title').textContent()), 'نافذة الاستماع تعرض 16 قارئًا مع المدى والتكرار');
+check((await page.locator('.listen-reciters .surah-row').count()) === 21 && /الاستماع/.test(await page.locator('#sheet-title').textContent()), 'نافذة الاستماع تعرض 21 قارئًا مع المدى والتكرار');
 await page.locator('#sheet-close').click(); await page.waitForTimeout(500);
 await page.locator('.ayahbar .icon-btn[aria-label="إغلاق"]').click(); await page.waitForTimeout(300);
 check(await page.evaluate(() => document.querySelector('.mr-ayahbar').hidden) && (await page.locator('.mw.sel').count()) === 0, 'إغلاق شريط الآية يزيل التحديد');
@@ -244,7 +243,7 @@ await page.screenshot({ path: path.join(outDir, '09-hifz.png') });
 await page.locator('.hifz-panel .icon-btn[aria-label="إنهاء المراجعة"]').click(); // خروج من وضع المراجعة
 check((await page.locator('.mp.hifz').count()) === 0 && (await page.locator('.hifz-panel').count()) === 0, 'الخروج من وضع المراجعة');
 // التشغيل من الخيارات: يظهر شريط التلاوة (الصوت محجوب في الاختبار)
-await page.route(/cdn\.islamic\.network/, (r) => r.abort());
+await page.route(/cdn\.islamic\.network|api\.quran\.com|verses\.quran\.com/, (r) => r.abort()); // الصوت وبياناته محجوبة: الاختبار لا يعتمد على الشبكة
 await showTools();
 await page.locator('.mr-btn[aria-label="خيارات"]').click();
 await page.getByRole('button', { name: /تشغيل/ }).click();

@@ -5,7 +5,7 @@
  * التنقل والبحث، والضغط المطوّل يفتح قائمة الآية. يعرض الصفحات عبر js/ui/mushaf-page.js وعند تعذّر الخط يعرض البديل النصي.
  */
 import { h, icon, render, vibrate } from './components.js';
-import { renderMushafPage, mountMushafPage, renderTextPage, fitMushafPage, preloadPageFonts, releasePageFonts, ensureSurahNamesFont, surahNameText, markAyah, clearMarks } from './mushaf-page.js';
+import { renderMushafPage, mountMushafPage, renderTextPage, fitMushafPage, preloadPageFonts, releasePageFonts, ensureSurahNamesFont, surahNameText, markAyah, clearMarks, wordEl } from './mushaf-page.js';
 import { juzName } from '../core/mushaf.js';
 import { pageAyahs, pageLabel, surahInfo, SURAHS, JUZ_STARTS, TOTAL_PAGES } from '../core/quran.js';
 
@@ -62,7 +62,15 @@ export function createMushafReader(app, cb = {}) {
   const slideW = () => track.clientWidth || 1;
   function scrollToPage(p, behavior = 'smooth') { const s = slideOf(p); if (s) s.scrollIntoView({ inline: 'center', block: 'nearest', behavior }); }
   function pageFromScroll() { return Math.min(TOTAL_PAGES, Math.max(1, Math.round(Math.abs(track.scrollLeft) / slideW()) + 1)); }
-  function onScrollSettled() { if (!open) return; const p = pageFromScroll(); if (p !== page) setPage(p, { fromScroll: true }); }
+  let animTarget = null, animSince = 0; // هدف تمرير ناعم جارٍ: لا نُرجع الصفحة إلى السابقة إن تأخر إطار (أجهزة بطيئة)
+  function onScrollSettled() {
+    if (!open) return; const p = pageFromScroll();
+    if (animTarget != null) {
+      if (p === animTarget || Date.now() - animSince > 1500) animTarget = null;
+      else { clearTimeout(scrollTimer); scrollTimer = setTimeout(onScrollSettled, 120); return; }
+    }
+    if (p !== page) setPage(p, { fromScroll: true });
+  }
   track.addEventListener('scroll', () => { clearTimeout(scrollTimer); scrollTimer = setTimeout(onScrollSettled, 120); }, { passive: true });
   track.addEventListener('scrollend', () => { clearTimeout(scrollTimer); onScrollSettled(); });
 
@@ -108,7 +116,8 @@ export function createMushafReader(app, cb = {}) {
     if (!open) { page = p; return; }
     if (p === page) { scrollToPage(p, 'instant'); return; }
     fill(p);
-    scrollToPage(p, smooth && Math.abs(p - page) <= 2 ? 'smooth' : 'instant');
+    const anim = smooth && Math.abs(p - page) <= 2; animTarget = anim ? p : null; animSince = Date.now();
+    scrollToPage(p, anim ? 'smooth' : 'instant');
     setPage(p);
   }
   function updateChrome() {
@@ -236,5 +245,7 @@ export function createMushafReader(app, cb = {}) {
     isTextPage(p) { const e = filled.get(p); return !!e && e.text; },
     mark(n, cls, on = true) { markAyah(track, n, cls, on); },
     clearMarks(cls) { clearMarks(track, cls); },
+    /** تظليل كلمة واحدة (n: رقم الآية العام، k: فهرس الكلمة المنطوقة 0..) — تُزال السابقة */
+    markWord(n, k) { const prev = track.querySelector('.mw.wl'); const el = k === null || k === undefined ? null : wordEl(track, n, k); if (prev === el) return; if (prev) prev.classList.remove('wl'); if (el) el.classList.add('wl'); },
   };
 }

@@ -20,6 +20,7 @@
     "cap:sync": "node tools/build-www.mjs && npx cap sync"
   },
   "devDependencies": {
+    "@capacitor/android": "^6.2.2",
     "@capacitor/app": "^6.0.3",
     "@capacitor/cli": "^6.1.2",
     "@capacitor/core": "^6.1.2",

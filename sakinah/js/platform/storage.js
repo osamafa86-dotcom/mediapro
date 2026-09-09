@@ -33,6 +33,10 @@ export const DEFAULT_SETTINGS = {
     reciter: 'ar.alafasy', repeatAyah: 1, repeatRange: false, rate: 1, follow: true,
     fontScale: 1, hifzOnlyCurrent: true, night: false, paper: 'cream', fontsOffline: false, hintShown: false,
     tafsir: 'muyassar', view: 'pages', // view: 'pages' صفحات المصحف | 'text' نص متدفق بحجم قابل للتغيير
+    wordHighlight: true,     // تظليل الكلمة أثناء التلاوة (مصدر quran.com للقرّاء الذين تتوفر توقيتاتهم)
+    downloads: {},           // { [reciterId]: { [surah]: { files, bytes, at } } }
+    khatmah: null,           // خطة الختمة (core/khatmah.js)
+    readLog: {},             // { 'YYYY-MM-DD': [pages] }
   },
   adhkarProgress: { date: null, morning: {}, evening: {} },
   favorites: [],
