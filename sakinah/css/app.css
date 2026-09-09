@@ -263,6 +263,13 @@ table.month td:first-child { text-align: right; font-weight: 700; }
 .calib { display: flex; align-items: center; gap: 10px; background: var(--gold-soft); color: var(--gold); border-radius: 12px; padding: 8px 12px; margin-top: 8px; font-size: 13px; font-weight: 700; line-height: 1.6; }
 .calib.danger { background: var(--danger-soft); color: var(--danger); }
 .calib .fig8 { width: 52px; height: 26px; flex: 0 0 auto; }
+.calib.uncertain { align-items: flex-start; }
+.calib.uncertain > div { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; font-weight: 600; }
+.near-kaaba { display: grid; justify-items: center; text-align: center; gap: 10px; padding: 18px 12px 10px; }
+.near-kaaba .nk-icon { width: 68px; height: 68px; border-radius: 50%; background: var(--gold-soft); color: var(--gold); display: grid; place-items: center; }
+.near-kaaba .nk-icon svg { width: 36px; height: 36px; }
+.near-kaaba h4 { margin: 0; font-size: 18px; line-height: 1.5; max-width: 30ch; }
+.near-kaaba p { margin: 0; color: var(--text-2); font-size: 14px; line-height: 1.85; max-width: 36ch; }
 .calib svg:not(.fig8) { width: 20px; height: 20px; flex: 0 0 auto; }
 .sun-mode .sun-dial { width: min(60vw, 240px); margin: 6px auto; }
 .sun-mode .sun-dial svg { width: 100%; height: 100%; display: block; }

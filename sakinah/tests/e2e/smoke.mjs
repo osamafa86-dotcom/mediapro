@@ -96,6 +96,25 @@ check((await page.locator('.qmap svg .land').count()) === 1 && /^M/.test(await p
 await page.screenshot({ animations: 'disabled', path: path.join(outDir, '03b-qibla-map.png') });
 await page.getByRole('button', { name: /البوصلة/ }).click();
 await page.screenshot({ animations: 'disabled', path: path.join(outDir, '03-qibla.png') });
+// قرب الكعبة: اختيار «مكة المكرمة» من قائمة المدن (إحداثياتها عند الكعبة نفسها) → لوحة القرب بدل اتجاه عشوائي، وزر GPS يعيد الموقع الفعلي
+await page.locator('#view-qibla .qibla-head .chip-btn').click();
+await page.locator('#sheet-body input[type="search"]').fill('مكة');
+await page.locator('#sheet-body .city-item').first().click();
+await page.locator('.near-kaaba').waitFor();
+const nearTxt = await page.locator('.near-kaaba').textContent();
+check(/عند الكعبة نفسها/.test(nearTxt) && (await page.locator('.compass-wrap').count()) === 0, `موقع «مكة المكرمة» المحفوظ عند الكعبة: لوحة القرب بدل بوصلة عشوائية: ${nearTxt.trim().slice(0, 50)}`);
+await page.screenshot({ animations: 'disabled', path: path.join(outDir, '03c-qibla-near.png') });
+await page.locator('.near-kaaba .btn').click();
+await page.locator('.compass-wrap').waitFor();
+check(/عمّان|عمان/.test(await page.locator('#view-qibla .qibla-head .chip-btn').textContent()) && (await page.locator('.calib.uncertain').count()) === 0, 'زر «تحديد موقعي بدقة» يأخذ قراءة GPS جديدة ويعيد البوصلة (عمّان: لا تنبيه هامش)');
+// موقع GPS بدقة ±60 م على بعد 240 م من الكعبة → تنبيه «الاتجاه تقريبي (±18°)» مع البوصلة
+await page.evaluate(() => window.sakinah.update({ location: { lat: 21.4210, lon: 39.8273, tz: 'Asia/Riyadh', name: 'مكة المكرمة', countryCode: 'SA', countryAr: 'السعودية', cityId: null, source: 'gps', accuracy: 60, updatedAt: Date.now() } }));
+await page.locator('.calib.uncertain').waitFor();
+const unc = await page.locator('.calib.uncertain').textContent();
+check(/الاتجاه تقريبي \(±1[7-8]°\)/.test(unc) && /205 م/.test(await page.locator('.qibla-foot').textContent()), `تنبيه هامش الخطأ قرب الكعبة مع المسافة بالأمتار: ${unc.trim().slice(0, 40)}`);
+await page.screenshot({ animations: 'disabled', path: path.join(outDir, '03d-qibla-uncertain.png') });
+await page.evaluate(() => window.sakinah.update({ location: { lat: 31.95390, lon: 35.91060, tz: 'Asia/Amman', name: 'عمّان', countryCode: 'JO', countryAr: 'الأردن', cityId: null, source: 'gps', accuracy: 20, updatedAt: Date.now() } }));
+await page.locator('.compass-wrap').waitFor();
 
 await page.locator('#tab-adhkar').click();
 await page.locator('.dhikr').first().waitFor();

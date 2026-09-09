@@ -1,5 +1,5 @@
 /* سكينة — عامل الخدمة: عمل دون اتصال + إشعارات */
-const VERSION = 'sakinah-v1.3.0';
+const VERSION = 'sakinah-v1.3.1';
 const FONT_CACHE = 'sakinah-mushaf-fonts'; // خطوط صفحات المصحف (تُملأ عند الطلب أو بالتنزيل الكامل من الخيارات)
 const CORE = [
   './', './index.html', './manifest.webmanifest', './css/app.css',

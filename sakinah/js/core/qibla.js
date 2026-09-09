@@ -88,6 +88,18 @@ export function qiblaInfo(latitude, longitude) {
   };
 }
 
+/**
+ * هامش خطأ اتجاه القبلة (بالدرجات) الناتج عن عدم يقين الموقع: إن كان الموقع الفعلي في دائرة نصف قطرها e حول
+ * النقطة المفترضة على بعد d من الكعبة، فأقصى انحراف للاتجاه هو asin(e ÷ d). قرب الكعبة يتضخّم الهامش:
+ * 50 م على بعد 240 م ≈ ±12°، وموقع مدينة «مكة» المحفوظ (عند الكعبة نفسها) لا يعطي اتجاهًا أصلًا (180).
+ * @param {number} distanceKm المسافة إلى الكعبة  @param {number} locationErrorM خطأ الموقع بالأمتار
+ */
+export function bearingUncertainty(distanceKm, locationErrorM) {
+  const d = distanceKm * 1000, e = Math.max(0, locationErrorM || 0);
+  if (!(d > 0) || e >= d) return 180;
+  return r2d(Math.asin(e / d));
+}
+
 const POINTS_AR = ['شمال', 'شمال شرق', 'شرق', 'جنوب شرق', 'جنوب', 'جنوب غرب', 'غرب', 'شمال غرب'];
 export function compassPointAr(bearing) {
   return POINTS_AR[Math.round(unwindAngle(bearing) / 45) % 8];

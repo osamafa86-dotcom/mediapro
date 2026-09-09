@@ -89,10 +89,11 @@ export const app = {
   },
 
   /* ---------- الموقع ---------- */
-  async detectLocation({ silent = false } = {}) {
+  /** @param {{silent?:boolean, fresh?:boolean}} [o] fresh: قراءة جديدة من GPS دون الاكتفاء بموقع مخزّن (للقبلة قرب الكعبة) */
+  async detectLocation({ silent = false, fresh = false } = {}) {
     if (!isGeolocationSupported()) { toast('المتصفح لا يدعم تحديد الموقع'); return null; }
     try {
-      const loc = await detectLocation();
+      const loc = await detectLocation(fresh ? { maximumAge: 0, timeout: 20000 } : {});
       this.update({ location: loc });
       if (!silent) toast(`تم تحديد الموقع: ${describeLocation(loc)}`);
       return loc;

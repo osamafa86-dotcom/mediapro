@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as adhan from 'adhan';
-import { qiblaSpherical, qiblaInfo, vincentyInverse, distanceSphericalKm, sunQiblaMoments, kaabaZenithEvents, signedDifference, localMidnightUTC, compassPointAr } from '../../js/core/qibla.js';
+import { bearingUncertainty, qiblaSpherical, qiblaInfo, vincentyInverse, distanceSphericalKm, sunQiblaMoments, kaabaZenithEvents, signedDifference, localMidnightUTC, compassPointAr } from '../../js/core/qibla.js';
 import { sunPosition } from '../../js/core/astro.js';
 
 const CITIES = [
@@ -95,4 +95,14 @@ test('نقاط الدائرة العظمى: تبدأ وتنتهي بالطرفي
   // خطوط الطول تتزايد رتيبًا (لا يعبر خط التاريخ)
   for (let i = 1; i < pts.length; i++) assert.ok(pts[i][1] > pts[i - 1][1]);
   assert.deepEqual(greatCirclePoints(10, 10, 10, 10), [[10, 10], [10, 10]]);
+});
+
+test('هامش خطأ الاتجاه بسبب الموقع: مدينة «مكة» المحفوظة عند الكعبة → غير محدد؛ ±50 م على بعد 240 م ≈ ±12°؛ 8 كم على بعد 1000 كم < 0.5°', () => {
+  const makkahPreset = qiblaInfo(21.4225, 39.8262); // إحداثيات مدينة مكة في القائمة = الكعبة تقريبًا
+  assert.ok(makkahPreset.distanceKm < 0.01, `المسافة ${makkahPreset.distanceKm}`);
+  assert.equal(bearingUncertainty(makkahPreset.distanceKm, 8000), 180);
+  assert.ok(Math.abs(bearingUncertainty(0.24, 50) - 12.02) < 0.1);
+  assert.ok(bearingUncertainty(1000, 8000) < 0.5);
+  assert.equal(bearingUncertainty(0, 10), 180);
+  assert.ok(bearingUncertainty(0.237, 20) < 5); // GPS جيد على بعد 237 م: هامش مقبول
 });

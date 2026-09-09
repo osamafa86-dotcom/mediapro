@@ -5,7 +5,7 @@
  * الاتجاه جيوديسي (Vincenty على WGS‑84) من الشمال الحقيقي؛ قراءات الهاتف مغناطيسية فيُضاف الانحراف المغناطيسي.
  */
 import { h, icon, render, vibrate, openSheet } from './components.js';
-import { qiblaInfo, sunQiblaMoments, kaabaZenithEvents, signedDifference, sunPosition, greatCirclePoints, KAABA } from '../core/qibla.js';
+import { qiblaInfo, sunQiblaMoments, kaabaZenithEvents, signedDifference, sunPosition, greatCirclePoints, bearingUncertainty, KAABA } from '../core/qibla.js';
 import { WORLD_LAND_PATH } from '../data/world-land.js';
 import { startCompass, accuracyLabel, magneticToTrue, needsPermissionGesture, compassSupported } from '../platform/compass.js';
 import { copyText, toast } from './components.js';
@@ -21,6 +21,17 @@ async function loadGeomag() {
 
 const ALIGN_DEG = 3; // نطاق اعتبار الاتجاه صحيحًا
 const TILT_DEG = 35; // ميل يستدعي طلب وضع الهاتف أفقيًا
+const NEAR_KAABA_M = 120;   // ضمن هذه المسافة أنت في المسجد الحرام: توجّه إلى الكعبة مباشرة ولا معنى لبوصلة تعتمد على الموقع
+const UNCERTAIN_DEG = 6;    // فوق هذا الهامش نُظهر «الاتجاه تقريبي» مع زر تحديد الموقع بدقة عالية
+const CITY_RADIUS_M = 8000; // موقع محفوظ كمدينة: الإحداثيات مركزها والمستخدم في أي مكان منها (مدينة «مكة» المحفوظة تقع عند الكعبة نفسها)
+
+/** خطأ الموقع التقديري بالأمتار حسب مصدره — يحدّد هامش خطأ الاتجاه قرب الكعبة */
+export function locationErrorM(loc) {
+  if (!loc) return null;
+  if (loc.source === 'gps') return Math.max(10, loc.accuracy || 50);
+  if (loc.source === 'city') return CITY_RADIUS_M;
+  return 300; // إحداثيات يدوية
+}
 
 function roseSVG(bearing) {
   const ticks = [];
@@ -54,6 +65,7 @@ export function mount(container, app) {
   let mode = 'compass'; let compass = null; let reading = null; let decl = null; let declSource = ''; let info = null;
   let sensor = 'idle'; // idle | starting | live | none | denied | insecure | unsupported
   let els = {}; let generation = 0; let wasAligned = false; let sunTimer = null;
+  let locErr = null; let uncert = 0; let nearKaaba = false; let refining = false;
 
   function stopSensor() { if (compass) { compass.stop(); compass = null; } reading = null; }
 
@@ -102,7 +114,7 @@ export function mount(container, app) {
     if (live) {
       render(els.big, aligned ? h('span', { class: 'ok-mark', html: icon('check') }) : h('span', {}, `${app.num(Math.abs(delta), 0)}°`));
       render(els.hint, tilted ? h('span', { class: 'warn' }, 'ضع الهاتف أفقيًا (مستويًا) لقراءة أدق')
-        : aligned ? h('span', { class: 'ok' }, 'أنت متجه إلى القبلة') : h('span', {}, `أدر الهاتف ${delta > 0 ? 'يمينًا' : 'يسارًا'} ${app.num(Math.abs(delta), 0)}°`));
+        : aligned ? h('span', { class: 'ok' }, uncert > UNCERTAIN_DEG ? `متجه إلى القبلة تقريبًا (±${app.num(Math.ceil(uncert), 0)}°)` : 'أنت متجه إلى القبلة') : h('span', {}, `أدر الهاتف ${delta > 0 ? 'يمينًا' : 'يسارًا'} ${app.num(Math.abs(delta), 0)}°`));
       els.hint.className = `turn-hint ${aligned ? 'ok' : tilted ? 'warn' : ''}`;
     } else {
       render(els.big, h('span', {}, `${app.num(info.bearing, 0)}°`));
@@ -140,19 +152,24 @@ export function mount(container, app) {
 
   /* ---------- التفاصيل (i) ---------- */
   function openDetails() {
+    const loc = app.location;
     const heading = trueHeading(); const acc = reading ? accuracyLabel(reading.accuracy) : null;
     const declMode = app.settings.compass.declinationMode;
     const declText = decl === null ? 'غير متاح' : `${decl >= 0 ? '+' : '−'}${app.num(Math.abs(decl), 1)}° ${decl >= 0 ? 'شرقًا' : 'غربًا'}`;
-    const row = (k, v) => h('div', { class: 'setting-row' }, h('div', { class: 'label' }, k), h('div', { class: 'ltr', style: { fontWeight: 800, fontVariantNumeric: 'tabular-nums' } }, v));
+    const row = (k, v, rtl = false) => h('div', { class: 'setting-row' }, h('div', { class: 'label' }, k), h('div', { class: rtl ? '' : 'ltr', style: { fontWeight: 800, fontVariantNumeric: 'tabular-nums' } }, v));
     openSheet({ title: 'تفاصيل القبلة', content: h('div', { class: 'stack' },
       row('اتجاه القبلة من الشمال الحقيقي', `${app.num(info.bearing, 2)}° (${info.compassPoint})`),
-      row('المسافة إلى الكعبة', `${app.num(Math.round(info.distanceKm), 0, true)} كم`),
+      row('المسافة إلى الكعبة', distText(info.distanceKm), true),
+      row('الموقع المستخدم', `${describeLocation(loc)} — ${locationSourceText(loc)}`, true),
+      row('هامش خطأ الاتجاه بسبب الموقع', uncertText(), true),
       row(`الانحراف المغناطيسي${declSource ? ` (${declSource})` : ''}`, declMode === 'off' ? `${declText} — التصحيح متوقف` : declText),
       row('اتجاه القبلة المغناطيسي (لبوصلة يدوية)', decl === null ? '—' : `${app.num(((info.bearing - decl) % 360 + 360) % 360, 1)}°`),
-      heading !== null ? row('اتجاه الهاتف الآن', `${app.num(heading, 1)}° حقيقي · ${app.num(reading.magneticHeading, 1)}° مغناطيسي`) : null,
+      heading !== null ? row('اتجاه الهاتف الآن (من الشمال الحقيقي)', `${app.num(heading, 1)}°`) : null,
+      heading !== null ? row('اتجاه الهاتف الآن (مغناطيسي، كما يقرؤه المستشعر)', `${app.num(reading.magneticHeading, 1)}°`) : null,
       reading ? row('مصدر المستشعر', reading.source === 'ios' ? 'iOS (webkitCompassHeading)' : reading.source === 'android-absolute' ? 'Android (اتجاه مطلق)' : 'اتجاه نسبي') : row('المستشعر', { idle: 'لم يُشغَّل', starting: 'جارٍ التشغيل', none: 'لا قراءات (لا بوصلة)', denied: 'الإذن مرفوض', insecure: 'يلزم HTTPS', unsupported: 'غير مدعوم', live: 'يعمل' }[sensor]),
       acc ? row('دقة المستشعر', `${acc.label}${reading.accuracy !== null ? ` (±${app.num(reading.accuracy, 0)}°)` : ''}`) : null,
       info.antipodal ? h('div', { class: 'notice' }, h('span', { html: icon('warning') }), 'موقعك قريب جدًا من النقطة المقابلة للكعبة؛ اتجاه القبلة هنا غير محدد رياضيًا.') : null,
+      uncert > UNCERTAIN_DEG ? h('div', { class: 'notice' }, h('span', { html: icon('warning') }), h('span', {}, `الاتجاه يعتمد على موقعك أكثر من البوصلة: على بعد ${distText(info.distanceKm)} من الكعبة يغيّر خطأ موقعٍ قدره ${app.num(locErr, 0)} م الاتجاهَ حتى ${uncertText()}. حدّد موقعك بدقة عالية من زر GPS في الشاشة.`)) : null,
       h('div', { class: 'notice info' }, h('span', { html: icon('info') }), h('span', {}, 'للتحقق: افتح تطبيق البوصلة في هاتفك (مع تفعيل «الشمال الحقيقي» في iPhone) وقارن اتجاه الهاتف الحقيقي أعلاه مع قراءته؛ إن اختلفا فالمستشعر يحتاج معايرة (حركة 8) أو إبعاده عن المعادن والحافظات المغناطيسية. وللتأكد المطلق استخدم وضع «الشمس» فهو لا يعتمد على المغناطيس.')),
       h('details', { class: 'more' }, h('summary', {}, 'بيانات التشخيص (للدعم الفني)'),
         h('pre', { class: 'diag', dir: 'ltr' }, diagnostics()),
@@ -168,7 +185,8 @@ export function mount(container, app) {
       `sakinah compass diag ${new Date().toISOString()}`,
       `ua: ${navigator.userAgent}`,
       `secure: ${typeof isSecureContext !== 'undefined' ? isSecureContext : '?'} · standalone: ${!!window.SAKINAH_STANDALONE} · capacitor: ${!!window.Capacitor}`,
-      `location: ${f(loc.lat, 4)}, ${f(loc.lon, 4)} (${loc.source || loc.city || '?'})`,
+      `location: ${f(loc.lat, 5)}, ${f(loc.lon, 5)} (${loc.source || '?'}${loc.accuracy ? ` ±${loc.accuracy}m` : ''}; ${loc.name || ''})`,
+      `distance: ${info ? f(info.distanceKm * 1000, 0) : '-'} m · locErr: ${locErr} m · uncertainty: ±${f(uncert, 1)}° · nearKaaba: ${nearKaaba}`,
       `bearing(true): ${f(info && info.bearing, 2)} · declination: ${f(decl, 2)} (${declSource || '-'}) · mode: ${app.settings.compass.declinationMode}`,
       `sensor: ${sensor} · source: ${r.source || '-'} · absolute: ${r.absolute}`,
       `webkitCompassHeading: ${f(r.webkit)} · accuracy: ${f(r.accuracy)} · alpha: ${f(r.alpha)} · beta: ${f(r.beta)} · gamma: ${f(r.gamma)}`,
@@ -240,7 +258,46 @@ export function mount(container, app) {
     return h('div', { class: 'map-mode' }, map,
       h('div', { class: 'legend' }, h('span', {}, h('i'), 'أقصر مسار على الكرة الأرضية (اتجاه القبلة)'), rhumb ? h('span', {}, h('i', { class: 'rh' }), 'الخط المستقيم على الخريطة المسطحة') : null),
       h('div', { class: 'map-toggle' }, h('button', { class: 'chip chip-btn', onclick: () => { mapWorld = !mapWorld; build(); } }, mapWorld ? 'تكبير على المنطقة' : 'عرض العالم كله')),
-      h('p', { class: 'tiny', style: { textAlign: 'center', marginTop: '8px', lineHeight: 1.8 } }, `اتجاه القبلة هو اتجاه بداية هذا القوس من موقعك: ${app.num(info.bearing, 1)}° (${info.compassPoint}) · ${app.num(Math.round(info.distanceKm), 0, true)} كم. القوس يبدو منحنيًا لأن الخريطة مسطحة، وهذا ما يفسّر مثلًا اتجاه القبلة الشمالي الشرقي من أمريكا الشمالية.`));
+      h('p', { class: 'tiny', style: { textAlign: 'center', marginTop: '8px', lineHeight: 1.8 } }, `اتجاه القبلة هو اتجاه بداية هذا القوس من موقعك: ${app.num(info.bearing, 1)}° (${info.compassPoint}) · ${distText(info.distanceKm)}. القوس يبدو منحنيًا لأن الخريطة مسطحة، وهذا ما يفسّر مثلًا اتجاه القبلة الشمالي الشرقي من أمريكا الشمالية.`));
+  }
+
+  /* ---------- الموقع وهامش خطئه ---------- */
+  const distText = (km) => km < 1 ? `${app.num(Math.round(km * 1000), 0)} م` : km < 10 ? `${app.num(km, 1)} كم` : `${app.num(Math.round(km), 0, true)} كم`;
+  const uncertText = () => uncert >= 90 ? 'غير محدد' : `±${uncert < 1 ? app.num(uncert, 1) : app.num(Math.ceil(uncert), 0)}°`;
+  function locationSourceText(loc) {
+    if (!loc) return '';
+    if (loc.source === 'gps') return loc.accuracy ? `GPS (دقة ±${app.num(loc.accuracy, 0)} م)` : 'GPS';
+    if (loc.source === 'city') return 'مركز المدينة المحفوظ (تقريبي)';
+    return 'إحداثيات مُدخلة يدويًا';
+  }
+  /** زر قراءة جديدة عالية الدقة من GPS؛ إعادة البناء تتم تلقائيًا عند تغيّر الموقع */
+  function refineButton(label = 'تحديد موقعي بدقة (GPS)') {
+    const btn = h('button', { class: 'btn btn-primary btn-sm', onclick: async () => {
+      if (refining) return; refining = true; btn.disabled = true; render(btn, h('span', { class: 'spinner' }), ' جارٍ تحديد الموقع بدقة…');
+      const loc = await app.detectLocation({ silent: true, fresh: true });
+      refining = false;
+      if (!loc) { btn.disabled = false; render(btn, h('span', { html: icon('gps') }), ` ${label}`); toast('تعذّر تحديد الموقع — تأكد من تفعيل خدمات الموقع للتطبيق ثم أعد المحاولة', 3800); return; }
+      toast(loc.accuracy ? `تم تحديد موقعك (دقة ±${app.num(loc.accuracy, 0)} م)` : 'تم تحديد موقعك');
+    } }, h('span', { html: icon('gps') }), ` ${label}`);
+    return btn;
+  }
+  /** قرب الكعبة أو موقع لا يسمح بتحديد اتجاه: لوحة بدل بوصلة عشوائية */
+  function nearPanel(loc) {
+    const approx = loc.source !== 'gps';
+    const d = distText(info.distanceKm);
+    const title = approx ? (info.distanceKm < 0.05 ? `موقعك المحفوظ هو ${loc.name} — عند الكعبة نفسها` : `موقعك المحفوظ تقريبي وعلى بعد ${d} من الكعبة`)
+      : info.distanceKm * 1000 < NEAR_KAABA_M ? `أنت على بعد ${d} من الكعبة` : `دقة موقعك (±${app.num(locErr, 0)} م) لا تكفي على بعد ${d}`;
+    const text = approx ? 'الإحداثيات المحفوظة لمركز المدينة، لا لمكانك الفعلي، ولا يمكن حساب اتجاه دقيق منها على هذا القرب. حدّد موقعك الفعلي بدقة عالية ليُحسب الاتجاه من مكانك.'
+      : info.distanceKm * 1000 < NEAR_KAABA_M ? 'أنت في المسجد الحرام أو على مقربة منه: توجّه إلى الكعبة مباشرة. على هذه المسافة تغيّر أمتار قليلة الاتجاهَ كثيرًا، فلا تعتمد على البوصلة هنا.'
+      : 'على هذا القرب من الكعبة تغيّر أمتار قليلة الاتجاهَ كثيرًا. أعد تحديد الموقع في مكان مكشوف (بعيدًا عن الأسقف) للحصول على دقة أعلى.';
+    return h('div', { class: 'near-kaaba' }, h('span', { class: 'nk-icon', html: icon('kaaba') }), h('h4', {}, title), h('p', {}, text), refineButton());
+  }
+  /** تنبيه «الاتجاه تقريبي» عندما يغلب خطأ الموقع على دقة البوصلة (قرب مكة أو موقع مدينة قريبة) */
+  function uncertaintyNotice(loc) {
+    if (nearKaaba || uncert <= UNCERTAIN_DEG) return null;
+    const why = loc.source === 'city' ? `موقعك محفوظ كمدينة (${loc.name}) والإحداثيات لمركزها` : loc.source === 'gps' ? `دقة موقعك ±${app.num(locErr, 0)} م` : 'موقعك مُدخل يدويًا';
+    return h('div', { class: 'calib uncertain' }, h('span', { html: icon('warning') }),
+      h('div', {}, h('span', {}, `الاتجاه تقريبي (${uncertText()}): ${why}، وأنت على بعد ${distText(info.distanceKm)} من الكعبة فتؤثر أمتار قليلة في الاتجاه.`), refineButton()));
   }
 
   /* ---------- البناء ---------- */
@@ -253,6 +310,8 @@ export function mount(container, app) {
       return;
     }
     info = qiblaInfo(loc.lat, loc.lon);
+    locErr = locationErrorM(loc); uncert = bearingUncertainty(info.distanceKm, locErr);
+    nearKaaba = info.distanceKm * 1000 < NEAR_KAABA_M || uncert >= 90;
     const gm = await loadGeomag();
     if (gm && gm.declination) { try { decl = gm.declination(loc.lat, loc.lon, 0, new Date()); declSource = 'WMM2025'; } catch (e) { decl = null; } } else decl = null;
     els = {};
@@ -265,9 +324,14 @@ export function mount(container, app) {
       h('button', { class: mode === 'compass' ? 'active' : '', onclick: () => { mode = 'compass'; build(); } }, 'البوصلة'),
       h('button', { class: mode === 'sun' ? 'active' : '', onclick: () => { mode = 'sun'; build(); } }, 'الشمس'),
       h('button', { class: mode === 'map' ? 'active' : '', onclick: () => { mode = 'map'; build(); } }, 'الخريطة'));
+    if (nearKaaba) { // عند الكعبة أو بموقع لا يسمح بتحديد اتجاه: لا بوصلة ولا شمس ولا خريطة
+      generation++; stopSensor(); if (sensor === 'live' || sensor === 'starting') sensor = 'idle';
+      render(container, h('div', { class: 'card qibla-card' }, head, nearPanel(loc)));
+      return;
+    }
     if (mode === 'map') {
       generation++; stopSensor(); if (sensor === 'live' || sensor === 'starting') sensor = 'idle';
-      render(container, h('div', { class: 'card qibla-card' }, head, seg, mapPanel(loc)));
+      render(container, h('div', { class: 'card qibla-card' }, head, seg, uncertaintyNotice(loc), mapPanel(loc)));
       return;
     }
     if (mode === 'sun') {
@@ -275,7 +339,7 @@ export function mount(container, app) {
       const body = h('div', {});
       const draw = () => render(body, sunPanel(loc));
       draw(); sunTimer = setInterval(draw, 60000);
-      render(container, h('div', { class: 'card qibla-card' }, head, seg, body));
+      render(container, h('div', { class: 'card qibla-card' }, head, seg, uncertaintyNotice(loc), body));
       return;
     }
     els.wrap = h('div', { class: 'compass-wrap' });
@@ -288,8 +352,8 @@ export function mount(container, app) {
     els.wrap.append(els.needle, h('div', { class: 'compass-center' }, els.big), els.level, els.overlay);
     els.hint = h('div', { class: 'turn-hint' });
     els.calib = h('div', {});
-    const foot = h('div', { class: 'qibla-foot tiny' }, `القبلة ${app.num(info.bearing, 1)}° من الشمال · ${app.num(Math.round(info.distanceKm), 0, true)} كم إلى الكعبة${app.settings.compass.declinationMode === 'off' ? ' · تصحيح الانحراف المغناطيسي متوقف' : ''}`);
-    render(container, h('div', { class: 'card qibla-card' }, head, seg, els.wrap, els.hint, els.calib, foot));
+    const foot = h('div', { class: 'qibla-foot tiny' }, `القبلة ${app.num(info.bearing, 1)}° من الشمال · ${distText(info.distanceKm)} إلى الكعبة${app.settings.compass.declinationMode === 'off' ? ' · تصحيح الانحراف المغناطيسي متوقف' : ''}`);
+    render(container, h('div', { class: 'card qibla-card' }, head, seg, uncertaintyNotice(loc), els.wrap, els.hint, els.calib, foot));
     paint();
     // تشغيل تلقائي حيث لا يلزم إذن بإيماءة؛ وإلا زرّ واحد فوق البوصلة
     if (sensor === 'idle' || sensor === 'none') { if (!needsPermissionGesture()) start(); else paint(); }
@@ -304,7 +368,7 @@ export function mount(container, app) {
   build();
   return {
     refresh: build,
-    show: () => { if (!info) build(); else if (mode === 'compass' && sensor === 'idle') start(); },
+    show: () => { if (!info) build(); else if (mode === 'compass' && sensor === 'idle' && !nearKaaba) start(); },
     hide: () => { generation++; stopSensor(); clearInterval(sunTimer); sunTimer = null; if (sensor === 'live' || sensor === 'starting') sensor = 'idle'; wasAligned = false; },
   };
 }

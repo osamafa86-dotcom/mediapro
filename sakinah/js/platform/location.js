@@ -11,13 +11,13 @@ export function deviceTimeZone() {
 export function isGeolocationSupported() { return typeof navigator !== 'undefined' && 'geolocation' in navigator; }
 
 /** طلب الموقع من الجهاز */
-export function getPosition({ timeout = 15000, highAccuracy = true } = {}) {
+export function getPosition({ timeout = 15000, highAccuracy = true, maximumAge = 5 * 60 * 1000 } = {}) {
   return new Promise((resolve, reject) => {
     if (!isGeolocationSupported()) return reject(Object.assign(new Error('unsupported'), { code: 'unsupported' }));
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve(pos),
       (err) => reject(Object.assign(new Error(err.message), { code: err.code === 1 ? 'denied' : err.code === 2 ? 'unavailable' : 'timeout' })),
-      { enableHighAccuracy: highAccuracy, timeout, maximumAge: 5 * 60 * 1000 },
+      { enableHighAccuracy: highAccuracy, timeout, maximumAge },
     );
   });
 }
