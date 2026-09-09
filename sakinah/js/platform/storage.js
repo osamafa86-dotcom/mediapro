@@ -36,7 +36,7 @@ export const DEFAULT_SETTINGS = {
     fontScale: 1, hifzOnlyCurrent: true, night: false, paper: 'cream', fontsOffline: false, hintShown: false,
     theme: 'cream', themeLight: 'cream', themeDark: 'dark', themeAuto: false, // سمة الصفحة (core/mushaf-themes.js)؛ night/paper للترقية فقط
     dim: 0, keepAwake: true, lineHeight: 2.15, // تعتيم الصفحة (0–0.6)، إبقاء الشاشة مضاءة، تباعد الأسطر في وضع النص
-    tajweed: false, scroll: 'horizontal', autoSpeed: 40, textFont: 'amiri', // التجويد الملوّن (وضع النص)، اتجاه التصفح، سرعة التمرير التلقائي (بكسل/ث)، خط وضع النص
+    tajweed: false, scroll: 'horizontal', autoSpeed: 40, textFont: 'amiri', fitText: true, // التجويد الملوّن (وضع النص)، اتجاه التصفح، سرعة التمرير التلقائي (بكسل/ث)، خط وضع النص
     challenge: null,         // تحدّي القراءة النشط { id, startedAt, startPage, from, to }
     tafsir: 'muyassar', view: 'pages', // view: 'pages' صفحات المصحف | 'text' نص متدفق بحجم قابل للتغيير
     wordHighlight: true,     // تظليل الكلمة أثناء التلاوة (مصدر quran.com للقرّاء الذين تتوفر توقيتاتهم)

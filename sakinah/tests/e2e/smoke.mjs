@@ -293,6 +293,9 @@ await page.locator('#sheet-body label.switch:has(input[aria-label="التجوي�
 await page.locator('.mr-slide[data-page="293"] .mp-text .tj').first().waitFor({ timeout: 20000 });
 const tjCount = await page.locator('.mr-slide[data-page="293"] .mp-text .tj').count();
 check(tjCount > 40 && (await page.evaluate(() => window.sakinah.settings.quran.view)) === 'text' && (await page.evaluate(() => window.sakinah.settings.quran.tajweed)) === true, `التجويد الملوّن: ${tjCount} مقطعًا ملوّنًا في وضع النص`);
+await page.waitForTimeout(300);
+const fit = await page.evaluate(() => { const b = document.querySelector('.mr-slide[data-page="293"] .mp-body.text'); return { sh: b.scrollHeight, ch: b.clientHeight, fs: parseFloat(getComputedStyle(b).fontSize) }; });
+check(fit.sh <= fit.ch + 1 && fit.fs >= 12, `وضع النص يلائم الشاشة دون تمرير (${fit.sh}/${fit.ch}px، خط ${fit.fs.toFixed(1)}px)`);
 await page.locator('#sheet-body .segmented button', { hasText: 'حفص' }).waitFor();
 await page.locator('#sheet-body .segmented button', { hasText: 'حفص' }).click();
 await page.waitForTimeout(200);

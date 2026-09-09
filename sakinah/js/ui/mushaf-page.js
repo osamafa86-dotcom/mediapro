@@ -130,9 +130,26 @@ export function fitMushafPage(page) {
   const W = body.clientWidth - page._pad;
   if (W <= 0) return;
   const mid = page.querySelector('.mp-mid'); const H = mid ? mid.clientHeight : 0;
-  if (page._fitKey === `${W}|${H}`) return; // لا تغيير في الأبعاد: لا قياس (يُستدعى من مراقبين وعند كل تبديل لشريط الصوت)
-  page._fitKey = `${W}|${H}`;
+  const isText = body.classList.contains('text');
+  const rootCs = isText ? getComputedStyle(document.documentElement) : null;
+  const scale = isText ? (parseFloat(rootCs.getPropertyValue('--quran-scale')) || 1) : 1;
+  const lh = isText ? (parseFloat(rootCs.getPropertyValue('--quran-lh')) || 2.15) : 0;
+  const key = `${W}|${H}|${scale}|${lh}|${page.dataset.fit || ''}`;
+  if (page._fitKey === key) return; // لا تغيير في الأبعاد: لا قياس (يُستدعى من مراقبين وعند كل تبديل لشريط الصوت)
+  page._fitKey = key;
   let size = W / FULL_LINE_EM;
+  if (isText && page.classList.contains('mp-full')) {
+    // وضع النص: الحجم الأساسي من العرض × تكبير المستخدم؛ مع «ملاءمة الشاشة» يُصغَّر حتى تظهر الصفحة كاملة دون تمرير (بحدّ أدنى 12px)
+    page.style.setProperty('--mp-size', size.toFixed(2) + 'px');
+    let fs = size * 1.02 * scale; body.style.fontSize = fs.toFixed(2) + 'px';
+    if (page.dataset.fit === '1' && H > 0 && body.scrollHeight > body.clientHeight + 1) {
+      let lo = Math.min(fs, 12), hi = fs;
+      for (let i = 0; i < 8; i++) { const mid = (lo + hi) / 2; body.style.fontSize = mid.toFixed(2) + 'px'; if (body.scrollHeight > body.clientHeight + 1) hi = mid; else lo = mid; }
+      body.style.fontSize = lo.toFixed(2) + 'px';
+    }
+    page.classList.toggle('overflow', body.scrollHeight > body.clientHeight + 1);
+    return;
+  }
   if (page.classList.contains('mp-full') && !body.classList.contains('text')) {
     // ملء الشاشة: الأسطر الخمسة عشر تتوزع على الارتفاع المتاح؛ الحجم من العرض ما لم يضق الارتفاع
     if (H > 0) {

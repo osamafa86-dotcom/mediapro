@@ -60,7 +60,7 @@ export function createMushafReader(app, cb = {}) {
   const dimmer = h('div', { class: 'mr-dim', 'aria-hidden': 'true' });
   root.append(stage, dimmer, top, bottom, ayahBar, hint, exitBtn);
   let exitTimer = null; let keepAwake = true; let themeId = 'cream';
-  let vertical = false; let auto = null; let autoSpeed = 40; let tajweedFn = null; let pull = null;
+  let vertical = false; let auto = null; let autoSpeed = 40; let tajweedFn = null; let pull = null; let fitText = true;
   const pullHint = h('div', { class: 'mr-pull', 'aria-hidden': 'true' }, 'اسحب لأسفل للإغلاق');
   root.append(pullHint);
   /** زر الرجوع يبقى ظاهرًا دائمًا ويخفت بعد ثوانٍ كي لا يشغل عن القراءة */
@@ -119,7 +119,11 @@ export function createMushafReader(app, cb = {}) {
   track.addEventListener('scrollend', () => { clearTimeout(scrollTimer); onScrollSettled(); });
 
   /* ---------- ملء الصفحات (نافذة حول الصفحة الحالية) ---------- */
-  function decorate(el) { el.classList.toggle('night', root.classList.contains('night')); if (hifz) el.classList.add('hifz'); }
+  function decorate(el) { el.classList.toggle('night', root.classList.contains('night')); el.dataset.fit = fitText ? '1' : '0'; if (hifz) el.classList.add('hifz'); }
+  /** ملاءمة وضع النص للشاشة: تصغير الخط تلقائيًا كي تظهر الصفحة كاملة دون تمرير */
+  function setFitText(on) { fitText = on !== false; root.classList.toggle('fit-text', fitText); for (const e of filled.values()) { e.el.dataset.fit = fitText ? '1' : '0'; e.el._fitKey = null; fitMushafPage(e.el); } }
+  const refit = () => { for (const e of filled.values()) { e.el._fitKey = null; fitMushafPage(e.el); } };
+  if (typeof document !== 'undefined' && document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', () => { if (open) refit(); }); // خط حفص/أميري بعد وصوله يغيّر القياس
   function fill(p) {
     if (p < 1 || p > TOTAL_PAGES || filled.has(p)) return;
     const slide = slideOf(p);
@@ -286,7 +290,7 @@ export function createMushafReader(app, cb = {}) {
     if (!root.isConnected) document.body.append(root);
     root.hidden = false; open = true; document.body.classList.add('mreader-open');
     const qs = app.settings.quran; keepAwake = qs.keepAwake !== false; setTheme(resolveTheme(qs)); setDim(qs.dim || 0); scheduleExitFade(); setChrome(false);
-    root.classList.add('veil-ok'); autoSpeed = Math.max(10, Math.min(200, Number(qs.autoSpeed) || 40)); vertical = qs.scroll === 'vertical'; root.classList.toggle('vertical', vertical);
+    root.classList.add('veil-ok'); fitText = qs.fitText !== false; root.classList.toggle('fit-text', fitText); autoSpeed = Math.max(10, Math.min(200, Number(qs.autoSpeed) || 40)); vertical = qs.scroll === 'vertical'; root.classList.toggle('vertical', vertical);
     try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', onScheme); } catch { /* تجاهل */ } textMode = app.settings.quran.view === 'text'; root.classList.toggle('text-mode', textMode);
     ensureSurahNamesFont().then(() => root.classList.add('snames')).catch(() => {});
     if (!ro && typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(() => relayout()); ro.observe(stage); }
@@ -309,7 +313,7 @@ export function createMushafReader(app, cb = {}) {
     get page() { return page; }, get isOpen() { return open; }, get isNight() { return root.classList.contains('night'); }, get chromeShown() { return root.classList.contains('chrome'); },
     show, hide, goto, setChrome, setNight, setPaper, setTheme, setDim, setKeepAwake, setTextMode, setHifz, refreshBookmark, relayout, setAyahBar,
     get theme() { return themeId; }, get vertical() { return vertical; }, get autoscrolling() { return !!auto; },
-    setVertical, startAutoScroll, stopAutoScroll, setAutoSpeed, setTajweed,
+    setVertical, startAutoScroll, stopAutoScroll, setAutoSpeed, setTajweed, setFitText, refit,
     get textMode() { return textMode; },
     setPanel(el) { render(panel, el); root.classList.toggle('has-panel', !!el); },
     pageEl(p) { const e = filled.get(p); return e ? e.el : null; },

@@ -313,7 +313,7 @@ export function mount(container, app) {
   }
 
   function applyTextFont() { document.documentElement.style.setProperty('--quran-font', (q().textFont || 'amiri') === 'hafs' ? "'KFGQPC Hafs'" : "'Amiri Quran'"); }
-  function setLineHeight(d) { const vv = Math.min(2.8, Math.max(1.6, +((q().lineHeight || 2.15) + d).toFixed(2))); saveQ({ lineHeight: vv }); document.documentElement.style.setProperty('--quran-lh', String(vv)); }
+  function setLineHeight(d) { const vv = Math.min(2.8, Math.max(1.6, +((q().lineHeight || 2.15) + d).toFixed(2))); saveQ({ lineHeight: vv }); document.documentElement.style.setProperty('--quran-lh', String(vv)); reader.refit(); }
   /** العرض والألوان: سمة الصفحة (فاتح/تدرّجات/داكن)، تعتيم، إبقاء الشاشة مضاءة، طريقة العرض وحجم الخط */
   function displaySheet() {
     let rerender = () => {};
@@ -342,6 +342,7 @@ export function mount(container, app) {
       h('div', { class: 'field' }, h('label', {}, 'اتجاه التصفح'), h('div', { class: 'segmented' }, ...[['horizontal', 'أفقي (تقليب)'], ['vertical', 'رأسي (متصل)']].map(([k, l]) => h('button', { class: (s.scroll || 'horizontal') === k ? 'active' : '', onclick: () => { saveQ({ scroll: k }); reader.setVertical(k === 'vertical'); rerender(); } }, l)))),
       (isText || (s.scroll === 'vertical')) ? h('div', { class: 'field' }, h('label', {}, `سرعة التمرير التلقائي (${app.num(s.autoSpeed || 40)})`), (() => { const r = h('input', { class: 'range', type: 'range', min: 10, max: 160, step: 10, value: s.autoSpeed || 40, 'aria-label': 'سرعة التمرير التلقائي' }); r.addEventListener('input', () => reader.setAutoSpeed(+r.value)); r.addEventListener('change', () => saveQ({ autoSpeed: +r.value })); return r; })(), h('div', { class: 'tiny' }, 'زر ▶ في شريط الأدوات يبدأ التمرير؛ أي لمسة توقفه')) : null,
       isText ? h('div', { class: 'field' }, h('label', {}, 'خط النص'), h('div', { class: 'segmented' }, ...[['amiri', 'أميري قرآن'], ['hafs', 'حفص (مجمع الملك فهد)']].map(([k, l]) => h('button', { class: (s.textFont || 'amiri') === k ? 'active' : '', onclick: () => { saveQ({ textFont: k }); applyTextFont(); rerender(); } }, l))), h('div', { class: 'tiny' }, 'خط حفص يُجلب مرة واحدة عند اختياره (88 ك.ب)')) : null,
+      isText ? h('div', { class: 'setting-row' }, h('div', {}, h('div', { class: 'label' }, 'ملاءمة الصفحة للشاشة'), h('div', { class: 'desc' }, 'تصغير الخط تلقائيًا كي تظهر الصفحة كاملة دون تمرير')), switchEl(s.fitText !== false, (on) => { saveQ({ fitText: on }); reader.setFitText(on); }, 'ملاءمة الصفحة للشاشة')) : null,
       isText ? h('div', { class: 'setting-row' }, h('div', { class: 'label' }, 'حجم الخط'), h('div', { class: 'text-scale-ctl' }, h('button', { onclick: () => setScale(-0.1), 'aria-label': 'تصغير الخط' }, 'أ-'), h('button', { onclick: () => setScale(0.1), 'aria-label': 'تكبير الخط' }, 'أ+'))) : null,
       isText ? h('div', { class: 'setting-row' }, h('div', { class: 'label' }, 'تباعد الأسطر'), h('div', { class: 'text-scale-ctl' }, h('button', { onclick: () => setLineHeight(-0.15), 'aria-label': 'تقليل التباعد' }, '−'), h('button', { onclick: () => setLineHeight(0.15), 'aria-label': 'زيادة التباعد' }, '+'))) : null,
       h('button', { class: 'btn btn-outline btn-block', onclick: () => { closeSheet(); readerOptions(); } }, h('span', { html: icon('settings') }), ' سائر خيارات المصحف'));
