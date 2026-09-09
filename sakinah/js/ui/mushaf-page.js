@@ -159,6 +159,18 @@ export function wordEl(root, n, k) { return root.querySelector(`.mw[data-n="${n}
  * بديل نصي عند تعذّر تحميل خط الصفحة (دون اتصال قبل تخزين الخطوط): الصفحة نفسها بخط Amiri Quran بالبنية ذاتها
  * (.mw[data-n][data-k] و.me) كي يعمل التظليل والتسميع، مع ترويسات السور والبسملة.
  */
+/** يقسّم كلمة إلى مقاطع ملوّنة بحسب أحكام التجويد [بداية, طول, رمز] (مواضع نص الآية) */
+export function tajweedNodes(word, start, spans) {
+  const out = []; let buf = ''; let cur = null;
+  const flush = () => { if (!buf) return; out.push(cur ? h('span', { class: `tj tj-${cur}` }, buf) : buf); buf = ''; };
+  for (let i = 0; i < word.length; i++) {
+    const pos = start + i; let code = null;
+    for (const [s, l, c] of spans) { if (pos >= s && pos < s + l) { code = c; break; } if (s > pos) break; }
+    if (code !== cur) { flush(); cur = code; }
+    buf += word[i];
+  }
+  flush(); return out;
+}
 export function renderTextPage(p, opts = {}) {
   const ayahs = pageAyahs(p); const first = ayahs[0]; const lbl = pageLabel(p);
   const body = h('div', { class: 'mp-body text' });
@@ -168,8 +180,10 @@ export function renderTextPage(p, opts = {}) {
       if (a.surah !== 1 && a.surah !== 9) body.append(h('div', { class: 'ml mb', role: 'img', 'aria-label': 'بسم الله الرحمن الرحيم', html: BISMILLAH_SVG }));
     }
     const span = h('span', { class: 'ayah-text' }); let k = 0;
+    const tj = opts.tajweed ? opts.tajweed(a.n) : null; let pos = 0;
     tokenize(a.text).forEach((t, i, arr) => {
-      const el = h('span', { class: t.spoken ? 'mw' : 'mw mark', dataset: { n: String(a.n) } }, t.raw);
+      const start = a.text.indexOf(t.raw, pos); pos = start + t.raw.length;
+      const el = h('span', { class: t.spoken ? 'mw' : 'mw mark', dataset: { n: String(a.n) } }, ...(tj && tj.length ? tajweedNodes(t.raw, start, tj) : [t.raw]));
       if (t.spoken) el.dataset.k = String(k++);
       span.append(el, i < arr.length - 1 ? ' ' : '');
     });

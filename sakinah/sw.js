@@ -10,13 +10,13 @@ const CORE = [
   './js/core/astro.js', './js/core/prayer-times.js', './js/core/methods.js', './js/core/qibla.js', './js/core/geomag.js', './js/core/hijri.js',
   './js/platform/storage.js', './js/platform/location.js', './js/platform/compass.js', './js/platform/notifications.js',
   './js/data/adhkar.js', './js/data/hadith.js', './js/data/hadith/part-a.js', './js/data/hadith/part-b.js', './js/data/cities.js',
-  './js/data/quran-meta.js', './js/core/quran.js', './js/platform/audio.js', './js/platform/speech.js', './js/ui/quran-view.js', './js/ui/more-view.js', './js/ui/hisn-view.js', './js/core/mushaf-themes.js', './js/version.js', './js/platform/native.js', './js/platform/native-notifications.js', './js/core/intl-cache.js', './js/core/arabic.js', './js/platform/downloads.js', './js/core/khatmah.js', './js/ui/onboarding.js', './js/platform/backup.js', './js/ui/tasbih-view.js', './js/ui/share-sheet.js', './js/core/tasbih.js', './js/core/share-card.js', './js/data/hisn.js', './js/data/nawawi.js', './data/quran.json',
+  './js/data/quran-meta.js', './js/core/quran.js', './js/platform/audio.js', './js/platform/speech.js', './js/ui/quran-view.js', './js/ui/more-view.js', './js/ui/hisn-view.js', './js/core/mushaf-themes.js', './js/core/tajweed.js', './js/core/challenges.js', './js/version.js', './js/platform/native.js', './js/platform/native-notifications.js', './js/core/intl-cache.js', './js/core/arabic.js', './js/platform/downloads.js', './js/core/khatmah.js', './js/ui/onboarding.js', './js/platform/backup.js', './js/ui/tasbih-view.js', './js/ui/share-sheet.js', './js/core/tasbih.js', './js/core/share-card.js', './js/data/hisn.js', './js/data/nawawi.js', './data/quran.json',
   './js/core/mushaf.js', './js/ui/mushaf-page.js', './js/ui/mushaf-reader.js', './js/platform/mushaf-fonts.js', './js/data/bismillah.js', './data/mushaf-layout.json', './js/data/world-land.js', './js/core/tafsir.js',
   './assets/icons/icon.svg', './assets/icons/icon-192.png', './assets/icons/icon-512.png', './assets/fonts/AmiriQuran.woff2',
   ...['Tajawal-400', 'Tajawal-500', 'Tajawal-700', 'Tajawal-800', 'Tajawal-900', 'Amiri-400', 'Amiri-400i', 'Amiri-700'].flatMap((f) => [`./assets/fonts/${f}-arabic.woff2`, `./assets/fonts/${f}-latin.woff2`]),
 ];
 // ملفات اختيارية تُخزَّن في الخلفية بعد التفعيل (لا تؤخر التثبيت ولا تفشله): التفسير الميسر لكل السور
-const OPTIONAL = Array.from({ length: 114 }, (_, i) => `./data/tafsir/muyassar/${i + 1}.json`);
+const OPTIONAL = ['./data/tajweed.json', ...Array.from({ length: 114 }, (_, i) => `./data/tafsir/muyassar/${i + 1}.json`)];
 self.addEventListener('install', (e) => {
   // cache:'reload' يتجاوز كاش HTTP للمتصفح كي تُخزَّن النسخة الجديدة فعلًا عند رفع الإصدار
   // كل الأساسيات أو لا شيء: فشل أي ملف يُبقي النسخة القديمة الكاملة (لا نسخة ناقصة)؛ والتفعيل يقرّره التطبيق بعد موافقة المستخدم (رسالة «نسخة جديدة»)
@@ -71,7 +71,7 @@ self.addEventListener('fetch', (e) => {
     e.respondWith(
       caches.match(req).then((cached) => {
         // بيانات ثابتة (تفسير، مصحف): الكاش أولًا دون إعادة تحقق؛ وسائر الملفات: إعادة تحقق من الخادم (ETag/304) بدل الاكتفاء بكاش HTTP
-        if (cached && /\/data\/(tafsir|mushaf-layout|quran)/.test(url.pathname)) return cached;
+        if (cached && /\/data\/(tafsir|mushaf-layout|quran|tajweed)/.test(url.pathname)) return cached;
         const fetched = fetch(new Request(req, { cache: 'no-cache' })).then((res) => {
           if (res && res.ok) caches.open(VERSION).then((c) => c.put(req, res.clone()));
           return res;

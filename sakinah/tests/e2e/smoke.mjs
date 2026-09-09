@@ -284,6 +284,45 @@ await page.waitForTimeout(100);
 check((await page.evaluate(() => Number(document.querySelector('.mr-dim').style.opacity))) === 0.3 && (await page.evaluate(() => window.sakinah.settings.quran.dim)) === 0.3, 'التعتيم يُطبَّق طبقةً فوق الصفحة ويُحفظ');
 await page.locator('#sheet-body input[type=range][aria-label="تعتيم الصفحة"]').fill('0');
 await page.locator('#sheet-close').click();
+// التجويد الملوّن: يفعّل وضع النص ويلوّن الأحكام؛ خط حفص؛ التمرير التلقائي؛ التصفح الرأسي؛ ثم العودة إلى الصفحات
+await showTools();
+await page.locator('.mr-btn[aria-label="العرض والألوان"]').click();
+await page.locator('#sheet-body .theme-swatch').first().waitFor();
+await page.waitForTimeout(400);
+await page.locator('#sheet-body label.switch:has(input[aria-label="التجويد الملوّن"])').click();
+await page.locator('.mr-slide[data-page="293"] .mp-text .tj').first().waitFor({ timeout: 20000 });
+const tjCount = await page.locator('.mr-slide[data-page="293"] .mp-text .tj').count();
+check(tjCount > 40 && (await page.evaluate(() => window.sakinah.settings.quran.view)) === 'text' && (await page.evaluate(() => window.sakinah.settings.quran.tajweed)) === true, `التجويد الملوّن: ${tjCount} مقطعًا ملوّنًا في وضع النص`);
+await page.locator('#sheet-body .segmented button', { hasText: 'حفص' }).waitFor();
+await page.locator('#sheet-body .segmented button', { hasText: 'حفص' }).click();
+await page.waitForTimeout(200);
+check(/KFGQPC Hafs/.test(await page.evaluate(() => document.documentElement.style.getPropertyValue('--quran-font'))), 'خط حفص (مجمع الملك فهد) يُختار لوضع النص');
+await page.locator('#sheet-body .segmented button', { hasText: 'أميري' }).click();
+await page.waitForTimeout(200);
+await page.locator('#sheet-body .segmented button', { hasText: 'رأسي' }).click();
+await page.waitForTimeout(300);
+check((await page.evaluate(() => document.querySelector('.mreader').classList.contains('vertical'))) && (await page.evaluate(() => window.sakinah.settings.quran.scroll)) === 'vertical', 'التصفح الرأسي المتصل يُفعَّل');
+await page.locator('#sheet-body .segmented button', { hasText: 'أفقي' }).click();
+await page.waitForTimeout(300);
+await page.locator('#sheet-close').click();
+await showTools();
+check(await page.locator('.mr-round.mr-auto').isVisible(), 'زر التمرير التلقائي يظهر في وضع النص');
+await page.locator('.mr-round.mr-auto').click();
+await page.waitForTimeout(400);
+const autoOn = await page.evaluate(() => document.querySelector('.mreader').classList.contains('autoscroll'));
+await page.touchscreen.tap(6, 422); // أي لمسة للصفحة توقف التمرير
+await page.waitForTimeout(300);
+check(autoOn && !(await page.evaluate(() => document.querySelector('.mreader').classList.contains('autoscroll'))) && (await page.locator('.mreader').getAttribute('data-page')) === '293', 'التمرير التلقائي يبدأ بالزر وتوقفه لمسة الصفحة دون قلبها');
+await showTools();
+await page.locator('.mr-btn[aria-label="العرض والألوان"]').click();
+await page.locator('#sheet-body .theme-swatch').first().waitFor();
+await page.waitForTimeout(400);
+await page.locator('#sheet-body label.switch:has(input[aria-label="التجويد الملوّن"])').click();
+await page.locator('#sheet-body .segmented button', { hasText: 'صفحات المصحف' }).waitFor();
+await page.locator('#sheet-body .segmented button', { hasText: 'صفحات المصحف' }).click();
+await page.locator('.mr-slide[data-page="293"] .mp.ready:not(.mp-text)').waitFor({ timeout: 30000 });
+check((await page.evaluate(() => window.sakinah.settings.quran.view)) === 'pages' && (await page.evaluate(() => window.sakinah.settings.quran.tajweed)) === false, 'العودة إلى صفحات المصحف بلا تجويد');
+await page.locator('#sheet-close').click();
 await page.screenshot({ animations: 'disabled', path: path.join(outDir, '08b-quran-themes.png') });
 await page.waitForTimeout(500);
 await page.touchscreen.tap(6, 422); await page.waitForTimeout(450); // إظهار الأدوات للزرّ الليلي
@@ -336,6 +375,19 @@ check(/3\s*\/|٣\s*\//.test(await page.locator('.hifz-panel .tiny').textContent(
 await page.screenshot({ path: path.join(outDir, '09-hifz.png') });
 await page.locator('.hifz-panel .icon-btn[aria-label="إنهاء المراجعة"]').click(); // خروج من وضع المراجعة
 check((await page.locator('.mp.hifz').count()) === 0 && (await page.locator('.hifz-panel').count()) === 0, 'الخروج من وضع المراجعة');
+// إخفاء الآيات (زر العين): الصفحة كلها مخفية، والنقر يكشف آيةً كاملة
+await showTools();
+await page.locator('.mr-round.mr-veil').click();
+await page.locator('.veil-panel').waitFor();
+const hiddenAll = await page.locator('.mr-slide[data-page="293"] .mw[data-k]:not(.revealed)').count();
+const firstN = await page.evaluate(() => document.querySelector('.mr-slide[data-page="293"] .mw[data-k]').dataset.n);
+const firstWords = await page.locator(`.mr-slide[data-page="293"] .mw[data-k][data-n="${firstN}"]`).count();
+await page.locator('.mr-slide[data-page="293"] .mp-body').tap();
+await page.waitForTimeout(350);
+const revealedNow = await page.locator('.mr-slide[data-page="293"] .mw.revealed').count();
+check(hiddenAll > 100 && revealedNow === firstWords, `إخفاء الآيات: ${hiddenAll} كلمة مخفية، والنقرة تكشف الآية الأولى كاملة (${revealedNow} كلمة)`);
+await page.locator('.veil-panel .icon-btn[aria-label="إنهاء إخفاء الآيات"]').click();
+check((await page.locator('.mp.hifz').count()) === 0 && (await page.locator('.veil-panel').count()) === 0, 'إنهاء إخفاء الآيات');
 // التشغيل من الخيارات: يظهر شريط التلاوة (الصوت محجوب في الاختبار)
 await page.route(/cdn\.islamic\.network|api\.quran\.com|verses\.quran\.com/, (r) => r.abort()); // الصوت وبياناته محجوبة: الاختبار لا يعتمد على الشبكة
 await showTools();
@@ -351,6 +403,13 @@ await page.locator('.mr-exit').click();
 await page.locator('.resume-card').waitFor();
 check(/الإسراء/.test(await page.locator('.resume-card').textContent()) && /293/.test(await page.locator('.resume-card').textContent()), `بطاقة متابعة القراءة تحفظ الموضع (الإسراء، ص 293): ${(await page.locator('.resume-card').textContent()).replace(/\s+/g, ' ').trim()}`);
 check((await page.locator('.mreader').getAttribute('hidden')) !== null && (await page.evaluate(() => location.hash)) === '#/quran', 'إغلاق القارئ يعيد الرابط #/quran');
+// التحدّيات وخريطة الحرارة في الفهرس
+await page.locator('#view-quran .challenge-card .btn', { hasText: 'ابدأ تحدّيًا' }).click();
+await page.locator('#sheet-body .challenge-row', { hasText: 'سورة الكهف' }).click();
+await page.locator('#view-quran .challenge-card .bar').waitFor();
+check(/سورة الكهف/.test(await page.locator('#view-quran .challenge-card').textContent()) && (await page.locator('#view-quran .heatmap i').count()) === 90 && (await page.evaluate(() => window.sakinah.settings.quran.challenge && window.sakinah.settings.quran.challenge.id)) === 'kahf', 'تحدّي «سورة الكهف» يبدأ ويعرض التقدّم وخريطة 90 يومًا');
+await page.locator('#view-quran .challenge-card .btn', { hasText: 'إنهاء' }).click();
+check((await page.evaluate(() => window.sakinah.settings.quran.challenge)) === null, 'إنهاء التحدّي');
 console.log(`  (خطوط المصحف المقدَّمة من الكاش: ${fontsServed})`);
 
 await page.locator('#tab-more').click();

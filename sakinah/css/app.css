@@ -686,3 +686,39 @@ p a, .tiny a, .refline a, li a { text-decoration: underline; text-underline-offs
 .goto-page { display: flex; align-items: center; gap: 10px; }
 .goto-page input[type=number] { width: 88px; }
 .mreader.text-mode .mp.mp-full .mp-body.text { line-height: var(--quran-lh, 2.15); }
+
+/* ---------- المصحف 6: التجويد الملوّن، إخفاء الآيات، التصفح الرأسي، التمرير التلقائي، التحدّيات وخريطة الحرارة ---------- */
+.mreader { --tj-madd6: #b3001b; --tj-madd45: #d32f2f; --tj-madd246: #e65100; --tj-madd2: #c98a00; --tj-ghunnah: #2e7d32; --tj-qalqala: #1565c0; --tj-silent: #8a8a8a; --tj-idgham: #5c6bc0; --tj-other: #6a1b9a; }
+.mreader.night { --tj-madd6: #ff5c6c; --tj-madd45: #ff7b7b; --tj-madd246: #ffa14d; --tj-madd2: #ffc94d; --tj-ghunnah: #66d97a; --tj-qalqala: #64b5f6; --tj-silent: #8d8d8d; --tj-idgham: #9fa8ff; --tj-other: #ce93d8; }
+.tj-m { color: var(--tj-madd6); } .tj-o { color: var(--tj-madd45); } .tj-p { color: var(--tj-madd246); } .tj-n { color: var(--tj-madd2); }
+.tj-g, .tj-f, .tj-c, .tj-i, .tj-a, .tj-w { color: var(--tj-ghunnah); } .tj-q { color: var(--tj-qalqala); }
+.tj-h, .tj-s, .tj-l { color: var(--tj-silent); } .tj-u { color: var(--tj-idgham); } .tj-d, .tj-b { color: var(--tj-other); }
+.mp.hifz .mw[data-k]:not(.revealed) .tj { color: transparent; }
+.tj-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; font-size: .8125rem; }
+.tj-legend span { display: flex; align-items: center; gap: 8px; }
+.tj-legend i { width: 14px; height: 14px; border-radius: 4px; flex-shrink: 0; }
+.mr-round.mr-auto, .mr-round.mr-veil { display: none; }
+.mreader.text-mode .mr-round.mr-auto, .mreader.vertical .mr-round.mr-auto, .mreader.veil-ok .mr-round.mr-veil { display: grid; }
+.mreader.autoscroll .mr-round.mr-auto { color: var(--chrome-gold); }
+.mreader.vertical .mr-track { flex-direction: column; overflow-x: hidden; overflow-y: auto; scroll-snap-type: y proximity; touch-action: pan-y; overscroll-behavior-y: contain; }
+.mreader.vertical .mr-slide { scroll-snap-align: start; }
+.mreader.vertical .mr-slide + .mr-slide { border-top: 1px solid rgba(0,0,0,.08); }
+.mr-stage { will-change: transform; transition: transform .2s ease; }
+.mr-stage.pulling { transition: none; }
+.mr-pull { position: absolute; top: calc(var(--safe-t) + 52px); left: 50%; transform: translateX(-50%); z-index: 3; background: var(--chrome); color: var(--chrome-ink); border-radius: 999px; padding: 6px 14px; font-size: .8rem; font-weight: 800; opacity: 0; transition: opacity .15s; pointer-events: none; }
+.mr-pull.on { opacity: 1; }
+.mp-body.text { font-family: var(--quran-font, 'Amiri Quran'), 'Amiri', serif; }
+.heatmap { display: grid; grid-template-rows: repeat(7, 10px); grid-auto-flow: column; grid-auto-columns: 10px; gap: 3px; direction: rtl; overflow-x: auto; padding: 4px 0; }
+.heatmap i { width: 10px; height: 10px; border-radius: 2px; background: var(--bg-soft); }
+.heatmap i.l1 { background: color-mix(in srgb, var(--primary) 30%, var(--bg-soft)); } .heatmap i.l2 { background: color-mix(in srgb, var(--primary) 55%, var(--bg-soft)); } .heatmap i.l3 { background: color-mix(in srgb, var(--primary) 80%, var(--bg-soft)); } .heatmap i.l4 { background: var(--primary); }
+.heatmap-foot { display: flex; justify-content: space-between; font-size: .7rem; color: var(--text-3); margin-top: 4px; }
+.challenge-card { background: var(--bg-elev); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px; }
+.challenge-card .bar { height: 8px; border-radius: 4px; background: var(--bg-soft); overflow: hidden; margin: 8px 0 6px; }
+.challenge-card .bar i { display: block; height: 100%; background: var(--primary); border-radius: 4px; transition: width .3s; }
+.challenge-card .bar i.late { background: var(--danger); }
+.challenge-row { display: flex; align-items: center; gap: 10px; padding: 10px 6px; border-bottom: 1px solid var(--line); }
+.challenge-row:last-child { border-bottom: 0; }
+.challenge-row .nm { font-weight: 800; } .challenge-row .info { font-size: .75rem; color: var(--text-3); }
+
+/* خط حفص من مجمع الملك فهد لوضع النص (يُجلب عند اختياره فقط؛ 88 ك.ب) */
+@font-face { font-family: 'KFGQPC Hafs'; font-style: normal; font-weight: 400; font-display: swap; src: url('https://cdn.jsdelivr.net/gh/quran/quran.com-frontend-next@master/public/fonts/quran/hafs/uthmanic_hafs/UthmanicHafs1Ver18.woff2') format('woff2'); }
