@@ -5,7 +5,7 @@ name: Sakinah Android (debug APK)
 on:
   push:
     branches: ['claude/islamic-app-development-tpmkko', 'main']
-    paths: ['sakinah/ios-release.txt', '.github/workflows/android.yml']
+    paths: ['sakinah/ios-release.txt', 'sakinah/package.json', 'sakinah/capacitor.config.json', '.github/workflows/android.yml']
   workflow_dispatch:
 
 permissions:
