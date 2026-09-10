@@ -27,11 +27,33 @@ enum MadhabOption: String, AppEnum {
 enum MethodOption: String, AppEnum {
   case auto, UmmAlQura, MuslimWorldLeague, Egyptian, Jordan, Kuwait, Qatar, Dubai, Gulf, Karachi, NorthAmerica, Turkey, Tunisia, Algeria, Morocco, Singapore, JAKIM, Indonesia, MoonsightingCommittee, Tehran, Jafari, France, Russia, Portugal
   static var typeDisplayRepresentation: TypeDisplayRepresentation = "طريقة الحساب"
-  static var caseDisplayRepresentations: [MethodOption: DisplayRepresentation] {
-    var d: [MethodOption: DisplayRepresentation] = [.auto: DisplayRepresentation(title: "تلقائي حسب الدولة")]
-    for c in allCases where c != .auto { d[c] = DisplayRepresentation(title: "\(Methods.method(c.rawValue).nameAr)") }
-    return d
-  }
+  // قاموس حرفي: معالج بيانات AppIntents يرفض القيم المحسوبة
+  static var caseDisplayRepresentations: [MethodOption: DisplayRepresentation] = [
+    .auto: "تلقائي حسب الدولة",
+    .UmmAlQura: "جامعة أم القرى (السعودية)",
+    .MuslimWorldLeague: "رابطة العالم الإسلامي",
+    .Egyptian: "الهيئة المصرية العامة للمساحة",
+    .Jordan: "وزارة الأوقاف الأردنية",
+    .Kuwait: "الكويت",
+    .Qatar: "قطر",
+    .Dubai: "دبي (الإمارات)",
+    .Gulf: "منطقة الخليج",
+    .Karachi: "جامعة العلوم الإسلامية (كراتشي)",
+    .NorthAmerica: "الجمعية الإسلامية لأمريكا الشمالية (ISNA)",
+    .Turkey: "رئاسة الشؤون الدينية (تركيا)",
+    .Tunisia: "تونس",
+    .Algeria: "وزارة الشؤون الدينية الجزائرية",
+    .Morocco: "وزارة الأوقاف المغربية",
+    .Singapore: "المجلس الإسلامي بسنغافورة (MUIS)",
+    .JAKIM: "دائرة التقدم الإسلامي الماليزية (JAKIM)",
+    .Indonesia: "وزارة الشؤون الدينية الإندونيسية",
+    .MoonsightingCommittee: "لجنة رؤية الهلال العالمية",
+    .Tehran: "معهد الجيوفيزياء – جامعة طهران",
+    .Jafari: "الطريقة الجعفرية (قم)",
+    .France: "اتحاد المنظمات الإسلامية في فرنسا",
+    .Russia: "الإدارة الدينية لمسلمي روسيا",
+    .Portugal: "الجالية الإسلامية في لشبونة",
+  ]
 }
 
 /// إعدادات الودجت: مدينة أو موقع الجهاز، المذهب، الطريقة
