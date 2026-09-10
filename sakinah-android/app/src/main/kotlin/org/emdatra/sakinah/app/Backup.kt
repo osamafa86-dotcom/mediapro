@@ -17,7 +17,7 @@ object Backup {
   }
   fun apply(b: WebBackup) {
     val s = b.settings
-    s.location?.let { l -> l.cityId?.let { id -> CityDatabase.bundled.city(id) }?.let { Store.useCity(it) } ?: run { if (l.lat != null && l.lon != null && l.source != "gps") CityDatabase.bundled.nearest(l.lat, l.lon)?.let { Store.useCity(it.first) } } }
+    s.location?.let { l -> l.cityId?.let { id -> CityDatabase.bundled.city(id) }?.let { Store.useCity(it) } ?: run { val la = l.lat; val lo = l.lon; if (la != null && lo != null && l.source != "gps") CityDatabase.bundled.nearest(la, lo)?.let { Store.useCity(it.first) } } }
     s.method?.let { if (it == "auto") Store.methodAuto = true else { Store.methodAuto = false; Store.methodId = it } }
     s.madhab?.let { Store.madhab = it }; s.highLatitudeRule?.let { Store.highLat = it }; s.hijriOffset?.let { Store.hijriOffset = it }; s.hour12?.let { Store.hour12 = it }; s.numerals?.let { Store.numerals = it }
     s.notifications?.let { n -> var r = Store.reminders; n.enabled?.let { r = r.copy(enabled = it) }; n.prayers?.let { p -> r = r.copy(prayers = p.filter { it.value }.keys) }; n.preMinutes?.let { r = r.copy(preMinutes = it) }; n.sound?.let { r = r.copy(sound = it) }; Store.reminders = r

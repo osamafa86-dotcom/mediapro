@@ -51,6 +51,11 @@ class Tajweed(json: String) {
 object Adhkar {
   val all: List<Dhikr> by lazy { Res.json.decodeFromString(AdhkarFile.serializer(), Res.text("adhkar.json")).adhkar }
   fun items(period: String) = all.filter { it.period == "both" || it.period == period }
+  /** الفترة التلقائية: صباح من الفجر إلى الظهر، مساء من العصر إلى الفجر، وإلا صباح؛ وبلا مواقيت: 4–12 صباحًا */
+  fun autoPeriod(now: java.time.Instant, fajr: java.time.Instant?, dhuhr: java.time.Instant?, asr: java.time.Instant?, zone: java.time.ZoneId): String {
+    if (fajr != null && dhuhr != null && asr != null) return if (!now.isBefore(fajr) && now.isBefore(dhuhr)) "morning" else if (!now.isBefore(asr) || now.isBefore(fajr)) "evening" else "morning"
+    val hr = now.atZone(zone).hour; return if (hr in 4..11) "morning" else "evening"
+  }
 }
 @Serializable data class HisnItem(val id: Int, val text: String, @SerialName("repeat") val repeatCount: Int, val audio: Boolean? = null) { val hasAudio get() = audio != false; val audioUrl get() = "https://www.hisnmuslim.com/audio/ar/$id.mp3" }
 @Serializable data class HisnChapter(val id: Int, val title: String, val items: List<HisnItem>)
