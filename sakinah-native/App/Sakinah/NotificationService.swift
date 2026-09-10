@@ -29,25 +29,39 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     return ok
   }
 
-  /// مزامنة الجدول كاملًا من النواة
-  func sync(reminders: [Reminder], prefs: ReminderPrefs, tz: TimeZone) {
+  /// مزامنة الجدول كاملًا من النواة: مواعيد محدّدة (صلوات وأذكار) + يومية متكررة (حديث اليوم، ورد الختمة)
+  func sync(reminders: [Reminder], daily: [DailyReminder] = [], prefs: ReminderPrefs, tz: TimeZone) {
     center.removeAllPendingNotificationRequests()
-    guard prefs.enabled, !reminders.isEmpty else { refreshStatus(); return }
     var cal = Calendar(identifier: .gregorian); cal.timeZone = tz
-    for r in reminders {
+    let prayerItems = prefs.enabled ? reminders.filter { $0.kind == .adhan || $0.kind == .pre || $0.kind == .sunrise } : []
+    let extraItems = reminders.filter { $0.kind == .adhkar }
+    for r in prayerItems + extraItems {
       let content = UNMutableNotificationContent()
       content.title = r.title
       content.body = r.body
-      content.threadIdentifier = "prayer"
+      content.threadIdentifier = r.kind == .adhkar ? "adhkar" : "prayer"
       content.userInfo = ["kind": r.kind.rawValue, "prayer": r.prayer?.rawValue ?? ""]
       if r.kind == .adhan && prefs.usesAdhanSound { content.sound = UNNotificationSound(named: UNNotificationSoundName("adhan_short.wav")) }
-      else if prefs.sound != "none" { content.sound = .default }
+      else if r.kind == .adhkar || prefs.sound != "none" { content.sound = .default }
       content.interruptionLevel = r.kind == .adhan ? .timeSensitive : .active
       let comps = cal.dateComponents([.year, .month, .day, .hour, .minute, .second], from: r.time)
       let req = UNNotificationRequest(identifier: r.id, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false))
       center.add(req)
     }
+    for d in daily {
+      let content = UNMutableNotificationContent()
+      content.title = d.title; content.body = d.body; content.sound = .default; content.threadIdentifier = d.kind.rawValue
+      content.userInfo = ["kind": d.kind.rawValue]
+      var comps = DateComponents(); comps.hour = d.hour; comps.minute = d.minute; comps.timeZone = tz
+      center.add(UNNotificationRequest(identifier: d.id, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)))
+    }
+    if !(prayerItems + extraItems).isEmpty || !daily.isEmpty { Task { _ = await requestAuthorizationIfNeeded() } }
     refreshStatus()
+  }
+  private func requestAuthorizationIfNeeded() async -> Bool {
+    let s = await center.notificationSettings()
+    if s.authorizationStatus == .notDetermined { return await requestAuthorization() }
+    return s.authorizationStatus == .authorized || s.authorizationStatus == .provisional
   }
 
   // MARK: - UNUserNotificationCenterDelegate

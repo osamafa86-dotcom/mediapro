@@ -2,15 +2,16 @@ import SwiftUI
 import CoreText
 import SakinahCore
 
-/// ألوان صفحة المصحف (السمة الورقية؛ السمات الأخرى في مرحلة لاحقة) — القيم نفسها في نسخة الويب
+/// ألوان صفحة المصحف (تُشتق من السمة؛ القيم الافتراضية للسمة الكريمية)
 struct MushafPalette {
   var paper = Theme.paper
   var ink = Color(red: 0.17, green: 0.13, blue: 0.10)
-  var marker = Color(red: 0.56, green: 0.45, blue: 0.19)   // #8f7430 علامة نهاية الآية
-  var rub = Color(red: 0.72, green: 0.20, blue: 0.42)      // #b8336a علامة ربع الحزب
-  var gold1 = Color(red: 0.66, green: 0.54, blue: 0.23)    // #a98a3a
-  var gold2 = Color(red: 0.81, green: 0.71, blue: 0.44)    // #cfb46f
-  var gold3 = Color(red: 0.91, green: 0.86, blue: 0.70)    // #e9dcb2
+  var marker = Color(red: 0.56, green: 0.45, blue: 0.19)
+  var rub = Color(red: 0.72, green: 0.20, blue: 0.42)
+  var gold1 = Color(red: 0.66, green: 0.54, blue: 0.23)
+  var gold2 = Color(red: 0.81, green: 0.71, blue: 0.44)
+  var gold3 = Color(red: 0.91, green: 0.86, blue: 0.70)
+  init() {}
   static let paper = MushafPalette()
 }
 
@@ -24,15 +25,11 @@ enum MushafMetrics {
   struct Fit: Equatable { let fontSize: CGFloat; let bodyHeight: CGFloat }
   private static var cache: [String: Fit] = [:]
 
-  /// حجم الخط من العرض، ثم تصحيح بالقياس (CoreText) إن تجاوز أي سطر العرض، وضبطه على الارتفاع المتاح
   static func fit(page p: Int, lines: [MushafLine], width W: CGFloat, height H: CGFloat) -> Fit {
     let key = "\(p)|\(Int(W))|\(Int(H))"
     if let c = cache[key] { return c }
     var size = W / fullLineEm
-    if H > 0 {
-      let rowH = H / CGFloat(rows)
-      if rowH < size * rowMinEm { size = rowH / rowMinEm }
-    }
+    if H > 0 { let rowH = H / CGFloat(rows); if rowH < size * rowMinEm { size = rowH / rowMinEm } }
     let maxW = maxLineWidth(fontName: MushafFonts.pageFontName(p), size: size, lines: lines)
     if maxW > W + 0.5 { size *= W / maxW }
     let bodyH = H > 0 ? min(H, CGFloat(rows) * size * rowMaxEm) : CGFloat(rows) * size * 1.09
@@ -41,25 +38,23 @@ enum MushafMetrics {
     cache[key] = f
     return f
   }
-  static func maxLineWidth(fontName: String, size: CGFloat, lines: [MushafLine]) -> CGFloat {
+  static func textWidth(_ s: String, fontName: String, size: CGFloat) -> CGFloat {
     let font = CTFontCreateWithName(fontName as CFString, size, nil)
+    let attr = NSAttributedString(string: s, attributes: [NSAttributedString.Key(kCTFontAttributeName as String): font])
+    return CGFloat(CTLineGetTypographicBounds(CTLineCreateWithAttributedString(attr), nil, nil, nil))
+  }
+  static func maxLineWidth(fontName: String, size: CGFloat, lines: [MushafLine]) -> CGFloat {
     var maxW: CGFloat = 0
-    for l in lines {
-      let ws = l.words; if ws.isEmpty { continue }
-      let attr = NSAttributedString(string: ws.map(\.glyph).joined(), attributes: [NSAttributedString.Key(kCTFontAttributeName as String): font])
-      let line = CTLineCreateWithAttributedString(attr)
-      maxW = max(maxW, CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil)))
-    }
+    for l in lines { let ws = l.words; if ws.isEmpty { continue }; maxW = max(maxW, textWidth(ws.map(\.glyph).joined(), fontName: fontName, size: size)) }
     return maxW
   }
 }
 
-/// صفحة من مصحف المدينة بخط صفحتها (QCF v1): 15 سطرًا (8 في الفاتحة وأول البقرة داخل إطار)، مع رأس الصفحة (السورة والجزء) ورقمها
+/// صفحة من مصحف المدينة بخط صفحتها (QCF v1): 15 سطرًا (8 في الفاتحة وأول البقرة داخل إطار)، كل كلمة عنصر مستقل (نقر، تظليل، إخفاء)
 struct MushafPageView: View {
+  @Environment(MushafReaderState.self) private var rs
   let page: Int
   var showChrome = true
-  var palette = MushafPalette.paper
-  /// إزاحات الحواف الآمنة (الصفحة ترسم تحت شريط الحالة)
   var insets = EdgeInsets()
 
   var body: some View {
@@ -68,15 +63,13 @@ struct MushafPageView: View {
     let label = QuranText.shared.label(ofPage: page)
     let fontReady = MushafFonts.shared.ensurePage(page)
     let _ = MushafFonts.shared.ensureAmiri()
+    let palette = rs.palette
     GeometryReader { geo in
       let sideInset = max(geo.size.width * 0.035, max(insets.leading, insets.trailing))
       let W = geo.size.width - 2 * sideInset
       let base = W / MushafMetrics.fullLineEm
       VStack(spacing: 0) {
-        if showChrome, let label {
-          PageHead(page: page, label: label, size: base, palette: palette)
-            .padding(.horizontal, W * 0.01)
-        }
+        if showChrome, let label { PageHead(page: page, label: label, size: base, palette: palette).padding(.horizontal, W * 0.01) }
         GeometryReader { inner in
           let H = inner.size.height - base * 0.6
           let fit = MushafMetrics.fit(page: page, lines: lines, width: W, height: H)
@@ -85,12 +78,9 @@ struct MushafPageView: View {
           ZStack {
             VStack(spacing: 0) {
               ForEach(0..<MushafMetrics.rows, id: \.self) { i in
-                // الفاتحة وأول البقرة: 8 أسطر في وسط الصفحة (الصفوف 4..11 من 15) داخل إطار
                 let idx = short ? i - 3 : i
-                Group {
-                  if idx >= 0 && idx < lines.count { row(lines[idx], size: fit.fontSize, rowH: rowH, width: W) } else { Color.clear }
-                }
-                .frame(width: W, height: rowH)
+                Group { if idx >= 0 && idx < lines.count { row(lines[idx], size: fit.fontSize, rowH: rowH, width: W) } else { Color.clear } }
+                  .frame(width: W, height: rowH)
               }
             }
             if short { ShortPageFrame(palette: palette).frame(width: W * 0.97, height: fit.bodyHeight * (1 - 0.175 - 0.215)).offset(y: fit.bodyHeight * (0.175 - 0.215) / 2) }
@@ -100,18 +90,12 @@ struct MushafPageView: View {
           .opacity(fontReady ? 1 : 0.35)
         }
         if showChrome {
-          Text(QuranMeta.arabicDigits(page))
-            .font(.custom(MushafFonts.amiriQuranFont, fixedSize: base * 0.8))
-            .foregroundStyle(palette.ink.opacity(0.85))
-            .padding(.top, base * 0.1)
+          Text(QuranMeta.arabicDigits(page)).font(.custom(MushafFonts.amiriQuranFont, fixedSize: base * 0.8)).foregroundStyle(palette.ink.opacity(0.85)).padding(.top, base * 0.1)
         }
       }
-      .padding(.top, max(insets.top, 8))
-      .padding(.bottom, max(insets.bottom, 6))
-      .padding(.horizontal, sideInset)
+      .padding(.top, max(insets.top, 8)).padding(.bottom, max(insets.bottom, 6)).padding(.horizontal, sideInset)
       .frame(width: geo.size.width, height: geo.size.height)
     }
-    .background(palette.paper)
     .environment(\.layoutDirection, .rightToLeft)
     .accessibilityElement(children: .ignore)
     .accessibilityLabel("صفحة \(page)")
@@ -122,45 +106,49 @@ struct MushafPageView: View {
   private func row(_ line: MushafLine, size: CGFloat, rowH: CGFloat, width: CGFloat) -> some View {
     switch line {
     case .header(let s):
-      SurahHeader(surah: s, size: size, palette: palette)
-        .frame(height: min(rowH * 0.88, size * 1.45))
-        .padding(.horizontal, size * 0.1)
+      SurahHeader(surah: s, size: size, palette: rs.palette).frame(height: min(rowH * 0.88, size * 1.45)).padding(.horizontal, size * 0.1)
     case .basmala:
-      Text(QuranMeta.basmala)
-        .font(.custom(MushafFonts.amiriQuranFont, fixedSize: size * 0.98))
-        .foregroundStyle(palette.ink)
-        .lineLimit(1).minimumScaleFactor(0.5)
-        .frame(maxWidth: width * 0.62)
+      Text(QuranMeta.basmala).font(.custom(MushafFonts.amiriQuranFont, fixedSize: size * 0.98)).foregroundStyle(rs.palette.ink).lineLimit(1).minimumScaleFactor(0.5).frame(maxWidth: width * 0.62)
     case .words(let ws):
-      Text(attributed(ws, size: size))
-        .lineLimit(1).minimumScaleFactor(0.85)
-        .frame(maxWidth: .infinity)
-    }
-  }
-
-  /// سطر الكلمات بخط الصفحة: الرموز متلاصقة بلا فواصل (تباعدها داخل الخط)، وعلامة نهاية الآية والربع والسجدة بلونها
-  private func attributed(_ ws: [MushafWord], size: CGFloat) -> AttributedString {
-    var out = AttributedString()
-    let font = Font.custom(MushafFonts.pageFontName(page), fixedSize: size)
-    for w in ws {
-      let chars = Array(w.glyph)
-      if w.rub, chars.count > 1 {
-        out.append(piece(String(chars[0]), font, palette.rub)); out.append(piece(String(chars[1...]), font, palette.ink))
-      } else if w.sajda, chars.count > 1 {
-        out.append(piece(String(chars[..<(chars.count - 1)]), font, palette.ink)); out.append(piece(String(chars[chars.count - 1]), font, palette.marker))
-      } else {
-        out.append(piece(w.glyph, font, w.end ? palette.marker : palette.ink))
+      HStack(spacing: 0) {
+        ForEach(Array(ws.enumerated()), id: \.offset) { _, w in PageWord(word: w, page: page, size: size) }
       }
+      .frame(maxWidth: .infinity)
     }
-    return out
-  }
-  private func piece(_ s: String, _ font: Font, _ color: Color) -> AttributedString {
-    var a = AttributedString(s); a.font = font; a.foregroundColor = color; return a
   }
 }
 
-/// رأس الصفحة: اسم السورة والجزء متعاكسان بين الصفحات اليمنى (الفردية) واليسرى (الزوجية) كما في الكتاب المطبوع
-private struct PageHead: View {
+/// كلمة بخط الصفحة: علامة نهاية الآية وربع الحزب والسجدة بلونها، وخلفية للتظليل/الإخفاء، ونقرة تفتح قائمة الآية
+struct PageWord: View {
+  @Environment(MushafReaderState.self) private var rs
+  let word: MushafWord
+  let page: Int
+  let size: CGFloat
+
+  var body: some View {
+    let st = rs.style(n: word.n, k: word.k, base: word.end ? rs.palette.marker : rs.palette.ink)
+    Text(attributed(st))
+      .lineLimit(1).fixedSize()
+      .background(st.bg.map { RoundedRectangle(cornerRadius: size * 0.16).fill($0) })
+      .overlay { if st.current { RoundedRectangle(cornerRadius: size * 0.16).stroke(rs.accents.hideLine, lineWidth: 1) } }
+      .contentShape(Rectangle())
+      .onTapGesture { rs.onTapAyah?(word.n) }
+  }
+  private func attributed(_ st: MushafReaderState.WordStyle) -> AttributedString {
+    let font = Font.custom(MushafFonts.pageFontName(page), fixedSize: size)
+    let chars = Array(word.glyph)
+    func piece(_ s: String, _ c: Color) -> AttributedString { var a = AttributedString(s); a.font = font; a.foregroundColor = c; return a }
+    if st.hidden { return piece(word.glyph, .clear) }
+    var out = AttributedString()
+    if word.rub, chars.count > 1 { out.append(piece(String(chars[0]), rs.palette.rub)); out.append(piece(String(chars[1...]), st.fg)) }
+    else if word.sajda, chars.count > 1 { out.append(piece(String(chars[..<(chars.count - 1)]), st.fg)); out.append(piece(String(chars[chars.count - 1]), rs.palette.marker)) }
+    else { out.append(piece(word.glyph, st.fg)) }
+    return out
+  }
+}
+
+/// رأس الصفحة: اسم السورة والجزء متعاكسان بين الصفحات اليمنى (الفردية) واليسرى (الزوجية)
+struct PageHead: View {
   let page: Int; let label: QuranText.PageLabel; let size: CGFloat; let palette: MushafPalette
   var body: some View {
     let surah = Text("سُورَةُ \(QuranMeta.surah(label.surah).vocalized)")
@@ -168,17 +156,16 @@ private struct PageHead: View {
     HStack(alignment: .firstTextBaseline) {
       if page % 2 == 1 { surah; Spacer(minLength: 8); juz } else { juz; Spacer(minLength: 8); surah }
     }
-    .font(.custom(MushafFonts.amiriQuranFont, fixedSize: size * 0.66))
-    .foregroundStyle(palette.ink.opacity(0.85))
-    .lineLimit(1).minimumScaleFactor(0.6)
+    .font(.custom(MushafFonts.amiriQuranFont, fixedSize: size * 0.66)).foregroundStyle(palette.ink.opacity(0.85)).lineLimit(1).minimumScaleFactor(0.6)
   }
 }
 
-/// إطار اسم السورة: حدّ ذهبي مزدوج وزخرفة جانبية، والاسم برموز خط sura_names («001 surah»)
+/// إطار اسم السورة: حدّ ذهبي مزدوج وزخرفة جانبية، والاسم برموز خط sura_names («001 surah») أو نصًا عاديًا
 struct SurahHeader: View {
   let surah: Int; let size: CGFloat; let palette: MushafPalette
+  var plain = false
   var body: some View {
-    let _ = MushafFonts.shared.ensureSurahNames()
+    let _ = plain ? MushafFonts.shared.ensureAmiri() : MushafFonts.shared.ensureSurahNames()
     ZStack {
       RoundedRectangle(cornerRadius: 4).fill(palette.paper)
       HStack(spacing: 0) {
@@ -186,21 +173,18 @@ struct SurahHeader: View {
         Spacer(minLength: size * 3)
         Ornament(color: palette.gold2).mask(LinearGradient(colors: [.clear, .black, .black], startPoint: .leading, endPoint: .trailing))
       }
-      .padding(.vertical, 4).padding(.horizontal, 4)
+      .padding(4)
       RoundedRectangle(cornerRadius: 4).strokeBorder(palette.gold1, lineWidth: 1)
       RoundedRectangle(cornerRadius: 3).inset(by: 2).strokeBorder(palette.gold2, lineWidth: 1)
-      Text(String(format: "%03d surah", surah))
-        .font(.custom(MushafFonts.surahNamesFont, fixedSize: size * 0.86))
-        .foregroundStyle(palette.ink)
-        .environment(\.layoutDirection, .leftToRight)
-        .lineLimit(1).minimumScaleFactor(0.6)
-        .padding(.horizontal, size * 0.6)
-        .background(palette.paper)
+      Group {
+        if plain { Text("سورة \(QuranMeta.surah(surah).name)").font(.custom(MushafFonts.amiriQuranFont, fixedSize: size * 0.9)) }
+        else { Text(String(format: "%03d surah", surah)).font(.custom(MushafFonts.surahNamesFont, fixedSize: size * 0.86)).environment(\.layoutDirection, .leftToRight) }
+      }
+      .foregroundStyle(palette.ink).lineLimit(1).minimumScaleFactor(0.6).padding(.horizontal, size * 0.6).background(palette.paper)
     }
     .clipShape(RoundedRectangle(cornerRadius: 4))
     .accessibilityLabel("سورة \(QuranMeta.surah(surah).name)")
   }
-  /// زخرفة متكررة (معيّنات صغيرة بين خطّين) على جانبي الاسم
   private struct Ornament: View {
     let color: Color
     var body: some View {
@@ -213,8 +197,7 @@ struct SurahHeader: View {
         while x < sz.width {
           let r = h * 0.14
           var d = Path(); d.move(to: CGPoint(x: x, y: h / 2 - r)); d.addLine(to: CGPoint(x: x + r, y: h / 2)); d.addLine(to: CGPoint(x: x, y: h / 2 + r)); d.addLine(to: CGPoint(x: x - r, y: h / 2)); d.closeSubpath()
-          ctx.fill(d, with: .color(color))
-          x += step
+          ctx.fill(d, with: .color(color)); x += step
         }
       }
       .frame(maxWidth: .infinity)
@@ -222,8 +205,8 @@ struct SurahHeader: View {
   }
 }
 
-/// إطار الفاتحة وأول البقرة (حدّ ذهبي مزدوج حول الأسطر الثمانية)
-private struct ShortPageFrame: View {
+/// إطار الفاتحة وأول البقرة
+struct ShortPageFrame: View {
   let palette: MushafPalette
   var body: some View {
     ZStack {

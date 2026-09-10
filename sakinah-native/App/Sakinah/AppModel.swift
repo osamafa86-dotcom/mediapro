@@ -52,11 +52,16 @@ final class AppModel {
   let location = LocationService()
   let notifications = NotificationService()
   let adhan = AdhanPlayer()
+  let quran = QuranPrefs()
+  let content = ContentPrefs()
+  let player = RecitationPlayer()
+  let downloads = AudioDownloads()
 
   @ObservationIgnored private var cacheKey = ""
   @ObservationIgnored private var cacheDay: PrayerTimes.DayTimeline?
 
   init() {
+    player.downloads = downloads
     notifications.onForegroundAdhan = { [weak self] _ in
       guard let self, self.settings.fullAdhanInApp, self.settings.reminders.usesAdhanSound else { return }
       self.adhan.play(sound: self.settings.reminders.sound)
@@ -89,13 +94,19 @@ final class AppModel {
     if m != settings.methodId { settings.methodId = m }
   }
 
-  /// إعادة جدولة إشعارات النظام من النواة (أقرب 60 موعدًا)
+  /// مفتاح اليوم المدني «YYYY-MM-DD» بتوقيت الموقع
+  var todayKey: String { DayKey.key(Date(), tz: timeZone) }
+
+  /// إعادة جدولة إشعارات النظام من النواة: الصلوات (أقرب المواعيد) + الأذكار (7 أيام) + اليومية المتكررة (حديث اليوم، ورد الختمة) ضمن حدّ 64 إشعارًا
   func rescheduleNotifications() {
-    let prefs = settings.reminders
-    guard let coords = coordinates else { notifications.sync(reminders: [], prefs: prefs, tz: timeZone); return }
-    let tz = timeZone; let s = settings
-    let items = Reminders.upcoming(coords: coords, tz: tz, params: s.params(tz: tz), prefs: prefs,
-                                   format: { Fmt.time($0, tz: tz, hour12: s.hour12, numerals: s.numerals) }, number: { Fmt.number($0, numerals: s.numerals) })
-    notifications.sync(reminders: items, prefs: prefs, tz: tz)
+    let prefs = settings.reminders; let extras = content.extraReminders; let tz = timeZone; let s = settings
+    let number = { Fmt.number($0, numerals: s.numerals) }
+    let daily = Reminders.daily(prefs: extras, khatmah: quran.khatmah, number: number)
+    guard let coords = coordinates else { notifications.sync(reminders: [], daily: daily, prefs: prefs, tz: timeZone); return }
+    let adhkar = Reminders.adhkar(coords: coords, tz: tz, params: s.params(tz: tz), prefs: extras, days: 7)
+    let budget = max(20, 60 - daily.count - adhkar.count)
+    let items = Reminders.upcoming(coords: coords, tz: tz, params: s.params(tz: tz), prefs: prefs, max: budget,
+                                   format: { Fmt.time($0, tz: tz, hour12: s.hour12, numerals: s.numerals) }, number: number)
+    notifications.sync(reminders: items + adhkar, daily: daily, prefs: prefs, tz: tz)
   }
 }

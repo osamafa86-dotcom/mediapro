@@ -70,6 +70,10 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         NSLocationWhenInUseUsageDescription: "لحساب مواقيت الصلاة واتجاه القبلة حسب موقعك"
         NSMotionUsageDescription: "لتشغيل بوصلة القبلة"
+        NSMicrophoneUsageDescription: "لسماع تلاوتك في مراجعة الحفظ وكشف الكلمات المطابقة"
+        NSSpeechRecognitionUsageDescription: "لتحويل تلاوتك إلى كلمات ومطابقتها مع نص الآيات في مراجعة الحفظ"
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
         UIBackgroundModes: [audio]
         UIApplicationSupportsIndirectInputEvents: true
 schemes:

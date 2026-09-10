@@ -16,6 +16,8 @@ final class MushafFonts {
   static func pageFontName(_ p: Int) -> String { String(format: "QCF_P%03d", p) }
   static let surahNamesFont = "sura_names"
   static let amiriQuranFont = "AmiriQuran"
+  /// خط حفص (مجمع الملك فهد، الإصدار 18) لوضع النص — اسم PostScript داخل الملف (مقطوع عند 31 حرفًا)
+  static let hafsFont = "KFGQPCHAFSUthmanicScript-Regula"
 
   @discardableResult
   func ensurePage(_ p: Int) -> Bool { ensure(file: "p\(p)", postScriptName: MushafFonts.pageFontName(p)) }
@@ -23,6 +25,10 @@ final class MushafFonts {
   func ensureSurahNames() -> Bool { ensure(file: "sura_names", postScriptName: MushafFonts.surahNamesFont, pin: true) }
   @discardableResult
   func ensureAmiri() -> Bool { ensure(file: "AmiriQuran", postScriptName: MushafFonts.amiriQuranFont, pin: true) }
+  @discardableResult
+  func ensureHafs() -> Bool { ensure(file: "hafs", postScriptName: MushafFonts.hafsFont, pin: true) }
+  /// اسم خط وضع النص بحسب التفضيل ('hafs' | 'amiri') مع ضمان تسجيله
+  func textFontName(_ pref: String) -> String { if pref == "hafs", ensureHafs() { return MushafFonts.hafsFont }; ensureAmiri(); return MushafFonts.amiriQuranFont }
 
   private var pinned: Set<String> = []
   private let prefetchQueue = DispatchQueue(label: "org.emdatra.sakinah.mushaf-fonts", qos: .userInitiated)
