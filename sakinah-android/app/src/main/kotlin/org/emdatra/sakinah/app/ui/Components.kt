@@ -208,3 +208,24 @@ enum class AppTab(val title: String, val icon: ImageVector, val iconSelected: Im
   val c = DS.c
   Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { repeat(count) { i -> val w by animateDpAsState(if (i == active) 24.dp else 8.dp, label = "dot"); Box(Modifier.size(w, 8.dp).clip(CircleShape).background(if (i == active) c.accentGold else c.borderStrong)) } }
 }
+
+/** تحكّم مقسّم بأسلوب نظام التصميم */
+@Composable fun DSSegmented(items: List<String>, selected: Int, modifier: Modifier = Modifier, onSelect: (Int) -> Unit) {
+  val c = DS.c
+  Row(modifier.fillMaxWidth().clip(DS.shapeLg).background(c.bgSubtle).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    items.forEachIndexed { i, label ->
+      val on = i == selected
+      Box(Modifier.weight(1f).shadow(if (on && !c.isDark) 4.dp else 0.dp, DS.shapeMd, ambientColor = c.shadow.copy(alpha = 0.10f), spotColor = c.shadow.copy(alpha = 0.12f)).clip(DS.shapeMd).background(if (on) c.bgSurface else Color.Transparent).clickable(role = Role.Tab) { onSelect(i) }.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+        Text(label, style = DSType.labelSm, color = if (on) c.textPrimary else c.textSecondary, maxLines = 1)
+      }
+    }
+  }
+}
+/** شريحة زجاجية على الخلفيات الداكنة */
+@Composable fun GlassChip(label: String, icon: ImageVector? = null, on: Boolean = false, onClick: () -> Unit) {
+  val c = DS.c
+  Row(Modifier.clip(CircleShape).background(if (on) c.accentGold else Color.White.copy(alpha = 0.12f)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    if (icon != null) { Icon(icon, null, Modifier.size(14.dp), tint = if (on) Color(0xFF16211F) else c.textOnDark); Spacer(Modifier.width(6.dp)) }
+    Text(label, style = DSType.labelSm, color = if (on) Color(0xFF16211F) else c.textOnDark)
+  }
+}
