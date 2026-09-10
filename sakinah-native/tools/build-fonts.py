@@ -10,16 +10,18 @@ from fontTools.ttLib import TTFont
 HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parent
 FONT_BASE = 'https://cdn.jsdelivr.net/gh/quran/quran.com-frontend-next@aff1a035b09b66f28047b3216edcae4c5c949a49/public/fonts/quran/'
+# خط حفص (مجمع الملك فهد، الإصدار 18) لوضع النص المتدفق — اسمه في CoreText: KFGQPCHAFSUthmanicScript-Regula
+HAFS_URL = 'https://cdn.jsdelivr.net/gh/quran/quran.com-frontend-next@master/public/fonts/quran/hafs/uthmanic_hafs/UthmanicHafs1Ver18.woff2'
 CACHE = (ROOT.parent / 'sakinah' / '.cache' / 'fonts-qcf')  # الكاش نفسه الذي يستخدمه build-www.mjs
 OUT = ROOT / 'App' / 'Fonts'
 AMIRI = ROOT.parent / 'sakinah' / 'assets' / 'fonts' / 'AmiriQuran.woff2'
 
-def fetch(rel: str) -> pathlib.Path:
+def fetch(rel: str, url: str | None = None) -> pathlib.Path:
     dst = CACHE / rel
     if dst.exists() and dst.stat().st_size > 1000: return dst
     dst.parent.mkdir(parents=True, exist_ok=True)
     for attempt in range(3):
-        r = subprocess.run(['curl', '-sS', '-f', '-L', '-m', '60', '-o', str(dst), FONT_BASE + rel])
+        r = subprocess.run(['curl', '-sS', '-f', '-L', '-m', '60', '-o', str(dst), url or (FONT_BASE + rel)])
         if r.returncode == 0 and dst.exists() and dst.stat().st_size > 1000: return dst
     raise SystemExit(f'تعذّر جلب {rel}')
 
@@ -40,7 +42,8 @@ def main():
     for p in pages:
         total += convert(fetch(f'hafs/v1/woff2/p{p}.woff2'), f'p{p}')
     total += convert(fetch('surah-names/v1/sura_names.woff2'), 'sura_names')
+    total += convert(fetch('UthmanicHafs1Ver18.woff2', HAFS_URL), 'hafs')
     if AMIRI.exists(): total += convert(AMIRI, 'AmiriQuran')
-    print(f'خطوط المصحف: {len(list(pages))} صفحة + أسماء السور + أميري قرآن → {OUT} ({total // 1024 // 1024} م.ب مضغوطة)')
+    print(f'خطوط المصحف: {len(list(pages))} صفحة + أسماء السور + حفص + أميري قرآن → {OUT} ({total // 1024 // 1024} م.ب مضغوطة)')
 
 if __name__ == '__main__': main()

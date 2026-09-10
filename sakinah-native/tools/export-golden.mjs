@@ -64,7 +64,40 @@ mushaf.setMushafLayout(JSON.parse(fs.readFileSync(path.resolve(here, '../../saki
 const layoutPages = {};
 for (const p of [1, 2, 3, 50, 187, 293, 302, 545, 604]) layoutPages[p] = { lineCount: mushaf.pageLineCount(p), headers: mushaf.headersOnPage(p), ayahs: mushaf.ayahsOnPage(p), lines: mushaf.pageLines(p).map((l) => l.type === 'words' ? { type: 'words', words: l.words.map((w) => ({ glyph: w.glyph, n: w.n, k: w.k, end: w.end, rub: w.rub, sajda: w.sajda })) } : l) };
 const juzNames = Array.from({ length: 30 }, (_, i) => mushaf.juzName(i + 1));
-const out = { generatedAt: new Date().toISOString(), prayer, timeline, hijri, qibla, sunMoments, zenith, geomag, methods, layoutPages, juzNames };
+// ---------- المرحلة 3ب–4: البحث والتطبيع والحفظ والختمة والتحدّيات والمسبحة والتجويد وحديث اليوم ----------
+const quran = await import(path.join(web, 'quran.js'));
+quran.setQuranData(JSON.parse(fs.readFileSync(path.resolve(here, '../../sakinah/data/quran.json'), 'utf8')));
+const normalize = ['بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ', 'ٱلصَّلَوٰةَ', 'ٱلْكِتَٰبَ', 'إِبْرَٰهِـۧمَ', 'ٱلْقُرْءَانَ', 'دَاوُۥدَ', 'ٱلرِّبَوٰا۟', 'ٱلسَّمَٰوَٰتِ', 'مُوسَىٰ', 'الصلاة', 'إبراهيم', 'أُمُّ القُرى', 'ءَامَنُوا۟', 'ٱلزَّكَوٰةَ', 'يَٰٓأَيُّهَا', 'مِّنۢ بَعْدِ']
+  .map((s) => ({ s, match: quran.normalizeForMatch(s), a: quran.normalizeForSearchA(s), b: quran.normalizeForSearchB(s) }));
+const search = ['الصلاة', 'الرحمن', 'داود', 'إبراهيم', 'القرآن', 'الحمد لله', 'يس', 'بسم', 'الزكاة', 'موسى', 'ال', 'xyz'].map((q) => ({ q, n: quran.searchText(q, 30).map((a) => a.n) }));
+const tokenize = [1, 6, 262, 1001, 6236].map((n) => ({ n, words: quran.tokenize(quran.getAyah(n).text) }));
+const hifzWords = quran.pageAyahs(1).flatMap((a) => quran.tokenize(a.text).filter((w) => w.spoken).map((w, k) => ({ n: a.n, k, norm: w.norm, raw: w.raw })));
+const hifzFeeds = ['بسم الله الرحمن الرحيم', 'الحمد لله رب العالمين', 'الرحمن', 'ملك يوم الدين', 'اياك نعبد و اياك نستعين', 'اهدنا الصراط المستقيم صراط الذين انعمت عليهم غير المغضوب عليهم ولا الضالين'];
+const hm = new quran.HifzMatcher(hifzWords); const hifzSteps = hifzFeeds.map((t) => ({ t, revealed: hm.feed(t), pos: hm.pos, matched: hm.matched, skipped: hm.skipped, unmatched: hm.unmatched, done: hm.done, progress: hm.progress }));
+const hm2 = new quran.HifzMatcher(hifzWords); const hifzNoisy = [['بسم الله الرحيم', hm2.feed('بسم الله الرحيم')], ['الحمد الحمد لله', hm2.feed('الحمد الحمد لله')], ['رب', hm2.feed('رب')], ['hint', [hm2.hint()]]].map(([t, r]) => ({ t, revealed: r, pos: hm2.pos }));
+const lev = [['كتاب', 'كتب'], ['الرحمن', 'الرحيم'], ['', 'ابج'], ['سلام', 'سلام'], ['نعبد', 'نعبده']].map(([a, b]) => ({ a, b, d: quran.levenshtein(a, b), sim: quran.similarity(a, b) }));
+const kh = await import(path.join(web, 'khatmah.js')); const ch = await import(path.join(web, 'challenges.js')); const tb = await import(path.join(web, 'tasbih.js'));
+const readLog = { '2026-09-08': [1, 2, 3], '2026-09-09': [4, 5], '2026-09-10': [6], '2026-08-15': [10, 11] };
+const plan = kh.makePlan({ startPage: 1, startedAt: '2026-09-01', days: 30, reminder: '21:00' });
+const khatmah = { plan, status: kh.planStatus(plan, 45, readLog, '2026-09-10'), status2: kh.planStatus(kh.makePlan({ startPage: 300, startedAt: '2026-08-01', days: 60 }), 20, readLog, '2026-09-10'),
+  streak: kh.streak(readLog, '2026-09-10'), streakYesterday: kh.streak(readLog, '2026-09-11'), streakNone: kh.streak(readLog, '2026-09-13'), logged: kh.logPage(readLog, '2026-09-10', 3), stats: kh.stats(readLog, '2026-09-10'),
+  daysBetween: kh.daysBetween('2026-02-27', '2026-03-02'), addDays: kh.addDaysKey('2026-12-30', 5), pagesDone: kh.pagesDone(kh.makePlan({ startPage: 600, startedAt: '2026-01-01', days: 30 }), 5) };
+const readLog2 = { '2026-09-04': [582, 583], '2026-09-05': [582, 583, 584], '2026-09-07': [585, 586, 587, 600], '2026-09-10': [588] };
+const challenges = { progress: ch.challengeProgress({ id: 'amma', startedAt: '2026-09-05', startPage: 1, from: 582, to: 604 }, readLog2, '2026-09-10'),
+  late: ch.challengeProgress({ id: 'kahf', startedAt: '2026-09-01', startPage: 1, from: 293, to: 304 }, readLog2, '2026-09-10'),
+  relative: ch.resolveRange(ch.challengeById('juz-3days'), 300), relativeEnd: ch.resolveRange(ch.challengeById('hizb-daily'), 590), heatmap: ch.heatmap(readLog2, '2026-09-10', 7), none: ch.challengeProgress(null, readLog2, '2026-09-10') };
+let ts = tb.defaultTasbih(); ts = { ...ts, target: 3 }; const tasbihSteps = [];
+for (let i = 0; i < 4; i++) { const r = tb.tap(ts, '2026-09-10'); ts = r.state; tasbihSteps.push({ reached: r.reached, count: ts.count, rounds: ts.rounds, today: tb.todayCount(ts, '2026-09-10'), total: tb.totalCount(ts) }); }
+ts = tb.undo(ts, '2026-09-10'); tasbihSteps.push({ undo: true, count: ts.count, rounds: ts.rounds, today: tb.todayCount(ts, '2026-09-10'), total: tb.totalCount(ts) });
+ts = { ...ts, phrase: 'hamd' }; ts = tb.tap(ts, '2026-09-11').state; ts = tb.tap(ts, '2026-09-11').state;
+const tasbih = { steps: tasbihSteps, grand: tb.grandTotal(ts), todayHamd: tb.todayCount(ts, '2026-09-11'), phraseText: tb.phraseText(ts), custom: tb.phraseText({ ...ts, phrase: 'custom', custom: ' حسبي الله ' }), customEmpty: tb.phraseText({ ...ts, phrase: 'custom', custom: '' }), reset: tb.resetCount(ts) };
+const tj = await import(path.join(web, 'tajweed.js')); tj.setTajweedData(JSON.parse(fs.readFileSync(path.resolve(here, '../../sakinah/data/tajweed.json'), 'utf8')));
+const tajweed = [1, 2, 7, 262, 6236, 3000].map((n) => ({ n, spans: tj.tajweedSpans(n) }));
+const hd = await import(path.resolve(here, '../../sakinah/js/data/hadith.js'));
+const hadithOfDay = [[2026, 9, 10], [2026, 1, 1], [2027, 3, 15], [2030, 12, 31]].map(([y, m, d]) => ({ y, m, d, id: hd.hadithOfDay(new Date(y, m - 1, d)).id }));
+const hadithRef = hd.HADITHS.filter((h) => h.alsoIn).slice(0, 3).map((h) => ({ id: h.id, ref: hd.hadithReference(h) })).concat(hd.HADITHS.filter((h) => !h.alsoIn).slice(0, 2).map((h) => ({ id: h.id, ref: hd.hadithReference(h) })));
+const out = { generatedAt: new Date().toISOString(), prayer, timeline, hijri, qibla, sunMoments, zenith, geomag, methods, layoutPages, juzNames,
+  normalize, search, tokenize, hifz: { words: hifzWords, steps: hifzSteps, noisy: hifzNoisy }, lev, khatmah, challenges, tasbih, tajweed, hadithOfDay, hadithRef };
 const dest = path.resolve(here, '../Tests/SakinahCoreTests/Fixtures/golden.json');
 fs.writeFileSync(dest, JSON.stringify(out));
 console.log(`golden: prayer ${prayer.length}, timeline ${timeline.length}, hijri ${hijri.length}, qibla ${qibla.length}, sunMoments ${sunMoments.length}, geomag ${geomag.length} → ${path.relative(process.cwd(), dest)} (${(fs.statSync(dest).size / 1024).toFixed(0)} KB)`);
