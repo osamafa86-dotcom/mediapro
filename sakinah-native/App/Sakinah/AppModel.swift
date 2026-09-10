@@ -13,6 +13,9 @@ final class Settings {
   var numerals: String { didSet { d.set(numerals, forKey: "ui.numerals") } }
   var hijriOffset: Int { didSet { d.set(hijriOffset, forKey: "hijri.offset") } }
   var methodIsAutomatic: Bool { didSet { d.set(methodIsAutomatic, forKey: "prayer.methodAuto") } }
+  var reminders: ReminderPrefs { didSet { if let data = try? JSONEncoder().encode(reminders) { d.set(data, forKey: "notifications.prefs") } } }
+  /// تشغيل الأذان الكامل داخل التطبيق عند دخول الوقت والتطبيق مفتوح
+  var fullAdhanInApp: Bool { didSet { d.set(fullAdhanInApp, forKey: "notifications.fullAdhan") } }
 
   init() {
     methodId = d.string(forKey: "prayer.method") ?? "MuslimWorldLeague"
@@ -22,39 +25,71 @@ final class Settings {
     numerals = d.string(forKey: "ui.numerals") ?? "latn"
     hijriOffset = d.integer(forKey: "hijri.offset")
     methodIsAutomatic = d.object(forKey: "prayer.methodAuto") as? Bool ?? true
+    reminders = (d.data(forKey: "notifications.prefs")).flatMap { try? JSONDecoder().decode(ReminderPrefs.self, from: $0) } ?? ReminderPrefs()
+    fullAdhanInApp = d.object(forKey: "notifications.fullAdhan") as? Bool ?? true
   }
 
-  var params: PrayerParams {
+  func params(tz: TimeZone) -> PrayerParams {
     var p = PrayerParams()
     p.method = methodId; p.madhab = madhab; p.highLatitudeRule = highLatitudeRule
-    p.isRamadan = Hijri.isRamadan(tz: .current, offsetDays: hijriOffset)
+    p.isRamadan = Hijri.isRamadan(tz: tz, offsetDays: hijriOffset)
+    p.tz = tz.identifier
     return p
   }
+  var params: PrayerParams { params(tz: .current) }
 }
 
-/// نموذج التطبيق: الإعدادات + الموقع + حساب اليوم
+/// نموذج التطبيق: الإعدادات + الموقع + الإشعارات + حساب اليوم (مع ذاكرة مؤقتة لأن الشاشة تُحدَّث كل ثانية)
 @Observable
 final class AppModel {
   let settings = Settings()
   let location = LocationService()
+  let notifications = NotificationService()
+  let adhan = AdhanPlayer()
+
+  @ObservationIgnored private var cacheKey = ""
+  @ObservationIgnored private var cacheDay: PrayerTimes.DayTimeline?
+
+  init() {
+    notifications.onForegroundAdhan = { [weak self] _ in
+      guard let self, self.settings.fullAdhanInApp, self.settings.reminders.usesAdhanSound else { return }
+      self.adhan.play(sound: self.settings.reminders.sound)
+    }
+  }
 
   var coordinates: Coordinates? {
     guard let c = location.coordinate else { return nil }
     return Coordinates(latitude: c.latitude, longitude: c.longitude)
   }
+  var timeZone: TimeZone { location.timeZone }
 
-  /// جدول اليوم للحظة معيّنة (يُعاد حسابه كل ثانية من TimelineView؛ الحساب خفيف)
+  /// جدول اليوم للحظة معيّنة؛ يُعاد استخدام آخر حساب ما دامت الصلاة الحالية والقادمة لم تتغيرا
   func timeline(now: Date) -> PrayerTimes.DayTimeline? {
     guard let coords = coordinates else { return nil }
-    return PrayerTimes.dayTimeline(coords: coords, tz: .current, params: settings.params, now: now)
+    let tz = timeZone
+    let key = "\(coords.latitude),\(coords.longitude)|\(tz.identifier)|\(settings.methodId)|\(settings.madhab.rawValue)|\(settings.highLatitudeRule.rawValue)|\(settings.hijriOffset)|\(CivilDate(now, in: tz))"
+    if key == cacheKey, let c = cacheDay, now < c.next.time, c.times[c.current].map({ now >= $0 }) ?? true { return c }
+    let t = PrayerTimes.dayTimeline(coords: coords, tz: tz, params: settings.params(tz: tz), now: now)
+    cacheKey = key; cacheDay = t
+    return t
   }
 
-  func hijri(now: Date) -> HijriDate { Hijri.date(now, tz: .current, offsetDays: settings.hijriOffset) }
+  func hijri(now: Date) -> HijriDate { Hijri.date(now, tz: timeZone, offsetDays: settings.hijriOffset) }
 
   /// عند وصول الدولة من الموقع: الطريقة الافتراضية لها ما دام المستخدم لم يختر يدويًا
   func applyAutomaticMethodIfNeeded() {
     guard settings.methodIsAutomatic else { return }
-    let m = Methods.defaultMethod(countryCode: location.countryCode, tz: TimeZone.current.identifier)
+    let m = Methods.defaultMethod(countryCode: location.countryCode, tz: timeZone.identifier)
     if m != settings.methodId { settings.methodId = m }
+  }
+
+  /// إعادة جدولة إشعارات النظام من النواة (أقرب 60 موعدًا)
+  func rescheduleNotifications() {
+    let prefs = settings.reminders
+    guard let coords = coordinates else { notifications.sync(reminders: [], prefs: prefs, tz: timeZone); return }
+    let tz = timeZone; let s = settings
+    let items = Reminders.upcoming(coords: coords, tz: tz, params: s.params(tz: tz), prefs: prefs,
+                                   format: { Fmt.time($0, tz: tz, hour12: s.hour12, numerals: s.numerals) }, number: { Fmt.number($0, numerals: s.numerals) })
+    notifications.sync(reminders: items, prefs: prefs, tz: tz)
   }
 }

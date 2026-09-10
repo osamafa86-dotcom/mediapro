@@ -2,6 +2,7 @@ import SwiftUI
 
 struct RootView: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.scenePhase) private var scenePhase
 
   var body: some View {
     TabView {
@@ -12,8 +13,13 @@ struct RootView: View {
       SettingsView().tabItem { Label("المزيد", systemImage: "ellipsis.circle") }
     }
     .onAppear {
-      model.location.onLocationResolved = { model.applyAutomaticMethodIfNeeded() }
-      if model.location.authorization == .authorizedWhenInUse || model.location.authorization == .authorizedAlways { model.location.requestLocation() }
+      model.location.onLocationResolved = { model.applyAutomaticMethodIfNeeded(); model.rescheduleNotifications() }
+      if model.location.mode == .gps, model.location.authorization == .authorizedWhenInUse || model.location.authorization == .authorizedAlways { model.location.requestLocation() }
+      model.rescheduleNotifications()
+    }
+    .onChange(of: scenePhase) { _, phase in
+      // كل عودة للتطبيق: تحديث حالة الإشعارات وإعادة جدولة الأيام القادمة (حدّ النظام 64 إشعارًا معلّقًا)
+      if phase == .active { model.notifications.refreshStatus(); model.rescheduleNotifications() }
     }
   }
 }

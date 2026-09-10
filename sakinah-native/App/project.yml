@@ -22,6 +22,13 @@ targets:
     platform: iOS
     sources:
       - path: Sakinah
+      # صوت الإشعار (≤ 30 ثانية) والأذان الكامل — الملفات نفسها في نسخة الويب (LICENSE في sakinah/assets/audio)
+      - path: ../../sakinah/assets/audio/adhan_short.wav
+        buildPhase: resources
+      - path: ../../sakinah/assets/audio/adhan-fakhry.mp3
+        buildPhase: resources
+      - path: ../../sakinah/assets/audio/adhan-azeez.mp3
+        buildPhase: resources
     dependencies:
       - package: SakinahCore
     settings:
@@ -53,6 +60,7 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         NSLocationWhenInUseUsageDescription: "لحساب مواقيت الصلاة واتجاه القبلة حسب موقعك"
         NSMotionUsageDescription: "لتشغيل بوصلة القبلة"
+        UIBackgroundModes: [audio]
         UIApplicationSupportsIndirectInputEvents: true
 schemes:
   Sakinah:

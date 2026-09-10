@@ -10,7 +10,7 @@ let package = Package(
     .library(name: "SakinahCore", targets: ["SakinahCore"]),
   ],
   targets: [
-    .target(name: "SakinahCore", path: "Sources/SakinahCore"),
+    .target(name: "SakinahCore", path: "Sources/SakinahCore", resources: [.copy("Resources")]),
     .testTarget(name: "SakinahCoreTests", dependencies: ["SakinahCore"], path: "Tests/SakinahCoreTests", resources: [.copy("Fixtures")]),
   ]
 )
