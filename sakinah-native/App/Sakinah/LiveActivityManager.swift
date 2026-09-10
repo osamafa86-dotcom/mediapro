@@ -1,4 +1,5 @@
 import Foundation
+import SakinahCore
 import ActivityKit
 import WidgetKit
 
