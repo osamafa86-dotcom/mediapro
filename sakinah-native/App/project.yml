@@ -40,6 +40,9 @@ targets:
       properties:
         CFBundleDisplayName: "سكينة"
         CFBundleName: "Sakinah"
+        # الإصدار ورقم البناء من إعدادات البناء (XcodeGen يكتب 1.0/1 حرفيًا إن لم تُذكر)
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         CFBundleDevelopmentRegion: ar
         CFBundleLocalizations: [ar]
         LSRequiresIPhoneOS: true
