@@ -1,4 +1,5 @@
 import SwiftUI
+import SakinahCore
 
 struct RootView: View {
   @Environment(AppModel.self) private var model
