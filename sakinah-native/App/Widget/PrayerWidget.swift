@@ -142,60 +142,129 @@ struct PrayerWidget: Widget {
 struct PrayerWidgetView: View {
   @Environment(\.widgetFamily) private var family
   let entry: PrayerEntry
-  private let teal = Color(red: 0.059, green: 0.463, blue: 0.431)
+
   private func time(_ d: Date) -> String { let f = DateFormatter(); f.locale = Locale(identifier: "ar_SA@numbers=latn"); f.dateFormat = "h:mm"; return f.string(from: d) }
+  private func meridiem(_ d: Date) -> String { let f = DateFormatter(); f.locale = Locale(identifier: "ar_SA"); f.dateFormat = "a"; return f.string(from: d) }
   private var progress: Double {
     guard let n = entry.next, let p = entry.previousTime, n.time > p else { return 0 }
     return min(1, max(0, Date().timeIntervalSince(p) / n.time.timeIntervalSince(p)))
   }
+
   var body: some View {
     Group {
-      if let msg = entry.message { Text(msg).font(.system(size: 12)).multilineTextAlignment(.center) }
-      else {
+      if let msg = entry.message {
+        VStack(spacing: 6) {
+          Image(systemName: "location.slash").font(.system(size: 18)).foregroundStyle(WDS.textOnDarkMuted)
+          Text(msg).font(.system(size: 12)).foregroundStyle(WDS.textOnDark).multilineTextAlignment(.center)
+        }
+      } else {
         switch family {
-        case .accessoryInline: if let n = entry.next { Text("\(n.name) ") + Text(n.time, style: .timer) }
+        case .accessoryInline:
+          if let n = entry.next { Text("\(n.name) ") + Text(n.time, style: .timer) }
         case .accessoryCircular:
-          Gauge(value: progress) { Image(systemName: "moon.stars") } currentValueLabel: { Text(entry.next?.name ?? "").font(.system(size: 11, weight: .bold)) }.gaugeStyle(.accessoryCircular)
+          Gauge(value: progress) { Image(systemName: "moon.stars") } currentValueLabel: {
+            Text(entry.next?.name ?? "").font(.system(size: 11, weight: .bold))
+          }
+          .gaugeStyle(.accessoryCircular)
         case .accessoryRectangular:
           VStack(alignment: .leading, spacing: 2) {
             if let n = entry.next {
-              Text("الصلاة القادمة: \(n.name)").font(.system(size: 13, weight: .bold))
-              HStack { Text(n.time, style: .time); Spacer(); Text(n.time, style: .timer).monospacedDigit() }.font(.system(size: 12))
+              HStack(spacing: 4) {
+                Image(systemName: "moon.stars.fill").font(.system(size: 11))
+                Text(n.name).font(.system(size: 13, weight: .bold))
+                Spacer()
+                Text(time(n.time)).font(.system(size: 12)).monospacedDigit()
+              }
+              Text(n.time, style: .timer).font(.system(size: 12, weight: .semibold)).monospacedDigit()
             }
             Text(entry.place).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
           }
         case .systemSmall:
-          VStack(alignment: .leading, spacing: 4) {
-            Text(entry.place).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
-            Spacer(minLength: 0)
-            if let n = entry.next {
-              Text(n.name).font(.system(size: 26, weight: .bold)).foregroundStyle(teal)
-              Text(n.time, style: .time).font(.system(size: 18, weight: .semibold))
-              Text(n.time, style: .timer).font(.system(size: 13)).monospacedDigit().foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 0)
-            Text(entry.hijri).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
-          }
-          .frame(maxWidth: .infinity, alignment: .leading)
+          small
         default:
-          VStack(spacing: 6) {
-            HStack { Text(entry.place).font(.system(size: 12, weight: .semibold)); Spacer(); Text(entry.hijri).font(.system(size: 11)).foregroundStyle(.secondary) }.lineLimit(1)
-            HStack(spacing: 4) {
-              ForEach(entry.rows.filter { $0.key != .sunrise }, id: \.key) { r in
-                let isNext = r.key == entry.next?.key
-                VStack(spacing: 3) {
-                  Text(r.name).font(.system(size: 11, weight: isNext ? .bold : .regular))
-                  Text(time(r.time)).font(.system(size: 13, weight: isNext ? .bold : .regular)).monospacedDigit()
-                }
-                .frame(maxWidth: .infinity).padding(.vertical, 6).background(isNext ? teal.opacity(0.18) : Color.clear, in: RoundedRectangle(cornerRadius: 8))
-                .foregroundStyle(isNext ? teal : .primary)
-              }
-            }
-            if let n = entry.next { HStack { Text("القادمة: \(n.name)").font(.system(size: 11)); Spacer(); Text(n.time, style: .timer).font(.system(size: 11)).monospacedDigit() }.foregroundStyle(.secondary) }
-          }
+          medium
         }
       }
     }
-    .containerBackground(for: .widget) { Color(.systemBackground) }
+    .containerBackground(for: .widget) {
+      if family == .systemSmall || family == .systemMedium { ZStack { WDS.night; WidgetDecor() } }
+      else { Color(.systemBackground) }
+    }
+  }
+
+  /// صغير (تصميم Figma): الموقع وهلال في الأعلى، اسم الصلاة كبيرًا، الوقت، ثم العدّ فوق شريط ذهبي
+  private var small: some View {
+    VStack(alignment: .trailing, spacing: 0) {
+      HStack(spacing: 4) {
+        Image(systemName: "moon.stars.fill").font(.system(size: 11)).foregroundStyle(WDS.accentGoldSoft)
+        Spacer()
+        Text(entry.place).font(.system(size: 10, weight: .medium)).foregroundStyle(WDS.textOnDarkMuted).lineLimit(1)
+        Image(systemName: "location.fill").font(.system(size: 8)).foregroundStyle(WDS.textOnDarkMuted)
+      }
+      Spacer(minLength: 2)
+      if let n = entry.next {
+        Text("الصلاة القادمة").font(.system(size: 10)).foregroundStyle(WDS.textOnDarkMuted)
+        Text(n.name).font(.system(size: 26, weight: .bold)).foregroundStyle(WDS.textOnDark).minimumScaleFactor(0.7).lineLimit(1)
+        HStack(alignment: .firstTextBaseline, spacing: 3) {
+          Text(meridiem(n.time)).font(.system(size: 12, weight: .medium)).foregroundStyle(WDS.textOnDarkMuted)
+          Text(time(n.time)).font(.system(size: 24, weight: .semibold)).foregroundStyle(WDS.textOnDark).monospacedDigit()
+        }
+        Spacer(minLength: 4)
+        VStack(alignment: .trailing, spacing: 3) {
+          HStack(spacing: 3) {
+            Text("بعد").font(.system(size: 10)).foregroundStyle(WDS.accentGoldSoft)
+            Text(n.time, style: .timer).font(.system(size: 11, weight: .medium)).foregroundStyle(WDS.accentGoldSoft).monospacedDigit()
+          }
+          WidgetProgressBar(progress: progress).frame(width: 74)
+        }
+      }
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+  }
+
+  /// متوسط (تصميم Figma): عمود الصلاة القادمة يمينًا، وقائمة مواقيت اليوم يسارًا مع إبراز القادمة بالذهبي
+  private var medium: some View {
+    HStack(alignment: .top, spacing: 12) {
+      VStack(alignment: .leading, spacing: 3) {
+        ForEach(entry.rows, id: \.key) { r in
+          let isNext = r.key == entry.next?.key
+          HStack(spacing: 6) {
+            Text(time(r.time)).font(.system(size: 11, weight: isNext ? .semibold : .regular)).monospacedDigit()
+              .foregroundStyle(isNext ? WDS.accentGoldSoft : WDS.textOnDarkMuted)
+            Spacer(minLength: 0)
+            Text(r.name).font(.system(size: 11, weight: isNext ? .semibold : .regular))
+              .foregroundStyle(isNext ? WDS.accentGoldSoft : WDS.textOnDarkMuted)
+          }
+        }
+      }
+      .frame(width: 118)
+
+      Rectangle().fill(WDS.textOnDark.opacity(0.12)).frame(width: 1)
+
+      VStack(alignment: .trailing, spacing: 0) {
+        HStack(spacing: 4) {
+          Spacer()
+          Text("الصلاة القادمة · \(entry.place)").font(.system(size: 10, weight: .medium))
+            .foregroundStyle(WDS.textOnDarkMuted).lineLimit(1).minimumScaleFactor(0.8)
+        }
+        Spacer(minLength: 2)
+        if let n = entry.next {
+          Text(n.name).font(.system(size: 28, weight: .bold)).foregroundStyle(WDS.textOnDark).minimumScaleFactor(0.7).lineLimit(1)
+          HStack(alignment: .firstTextBaseline, spacing: 3) {
+            Text(meridiem(n.time)).font(.system(size: 13, weight: .medium)).foregroundStyle(WDS.textOnDarkMuted)
+            Text(time(n.time)).font(.system(size: 26, weight: .semibold)).foregroundStyle(WDS.textOnDark).monospacedDigit()
+          }
+          Spacer(minLength: 4)
+          VStack(alignment: .trailing, spacing: 3) {
+            HStack(spacing: 3) {
+              Text("بعد").font(.system(size: 10)).foregroundStyle(WDS.accentGoldSoft)
+              Text(n.time, style: .timer).font(.system(size: 11, weight: .medium)).foregroundStyle(WDS.accentGoldSoft).monospacedDigit()
+            }
+            WidgetProgressBar(progress: progress).frame(width: 92)
+          }
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .trailing)
+    }
   }
 }

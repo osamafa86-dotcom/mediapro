@@ -15,7 +15,8 @@ enum LiveActivityManager {
     let next = tl.next
     var following: (String, Date)? = nil
     if let i = Prayer.allCases.firstIndex(of: next.key) { for k in Prayer.allCases[(i + 1)...] where k != .sunrise { if let t = tl.times[k], t > next.time { following = (k.nameAr, t); break } } }
-    let state = PrayerActivityAttributes.ContentState(prayer: next.key.rawValue, prayerName: next.key.nameAr, time: next.time, followingName: following?.0, followingTime: following?.1)
+    let start = tl.times[tl.current] ?? tl.yesterdayIsha
+    let state = PrayerActivityAttributes.ContentState(prayer: next.key.rawValue, prayerName: next.key.nameAr, time: next.time, followingName: following?.0, followingTime: following?.1, startTime: start)
     let content = ActivityContent(state: state, staleDate: next.time.addingTimeInterval(300))
     if let a = existing.first {
       Task { await a.update(content) }

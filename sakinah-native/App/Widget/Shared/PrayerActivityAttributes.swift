@@ -9,6 +9,8 @@ struct PrayerActivityAttributes: ActivityAttributes {
     var time: Date
     var followingName: String?
     var followingTime: Date?
+    /// بداية الوقت الحالي — لرسم شريط التقدّم نحو الصلاة القادمة
+    var startTime: Date?
   }
   var placeName: String
 }
