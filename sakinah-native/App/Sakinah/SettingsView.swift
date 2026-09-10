@@ -9,7 +9,7 @@ struct SettingsView: View {
 
   var body: some View {
     @Bindable var settings = model.settings
-    NavigationStack {
+    Group {
       Form {
         Section("الموقع") {
           NavigationLink { CityPickerView() } label: { HStack { Text("المكان"); Spacer(); Text(model.location.placeName ?? "غير محدد").foregroundStyle(.secondary).lineLimit(1) } }
@@ -23,17 +23,19 @@ struct SettingsView: View {
           NavigationLink("الجدول الشهري وتصدير التقويم") { MonthTableView() }
         }
         NotificationsSection()
+        ExtraRemindersSection()
         Section("العرض") {
           Toggle("نظام 12 ساعة", isOn: $settings.hour12)
           Picker("الأرقام", selection: $settings.numerals) { Text("1 2 3").tag("latn"); Text("١ ٢ ٣").tag("arab") }
           Stepper("تعديل التاريخ الهجري: \(Fmt.number(settings.hijriOffset, numerals: settings.numerals)) يوم", value: $settings.hijriOffset, in: -2...2)
         }
+        BackupSection()
         Section("عن التطبيق") {
           HStack { Text("الإصدار"); Spacer(); Text("\(version) (بناء \(build))").foregroundStyle(.secondary) }
           Text("تطبيق أصلي بالكامل (Swift وSwiftUI) على نواة SakinahCore المُختبرة رقمًا برقم ضد محرك سكينة المُتحقَّق منه. كل الحسابات تتم على جهازك؛ لا حساب ولا تتبّع.").font(.arabic(13)).foregroundStyle(.secondary)
         }
       }
-      .navigationTitle("المزيد")
+      .navigationTitle("الإعدادات").navigationBarTitleDisplayMode(.inline)
       .onChange(of: settings.highLatitudeRule) { model.rescheduleNotifications() }
       .onChange(of: settings.hour12) { model.rescheduleNotifications() }
       .onChange(of: settings.numerals) { model.rescheduleNotifications() }

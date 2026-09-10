@@ -28,7 +28,7 @@ final class SpeechListener {
     guard let recognizer, recognizer.isAvailable else { throw NSError(domain: "speech", code: 1, userInfo: [NSLocalizedDescriptionKey: "unsupported"]) }
     stop(silent: true)
     let s = AVAudioSession.sharedInstance()
-    try s.setCategory(.playAndRecord, mode: .measurement, options: [.duckOthers, .defaultToSpeaker, .allowBluetooth])
+    try s.setCategory(.playAndRecord, mode: .measurement, options: [.duckOthers, .defaultToSpeaker])
     try s.setActive(true, options: .notifyOthersOnDeactivation)
     let req = SFSpeechAudioBufferRecognitionRequest(); req.shouldReportPartialResults = true; req.taskHint = .dictation
     if recognizer.supportsOnDeviceRecognition { req.requiresOnDeviceRecognition = false }

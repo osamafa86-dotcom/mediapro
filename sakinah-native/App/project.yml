@@ -39,7 +39,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.emdatra.sakinah.native
         PRODUCT_NAME: Sakinah
-        MARKETING_VERSION: "3.0.0"
+        MARKETING_VERSION: "4.0.0"
         CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

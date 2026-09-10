@@ -39,6 +39,19 @@ struct MushafReaderView: View {
   private var vertical: Bool { prefs.scroll == "vertical" }
 
   var body: some View {
+    stage
+      .onChange(of: model.player.currentWord) { _, w in wordDidChange(w) }
+      .onChange(of: model.player.index) { syncPlaying() }
+      .onChange(of: model.player.queue.count) { syncPlaying() }
+      .onChange(of: model.player.errorVersion) { playerErrorChanged() }
+      .onChange(of: hifzFinished) { _, f in hifzDidFinish(f) }
+      .onChange(of: hifzError) { _, e in hifzErrorChanged(e) }
+      .sheet(item: $sheet, content: sheetView)
+      .sheet(item: $shareItems, content: shareSheet)
+      .sheet(item: $shareCard, content: shareCardSheet)
+  }
+  /// المسرح: الصفحات والخلفية والتعتيم والأزرار مع مراقبي الصفحة والسمة
+  private var stage: some View {
     ZStack {
       if let rs {
         Rectangle().fill(MushafPalette.background(for: rs.theme)).ignoresSafeArea()
@@ -49,23 +62,30 @@ struct MushafReaderView: View {
     }
     .statusBarHidden(!chrome)
     .persistentSystemOverlays(chrome ? .automatic : .hidden)
-    .onAppear { setup() }
-    .onDisappear { teardown() }
-    .onChange(of: page) { _, p in guard let p else { return }; slider = Double(p); onPageChanged(p) }
+    .onAppear(perform: setup)
+    .onDisappear(perform: teardown)
+    .onChange(of: page) { _, p in pageDidChange(p) }
     .onChange(of: scheme) { syncTheme() }
     .onChange(of: prefs.theme) { syncTheme() }
     .onChange(of: prefs.themeAuto) { syncTheme() }
-    .onChange(of: prefs.keepAwake) { UIApplication.shared.isIdleTimerDisabled = prefs.keepAwake }
-    .onChange(of: model.player.currentWord) { _, w in rs?.playingWord = w }
-    .onChange(of: model.player.index) { syncPlaying() }
-    .onChange(of: model.player.queue.count) { syncPlaying() }
-    .onChange(of: model.player.errorVersion) { if let e = model.player.lastError { show(e == "network" ? "تعذّر تحميل التلاوة — تحقق من الاتصال بالإنترنت" : "هذه التلاوة غير متاحة من هذا القارئ — جرّب قارئًا آخر") } }
-    .onChange(of: rs?.hifz?.finished ?? false) { _, f in if f, let h = rs?.hifz { show(h.veil ? "أتممت الصفحة ✓" : "أتممت الصفحة ✓ كلمات صحيحة: \(num(h.matcher.matched)) · تلميحات: \(num(h.hints))") } }
-    .onChange(of: rs?.hifz?.error ?? nil) { _, e in if let e { show(e) } }
-    .sheet(item: $sheet) { s in sheetView(s) }
-    .sheet(item: $shareItems) { ShareSheet(items: $0.items) }
-    .sheet(item: $shareCard) { req in ShareCardSheet(request: req).environment(model) }
+    .onChange(of: prefs.keepAwake) { keepAwakeChanged() }
   }
+  private var hifzFinished: Bool { rs?.hifz?.finished ?? false }
+  private var hifzError: String? { rs?.hifz?.error }
+  private func shareSheet(_ s: ShareItems) -> some View { ShareSheet(items: s.items) }
+  private func shareCardSheet(_ req: ShareCardRequest) -> some View { ShareCardSheet(request: req).environment(model) }
+  private func pageDidChange(_ p: Int?) { guard let p else { return }; slider = Double(p); onPageChanged(p) }
+  private func wordDidChange(_ w: Int?) { rs?.playingWord = w }
+  private func keepAwakeChanged() { UIApplication.shared.isIdleTimerDisabled = prefs.keepAwake }
+  private func playerErrorChanged() {
+    guard let e = model.player.lastError else { return }
+    show(e == "network" ? "تعذّر تحميل التلاوة — تحقق من الاتصال بالإنترنت" : "هذه التلاوة غير متاحة من هذا القارئ — جرّب قارئًا آخر")
+  }
+  private func hifzDidFinish(_ f: Bool) {
+    guard f, let h = rs?.hifz else { return }
+    if h.veil { show("أتممت الصفحة ✓") } else { show("أتممت الصفحة ✓ كلمات صحيحة: \(num(h.matcher.matched)) · تلميحات: \(num(h.hints))") }
+  }
+  private func hifzErrorChanged(_ e: String?) { if let e { show(e) } }
 
   // MARK: - الصفحات
   @ViewBuilder

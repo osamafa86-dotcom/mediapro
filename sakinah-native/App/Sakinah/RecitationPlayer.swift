@@ -8,16 +8,18 @@ import SakinahCore
 enum QDCMeta {
   struct Entry: Codable { let url: String; let segments: [[Int]] }
   private static var mem: [String: [String: Entry]] = [:]
-  private static let lock = NSLock()
+  private static let memQueue = DispatchQueue(label: "org.emdatra.sakinah.qdc-meta")
+  private static func cached(_ key: String) -> [String: Entry]? { memQueue.sync { mem[key] } }
+  private static func store(_ key: String, _ m: [String: Entry]) { memQueue.sync { mem[key] = m } }
   private static var cacheDir: URL {
     let d = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("qdc", isDirectory: true)
     try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true); return d
   }
   static func surah(recitation: Int, surah: Int) async throws -> [String: Entry] {
     let key = "\(recitation):\(surah)"
-    lock.lock(); if let m = mem[key] { lock.unlock(); return m }; lock.unlock()
+    if let m = cached(key) { return m }
     let file = cacheDir.appendingPathComponent("\(recitation)-\(surah).json")
-    if let data = try? Data(contentsOf: file), let m = try? JSONDecoder().decode([String: Entry].self, from: data) { lock.lock(); mem[key] = m; lock.unlock(); return m }
+    if let data = try? Data(contentsOf: file), let m = try? JSONDecoder().decode([String: Entry].self, from: data) { store(key, m); return m }
     var req = URLRequest(url: URL(string: "https://api.quran.com/api/v4/recitations/\(recitation)/by_chapter/\(surah)?fields=segments&per_page=300")!)
     req.setValue("application/json", forHTTPHeaderField: "accept"); req.timeoutInterval = 8
     let (data, resp) = try await URLSession.shared.data(for: req)
@@ -27,7 +29,7 @@ enum QDCMeta {
     var m: [String: Entry] = [:]
     for a in f.audio_files { m[a.verse_key] = Entry(url: Catalog.shared.qdcBase + a.url, segments: (a.segments ?? []).map { $0.count >= 4 ? [$0[1], $0[2], $0[3]] : $0 }) }
     if let enc = try? JSONEncoder().encode(m) { try? enc.write(to: file) }
-    lock.lock(); mem[key] = m; lock.unlock()
+    store(key, m)
     return m
   }
   /// موضع الكلمة (1..) الجارية عند اللحظة t بالثواني
