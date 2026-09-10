@@ -21,6 +21,7 @@ struct TafsirSheet: View {
         }
         .padding()
       }
+      .scrollContentBackground(.hidden).background(DS.C.bgCanvas)
       .navigationTitle("تفسير \(QuranSearch.refLabel(ayah))").navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItemGroup(placement: .bottomBar) {
@@ -69,6 +70,7 @@ struct BookmarkSheet: View {
           if existing != nil { Button("إزالة العلامة", role: .destructive) { model.quran.removeBookmark(ayah); onDone("أُزيلت العلامة"); dismiss() } }
         }
       }
+      .scrollContentBackground(.hidden).background(DS.C.bgCanvas)
       .navigationTitle("علامة — \(QuranSearch.refLabel(ayah))").navigationBarTitleDisplayMode(.inline)
       .onAppear { note = existing?.note ?? ""; color = existing?.color ?? "gold" }
     }
@@ -125,6 +127,7 @@ struct DisplaySheet: View {
           }
         }
       }
+      .scrollContentBackground(.hidden).background(DS.C.bgCanvas)
       .navigationTitle("العرض والألوان").navigationBarTitleDisplayMode(.inline)
     }
   }
@@ -139,6 +142,7 @@ struct TajweedLegendSheet: View {
         ForEach(t.legend, id: \.code) { l in HStack(spacing: 10) { RoundedRectangle(cornerRadius: 4).fill(Color(hex: (dark ? t.dark[l.key] : t.light[l.key]) ?? "#888888")).frame(width: 16, height: 16); Text(l.name).font(.arabic(15)) } }
         Text("الأحكام من طبعة «القرآن المجوّد» (alquran.cloud) مُسقطةً على رسم مصحف المدينة؛ تظهر في وضع النص المتدفق لأن خطوط الصفحات المطبوعة لا تسمح بتلوين جزء من الكلمة.").font(.arabic(12)).foregroundStyle(.secondary)
       }
+      .scrollContentBackground(.hidden).background(DS.C.bgCanvas)
       .navigationTitle("ألوان التجويد").navigationBarTitleDisplayMode(.inline)
     }
   }
@@ -177,6 +181,7 @@ struct ReaderOptionsSheet: View {
         }
         Section { Text("الصفحات بخطوط مجمع الملك فهد لطباعة المصحف الشريف (مصحف المدينة، حفص عن عاصم) مطابقةً للمصحف المطبوع سطرًا بسطر، والخطوط كلها مضمّنة في التطبيق فيعمل دون اتصال. النص: Tanzil. التلاوات: Islamic Network وquran.com.").font(.arabic(12)).foregroundStyle(.secondary) }
       }
+      .scrollContentBackground(.hidden).background(DS.C.bgCanvas)
       .navigationTitle("خيارات المصحف").navigationBarTitleDisplayMode(.inline)
       .onAppear { surah = QuranText.shared.pageAyahs(currentPage).first?.surah ?? 1; pageText = String(currentPage) }
     }
@@ -220,6 +225,7 @@ struct QuickNavSheet: View {
           }
         }
       }
+      .scrollContentBackground(.hidden).background(DS.C.bgCanvas)
       .navigationTitle("التنقل والبحث").navigationBarTitleDisplayMode(.inline)
     }
   }
@@ -282,6 +288,7 @@ struct ReciterPickerSheet: View {
           HStack { Image(systemName: model.quran.reciter == r.id ? "checkmark.circle.fill" : "mic").foregroundStyle(Theme.primary).frame(width: 28); VStack(alignment: .leading, spacing: 2) { Text(r.name).font(.arabic(16)); if r.hasWordTiming { Text("كلمة بكلمة").font(.arabic(11)).foregroundStyle(.secondary) } } }
         }.tint(.primary)
       }
+      .scrollContentBackground(.hidden).background(DS.C.bgCanvas)
       .navigationTitle("اختيار القارئ").navigationBarTitleDisplayMode(.inline)
     }
   }
@@ -311,6 +318,7 @@ struct KhatmahSheet: View {
           if plan != nil { Button("إنهاء الخطة", role: .destructive) { model.quran.khatmah = nil; model.rescheduleNotifications(); dismiss() } }
         }
       }
+      .scrollContentBackground(.hidden).background(DS.C.bgCanvas)
       .navigationTitle(plan == nil ? "خطة الختمة" : "تعديل خطة الختمة").navigationBarTitleDisplayMode(.inline)
       .onAppear { if let p = plan { days = p.days; remind = p.reminder != nil; if let r = p.reminder, let hm = parse(r) { time = Calendar.current.date(bySettingHour: hm.0, minute: hm.1, second: 0, of: Date()) ?? Date() } } }
     }
@@ -347,6 +355,7 @@ struct ChallengesSheet: View {
           }.tint(.primary)
         }
       }
+      .scrollContentBackground(.hidden).background(DS.C.bgCanvas)
       .navigationTitle("تحدّيات القراءة").navigationBarTitleDisplayMode(.inline)
     }
   }

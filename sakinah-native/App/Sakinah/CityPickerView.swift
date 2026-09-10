@@ -33,6 +33,7 @@ struct CityPickerView: View {
       }
     }
     .searchable(text: $query, prompt: "ابحث عن مدينة أو دولة")
+    .scrollContentBackground(.hidden).background(DS.C.bgCanvas)
     .navigationTitle("الموقع")
   }
 }

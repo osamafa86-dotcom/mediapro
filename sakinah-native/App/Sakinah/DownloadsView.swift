@@ -39,6 +39,7 @@ struct DownloadsView: View {
         }
         Section { Text("تُحفظ الملفات داخل التطبيق وتُشغَّل تلقائيًا دون اتصال. الحجم التقريبي للسورة الطويلة نحو 50 م.ب بجودة 128k.").font(.arabic(12)).foregroundStyle(.secondary) }
       }
+      .scrollContentBackground(.hidden).background(DS.C.bgCanvas)
       .navigationTitle("التلاوات دون اتصال").navigationBarTitleDisplayMode(.inline)
       .onAppear { if reciter.isEmpty { reciter = model.quran.reciter } }
     }

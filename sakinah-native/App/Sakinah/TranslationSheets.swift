@@ -25,6 +25,7 @@ struct TranslationSheet: View {
         }
         .padding()
       }
+      .scrollContentBackground(.hidden).background(DS.C.bgCanvas)
       .navigationTitle("ترجمة \(QuranSearch.refLabel(ayah))").navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItemGroup(placement: .bottomBar) {
@@ -66,6 +67,7 @@ struct TranslationPicker: View {
       }
     }
     .searchable(text: $query, prompt: "لغة أو اسم الترجمة")
+    .scrollContentBackground(.hidden).background(DS.C.bgCanvas)
     .navigationTitle("الترجمات").navigationBarTitleDisplayMode(.inline)
   }
 }
@@ -98,6 +100,7 @@ struct WordMeaningsSheet: View {
         }
         .padding()
       }
+      .scrollContentBackground(.hidden).background(DS.C.bgCanvas)
       .navigationTitle("معاني الكلمات · \(QuranSearch.refLabel(ayah))").navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItemGroup(placement: .bottomBar) {
