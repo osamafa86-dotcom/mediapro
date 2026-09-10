@@ -34,6 +34,7 @@ object Store {
   var theme by mutableStateOf("cream"); var themeAuto by mutableStateOf(false); var keepAwake by mutableStateOf(true); var view by mutableStateOf("pages"); var tajweed by mutableStateOf(false); var fontScale by mutableStateOf(1.0); var textFont by mutableStateOf("amiri")
   var khatmah by mutableStateOf<KhatmahPlan?>(null); var readLog by mutableStateOf<Map<String, List<Int>>>(emptyMap()); var challenge by mutableStateOf<ActiveChallenge?>(null)
   var adhkarProgress by mutableStateOf(WebSettings.AdhkarProgress()); var favorites by mutableStateOf<List<String>>(emptyList()); var tasbih by mutableStateOf(TasbihState()); var hisnFavorites by mutableStateOf<List<Int>>(emptyList()); var textScale by mutableStateOf(1.0)
+  var adhkarLog by mutableStateOf<AdhkarLog>(emptyMap()); var haptics by mutableStateOf(true); var tasbihSound by mutableStateOf(false)
 
   private fun <T> get(key: String, ser: KSerializer<T>): T? = sp.getString(key, null)?.let { runCatching { json.decodeFromString(ser, it) }.getOrNull() }
   private fun <T> put(key: String, ser: KSerializer<T>, v: T?) { sp.edit().apply { if (v == null) remove(key) else putString(key, json.encodeToString(ser, v)) }.apply() }
@@ -47,6 +48,7 @@ object Store {
     theme = sp.getString("quran.theme", "cream")!!; themeAuto = sp.getBoolean("quran.themeAuto", false); keepAwake = sp.getBoolean("quran.keepAwake", true); view = sp.getString("quran.view", "pages")!!; tajweed = sp.getBoolean("quran.tajweed", false); fontScale = sp.getFloat("quran.fontScale", 1f).toDouble(); textFont = sp.getString("quran.textFont", "amiri")!!
     khatmah = get("quran.khatmah", KhatmahPlan.serializer()); readLog = get("quran.readLog", MapSerializer(String.serializer(), ListSerializer(Int.serializer()))) ?: emptyMap(); challenge = get("quran.challenge", ActiveChallenge.serializer())
     adhkarProgress = get("adhkarProgress", WebSettings.AdhkarProgress.serializer()) ?: WebSettings.AdhkarProgress(); favorites = get("favorites", ListSerializer(String.serializer())) ?: emptyList(); tasbih = get("tasbih", TasbihState.serializer()) ?: TasbihState(); hisnFavorites = get("hisnFavorites", ListSerializer(Int.serializer())) ?: emptyList(); textScale = sp.getFloat("textScale", 1f).toDouble()
+    adhkarLog = get("adhkarLog", MapSerializer(String.serializer(), ListSerializer(String.serializer()))) ?: emptyMap(); haptics = sp.getBoolean("ui.haptics", true); tasbihSound = sp.getBoolean("ui.tasbihSound", false)
   }
   /** حفظ كل الحالة (تُستدعى بعد أي تغيير) */
   fun save() {
@@ -54,11 +56,11 @@ object Store {
       .putBoolean("ui.hour12", hour12).putBoolean("seenIntro", seenIntro).putString("ui.numerals", numerals).putInt("hijri.offset", hijriOffset)
       .putFloat("loc.lat", locLat.toFloat()).putFloat("loc.lon", locLon.toFloat()).putString("loc.tz", locTz).putString("loc.name", locName).putString("loc.cc", locCountry).putString("loc.city", locCityId).putString("loc.mode", locMode)
       .putString("quran.reciter", reciter).putInt("quran.repeatAyah", repeatAyah).putFloat("quran.rate", rate.toFloat()).putBoolean("quran.follow", follow).putBoolean("quran.wordHighlight", wordHighlight).putBoolean("quran.repeatRange", repeatRange).putBoolean("quran.hifzOnlyCurrent", hifzOnlyCurrent).putString("shareTheme", shareTheme)
-      .putString("quran.theme", theme).putBoolean("quran.themeAuto", themeAuto).putBoolean("quran.keepAwake", keepAwake).putString("quran.view", view).putBoolean("quran.tajweed", tajweed).putFloat("quran.fontScale", fontScale.toFloat()).putString("quran.textFont", textFont).putFloat("textScale", textScale.toFloat()).apply()
+      .putString("quran.theme", theme).putBoolean("quran.themeAuto", themeAuto).putBoolean("quran.keepAwake", keepAwake).putString("quran.view", view).putBoolean("quran.tajweed", tajweed).putFloat("quran.fontScale", fontScale.toFloat()).putString("quran.textFont", textFont).putFloat("textScale", textScale.toFloat()).putBoolean("ui.haptics", haptics).putBoolean("ui.tasbihSound", tasbihSound).apply()
     put("notifications.prefs", ReminderPrefs.serializer(), reminders); put("notifications.extras", ExtraReminderPrefs.serializer(), extras)
     put("quran.lastRead", LastRead.serializer(), lastRead); put("quran.bookmarks", ListSerializer(WebSettings.Bookmark.serializer()), bookmarks)
     put("quran.khatmah", KhatmahPlan.serializer(), khatmah); put("quran.readLog", MapSerializer(String.serializer(), ListSerializer(Int.serializer())), readLog); put("quran.challenge", ActiveChallenge.serializer(), challenge)
-    put("adhkarProgress", WebSettings.AdhkarProgress.serializer(), adhkarProgress); put("favorites", ListSerializer(String.serializer()), favorites); put("tasbih", TasbihState.serializer(), tasbih); put("hisnFavorites", ListSerializer(Int.serializer()), hisnFavorites)
+    put("adhkarProgress", WebSettings.AdhkarProgress.serializer(), adhkarProgress); put("favorites", ListSerializer(String.serializer()), favorites); put("tasbih", TasbihState.serializer(), tasbih); put("hisnFavorites", ListSerializer(Int.serializer()), hisnFavorites); put("adhkarLog", MapSerializer(String.serializer(), ListSerializer(String.serializer())), adhkarLog)
   }
 
   // ---- مشتقات ----

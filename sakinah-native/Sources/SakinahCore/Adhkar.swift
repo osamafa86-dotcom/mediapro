@@ -58,3 +58,59 @@ public enum Hisn {
     return (ch, items)
   }
 }
+
+/// سجل إتمام الأذكار: مفتاح اليوم ← الفترات المكتملة («morning» / «evening»)
+public typealias AdhkarLog = [String: [String]]
+
+/// يوم في شريط السلسلة: مفتاحه، حرف اليوم، وهل اكتملت فيه فترة واحدة على الأقل
+public struct AdhkarDay: Sendable, Hashable, Identifiable {
+  public let key: String
+  public let letter: String
+  public let done: Bool
+  public let isToday: Bool
+  public var id: String { key }
+}
+
+/// سلسلة أيام الأذكار: تسجيل الإتمام، طول السلسلة الحالية وأطولها، وشريط آخر سبعة أيام
+public enum AdhkarStreak {
+  static let letters = ["ح", "ن", "ث", "ر", "خ", "ج", "س"]
+  /// حرف اليوم من مفتاحه (الأحد = ح … السبت = س)
+  public static func letter(_ key: String) -> String {
+    guard let p = DayKey.parse(key) else { return "" }
+    let idx = ((DayKey.daysFromCivil(p.year, p.month, p.day) + 4) % 7 + 7) % 7  // 1970-01-01 خميس
+    return letters[idx]
+  }
+  /// تسجيل إتمام فترة في يوم، مع تقليم السجل إلى 400 يوم
+  public static func mark(_ log: AdhkarLog, day: String, period: String) -> AdhkarLog {
+    var out = log
+    var periods = out[day] ?? []
+    guard !periods.contains(period) else { return log }
+    periods.append(period); out[day] = periods
+    if out.count > 400 { for k in out.keys.sorted().prefix(out.count - 400) { out.removeValue(forKey: k) } }
+    return out
+  }
+  /// طول السلسلة المنتهية باليوم (أو بأمسه إن لم يُتمّ اليوم بعد)
+  public static func current(_ log: AdhkarLog, today: String) -> Int {
+    var n = 0; var key = today
+    if (log[key]?.isEmpty ?? true) { key = DayKey.adding(key, days: -1) }
+    while let p = log[key], !p.isEmpty { n += 1; key = DayKey.adding(key, days: -1) }
+    return n
+  }
+  /// أطول سلسلة في السجل كلّه
+  public static func longest(_ log: AdhkarLog) -> Int {
+    let keys = log.filter { !$0.value.isEmpty }.keys.sorted()
+    var best = 0, run = 0; var prev: String?
+    for k in keys {
+      if let p = prev, DayKey.daysBetween(p, k) == 1 { run += 1 } else { run = 1 }
+      best = max(best, run); prev = k
+    }
+    return best
+  }
+  /// آخر «count» يومًا منتهية باليوم، من الأقدم إلى الأحدث
+  public static func lastDays(_ log: AdhkarLog, today: String, count: Int = 7) -> [AdhkarDay] {
+    (0..<count).reversed().map { i in
+      let k = DayKey.adding(today, days: -i)
+      return AdhkarDay(key: k, letter: letter(k), done: !(log[k]?.isEmpty ?? true), isToday: i == 0)
+    }
+  }
+}

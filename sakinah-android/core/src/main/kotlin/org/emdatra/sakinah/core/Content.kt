@@ -109,3 +109,52 @@ object Tafsir {
   fun plain(html: String) = runs(html).joinToString("") { it.text }
   private fun decode(s: String) = s.replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"")
 }
+
+/** سجل إتمام الأذكار: مفتاح اليوم ← الفترات المكتملة («morning» / «evening») */
+typealias AdhkarLog = Map<String, List<String>>
+
+/** يوم في شريط السلسلة: مفتاحه، حرف اليوم، وهل اكتملت فيه فترة واحدة على الأقل */
+data class AdhkarDay(val key: String, val letter: String, val done: Boolean, val isToday: Boolean)
+
+/** سلسلة أيام الأذكار: تسجيل الإتمام، طول السلسلة الحالية وأطولها، وشريط آخر سبعة أيام */
+object AdhkarStreak {
+  private val letters = listOf("ح", "ن", "ث", "ر", "خ", "ج", "س")
+  /** حرف اليوم من مفتاحه (الأحد = ح … السبت = س) */
+  fun letter(key: String): String {
+    val p = DayKey.parse(key) ?: return ""
+    val idx = ((DayKey.daysFromCivil(p.first, p.second, p.third) + 4) % 7 + 7) % 7  // 1970-01-01 خميس
+    return letters[idx]
+  }
+  /** تسجيل إتمام فترة في يوم، مع تقليم السجل إلى 400 يوم */
+  fun mark(log: AdhkarLog, day: String, period: String): AdhkarLog {
+    val periods = log[day] ?: emptyList()
+    if (period in periods) return log
+    var out = log + (day to periods + period)
+    if (out.size > 400) out = out.toSortedMap().entries.drop(out.size - 400).associate { it.key to it.value }
+    return out
+  }
+  /** طول السلسلة المنتهية باليوم (أو بأمسه إن لم يُتمّ اليوم بعد) */
+  fun current(log: AdhkarLog, today: String): Int {
+    var n = 0; var key = today
+    if (log[key].isNullOrEmpty()) key = DayKey.adding(key, -1)
+    while (!log[key].isNullOrEmpty()) { n++; key = DayKey.adding(key, -1) }
+    return n
+  }
+  /** أطول سلسلة في السجل كلّه */
+  fun longest(log: AdhkarLog): Int {
+    val keys = log.filterValues { it.isNotEmpty() }.keys.sorted()
+    var best = 0; var run = 0; var prev: String? = null
+    for (k in keys) {
+      run = if (prev != null && DayKey.daysBetween(prev, k) == 1) run + 1 else 1
+      if (run > best) best = run
+      prev = k
+    }
+    return best
+  }
+  /** آخر «count» يومًا منتهية باليوم، من الأقدم إلى الأحدث */
+  fun lastDays(log: AdhkarLog, today: String, count: Int = 7): List<AdhkarDay> =
+    (count - 1 downTo 0).map { i ->
+      val k = DayKey.adding(today, -i)
+      AdhkarDay(k, letter(k), !log[k].isNullOrEmpty(), i == 0)
+    }
+}

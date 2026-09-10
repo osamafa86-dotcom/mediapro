@@ -58,6 +58,7 @@ public struct WebSettings: Codable, Sendable {
   public var notifications: Notifications?
   public var quran: Quran?
   public var adhkarProgress: AdhkarProgress?
+  public var adhkarLog: AdhkarLog?
   public var favorites: [String]?
   public var tasbih: TasbihState?
   public var hisnFavorites: [Int]?

@@ -61,6 +61,7 @@ object DSType {
   val displayHero get() = t(Fonts.kufi, 40, FontWeight.Bold, 1.3f)
   val displayLg get() = t(Fonts.kufi, 30, FontWeight.SemiBold, 1.3f)
   val displayMd get() = t(Fonts.kufi, 24, FontWeight.SemiBold, 1.3f)
+  val displaySm get() = t(Fonts.kufi, 20, FontWeight.SemiBold, 1.3f)
   val headingLg get() = t(Fonts.readex, 22, FontWeight.SemiBold, 1.4f)
   val headingMd get() = t(Fonts.readex, 18, FontWeight.SemiBold, 1.4f)
   val headingSm get() = t(Fonts.readex, 16, FontWeight.SemiBold, 1.4f)
@@ -73,8 +74,11 @@ object DSType {
   val numericHero get() = t(Fonts.readex, 56, FontWeight.Light, 1.1f)
   val numericLg get() = t(Fonts.readex, 28, FontWeight.Medium, 1.2f)
   val numericMd get() = t(Fonts.readex, 17, FontWeight.Medium, 1.3f)
+  val numericSm get() = t(Fonts.readex, 14, FontWeight.Medium, 1.3f)
+  val numericXl get() = t(Fonts.readex, 40, FontWeight.Light, 1.15f)
   val readingLg get() = t(Fonts.amiriText, 22, FontWeight.Normal, 1.85f)
   val readingMd get() = t(Fonts.amiriText, 19, FontWeight.Normal, 1.8f)
+  val readingSm get() = t(Fonts.amiriText, 16, FontWeight.Normal, 1.8f)
   val quranInline get() = TextStyle(fontFamily = Fonts.amiri, fontSize = 22.sp, lineHeight = 44.sp)
 }
 

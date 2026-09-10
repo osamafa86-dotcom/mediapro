@@ -195,14 +195,17 @@ enum class AppTab(val title: String, val icon: ImageVector, val iconSelected: Im
     Box(Modifier.size(22.dp).clip(CircleShape).background(if (checked) c.textOnBrand else c.bgSurface))
   }
 }
-/** صفّ إعداد: عنوان ووصف + مفتاح تبديل */
-@Composable fun DSToggleRow(title: String, subtitle: String? = null, checked: Boolean, onChange: (Boolean) -> Unit) {
+/** صفّ إعداد: أيقونة اختيارية بقرص ناعم، عنوان ووصف، ومفتاح تبديل */
+@Composable fun DSToggleRow(title: String, subtitle: String? = null, checked: Boolean, icon: ImageVector? = null, onChange: (Boolean) -> Unit) {
   val c = DS.c
   Row(Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    if (icon != null) { DSIconButton(icon, style = IconStyle.Soft, size = 38.dp, iconSize = 16.dp); Spacer(Modifier.width(12.dp)) }
     Column(Modifier.weight(1f)) { Text(title, style = DSType.labelMd, color = c.textPrimary); if (subtitle != null) Text(subtitle, style = DSType.labelXs, color = c.textSecondary) }
     DSToggle(checked, onChange)
   }
 }
+/** سهم انتقال في نهاية الصف (يشير يسارًا في الواجهة العربية) */
+@Composable fun DSChevron(modifier: Modifier = Modifier) { Icon(Icons.Filled.ChevronLeft, null, modifier.size(16.dp), tint = DS.c.textTertiary) }
 @Composable fun DSDivider(modifier: Modifier = Modifier) { Box(modifier.fillMaxWidth().height(1.dp).background(DS.c.borderSubtle)) }
 @Composable fun Dots(count: Int, active: Int) {
   val c = DS.c

@@ -72,6 +72,7 @@ enum DS {
     static let displayHero = kufi(40, .bold)
     static let displayLg = kufi(30)
     static let displayMd = kufi(24)
+    static let displaySm = kufi(20)
     static let headingLg = readex(22, .semibold)
     static let headingMd = readex(18, .semibold)
     static let headingSm = readex(16, .semibold)
@@ -84,8 +85,11 @@ enum DS {
     static let numericHero = readex(56, .light, fixed: true)
     static let numericLg = readex(28, .medium, fixed: true)
     static let numericMd = readex(17, .medium, fixed: true)
+    static let numericSm = readex(14, .medium, fixed: true)
+    static let numericXl = readex(40, .light, fixed: true)
     static let readingLg = amiri(22)
     static let readingMd = amiri(19)
+    static let readingSm = amiri(16)
     static let readingBold = amiri(20, bold: true)
     static var quranInline: Font { quran(22) }
   }

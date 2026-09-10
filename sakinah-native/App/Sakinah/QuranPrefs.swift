@@ -84,12 +84,14 @@ final class ContentPrefs {
   var favorites: [String] { didSet { Store.save(favorites, "favorites") } }
   var tasbih: TasbihState { didSet { Store.save(tasbih, "tasbih") } }
   var hisnFavorites: [Int] { didSet { Store.save(hisnFavorites, "hisnFavorites") } }
+  var adhkarLog: AdhkarLog { didSet { Store.save(adhkarLog, "adhkarLog") } }
   var shareTheme: String { didSet { Store.d.set(shareTheme, forKey: "shareTheme") } }
   var textScale: Double { didSet { Store.d.set(textScale, forKey: "textScale") } }
   var extraReminders: ExtraReminderPrefs { didSet { Store.save(extraReminders, "notifications.extras") } }
   init() {
     adhkarProgress = Store.load("adhkarProgress", WebSettings.AdhkarProgress(date: nil, morning: [:], evening: [:], eveningDate: nil))
     favorites = Store.load("favorites", []); tasbih = Store.load("tasbih", TasbihState()); hisnFavorites = Store.load("hisnFavorites", [])
+    adhkarLog = Store.load("adhkarLog", [:])
     shareTheme = Store.str("shareTheme", "green"); textScale = Store.dbl("textScale", 1); extraReminders = Store.load("notifications.extras", ExtraReminderPrefs())
   }
   func toggleFavorite(_ id: String) { if let i = favorites.firstIndex(of: id) { favorites.remove(at: i) } else { favorites.append(id) } }
