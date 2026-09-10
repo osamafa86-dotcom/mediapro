@@ -42,6 +42,12 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         SWIFT_STRICT_CONCURRENCY: minimal
         GENERATE_INFOPLIST_FILE: NO
+      configs:
+        # التوقيع اليدوي على هدف التطبيق وحده (تمريره على سطر أوامر xcodebuild يصيب حزمة موارد SakinahCore التي لا تقبل ملف provisioning)
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          PROVISIONING_PROFILE_SPECIFIER: "Sakinah Native AppStore CI"
     info:
       path: Sakinah/Info.plist
       properties:
