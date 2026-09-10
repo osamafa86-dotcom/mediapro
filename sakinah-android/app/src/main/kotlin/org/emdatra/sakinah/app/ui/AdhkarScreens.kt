@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import org.emdatra.sakinah.app.Fmt
 import org.emdatra.sakinah.app.Fonts
 import org.emdatra.sakinah.app.Store
+import org.emdatra.sakinah.app.ShareCard
 import org.emdatra.sakinah.core.*
 import java.time.Instant
 
@@ -67,7 +68,7 @@ import java.time.Instant
       if (virtue != null) Text("✦ $virtue", fontSize = 13.sp, color = Teal, modifier = Modifier.padding(top = 6.dp))
       Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.Bottom) {
         Column(Modifier.weight(1f)) { if (reference != null) Text(reference, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant); Text("يُقال ${if (target == 1) "مرة واحدة" else if (target == 2) "مرتين" else if (target <= 10) "${Fmt.number(target)} مرات" else "${Fmt.number(target)} مرة"}", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-          Row { IconButton(onClick = { (ctx.getSystemService(android.content.ClipboardManager::class.java)).setPrimaryClip(android.content.ClipData.newPlainText("ذكر", text)) }) { Icon(Icons.Filled.ContentCopy, "نسخ", Modifier.size(18.dp)) }; IconButton(onClick = { ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "$text\n\n${reference ?: ""}"), "مشاركة")) }) { Icon(Icons.Filled.Share, "مشاركة", Modifier.size(18.dp)) } } }
+          Row { IconButton(onClick = { (ctx.getSystemService(android.content.ClipboardManager::class.java)).setPrimaryClip(android.content.ClipData.newPlainText("ذكر", text)) }) { Icon(Icons.Filled.ContentCopy, "نسخ", Modifier.size(18.dp)) }; IconButton(onClick = { ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "$text\n\n${reference ?: ""}"), "مشاركة")) }) { Icon(Icons.Filled.Share, "مشاركة", Modifier.size(18.dp)) }; IconButton(onClick = { ShareCard.share(ctx, ShareCard.render(ctx, "من الأذكار", text, reference ?: "", false), "dhikr.png", "$text\n\n${reference ?: ""}") }) { Icon(Icons.Filled.Image, "مشاركة كصورة", Modifier.size(18.dp)) } } }
         Box(Modifier.size(64.dp).background(if (done) Teal else Teal.copy(alpha = 0.12f), CircleShape).clickable(onClick = onTap), contentAlignment = Alignment.Center) { if (done) Icon(Icons.Filled.Check, null, tint = Paper) else Text(Fmt.number(maxOf(0, target - count)), fontWeight = FontWeight.Bold, fontSize = 20.sp) }
       }
     }

@@ -113,18 +113,22 @@ import org.emdatra.sakinah.core.*
   val pager = rememberPagerState(initialPage = startPage - 1) { 604 }
   var chrome by remember { mutableStateOf(true) }; var selected by remember { mutableStateOf<Int?>(startAyah) }
   var sheet by remember { mutableStateOf<String?>(null) }; var ayahSheet by remember { mutableStateOf<Ayah?>(null) }
-  var veilRevealed by remember { mutableStateOf<Set<Int>?>(null) } // null = بلا إخفاء؛ وإلا أرقام الآيات المكشوفة
+  var hifz by remember { mutableStateOf<HifzSession?>(null) } // جلسة مراجعة الحفظ أو الإخفاء (null = لا شيء)
+  var downloads by remember { mutableStateOf(false) }
   val dark = isSystemInDarkTheme()
   val theme = Store.effectiveTheme(dark); val paper = hex(theme.paper); val ink = hex(theme.ink)
   val page = pager.currentPage + 1
-  LaunchedEffect(page) { QuranText.shared.pageAyahs(page).firstOrNull()?.let { Store.remember(it) }; if (veilRevealed != null) veilRevealed = emptySet(); kotlinx.coroutines.delay(8000); if (pager.currentPage + 1 == page) { Store.readLog = Khatmah.log(Store.readLog, Store.todayKey, page); Store.save() } }
+  LaunchedEffect(page) { QuranText.shared.pageAyahs(page).firstOrNull()?.let { Store.remember(it) }; hifz?.let { h -> if (h.page != page) { h.stopSpeech(); hifz = null } }; kotlinx.coroutines.delay(8000); if (pager.currentPage + 1 == page) { Store.readLog = Khatmah.log(Store.readLog, Store.todayKey, page); Store.save() } }
   LaunchedEffect(startAyah) { if (startAyah != null) { kotlinx.coroutines.delay(1600); if (selected == startAyah) selected = null } }
+  // متابعة التلاوة بقلب الصفحات
+  LaunchedEffect(Recitation.current) { val n = Recitation.current ?: return@LaunchedEffect; val a = QuranText.shared.ayah(n) ?: return@LaunchedEffect; if (Store.follow && hifz == null && a.page != pager.currentPage + 1) pager.scrollToPage(a.page - 1) }
+  DisposableEffect(Unit) { onDispose { hifz?.stopSpeech() } }
   BackHandler { if (sheet != null) sheet = null else onClose() }
   Box(Modifier.fillMaxSize().background(paper)) {
     HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, key = { it }) { i ->
       val p = i + 1
-      Box(Modifier.fillMaxSize().clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { if (veilRevealed != null) revealNext(p, veilRevealed!!) { veilRevealed = it } else chrome = !chrome }) {
-        if (Store.view == "text") TextPage(p, ink, paper, selected, veilRevealed) { a -> selected = a.n; ayahSheet = a } else MushafPage(p, ink, paper, selected, veilRevealed) { a -> selected = a.n; ayahSheet = a }
+      Box(Modifier.fillMaxSize().clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { val h = hifz; if (h != null) { if (h.veil) h.revealAyah() else h.hint() } else chrome = !chrome }) {
+        if (Store.view == "text") TextPage(p, ink, paper, selected, hifz) { a -> selected = a.n; ayahSheet = a } else MushafPage(p, ink, paper, selected, hifz) { a -> selected = a.n; ayahSheet = a }
       }
     }
     if (chrome) {
@@ -134,34 +138,46 @@ import org.emdatra.sakinah.core.*
         Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) { Text(l?.let { "سورة ${QuranMeta.surah(it.surah).name}" } ?: "", fontWeight = FontWeight.Bold); Text(l?.let { QuranMeta.juzName(it.juz, false) } ?: "", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         IconButton(onClick = { sheet = "nav" }) { Icon(Icons.Filled.Search, "التنقل") }
         IconButton(onClick = { sheet = "display" }) { Icon(Icons.Filled.WbSunny, "العرض") }
+        IconButton(onClick = { downloads = true }) { Icon(Icons.Filled.Download, "التلاوات دون اتصال") }
         IconButton(onClick = { sheet = "options" }) { Icon(Icons.Filled.MoreVert, "خيارات") }
       }
       Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)).navigationBarsPadding().padding(horizontal = 16.dp, vertical = 6.dp)) {
+        hifz?.let { h -> HifzPanel(h, onExit = { h.stopSpeech(); hifz = null }, onNextPage = { if (page < 604) { val veil = h.veil; scope.launch { pager.scrollToPage(page); kotlinx.coroutines.delay(400); QuranText.shared.pageAyahs(page + 1).firstOrNull()?.let { a -> hifz = HifzSession(page + 1, a.n, veil) } } } }) }
         if (Recitation.current != null) AudioBar()
-        Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
+        if (hifz == null) Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
           val first = QuranText.shared.pageAyahs(page).firstOrNull()
           IconButton(onClick = { first?.let { Store.toggleBookmark(it) } }) { Icon(if (Store.bookmarks.any { it.page == page }) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder, "علامة") }
-          IconButton(onClick = { first?.let { Recitation.reciter = Store.reciter; Recitation.repeatAyah = Store.repeatAyah; Recitation.play(ctx, QuranText.shared.pageAyahs(page).map { a -> a.n }) } }) { Icon(Icons.Filled.PlayCircle, "تشغيل الصفحة") }
-          IconButton(onClick = { veilRevealed = if (veilRevealed == null) emptySet() else null }) { Icon(if (veilRevealed == null) Icons.Filled.VisibilityOff else Icons.Filled.Visibility, "إخفاء الآيات للحفظ") }
+          IconButton(onClick = { first?.let { Recitation.reciter = Store.reciter; Recitation.repeatAyah = Store.repeatAyah; Recitation.repeatRange = Store.repeatRange; Recitation.words = Store.wordHighlight; Recitation.play(ctx, QuranText.shared.pageAyahs(page).map { a -> a.n }) } }) { Icon(Icons.Filled.PlayCircle, "تشغيل الصفحة") }
+          IconButton(onClick = { first?.let { Recitation.stop(); hifz = HifzSession(page, it.n, veil = false) } }) { Icon(Icons.Filled.Mic, "مراجعة الحفظ") }
+          IconButton(onClick = { first?.let { Recitation.stop(); hifz = HifzSession(page, it.n, veil = true) } }) { Icon(Icons.Filled.VisibilityOff, "إخفاء الآيات للحفظ") }
           IconButton(onClick = { sheet = "index" }) { Icon(Icons.Filled.List, "الفهرس") }
         }
         Slider(page.toFloat(), { v -> scope.launch { pager.scrollToPage(v.toInt() - 1) } }, valueRange = 1f..604f, steps = 0)
         Text("صفحة ${Fmt.number(page)} من ٦٠٤ · الجزء ${Fmt.number(QuranMeta.juzOfPage(page))}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
       }
     }
-    if (veilRevealed != null) Text("انقر الصفحة لكشف الآية التالية", Modifier.align(Alignment.BottomCenter).padding(bottom = if (chrome) 150.dp else 24.dp).background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f), RoundedCornerShape(20.dp)).padding(10.dp), fontSize = 13.sp)
+    if (hifz != null && !chrome) Text(if (hifz!!.veil) "انقر الصفحة لكشف الآية التالية" else "انقر الصفحة لكشف الكلمة التالية", Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp).background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f), RoundedCornerShape(20.dp)).padding(10.dp), fontSize = 13.sp)
   }
-  ayahSheet?.let { a -> AyahSheet(a, onDismiss = { ayahSheet = null; selected = null }) }
+  ayahSheet?.let { a -> AyahSheet(a, onDismiss = { ayahSheet = null; selected = null }, onHifz = { ayahSheet = null; selected = null; Recitation.stop(); hifz = HifzSession(page, a.n, veil = false) }) }
+  if (downloads) ModalBottomSheet(onDismissRequest = { downloads = false }) { DownloadsSheet(QuranText.shared.pageAyahs(page).firstOrNull()?.surah) }
   when (sheet) {
     "index", "nav" -> ModalBottomSheet(onDismissRequest = { sheet = null }) { IndexSheet(page) { p, n -> sheet = null; scope.launch { pager.scrollToPage(p - 1) }; if (n != null) selected = n } }
     "display" -> ModalBottomSheet(onDismissRequest = { sheet = null }) { DisplaySheet() }
-    "options" -> ModalBottomSheet(onDismissRequest = { sheet = null }) { OptionsSheet(page) { sheet = null } }
+    "options" -> ModalBottomSheet(onDismissRequest = { sheet = null }) { Column { PlaybackOptions(); OptionsSheet(page) { sheet = null } } }
   }
 }
-private fun revealNext(page: Int, revealed: Set<Int>, set: (Set<Int>) -> Unit) { val ayahs = QuranText.shared.pageAyahs(page).map { it.n }; val next = ayahs.firstOrNull { it !in revealed } ?: return; set(revealed + next) }
+/** خيارات التلاوة والمراجعة (تظهر فوق خيارات المصحف) */
+@Composable fun PlaybackOptions() {
+  Column(Modifier.padding(horizontal = 16.dp)) {
+    RowSwitch("متابعة التلاوة بقلب الصفحات", Store.follow) { Store.follow = it; Store.save() }
+    RowSwitch("تظليل الكلمة أثناء التلاوة (قرّاء quran.com)", Store.wordHighlight) { Store.wordHighlight = it; Store.save(); Recitation.useWordTiming(it) }
+    RowSwitch("تكرار المقطع", Store.repeatRange) { Store.repeatRange = it; Store.save(); Recitation.repeatRange = it }
+    RowSwitch("في المراجعة: إظهار الكلمة الحالية فقط", Store.hifzOnlyCurrent) { Store.hifzOnlyCurrent = it; Store.save() }
+  }
+}
 
 /** صفحة بخط صفحتها: 15 سطرًا، كل كلمة عنصر (نقر)، حجم الخط من العرض ÷ 14.85 مع تصحيح بالقياس */
-@Composable fun MushafPage(p: Int, ink: Color, paper: Color, selected: Int?, veil: Set<Int>?, onTap: (Ayah) -> Unit) {
+@Composable fun MushafPage(p: Int, ink: Color, paper: Color, selected: Int?, hifz: HifzSession?, onTap: (Ayah) -> Unit) {
   val family = Fonts.page(p); val lines = MushafLayout.shared.lines(p); val measurer = rememberTextMeasurer(); val density = LocalDensity.current
   val label = QuranText.shared.label(p)
   BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp)) {
@@ -186,10 +202,14 @@ private fun revealNext(page: Int, revealed: Set<Int>, set: (Set<Int>) -> Unit) {
                 is MushafLine.Basmala -> Text(QuranMeta.basmala, fontFamily = Fonts.amiri, fontSize = fontSize * 0.95, color = ink, maxLines = 1)
                 is MushafLine.Words -> Row(verticalAlignment = Alignment.CenterVertically) {
                   for (w in l.words) {
-                    val a = QuranText.shared.ayah(w.n); val hidden = veil != null && w.n !in veil
+                    val a = QuranText.shared.ayah(w.n)
+                    val hidden = hifz != null && w.k >= 0 && hifz.isHidden(w.n, w.k, Store.hifzOnlyCurrent)
+                    val cur = hifz != null && w.k >= 0 && hifz.isCurrent(w.n, w.k)
+                    val playingWord = Recitation.current == w.n && Store.wordHighlight && Recitation.currentWord == w.k + 1
                     val col = if (hidden) Color.Transparent else if (w.end) Gold else ink
+                    val bg = if (hidden) ink.copy(alpha = 0.08f) else if (playingWord) Gold.copy(alpha = 0.38f) else if (selected == w.n || Recitation.current == w.n) Teal.copy(alpha = 0.18f) else Color.Transparent
                     Text(w.glyph, fontFamily = family, fontSize = fontSize, color = col, maxLines = 1, softWrap = false,
-                      modifier = Modifier.background(if (hidden) ink.copy(alpha = 0.08f) else if (selected == w.n || Recitation.current == w.n) Teal.copy(alpha = 0.18f) else Color.Transparent, RoundedCornerShape(3.dp)).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { if (a != null && veil == null) onTap(a) })
+                      modifier = Modifier.background(bg, RoundedCornerShape(3.dp)).then(if (cur) Modifier.border(1.dp, ink.copy(alpha = 0.3f), RoundedCornerShape(3.dp)) else Modifier).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { if (a != null && hifz == null) onTap(a) })
                   }
                 }
               }
@@ -210,7 +230,7 @@ private fun revealNext(page: Int, revealed: Set<Int>, set: (Set<Int>) -> Unit) {
 
 /** وضع النص المتدفق: أميري قرآن أو حفص، التجويد الملوّن، حجم قابل للتغيير */
 @OptIn(ExperimentalLayoutApi::class)
-@Composable fun TextPage(p: Int, ink: Color, paper: Color, selected: Int?, veil: Set<Int>?, onTap: (Ayah) -> Unit) {
+@Composable fun TextPage(p: Int, ink: Color, paper: Color, selected: Int?, hifz: HifzSession?, onTap: (Ayah) -> Unit) {
   val hafs = Store.textFont == "hafs"; val family = Fonts.text(Store.textFont); val dark = isSystemInDarkTheme()
   val ayahs = QuranText.shared.pageAyahs(p); val label = QuranText.shared.label(p)
   BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 14.dp, vertical = 8.dp)) {
@@ -220,14 +240,19 @@ private fun revealNext(page: Int, revealed: Set<Int>, set: (Set<Int>) -> Unit) {
       FlowRow(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         for (a in ayahs) {
           if (a.ayah == 1) { Box(Modifier.fillMaxWidth().height(40.dp).padding(vertical = 4.dp)) { SurahHeaderBox(a.surah, base, ink, paper) }; if (a.surah != 1 && a.surah != 9) Text(QuranMeta.basmala, Modifier.fillMaxWidth(), fontFamily = Fonts.amiri, fontSize = base * 0.95, color = ink, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
-          val text = if (hafs) hafsText(a.text) else a.text; val hidden = veil != null && a.n !in veil
+          val text = if (hafs) hafsText(a.text) else a.text
           val spans = if (Store.tajweed) Tajweed.shared.spans(a.n) else emptyList()
-          val cps = text.codePoints().toArray(); var pos = 0
+          val cps = text.codePoints().toArray(); var pos = 0; var k = 0
           for (t in QuranNormalize.tokenize(text)) {
             val start = findCp(t.raw, cps, pos); pos = start + t.raw.codePointCount(0, t.raw.length)
+            val kk = if (t.spoken) k else -1; if (t.spoken) k++
+            val hidden = hifz != null && kk >= 0 && hifz.isHidden(a.n, kk, Store.hifzOnlyCurrent)
+            val cur = hifz != null && kk >= 0 && hifz.isCurrent(a.n, kk)
+            val playingWord = Recitation.current == a.n && Store.wordHighlight && kk >= 0 && Recitation.currentWord == kk + 1
             val styled = buildAnnotatedString { if (spans.isEmpty() || !t.spoken) append(t.raw) else for ((seg, code) in Tajweed.segments(t.raw, start, spans)) { val c = code?.let { tajweedColor(it, dark) }; if (c != null) withStyle(SpanStyle(color = c)) { append(seg) } else append(seg) } }
+            val bg = if (hidden) ink.copy(alpha = 0.08f) else if (playingWord) Gold.copy(alpha = 0.38f) else if (selected == a.n || Recitation.current == a.n) Teal.copy(alpha = 0.18f) else Color.Transparent
             Text(styled, fontFamily = family, fontSize = if (t.spoken) size else size * 0.75, lineHeight = size * 2.05, color = if (hidden) Color.Transparent else if (t.spoken) ink else Gold,
-              modifier = Modifier.background(if (hidden) ink.copy(alpha = 0.08f) else if (selected == a.n || Recitation.current == a.n) Teal.copy(alpha = 0.18f) else Color.Transparent, RoundedCornerShape(3.dp)).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { if (veil == null) onTap(a) })
+              modifier = Modifier.background(bg, RoundedCornerShape(3.dp)).then(if (cur) Modifier.border(1.dp, ink.copy(alpha = 0.3f), RoundedCornerShape(3.dp)) else Modifier).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { if (hifz == null) onTap(a) })
           }
           Text(if (hafs) QuranMeta.arabicDigits(a.ayah) else "۝" + QuranMeta.arabicDigits(a.ayah), fontFamily = family, fontSize = size * 0.95, lineHeight = size * 2.05, color = Gold)
         }
@@ -241,7 +266,7 @@ fun findCp(word: String, cps: IntArray, from: Int): Int { val w = word.codePoint
 fun tajweedColor(code: String, dark: Boolean): Color? { val g = Tajweed.group(code); val t = Catalog.shared.tajweed; return (if (dark) t.dark[g] else t.light[g])?.let { hex(it) } }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable fun AyahSheet(a: Ayah, onDismiss: () -> Unit) {
+@Composable fun AyahSheet(a: Ayah, onDismiss: () -> Unit, onHifz: () -> Unit = {}) {
   val ctx = LocalContext.current
   var tafsir by remember { mutableStateOf(false) }
   ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -252,7 +277,7 @@ fun tajweedColor(code: String, dark: Boolean): Color? { val g = Tajweed.group(co
       val txt = "${a.text} ﴿${a.ayah}﴾\n[${QuranSearch.refLabel(a)}]"
       Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(onClick = { tafsir = !tafsir }, Modifier.weight(1f)) { Text("التفسير") }
-        Button(onClick = { Recitation.reciter = Store.reciter; Recitation.repeatAyah = Store.repeatAyah; Recitation.play(ctx, QuranText.shared.surahAyahs(a.surah).filter { it.n >= a.n }.map { it.n }); onDismiss() }, Modifier.weight(1f)) { Text("تشغيل من هنا") }
+        Button(onClick = { Recitation.reciter = Store.reciter; Recitation.repeatAyah = Store.repeatAyah; Recitation.repeatRange = Store.repeatRange; Recitation.words = Store.wordHighlight; Recitation.play(ctx, QuranText.shared.surahAyahs(a.surah).filter { it.n >= a.n }.map { it.n }); onDismiss() }, Modifier.weight(1f)) { Text("تشغيل من هنا") }
       }
       Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(onClick = { Store.toggleBookmark(a); onDismiss() }, Modifier.weight(1f)) { Text(if (Store.isBookmarked(a)) "إزالة العلامة" else "علامة") }
@@ -261,6 +286,10 @@ fun tajweedColor(code: String, dark: Boolean): Color? { val g = Tajweed.group(co
       Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(onClick = { ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, txt), "مشاركة")) }, Modifier.weight(1f)) { Text("مشاركة") }
         OutlinedButton(onClick = { (ctx.getSystemService(android.content.ClipboardManager::class.java)).setPrimaryClip(android.content.ClipData.newPlainText("آية", txt)) }, Modifier.weight(1f)) { Text("نسخ") }
+      }
+      Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = { ShareCard.share(ctx, ShareCard.render(ctx, "القرآن الكريم · ${QuranSearch.refLabel(a)}", "${a.text} ﴿${a.ayah}﴾", QuranSearch.refLabel(a), true), "ayah-${a.surah}-${a.ayah}.png", txt) }, Modifier.weight(1f)) { Text("مشاركة كصورة") }
+        OutlinedButton(onClick = onHifz, Modifier.weight(1f)) { Text("مراجعة الحفظ من هنا") }
       }
       if (tafsir) { Spacer(Modifier.height(12.dp)); val html = Tafsir.text(a.surah, a.ayah); Text(buildAnnotatedString { for (r in Tafsir.runs(html ?: "لا تفسير")) if (r.bold) withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Teal)) { append(r.text) } else append(r.text) }, fontSize = 16.sp, lineHeight = 28.sp); Text("التفسير الميسّر — مجمع الملك فهد", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
       Spacer(Modifier.height(24.dp))
@@ -276,6 +305,16 @@ fun tajweedColor(code: String, dark: Boolean): Color? { val g = Tajweed.group(co
     IconButton(onClick = { Recitation.next(ctx) }) { Icon(Icons.Filled.SkipNext, "التالية") }
     IconButton(onClick = { Recitation.stop() }) { Icon(Icons.Filled.Close, "إغلاق") }
   }
+  LinearProgressIndicator({ if (Recitation.duration > 0) (Recitation.position / Recitation.duration).toFloat().coerceIn(0f, 1f) else 0f }, Modifier.fillMaxWidth().padding(vertical = 2.dp), color = Teal)
+  Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    val chip: @Composable (String, Boolean, () -> Unit) -> Unit = { label, active, onClick -> FilterChip(active, onClick, { Text(label, fontSize = 11.sp) }) }
+    chip("الآية ×${Fmt.number(Recitation.repeatAyah)}", Recitation.repeatAyah > 1) { val o = listOf(1, 2, 3, 5, 10); val nx = o[((o.indexOf(Recitation.repeatAyah).coerceAtLeast(0)) + 1) % o.size]; Recitation.repeatAyah = nx; Store.repeatAyah = nx; Store.save() }
+    chip("تكرار المقطع", Recitation.repeatRange) { Recitation.repeatRange = !Recitation.repeatRange; Store.repeatRange = Recitation.repeatRange; Store.save() }
+    chip("السرعة ${Fmt.decimal(Store.rate, 2)}×", Store.rate != 1.0) { val o = listOf(0.75, 1.0, 1.25, 1.5); val nx = o[((o.indexOf(Store.rate).coerceAtLeast(0)) + 1) % o.size]; Recitation.setRate(nx) }
+    chip(Recitation.sleepMinutesLeft?.let { "نوم ${Fmt.number(it)} د" } ?: "مؤقت النوم", Recitation.sleepAt != null) { val o = listOf(0, 15, 30, 45, 60); val cur = Recitation.sleepMinutesLeft ?: 0; val nx = o[((o.indexOfFirst { it >= cur }.coerceAtLeast(0)) + 1) % o.size]; Recitation.setSleep(nx) }
+    if (Recitation.hasWords) Text("كلمة بكلمة", fontSize = 11.sp, color = Teal, modifier = Modifier.align(Alignment.CenterVertically))
+  }
+  Recitation.error?.let { Text(if (it == "network") "تعذّر تحميل التلاوة — تحقق من الاتصال" else "هذه التلاوة غير متاحة من هذا القارئ", fontSize = 11.sp, color = MaterialTheme.colorScheme.error) }
 }
 @Composable fun IndexSheet(current: Int, onGo: (Int, Int?) -> Unit) {
   var q by remember { mutableStateOf("") }; var tab by remember { mutableIntStateOf(0) }
@@ -322,7 +361,7 @@ fun tajweedColor(code: String, dark: Boolean): Color? { val g = Tajweed.group(co
   val ctx = LocalContext.current
   Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
     Text("القارئ", fontWeight = FontWeight.Bold)
-    LazyColumn(Modifier.height(240.dp)) { items(Catalog.shared.reciters) { r -> ListItem(headlineContent = { Text(r.name) }, trailingContent = { if (Store.reciter == r.id) Text("✓") }, modifier = Modifier.clickable { Store.reciter = r.id; Store.save(); Recitation.reciter = r.id }) } }
+    LazyColumn(Modifier.height(240.dp)) { items(Catalog.shared.reciters) { r -> ListItem(headlineContent = { Text(r.name) }, trailingContent = { if (Store.reciter == r.id) Text("✓") }, modifier = Modifier.clickable { Store.reciter = r.id; Store.save(); Recitation.useReciter(r.id) }) } }
     Row(verticalAlignment = Alignment.CenterVertically) { Text("تكرار الآية ×${Fmt.number(Store.repeatAyah)}", Modifier.weight(1f)); OutlinedButton(onClick = { val o = listOf(1, 2, 3, 5, 10); Store.repeatAyah = o[(o.indexOf(Store.repeatAyah) + 1) % o.size]; Store.save(); Recitation.repeatAyah = Store.repeatAyah }) { Text("تغيير") } }
     Row(verticalAlignment = Alignment.CenterVertically) { Text("السرعة ${Fmt.decimal(Store.rate, 2)}×", Modifier.weight(1f)); OutlinedButton(onClick = { val o = listOf(0.75, 1.0, 1.25, 1.5); Recitation.setRate(o[(o.indexOf(Store.rate) + 1) % o.size]) }) { Text("تغيير") } }
     RowSwitch("متابعة التلاوة بقلب الصفحات", Store.follow) { Store.follow = it; Store.save() }
