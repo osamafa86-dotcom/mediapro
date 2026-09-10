@@ -1,0 +1,51 @@
+# نواة Android (Kotlin) على المرجع الذهبي نفسه + بناء APK تجريبي لتطبيق Compose
+name: Sakinah Native Android
+
+on:
+  push:
+    branches: ['claude/islamic-app-development-tpmkko', 'main']
+    paths: ['sakinah-android/**', 'sakinah-native/Sources/SakinahCore/Resources/**', 'sakinah-native/Tests/SakinahCoreTests/Fixtures/**', 'sakinah-native/tools/build-fonts.py', '.github/workflows/native-android.yml']
+  workflow_dispatch:
+
+jobs:
+  core-and-app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: sakinah-android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '21' }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.14.3' }
+      - name: اختبار النواة (المرجع الذهبي المشترك مع الويب وSwift)
+        run: gradle :core:test --no-daemon --console=plain
+      - name: كاش خطوط المصحف
+        uses: actions/cache@v4
+        with:
+          path: sakinah/.cache/fonts-qcf
+          key: sakinah-qcf-fonts-v1
+      - name: خطوط المصحف لتطبيق Android (TTF في assets)
+        run: |
+          python3 -m pip install --quiet fonttools brotli
+          python3 ../sakinah-native/tools/build-fonts.py --android
+          ls app/src/main/assets/fonts | wc -l
+      - name: بناء APK تجريبي
+        if: hashFiles('sakinah-android/app/build.gradle.kts') != ''
+        run: gradle :app:assembleDebug --no-daemon --console=plain
+      - name: الناتج أثرًا
+        if: hashFiles('sakinah-android/app/build.gradle.kts') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: sakinah-android-debug-apk
+          path: sakinah-android/app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+      - name: تقارير الاختبار
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-test-reports
+          path: sakinah-android/core/build/reports/tests/test
+          retention-days: 7

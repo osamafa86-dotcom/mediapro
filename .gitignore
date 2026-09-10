@@ -21,3 +21,10 @@ sakinah-native/App/build/
 sakinah-native/App/Sakinah/Info.plist
 
 sakinah-native/App/Fonts/
+sakinah-android/.gradle/
+sakinah-android/build/
+sakinah-android/*/build/
+sakinah-android/local.properties
+sakinah-android/app/src/main/assets/fonts/
+sakinah-android/app/src/main/assets/audio/
+sakinah-android/.kotlin/

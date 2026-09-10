@@ -34,10 +34,28 @@ def convert(src: pathlib.Path, name: str) -> int:
     (OUT / f'{name}.ttf.z').write_bytes(struct.pack('<I', len(ttf)) + z)
     return len(z)
 
+ANDROID_OUT = ROOT.parent / 'sakinah-android' / 'app' / 'src' / 'main' / 'assets' / 'fonts'
+def convert_raw(src: pathlib.Path, name: str) -> int:
+    """TTF غير مضغوط لتطبيق Android (تُضغط داخل APK/AAB تلقائيًا)"""
+    f = TTFont(str(src)); f.flavor = None
+    buf = io.BytesIO(); f.save(buf); ttf = buf.getvalue()
+    ANDROID_OUT.mkdir(parents=True, exist_ok=True); (ANDROID_OUT / f'{name}.ttf').write_bytes(ttf); return len(ttf)
+
 def main():
     pages = range(1, 605)
-    if len(sys.argv) > 2 and sys.argv[1] == '--pages':
-        a, b = sys.argv[2].split('-'); pages = range(int(a), int(b) + 1)
+    args = sys.argv[1:]
+    android = '--android' in args
+    if android: args.remove('--android')
+    if len(args) > 1 and args[0] == '--pages':
+        a, b = args[1].split('-'); pages = range(int(a), int(b) + 1)
+    if android:
+        total = 0
+        for p in pages: total += convert_raw(fetch(f'hafs/v1/woff2/p{p}.woff2'), f'p{p}')
+        total += convert_raw(fetch('surah-names/v1/sura_names.woff2'), 'sura_names')
+        total += convert_raw(fetch('UthmanicHafs1Ver18.woff2', HAFS_URL), 'hafs')
+        if AMIRI.exists(): total += convert_raw(AMIRI, 'AmiriQuran')
+        print(f'خطوط Android: {len(list(pages))} صفحة + أسماء السور + حفص + أميري قرآن → {ANDROID_OUT} ({total // 1024 // 1024} م.ب)')
+        return
     total = 0
     for p in pages:
         total += convert(fetch(f'hafs/v1/woff2/p{p}.woff2'), f'p{p}')
