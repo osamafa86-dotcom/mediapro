@@ -8,7 +8,7 @@ struct RootView: View {
     TabView {
       PrayerView().tabItem { Label("الصلاة", systemImage: "sun.horizon") }
       QiblaView().tabItem { Label("القبلة", systemImage: "location.north.circle") }
-      MushafPlaceholderView().tabItem { Label("المصحف", systemImage: "book") }
+      MushafHomeView().tabItem { Label("المصحف", systemImage: "book") }
       AdhkarPlaceholderView().tabItem { Label("الأذكار", systemImage: "hands.sparkles") }
       SettingsView().tabItem { Label("المزيد", systemImage: "ellipsis.circle") }
     }

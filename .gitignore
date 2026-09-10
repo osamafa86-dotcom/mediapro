@@ -19,3 +19,5 @@ sakinah-native/.build/
 sakinah-native/App/*.xcodeproj
 sakinah-native/App/build/
 sakinah-native/App/Sakinah/Info.plist
+
+sakinah-native/App/Fonts/

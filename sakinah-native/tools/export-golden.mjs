@@ -58,7 +58,13 @@ const geomag = [];
 for (const [id, lat, lon] of places) for (const dy of [2025.0, 2026.69, 2029.5, 2031.0]) for (const alt of [0, 1.5]) { const f = magneticField({ lat, lon, altKm: alt, date: dy }); geomag.push({ id, lat, lon, altKm: alt, decimalYear: dy, declination: f.declination, inclination: f.inclination, f: f.f, h: f.h, x: f.x, y: f.y, z: f.z, gridVariation: Number.isNaN(f.gridVariation) ? null : f.gridVariation, outOfRange: f.outOfRange }); }
 for (const [lat, lon] of [[89.99, 0], [-89.99, 45], [0, 180], [55, -100], [-60, 120]]) { const f = magneticField({ lat, lon, altKm: 0, date: 2027.25 }); geomag.push({ id: `p${lat}_${lon}`, lat, lon, altKm: 0, decimalYear: 2027.25, declination: f.declination, inclination: f.inclination, f: f.f, h: f.h, x: f.x, y: f.y, z: f.z, gridVariation: Number.isNaN(f.gridVariation) ? null : f.gridVariation, outOfRange: f.outOfRange }); }
 const methods = [['SA', 'Asia/Riyadh'], ['JO', null], [null, 'Europe/London'], [null, 'America/Bogota'], ['ZZ', 'Asia/Tokyo'], [null, null]].map(([cc, tz]) => ({ countryCode: cc, tz, method: defaultMethodFor({ countryCode: cc || undefined, tz: tz || undefined }) }));
-const out = { generatedAt: new Date().toISOString(), prayer, timeline, hijri, qibla, sunMoments, zenith, geomag, methods };
+// تخطيط المصحف: أسطر صفحات مختارة مفكوكة الترميز كما يراها القارئ في نسخة الويب
+const mushaf = await import(path.join(web, 'mushaf.js'));
+mushaf.setMushafLayout(JSON.parse(fs.readFileSync(path.resolve(here, '../../sakinah/data/mushaf-layout.json'), 'utf8')));
+const layoutPages = {};
+for (const p of [1, 2, 3, 50, 187, 293, 302, 545, 604]) layoutPages[p] = { lineCount: mushaf.pageLineCount(p), headers: mushaf.headersOnPage(p), ayahs: mushaf.ayahsOnPage(p), lines: mushaf.pageLines(p).map((l) => l.type === 'words' ? { type: 'words', words: l.words.map((w) => ({ glyph: w.glyph, n: w.n, k: w.k, end: w.end, rub: w.rub, sajda: w.sajda })) } : l) };
+const juzNames = Array.from({ length: 30 }, (_, i) => mushaf.juzName(i + 1));
+const out = { generatedAt: new Date().toISOString(), prayer, timeline, hijri, qibla, sunMoments, zenith, geomag, methods, layoutPages, juzNames };
 const dest = path.resolve(here, '../Tests/SakinahCoreTests/Fixtures/golden.json');
 fs.writeFileSync(dest, JSON.stringify(out));
 console.log(`golden: prayer ${prayer.length}, timeline ${timeline.length}, hijri ${hijri.length}, qibla ${qibla.length}, sunMoments ${sunMoments.length}, geomag ${geomag.length} → ${path.relative(process.cwd(), dest)} (${(fs.statSync(dest).size / 1024).toFixed(0)} KB)`);

@@ -2,6 +2,9 @@ import Foundation
 import Observation
 import SakinahCore
 
+/// آخر موضع قراءة: الصفحة وأول آية فيها ووقت الحفظ (ملّي ثانية منذ 1970 كما في الويب)
+struct LastRead: Codable, Equatable { var page: Int; var surah: Int; var ayah: Int; var at: Double }
+
 /// إعدادات المستخدم (تُحفظ في UserDefaults) — مفاتيح مطابقة لمعاني نسخة الويب كي يسهل استيراد النسخة الاحتياطية لاحقًا
 @Observable
 final class Settings {
@@ -16,6 +19,8 @@ final class Settings {
   var reminders: ReminderPrefs { didSet { if let data = try? JSONEncoder().encode(reminders) { d.set(data, forKey: "notifications.prefs") } } }
   /// تشغيل الأذان الكامل داخل التطبيق عند دخول الوقت والتطبيق مفتوح
   var fullAdhanInApp: Bool { didSet { d.set(fullAdhanInApp, forKey: "notifications.fullAdhan") } }
+  /// آخر موضع قراءة في المصحف (المفتاح نفسه في الويب: quran.lastRead)
+  var lastRead: LastRead? { didSet { if let v = lastRead, let data = try? JSONEncoder().encode(v) { d.set(data, forKey: "quran.lastRead") } else { d.removeObject(forKey: "quran.lastRead") } } }
 
   init() {
     methodId = d.string(forKey: "prayer.method") ?? "MuslimWorldLeague"
@@ -27,6 +32,7 @@ final class Settings {
     methodIsAutomatic = d.object(forKey: "prayer.methodAuto") as? Bool ?? true
     reminders = (d.data(forKey: "notifications.prefs")).flatMap { try? JSONDecoder().decode(ReminderPrefs.self, from: $0) } ?? ReminderPrefs()
     fullAdhanInApp = d.object(forKey: "notifications.fullAdhan") as? Bool ?? true
+    lastRead = d.data(forKey: "quran.lastRead").flatMap { try? JSONDecoder().decode(LastRead.self, from: $0) }
   }
 
   func params(tz: TimeZone) -> PrayerParams {

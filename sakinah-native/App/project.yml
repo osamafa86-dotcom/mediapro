@@ -29,13 +29,17 @@ targets:
         buildPhase: resources
       - path: ../../sakinah/assets/audio/adhan-azeez.mp3
         buildPhase: resources
+      # خطوط صفحات المصحف الـ604 وأسماء السور وأميري قرآن (TTF مضغوطة) — تُولَّد بـ tools/build-fonts.py قبل توليد المشروع
+      - path: Fonts
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: SakinahCore
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.emdatra.sakinah.native
         PRODUCT_NAME: Sakinah
-        MARKETING_VERSION: "2.0.0"
+        MARKETING_VERSION: "3.0.0"
         CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
