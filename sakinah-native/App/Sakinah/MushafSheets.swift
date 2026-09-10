@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 import SakinahCore
 
-enum AyahAction { case tafsir, listen, playFrom, repeat3, bookmark, lastRead, hifz, share, shareImage, copy }
+enum AyahAction { case tafsir, translation, wordMeanings, listen, playFrom, repeat3, bookmark, lastRead, hifz, share, shareImage, copy }
 
 /// قائمة الآية (نقرة على كلمة): التفسير، الاستماع، التشغيل من هنا، التكرار، العلامة، موضع القراءة، المراجعة، المشاركة، النسخ
 struct AyahOptionsSheet: View {
@@ -19,6 +19,8 @@ struct AyahOptionsSheet: View {
           LazyVGrid(columns: cols, spacing: 10) {
             actionButton("التفسير", "book", primary: true) { onAction(.tafsir) }
             actionButton("استماع (اختيار القارئ)", "mic", primary: true) { onAction(.listen) }
+            actionButton("الترجمة", "globe") { onAction(.translation) }
+            actionButton("معاني الكلمات", "character.book.closed") { onAction(.wordMeanings) }
             actionButton("تشغيل من هنا", "play") { onAction(.playFrom) }
             actionButton("تكرار الآية ×٣", "repeat") { onAction(.repeat3) }
             actionButton(marked ? "تعديل العلامة" : "علامة مع ملاحظة", marked ? "bookmark.fill" : "bookmark") { onAction(.bookmark) }

@@ -20,6 +20,9 @@ final class Settings {
   /// تشغيل الأذان الكامل داخل التطبيق عند دخول الوقت والتطبيق مفتوح
   var fullAdhanInApp: Bool { didSet { d.set(fullAdhanInApp, forKey: "notifications.fullAdhan") } }
   /// آخر موضع قراءة في المصحف (المفتاح نفسه في الويب: quran.lastRead)
+  var seenIntro: Bool { didSet { d.set(seenIntro, forKey: "seenIntro") } }
+  /// نشاط مباشر للصلاة القادمة على شاشة القفل (يُحدَّث عند فتح التطبيق)
+  var liveActivity: Bool { didSet { d.set(liveActivity, forKey: "liveActivity") } }
   var lastRead: LastRead? { didSet { if let v = lastRead, let data = try? JSONEncoder().encode(v) { d.set(data, forKey: "quran.lastRead") } else { d.removeObject(forKey: "quran.lastRead") } } }
 
   init() {
@@ -32,6 +35,8 @@ final class Settings {
     methodIsAutomatic = d.object(forKey: "prayer.methodAuto") as? Bool ?? true
     reminders = (d.data(forKey: "notifications.prefs")).flatMap { try? JSONDecoder().decode(ReminderPrefs.self, from: $0) } ?? ReminderPrefs()
     fullAdhanInApp = d.object(forKey: "notifications.fullAdhan") as? Bool ?? true
+    seenIntro = d.bool(forKey: "seenIntro")
+    liveActivity = d.bool(forKey: "liveActivity")
     lastRead = d.data(forKey: "quran.lastRead").flatMap { try? JSONDecoder().decode(LastRead.self, from: $0) }
   }
 

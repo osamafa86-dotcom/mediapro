@@ -5,8 +5,8 @@ import SakinahCore
 /// نوافذ القارئ
 enum ReaderSheet: Identifiable {
   case index, quickNav, options, display, legend, reciter, downloads, khatmah, challenges
-  case ayah(Int), bookmark(Int), tafsir(Int)
-  var id: String { switch self { case .index: return "index"; case .quickNav: return "nav"; case .options: return "opt"; case .display: return "disp"; case .legend: return "leg"; case .reciter: return "rec"; case .downloads: return "dl"; case .khatmah: return "kh"; case .challenges: return "ch"; case .ayah(let n): return "a\(n)"; case .bookmark(let n): return "b\(n)"; case .tafsir(let n): return "t\(n)" } }
+  case ayah(Int), bookmark(Int), tafsir(Int), translation(Int), words(Int)
+  var id: String { switch self { case .index: return "index"; case .quickNav: return "nav"; case .options: return "opt"; case .display: return "disp"; case .legend: return "leg"; case .reciter: return "rec"; case .downloads: return "dl"; case .khatmah: return "kh"; case .challenges: return "ch"; case .ayah(let n): return "a\(n)"; case .bookmark(let n): return "b\(n)"; case .tafsir(let n): return "t\(n)"; case .translation(let n): return "tr\(n)"; case .words(let n): return "w\(n)" } }
 }
 
 /// قارئ المصحف: تقليب أفقي من اليمين (أو رأسي)، صفحات المطبوع أو نص متدفق، سمات، تلاوة بتظليل الكلمة، علامات، مراجعة حفظ، وفهرس وبحث
@@ -14,10 +14,13 @@ struct MushafReaderView: View {
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss
   @Environment(\.colorScheme) private var scheme
+  @Environment(\.horizontalSizeClass) private var hSize
   let startPage: Int
   let startAyah: Int?
   @State private var rs: MushafReaderState?
   @State private var page: Int?
+  /// وضع الصفحتين (iPad): فهرس الزوج، الصفحة الفردية يمينًا والزوجية يسارًا كالكتاب المفتوح
+  @State private var pair: Int?
   @State private var chrome = true
   @State private var sheet: ReaderSheet?
   @State private var slider: Double
@@ -37,6 +40,7 @@ struct MushafReaderView: View {
   private var prefs: QuranPrefs { model.quran }
   private var current: Int { page ?? startPage }
   private var vertical: Bool { prefs.scroll == "vertical" }
+  private var spread: Bool { hSize == .regular && !vertical && !prefs.isTextMode }
 
   var body: some View {
     stage
@@ -74,7 +78,7 @@ struct MushafReaderView: View {
   private var hifzError: String? { rs?.hifz?.error }
   private func shareSheet(_ s: ShareItems) -> some View { ShareSheet(items: s.items) }
   private func shareCardSheet(_ req: ShareCardRequest) -> some View { ShareCardSheet(request: req).environment(model) }
-  private func pageDidChange(_ p: Int?) { guard let p else { return }; slider = Double(p); onPageChanged(p) }
+  private func pageDidChange(_ p: Int?) { guard let p else { return }; slider = Double(p); if spread, pair != (p + 1) / 2 { pair = (p + 1) / 2 }; onPageChanged(p) }
   private func wordDidChange(_ w: Int?) { rs?.playingWord = w }
   private func keepAwakeChanged() { UIApplication.shared.isIdleTimerDisabled = prefs.keepAwake }
   private func playerErrorChanged() {
@@ -93,13 +97,15 @@ struct MushafReaderView: View {
     GeometryReader { geo in
       ScrollViewReader { proxy in
         ScrollView(vertical ? .vertical : .horizontal) {
-          if vertical { LazyVStack(spacing: 0) { pages(geo, rs) }.scrollTargetLayout() } else { LazyHStack(spacing: 0) { pages(geo, rs) }.scrollTargetLayout() }
+          if spread { LazyHStack(spacing: 0) { spreads(geo, rs) }.scrollTargetLayout() }
+          else if vertical { LazyVStack(spacing: 0) { pages(geo, rs) }.scrollTargetLayout() } else { LazyHStack(spacing: 0) { pages(geo, rs) }.scrollTargetLayout() }
         }
         .scrollTargetBehavior(.paging)
-        .scrollPosition(id: $page)
+        .scrollPosition(id: spread ? $pair : $page)
         .scrollIndicators(.hidden)
-        .onAppear { proxy.scrollTo(startPage, anchor: .center) }
-        .onChange(of: prefs.scroll) { DispatchQueue.main.async { proxy.scrollTo(current, anchor: .center) } }
+        .onAppear { if spread { pair = (startPage + 1) / 2; proxy.scrollTo((startPage + 1) / 2, anchor: .center) } else { proxy.scrollTo(startPage, anchor: .center) } }
+        .onChange(of: prefs.scroll) { DispatchQueue.main.async { proxy.scrollTo(spread ? (current + 1) / 2 : current, anchor: .center) } }
+        .onChange(of: pair) { _, k in guard spread, let k else { return }; let p = 2 * k - 1; if page != p && page != p + 1 { page = p } }
       }
       .ignoresSafeArea()
     }
@@ -107,14 +113,28 @@ struct MushafReaderView: View {
   }
   private func pages(_ geo: GeometryProxy, _ rs: MushafReaderState) -> some View {
     ForEach(1...MushafLayout.totalPages, id: \.self) { p in
-      Group {
-        if rs.textMode { MushafTextPageView(page: p, insets: geo.safeAreaInsets) } else { MushafPageView(page: p, insets: geo.safeAreaInsets) }
-      }
-      .contentShape(Rectangle())
-      .onTapGesture { if rs.hifz != nil { hifzTap() } else { withAnimation(.easeInOut(duration: 0.2)) { chrome.toggle() } } }
-      .containerRelativeFrame(vertical ? .vertical : .horizontal)
-      .id(p)
+      pageView(p, geo, rs)
+        .containerRelativeFrame(vertical ? .vertical : .horizontal)
+        .id(p)
     }
+  }
+  /// أزواج الصفحات على iPad: (1,2)، (3,4)… الفردية يمينًا
+  private func spreads(_ geo: GeometryProxy, _ rs: MushafReaderState) -> some View {
+    ForEach(1...(MushafLayout.totalPages / 2), id: \.self) { k in
+      HStack(spacing: 0) {
+        pageView(2 * k - 1, geo, rs).frame(maxWidth: .infinity)
+        pageView(2 * k, geo, rs).frame(maxWidth: .infinity)
+      }
+      .containerRelativeFrame(.horizontal)
+      .id(k)
+    }
+  }
+  private func pageView(_ p: Int, _ geo: GeometryProxy, _ rs: MushafReaderState) -> some View {
+    Group {
+      if rs.textMode { MushafTextPageView(page: p, insets: geo.safeAreaInsets) } else { MushafPageView(page: p, insets: geo.safeAreaInsets) }
+    }
+    .contentShape(Rectangle())
+    .onTapGesture { if rs.hifz != nil { hifzTap() } else { withAnimation(.easeInOut(duration: 0.2)) { chrome.toggle() } } }
   }
 
   // MARK: - الأزرار والشرائط
@@ -196,12 +216,16 @@ struct MushafReaderView: View {
       }
     case .bookmark(let n): if let a = QuranText.shared.ayah(n) { BookmarkSheet(ayah: a, onDone: { show($0) }).environment(model).presentationDetents([.medium]) }
     case .tafsir(let n): if let a = QuranText.shared.ayah(n) { TafsirSheet(ayah: a).environment(model) }
+    case .translation(let n): if let a = QuranText.shared.ayah(n) { TranslationSheet(ayah: a).environment(model) }
+    case .words(let n): if let a = QuranText.shared.ayah(n) { WordMeaningsSheet(ayah: a).environment(model) }
     }
   }
   private func handle(_ act: AyahAction, _ a: Ayah) {
     let txt = "\(a.text) ﴿\(a.ayah)﴾\n[\(QuranSearch.refLabel(a))]"
     switch act {
     case .tafsir: sheet = .tafsir(a.n)
+    case .translation: sheet = .translation(a.n)
+    case .wordMeanings: sheet = .words(a.n)
     case .listen: sheet = .reciter; playFrom(a.n, scope: .surah)
     case .playFrom: playFrom(a.n, scope: .surah)
     case .repeat3: prefs.repeatAyah = 3; model.player.repeatAyah = 3; playFrom(a.n, scope: .single)
@@ -250,6 +274,7 @@ struct MushafReaderView: View {
   }
   private func go(to p: Int) {
     let t = min(max(p, 1), MushafLayout.totalPages); guard t != page else { return }
+    if spread { let k = (t + 1) / 2; page = t; if pair != k { pair = k }; return }
     if abs(t - current) <= 2 { withAnimation(.easeInOut(duration: 0.25)) { page = t } } else { page = t }
   }
   private func flash(_ n: Int) { rs?.selected = n; DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { if rs?.selected == n { rs?.selected = nil } } }

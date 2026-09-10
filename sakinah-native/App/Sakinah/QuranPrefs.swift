@@ -41,6 +41,9 @@ final class QuranPrefs {
   var fitText: Bool { didSet { Store.d.set(fitText, forKey: "quran.fitText") } }
   var tafsir: String { didSet { Store.d.set(tafsir, forKey: "quran.tafsir") } }
   var hintShown: Bool { didSet { Store.d.set(hintShown, forKey: "quran.hintShown") } }
+  /// معرّف الترجمة في quran.com (الافتراضي Saheeh International)
+  var translation: Int { didSet { Store.d.set(translation, forKey: "quran.translation") } }
+  var wbwLanguage: String { didSet { Store.d.set(wbwLanguage, forKey: "quran.wbwLang") } }
   var bookmarks: [WebSettings.Bookmark] { didSet { Store.save(bookmarks, "quran.bookmarks") } }
   var khatmah: KhatmahPlan? { didSet { Store.save(khatmah, "quran.khatmah") } }
   var readLog: ReadLog { didSet { Store.save(readLog, "quran.readLog") } }
@@ -54,6 +57,7 @@ final class QuranPrefs {
     dim = Store.dbl("quran.dim", 0); keepAwake = Store.bool("quran.keepAwake", true); tajweed = Store.bool("quran.tajweed", false)
     view = Store.str("quran.view", "pages"); scroll = Store.str("quran.scroll", "horizontal"); textFont = Store.str("quran.textFont", "amiri"); fitText = Store.bool("quran.fitText", true)
     tafsir = Store.str("quran.tafsir", "muyassar"); hintShown = Store.bool("quran.hintShown", false)
+    translation = Store.int("quran.translation", QuranAPI.defaultTranslation); wbwLanguage = Store.str("quran.wbwLang", "en")
     bookmarks = Store.load("quran.bookmarks", []); khatmah = Store.load("quran.khatmah", nil); readLog = Store.load("quran.readLog", [:]); challenge = Store.load("quran.challenge", nil)
   }
 

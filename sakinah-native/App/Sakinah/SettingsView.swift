@@ -24,6 +24,9 @@ struct SettingsView: View {
         }
         NotificationsSection()
         ExtraRemindersSection()
+        Section {
+          Toggle(isOn: Binding(get: { model.settings.liveActivity }, set: { model.settings.liveActivity = $0; LiveActivityManager.sync(model) })) { VStack(alignment: .leading) { Text("نشاط مباشر للصلاة القادمة"); Text("عدّ تنازلي على شاشة القفل والجزيرة الديناميكية؛ يُحدَّث عند فتح التطبيق").font(.arabic(12)).foregroundStyle(.secondary) } }
+        } header: { Text("شاشة القفل") } footer: { Text("أضف ودجت «مواقيت الصلاة» إلى الشاشة الرئيسية أو شاشة القفل من محرر الودجات: يعمل بموقع الجهاز أو بمدينة تختارها من إعدادات الودجت.").font(.arabic(11)) }
         Section("العرض") {
           Toggle("نظام 12 ساعة", isOn: $settings.hour12)
           Picker("الأرقام", selection: $settings.numerals) { Text("1 2 3").tag("latn"); Text("١ ٢ ٣").tag("arab") }

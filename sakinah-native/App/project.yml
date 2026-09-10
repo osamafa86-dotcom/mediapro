@@ -22,6 +22,7 @@ targets:
     platform: iOS
     sources:
       - path: Sakinah
+      - path: Widget/Shared
       # صوت الإشعار (≤ 30 ثانية) والأذان الكامل — الملفات نفسها في نسخة الويب (LICENSE في sakinah/assets/audio)
       - path: ../../sakinah/assets/audio/adhan_short.wav
         buildPhase: resources
@@ -35,13 +36,14 @@ targets:
         buildPhase: resources
     dependencies:
       - package: SakinahCore
+      - target: SakinahWidget
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.emdatra.sakinah.native
         PRODUCT_NAME: Sakinah
-        MARKETING_VERSION: "4.0.0"
+        MARKETING_VERSION: "4.1.0"
         CURRENT_PROJECT_VERSION: "1"
-        TARGETED_DEVICE_FAMILY: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         SWIFT_STRICT_CONCURRENCY: minimal
@@ -66,6 +68,7 @@ targets:
         UILaunchScreen:
           UIColorName: AccentColor
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UIRequiresFullScreen: true
         ITSAppUsesNonExemptEncryption: false
         NSLocationWhenInUseUsageDescription: "لحساب مواقيت الصلاة واتجاه القبلة حسب موقعك"
@@ -76,6 +79,43 @@ targets:
         LSSupportsOpeningDocumentsInPlace: true
         UIBackgroundModes: [audio]
         UIApplicationSupportsIndirectInputEvents: true
+        NSSupportsLiveActivities: true
+  # ودجت مواقيت الصلاة (الشاشة الرئيسية وشاشة القفل) والنشاط المباشر — يحسب بنفسه من النواة بموقع الجهاز أو مدينة يختارها المستخدم (لا يحتاج App Group)
+  SakinahWidget:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Widget
+    dependencies:
+      - package: SakinahCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.emdatra.sakinah.native.widget
+        PRODUCT_NAME: SakinahWidget
+        MARKETING_VERSION: "4.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_STRICT_CONCURRENCY: minimal
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          PROVISIONING_PROFILE_SPECIFIER: "Sakinah Native Widget AppStore CI"
+    info:
+      path: Widget/Info.plist
+      properties:
+        CFBundleDisplayName: "سكينة"
+        CFBundleName: "SakinahWidget"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleDevelopmentRegion: ar
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+        NSWidgetWantsLocation: true
+        NSLocationWhenInUseUsageDescription: "لحساب مواقيت الصلاة في الودجت حسب موقعك"
 schemes:
   Sakinah:
     build:
