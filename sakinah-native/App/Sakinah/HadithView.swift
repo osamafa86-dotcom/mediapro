@@ -2,63 +2,147 @@ import SwiftUI
 import UIKit
 import SakinahCore
 
-/// الأحاديث: مختارات من الصحيحين (حديث اليوم، بحث، تصنيفات، مفضلة) والأربعون النووية
+/// شاشة الحديث (تصميم Figma 11): بطاقة حديث اليوم بخلفية الليل، مبدّل المجموعة، شرائط التصنيف، وبطاقات الأحاديث
 struct HadithView: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.dismiss) private var dismiss
   var initialBook = "sahih"
-  @State private var book = "sahih"
+  var embedded = false
+  @State private var book = 0
   @State private var topic = "all"
   @State private var query = ""
+  @State private var searching = false
   @State private var showAll = false
   @State private var shareCard: ShareCardRequest?
+
   var body: some View {
     let numerals = model.settings.numerals
     let favs = Set(model.content.favorites)
     let daily = HadithLibrary.hadithOfDay(Date(), tz: model.timeZone)
-    let sahih = book == "sahih" ? HadithLibrary.searchSahih(query, topic: topic == "all" || topic == "fav" ? nil : topic, favorites: favs, onlyFavorites: topic == "fav") : []
-    let nawawi = book == "nawawi" ? HadithLibrary.searchNawawi(query, favorites: favs, onlyFavorites: topic == "fav") : []
-    let count = book == "sahih" ? sahih.count : nawawi.count
+    let sahih = book == 0 ? HadithLibrary.searchSahih(query, topic: topic == "all" || topic == "fav" ? nil : topic, favorites: favs, onlyFavorites: topic == "fav") : []
+    let nawawi = book == 1 ? HadithLibrary.searchNawawi(query, favorites: favs, onlyFavorites: topic == "fav") : []
+    let count = book == 0 ? sahih.count : nawawi.count
     ScrollView {
-      VStack(spacing: 12) {
-        Picker("المجموعة", selection: $book) { Text("مختارات من الصحيحين").tag("sahih"); Text("الأربعون النووية").tag("nawawi") }.pickerStyle(.segmented)
-        if book == "sahih" && query.isEmpty && topic == "all" { HadithCard(hadith: daily, daily: true, onShareImage: { shareCard = card(for: daily) }) }
-        ScrollView(.horizontal) {
-          HStack(spacing: 6) {
-            chip("الكل", "all"); chip("♥ المفضلة", "fav")
-            if book == "sahih" { ForEach(HadithLibrary.topics, id: \.self) { t in chip(t, t) } }
+      VStack(spacing: DS.Space.s3) {
+        if searching { searchField }
+        if book == 0 && query.isEmpty && topic == "all" {
+          DailyHadithCard(hadith: daily) { shareCard = card(for: daily) }
+        }
+        DSSegmented(items: ["الأربعون النووية", "مختارات الصحيحين"], selection: Binding(get: { book == 0 ? 1 : 0 }, set: { book = $0 == 1 ? 0 : 1; topic = "all"; showAll = false }))
+        topicChips
+        Text(book == 0
+             ? "\(Fmt.number(count, numerals: numerals)) حديثًا · منقولة حرفيًا من الصحيحين بترقيم فتح الباري وعبد الباقي"
+             : "\(Fmt.number(count, numerals: numerals)) حديثًا · الأربعون النووية للإمام النووي بزيادتي ابن رجب، بمتونها وتخريجها")
+          .font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).frame(maxWidth: .infinity, alignment: .trailing)
+        if book == 0 {
+          ForEach(showAll ? sahih : Array(sahih.prefix(20))) { h in HadithCard(hadith: h) { shareCard = card(for: h) } }
+        } else {
+          ForEach(showAll ? nawawi : Array(nawawi.prefix(20))) { n in
+            NawawiCard(hadith: n) {
+              shareCard = ShareCardRequest(title: "الأربعون النووية · \(n.title)", text: n.text, footer: n.takhrij.count > 70 ? String(n.takhrij.prefix(70)) + "…" : n.takhrij, quran: false, shareText: "\(n.text)\n\n\(n.takhrij)\n— الأربعون النووية، \(n.title)", filename: "\(n.id).png")
+            }
           }
         }
-        .scrollIndicators(.hidden)
-        Text(book == "sahih" ? "\(Fmt.number(count, numerals: numerals)) حديثًا · النصوص منقولة حرفيًا من الصحيحين بترقيم فتح الباري وعبد الباقي" : "\(Fmt.number(count, numerals: numerals)) حديثًا · الأربعون النووية للإمام النووي بزيادتي ابن رجب، بمتونها وتخريجها").font(.arabic(11)).foregroundStyle(.tertiary).frame(maxWidth: .infinity, alignment: .leading)
-        if book == "sahih" {
-          ForEach(showAll ? sahih : Array(sahih.prefix(20))) { h in HadithCard(hadith: h, onShareImage: { shareCard = card(for: h) }) }
-        } else {
-          ForEach(showAll ? nawawi : Array(nawawi.prefix(20))) { n in NawawiCard(hadith: n, onShareImage: { shareCard = ShareCardRequest(title: "الأربعون النووية · \(n.title)", text: n.text, footer: n.takhrij.count > 70 ? String(n.takhrij.prefix(70)) + "…" : n.takhrij, quran: false, shareText: "\(n.text)\n\n\(n.takhrij)\n— الأربعون النووية، \(n.title)", filename: "\(n.id).png") }) }
+        if count == 0 {
+          Text(topic == "fav" ? "لم تُضف أحاديث إلى المفضلة بعد" : "لا نتائج — جرّب كلمة أخرى")
+            .font(DS.F.bodySm).foregroundStyle(DS.C.textTertiary).padding(.top, DS.Space.s6)
         }
-        if count == 0 { Text(topic == "fav" ? "لم تُضف أحاديث إلى المفضلة بعد" : "لا نتائج").foregroundStyle(.secondary).padding() }
-        if count > 20 && !showAll { Button("عرض الكل (\(Fmt.number(count, numerals: numerals)))") { showAll = true }.buttonStyle(.bordered) }
+        if count > 20 && !showAll {
+          DSButton(title: "عرض الكل (\(Fmt.number(count, numerals: numerals)))", kind: .outline) { showAll = true }
+        }
       }
-      .padding()
+      .padding(.horizontal, DS.Space.s4).padding(.top, DS.Space.s2).padding(.bottom, DS.Space.s8)
     }
-    .background(Theme.background)
-    .searchable(text: $query, prompt: book == "sahih" ? "ابحث في نص الحديث أو الراوي…" : "ابحث في الأربعين النووية…")
-    .navigationTitle("الأحاديث").navigationBarTitleDisplayMode(.inline)
-    .onAppear { book = initialBook }
-    .onChange(of: book) { topic = "all"; showAll = false }
+    .background(DS.C.bgCanvas)
+    .safeAreaInset(edge: .top, spacing: 0) { navBar }
+    .navigationBarHidden(true)
+    .onAppear { book = initialBook == "nawawi" ? 1 : 0 }
     .sheet(item: $shareCard) { ShareCardSheet(request: $0).environment(model) }
   }
-  private func chip(_ label: String, _ id: String) -> some View {
-    Button(label) { topic = id; showAll = false }.buttonStyle(.bordered).tint(topic == id ? Theme.primary : .secondary).font(.arabic(12))
+
+  private var navBar: some View {
+    HStack {
+      DSIconButton(systemName: searching ? "xmark" : "magnifyingglass", label: searching ? "إغلاق البحث" : "بحث في الأحاديث") {
+        withAnimation(.snappy(duration: 0.2)) { searching.toggle(); if !searching { query = "" } }
+      }
+      Spacer()
+      Text("الحديث").font(DS.F.displaySm).foregroundStyle(DS.C.textPrimary)
+      Spacer()
+      if embedded { DSIconButton(systemName: "chevron.forward", label: "رجوع") { dismiss() } }
+      else { Color.clear.frame(width: 42, height: 42) }
+    }
+    .padding(.horizontal, DS.Space.s4).padding(.vertical, DS.Space.s3)
+    .background(DS.C.bgCanvas)
   }
+
+  private var searchField: some View {
+    HStack(spacing: DS.Space.s2) {
+      Image(systemName: "magnifyingglass").font(.system(size: 15)).foregroundStyle(DS.C.textTertiary)
+      TextField(book == 0 ? "ابحث في نص الحديث أو الراوي…" : "ابحث في الأربعين النووية…", text: $query).font(DS.F.bodyMd).submitLabel(.search)
+      if !query.isEmpty { Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(DS.C.textTertiary) }.buttonStyle(.plain) }
+    }
+    .dsTile(padding: DS.Space.s3)
+  }
+
+  private var topicChips: some View {
+    ScrollView(.horizontal) {
+      HStack(spacing: DS.Space.s2) {
+        DSChip(title: "الكل", on: topic == "all") { topic = "all"; showAll = false }
+        DSChip(title: "المفضلة", on: topic == "fav", icon: "heart") { topic = "fav"; showAll = false }
+        if book == 0 {
+          ForEach(HadithLibrary.topics, id: \.self) { t in
+            DSChip(title: t, on: topic == t) { topic = t; showAll = false }
+          }
+        }
+      }
+      .padding(.horizontal, 2)
+    }
+    .scrollIndicators(.hidden)
+  }
+
   private func card(for h: Hadith) -> ShareCardRequest {
     ShareCardRequest(title: "حديث شريف · \(h.grade)", text: h.text, footer: "عن \(h.narrator) — \(h.reference)", quran: false, shareText: "\(h.text)\n\nرواه \(h.narrator) — \(h.reference) (\(h.grade))", filename: "hadith-\(h.id).png")
   }
 }
 
+/// حديث اليوم: بطاقة بخلفية الليل، النصّ بأميري، والتصنيف والتخريج في الأسفل
+struct DailyHadithCard: View {
+  @Environment(AppModel.self) private var model
+  let hadith: Hadith
+  var onShareImage: () -> Void
+  @State private var share: ShareItems?
+  var body: some View {
+    let fav = model.content.favorites.contains(hadith.id)
+    let text = "\(hadith.text)\n\nرواه \(hadith.narrator) — \(hadith.reference) (\(hadith.grade))"
+    let hijri = model.hijri(now: Date()).formatted
+    return VStack(alignment: .trailing, spacing: DS.Space.s4) {
+      HStack {
+        DSIconButton(systemName: "square.and.arrow.up", style: .glass, size: 34, iconSize: 14, label: "مشاركة") { share = ShareItems(items: [text]) }
+        DSIconButton(systemName: fav ? "heart.fill" : "heart", style: .glass, size: 34, iconSize: 14, label: "مفضلة") { model.content.toggleFavorite(hadith.id) }
+        Spacer()
+        Text("حديث اليوم · \(hijri)").font(DS.F.labelXs).foregroundStyle(DS.C.textOnDarkMuted).lineLimit(1).minimumScaleFactor(0.7)
+      }
+      Text("«\(hadith.text)»")
+        .font(DS.amiri(18)).lineSpacing(11)
+        .foregroundStyle(DS.C.textOnDark)
+        .multilineTextAlignment(.center).frame(maxWidth: .infinity)
+      HStack {
+        Text(hadith.topic).font(DS.F.labelXs).foregroundStyle(DS.C.textOnDarkMuted)
+        Spacer()
+        Text("\(hadith.grade) · \(hadith.reference)").font(DS.F.labelXs).foregroundStyle(DS.C.accentGold)
+      }
+    }
+    .padding(DS.Space.s5)
+    .nightCard()
+    .onTapGesture { onShareImage() }
+    .sheet(item: $share) { ShareSheet(items: $0.items) }
+  }
+}
+
+/// بطاقة حديث: النصّ، الراوي، شرائط الدرجة والمصدر والموضوع، وأزرار وفائدة قابلة للطيّ
 struct HadithCard: View {
   @Environment(AppModel.self) private var model
   let hadith: Hadith
-  var daily = false
   var onShareImage: () -> Void
   @State private var showLesson = false
   @State private var share: ShareItems?
@@ -66,29 +150,40 @@ struct HadithCard: View {
     let fav = model.content.favorites.contains(hadith.id)
     let scale = model.content.textScale
     let text = "\(hadith.text)\n\nرواه \(hadith.narrator) — \(hadith.reference) (\(hadith.grade))"
-    VStack(alignment: .leading, spacing: 10) {
-      if daily { Text("✦ حديث اليوم").font(.arabic(12, weight: .bold)).foregroundStyle(Theme.gold) }
-      Text(hadith.text).font(.custom(MushafFonts.amiriQuranFont, fixedSize: 17 * scale)).lineSpacing(9 * scale)
-      Text("عن \(hadith.narrator)").font(.arabic(12)).foregroundStyle(.secondary)
-      HStack { chipText(hadith.grade, strong: hadith.grade == "متفق عليه"); chipText(hadith.reference); chipText(hadith.topic) }.font(.arabic(10))
-      HStack(spacing: 4) {
-        Button { model.content.toggleFavorite(hadith.id) } label: { Image(systemName: fav ? "heart.fill" : "heart").foregroundStyle(fav ? .red : .secondary) }
-        Button { UIPasteboard.general.string = text } label: { Image(systemName: "doc.on.doc") }
-        Button { share = ShareItems(items: [text]) } label: { Image(systemName: "square.and.arrow.up") }
-        Button { onShareImage() } label: { Image(systemName: "photo") }
+    return VStack(alignment: .trailing, spacing: DS.Space.s3) {
+      Text("«\(hadith.text)»")
+        .font(DS.amiri(17 * scale)).lineSpacing(9 * scale)
+        .foregroundStyle(DS.C.textPrimary)
+        .multilineTextAlignment(.center).frame(maxWidth: .infinity)
+      HStack {
+        Text(hadith.topic).font(DS.F.labelXs).foregroundStyle(DS.C.brandPrimary)
+          .padding(.vertical, 4).padding(.horizontal, 10).background(DS.C.brandSoft, in: Capsule())
         Spacer()
-        Button(showLesson ? "إخفاء الفائدة" : "الفائدة من الحديث") { withAnimation { showLesson.toggle() } }.font(.arabic(12))
+        Text("\(hadith.reference) · عن \(hadith.narrator)").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).lineLimit(1).minimumScaleFactor(0.7)
       }
-      .buttonStyle(.plain).foregroundStyle(.secondary)
-      if showLesson { Text(hadith.lesson).font(.arabic(14 * scale)).foregroundStyle(.primary).padding(10).background(Theme.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 10)) }
+      if showLesson {
+        Text(hadith.lesson).font(DS.F.bodySm).foregroundStyle(DS.C.textPrimary)
+          .frame(maxWidth: .infinity, alignment: .trailing)
+          .padding(DS.Space.s3).background(DS.C.brandSoft.opacity(0.5), in: RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))
+      }
+      HStack(spacing: DS.Space.s2) {
+        DSIconButton(systemName: fav ? "heart.fill" : "heart", style: fav ? .brand : .soft, size: 34, iconSize: 14, label: "مفضلة") { model.content.toggleFavorite(hadith.id) }
+        DSIconButton(systemName: "doc.on.doc", style: .soft, size: 34, iconSize: 14, label: "نسخ") { UIPasteboard.general.string = text }
+        DSIconButton(systemName: "square.and.arrow.up", style: .soft, size: 34, iconSize: 14, label: "مشاركة") { share = ShareItems(items: [text]) }
+        DSIconButton(systemName: "photo", style: .soft, size: 34, iconSize: 14, label: "مشاركة كصورة") { onShareImage() }
+        Spacer()
+        Button { withAnimation(.snappy(duration: 0.2)) { showLesson.toggle() } } label: {
+          DSLinkLabel(title: showLesson ? "إخفاء الفائدة" : "الفائدة")
+        }
+        .buttonStyle(.plain)
+      }
     }
-    .padding(14).frame(maxWidth: .infinity, alignment: .leading).background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 16))
-    .overlay(RoundedRectangle(cornerRadius: 16).stroke(daily ? Theme.gold.opacity(0.5) : .clear, lineWidth: 1))
+    .dsCard(padding: DS.Space.s4)
     .sheet(item: $share) { ShareSheet(items: $0.items) }
   }
-  private func chipText(_ t: String, strong: Bool = false) -> some View { Text(t).padding(.horizontal, 8).padding(.vertical, 3).background((strong ? Theme.primary : Color.secondary).opacity(0.12), in: Capsule()).lineLimit(1) }
 }
 
+/// بطاقة من الأربعين النووية: العنوان الذهبي، المتن، والتخريج
 struct NawawiCard: View {
   @Environment(AppModel.self) private var model
   let hadith: NawawiHadith
@@ -98,58 +193,184 @@ struct NawawiCard: View {
     let fav = model.content.favorites.contains(hadith.id)
     let scale = model.content.textScale
     let text = "\(hadith.text)\n\n\(hadith.takhrij)\n— الأربعون النووية، \(hadith.title)"
-    VStack(alignment: .leading, spacing: 10) {
-      Text(hadith.title).font(.arabic(12, weight: .bold)).foregroundStyle(Theme.gold)
-      Text(hadith.text).font(.custom(MushafFonts.amiriQuranFont, fixedSize: 17 * scale)).lineSpacing(9 * scale)
-      Text(hadith.takhrij).font(.arabic(12)).foregroundStyle(.secondary)
-      HStack(spacing: 4) {
-        Button { model.content.toggleFavorite(hadith.id) } label: { Image(systemName: fav ? "heart.fill" : "heart").foregroundStyle(fav ? .red : .secondary) }
-        Button { UIPasteboard.general.string = text } label: { Image(systemName: "doc.on.doc") }
-        Button { share = ShareItems(items: [text]) } label: { Image(systemName: "square.and.arrow.up") }
-        Button { onShareImage() } label: { Image(systemName: "photo") }
+    return VStack(alignment: .trailing, spacing: DS.Space.s3) {
+      Text(hadith.title).font(DS.F.labelSm).foregroundStyle(DS.C.accentGoldStrong)
+        .frame(maxWidth: .infinity, alignment: .trailing)
+      Text("«\(hadith.text)»")
+        .font(DS.amiri(17 * scale)).lineSpacing(9 * scale)
+        .foregroundStyle(DS.C.textPrimary)
+        .multilineTextAlignment(.center).frame(maxWidth: .infinity)
+      Text(hadith.takhrij).font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary)
+        .frame(maxWidth: .infinity, alignment: .trailing)
+      HStack(spacing: DS.Space.s2) {
+        DSIconButton(systemName: fav ? "heart.fill" : "heart", style: fav ? .brand : .soft, size: 34, iconSize: 14, label: "مفضلة") { model.content.toggleFavorite(hadith.id) }
+        DSIconButton(systemName: "doc.on.doc", style: .soft, size: 34, iconSize: 14, label: "نسخ") { UIPasteboard.general.string = text }
+        DSIconButton(systemName: "square.and.arrow.up", style: .soft, size: 34, iconSize: 14, label: "مشاركة") { share = ShareItems(items: [text]) }
+        DSIconButton(systemName: "photo", style: .soft, size: 34, iconSize: 14, label: "مشاركة كصورة") { onShareImage() }
+        Spacer()
       }
-      .buttonStyle(.plain).foregroundStyle(.secondary)
     }
-    .padding(14).frame(maxWidth: .infinity, alignment: .leading).background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 16))
+    .dsCard(padding: DS.Space.s4)
     .sheet(item: $share) { ShareSheet(items: $0.items) }
   }
 }
 
-/// شاشة «المزيد»: الأحاديث وحصن المسلم والمسبحة والإعدادات، وحديث اليوم
+/// شاشة «المزيد» (تصميم Figma 12): بطاقة هوية التطبيق، ثم مجموعات المحتوى والأدوات والتطبيق
 struct MoreView: View {
   @Environment(AppModel.self) private var model
+  @State private var showChallenges = false
   private var version: String { (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "—" }
   private var build: String { (Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? "—" }
+
   var body: some View {
     NavigationStack {
-      let hd = HadithLibrary.hadithOfDay(Date(), tz: model.timeZone)
       ScrollView {
-        VStack(spacing: 12) {
-          LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            NavigationLink { HadithView() } label: { tile("الأحاديث", "الصحيحان والأربعون النووية", "text.book.closed") }
-            NavigationLink { HisnView() } label: { tile("حصن المسلم", "الكتاب كاملًا: ١٣٢ بابًا", "book.closed") }
-            NavigationLink { TasbihView() } label: { tile("المسبحة", "عدّاد التسبيح والإحصاء", "circle.grid.3x3") }
-            NavigationLink { SettingsView() } label: { tile("الإعدادات", "الموقع والحساب والتنبيهات والنسخ", "gearshape") }
+        VStack(spacing: DS.Space.s4) {
+          brandCard
+          group("المحتوى") {
+            NavigationLink { HadithView(embedded: true).environment(model) } label: {
+              DSRow(icon: "text.book.closed", title: "الحديث", subtitle: "مختارات الصحيحين · حديث اليوم") { DSChevron() }
+            }.buttonStyle(.plain)
+            Divider().overlay(DS.C.borderSubtle)
+            NavigationLink { HadithView(initialBook: "nawawi", embedded: true).environment(model) } label: {
+              DSRow(icon: "list.bullet.rectangle", title: "الأربعون النووية", subtitle: nil) { DSChevron() }
+            }.buttonStyle(.plain)
+            Divider().overlay(DS.C.borderSubtle)
+            NavigationLink { HisnView().environment(model) } label: {
+              DSRow(icon: "book.closed", title: "حصن المسلم", subtitle: "\(Fmt.number(Hisn.chapters.count, numerals: model.settings.numerals)) بابًا") { DSChevron() }
+            }.buttonStyle(.plain)
+            Divider().overlay(DS.C.borderSubtle)
+            Button { showChallenges = true } label: {
+              DSRow(icon: "flame", iconStyle: .gold, title: "التحدّيات والختمة", subtitle: streakLabel) { DSChevron() }
+            }.buttonStyle(.plain)
           }
-          NavigationLink { HadithView() } label: {
-            VStack(alignment: .leading, spacing: 8) {
-              Text("✦ حديث اليوم").font(.arabic(12, weight: .bold)).foregroundStyle(Theme.gold)
-              Text(hd.text.count > 220 ? String(hd.text.prefix(220)) + "…" : hd.text).font(.custom(MushafFonts.amiriQuranFont, fixedSize: 16)).lineSpacing(8).foregroundStyle(.primary)
-              Text("عن \(hd.narrator) — \(hd.reference)").font(.arabic(12)).foregroundStyle(.secondary)
-            }
-            .padding(14).frame(maxWidth: .infinity, alignment: .leading).background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 16))
+          group("الأدوات") {
+            NavigationLink { WidgetsHelpView().environment(model) } label: {
+              DSRow(icon: "bolt", title: "الودجت والنشاط المباشر", subtitle: "شاشة القفل والجزيرة الديناميكية") { DSChevron() }
+            }.buttonStyle(.plain)
+            Divider().overlay(DS.C.borderSubtle)
+            NavigationLink { MonthTableView().environment(model) } label: {
+              DSRow(icon: "calendar", title: "الجدول الشهري", subtitle: "تصدير ICS") { DSChevron() }
+            }.buttonStyle(.plain)
+            Divider().overlay(DS.C.borderSubtle)
+            NavigationLink { DownloadsView().environment(model) } label: {
+              DSRow(icon: "arrow.down.circle", title: "التنزيلات دون اتصال", subtitle: downloadsLabel) { DSChevron() }
+            }.buttonStyle(.plain)
+            Divider().overlay(DS.C.borderSubtle)
+            NavigationLink { BackupView().environment(model) } label: {
+              DSRow(icon: "icloud", title: "النسخ الاحتياطي", subtitle: "تصدير واستيراد إعداداتك") { DSChevron() }
+            }.buttonStyle(.plain)
           }
-          .buttonStyle(.plain)
-          Text("سكينة \(version) (بناء \(build)) · تطبيق أصلي بالكامل يعمل دون اتصال · لا حساب ولا تتبّع؛ الشبكة تُستخدم فقط لجلب التلاوات وتلاوة أذكار حصن المسلم عند الطلب.").font(.arabic(11)).foregroundStyle(.tertiary).multilineTextAlignment(.center)
+          group("التطبيق") {
+            NavigationLink { SettingsView().environment(model) } label: {
+              DSRow(icon: "gearshape", title: "الإعدادات", subtitle: "الموقع والحساب والتنبيهات والمظهر") { DSChevron() }
+            }.buttonStyle(.plain)
+            Divider().overlay(DS.C.borderSubtle)
+            NavigationLink { TasbihView().environment(model) } label: {
+              DSRow(icon: "circle.hexagongrid", title: "المسبحة", subtitle: "عدّاد التسبيح والإحصاء") { DSChevron() }
+            }.buttonStyle(.plain)
+          }
+          Text("سكينة \(version) (بناء \(build)) · تطبيق أصلي بالكامل يعمل دون اتصال. لا حساب ولا تتبّع؛ الشبكة تُستعمل فقط لجلب التلاوات وتلاوة الأذكار عند الطلب.")
+            .font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).multilineTextAlignment(.center)
         }
-        .padding()
+        .padding(.horizontal, DS.Space.s4).padding(.top, DS.Space.s2).padding(.bottom, DS.Space.s8)
       }
-      .background(Theme.background)
-      .navigationTitle("المزيد")
+      .background(DS.C.bgCanvas)
+      .safeAreaInset(edge: .top, spacing: 0) {
+        HStack { Spacer(); Text("المزيد").font(DS.F.displaySm).foregroundStyle(DS.C.textPrimary) }
+          .padding(.horizontal, DS.Space.s4).padding(.vertical, DS.Space.s3).background(DS.C.bgCanvas)
+      }
+      .navigationBarHidden(true)
+      .sheet(isPresented: $showChallenges) { ChallengesSheet().environment(model) }
     }
   }
-  private func tile(_ title: String, _ sub: String, _ icon: String) -> some View {
-    VStack(spacing: 6) { Image(systemName: icon).font(.system(size: 26)).foregroundStyle(Theme.primary); Text(title).font(.arabic(15, weight: .bold)); Text(sub).font(.arabic(11)).foregroundStyle(.secondary).multilineTextAlignment(.center) }
-      .frame(maxWidth: .infinity).padding(.vertical, 16).padding(.horizontal, 8).background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 16)).foregroundStyle(.primary)
+
+  private var brandCard: some View {
+    HStack(spacing: DS.Space.s4) {
+      VStack(alignment: .trailing, spacing: DS.Space.s2) {
+        Text("سكينة").font(DS.F.displayMd).foregroundStyle(DS.C.textPrimary)
+        Text("مواقيتك ومصحفك وأذكارك · بلا إعلانات ولا تتبّع")
+          .font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary).lineLimit(2).minimumScaleFactor(0.8)
+        HStack(spacing: DS.Space.s2) {
+          Text("لا يجمع بيانات").font(DS.F.labelXs).foregroundStyle(DS.C.brandPrimary)
+            .padding(.vertical, 4).padding(.horizontal, 10).background(DS.C.brandSoft, in: Capsule())
+          Text("الإصدار \(version)").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary)
+            .padding(.vertical, 4).padding(.horizontal, 10).background(DS.C.bgSubtle, in: Capsule())
+        }
+      }
+      Spacer(minLength: 0)
+      ZStack {
+        Circle().fill(DS.C.accentGoldSoft).frame(width: 62, height: 62)
+        Image(systemName: "moon.stars.fill").font(.system(size: 26)).foregroundStyle(DS.C.accentGoldStrong)
+      }
+    }
+    .dsCard()
+  }
+
+  private var streakLabel: String? {
+    let n = Khatmah.streak(model.quran.readLog, today: model.todayKey)
+    return n > 0 ? "سلسلة \(Fmt.number(n, numerals: model.settings.numerals)) \(n == 1 ? "يوم" : n == 2 ? "يومان" : n <= 10 ? "أيام" : "يومًا")" : nil
+  }
+  private var downloadsLabel: String? {
+    let n = model.downloads.summary(reciter: model.quran.reciter).count
+    return n > 0 ? "\(Fmt.number(n, numerals: model.settings.numerals)) سورة محفوظة" : "لا تنزيلات بعد"
+  }
+
+  @ViewBuilder private func group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+    VStack(alignment: .trailing, spacing: DS.Space.s2) {
+      Text(title).font(DS.F.labelSm).foregroundStyle(DS.C.textTertiary)
+        .frame(maxWidth: .infinity, alignment: .trailing).padding(.horizontal, DS.Space.s1)
+      VStack(spacing: 0) { content() }.dsCard(padding: DS.Space.s2)
+    }
+  }
+}
+
+/// شرح الودجت والنشاط المباشر مع مفتاح تفعيله
+struct WidgetsHelpView: View {
+  @Environment(AppModel.self) private var model
+  var body: some View {
+    ScrollView {
+      VStack(alignment: .trailing, spacing: DS.Space.s3) {
+        DSCardBlock("النشاط المباشر", "عدّ تنازلي للصلاة القادمة على شاشة القفل وفي الجزيرة الديناميكية، يُحدَّث عند فتح التطبيق.") {
+          Toggle(isOn: Binding(get: { model.settings.liveActivity }, set: { model.settings.liveActivity = $0; LiveActivityManager.sync(model) })) {
+            Text("تفعيل النشاط المباشر").font(DS.F.bodyMd).foregroundStyle(DS.C.textPrimary)
+          }
+          .toggleStyle(DSToggleStyle())
+        }
+        DSCardBlock("ودجت مواقيت الصلاة", "أضف ودجت «مواقيت الصلاة» إلى الشاشة الرئيسية أو شاشة القفل: المس الشاشة مطوّلًا ← زر + ← ابحث عن «سكينة». يعمل بموقع الجهاز أو بمدينة تختارها من إعدادات الودجت.") { EmptyView() }
+        DSCardBlock("لماذا لا يتحدّث الودجت كل دقيقة؟", "يمنح النظام الودجت عددًا محدودًا من التحديثات يوميًا؛ لذا نُجدول التحديث عند كل صلاة وعند فتح التطبيق، وهو ما يجعل الوقت المعروض صحيحًا دائمًا.") { EmptyView() }
+      }
+      .padding(DS.Space.s4)
+    }
+    .background(DS.C.bgCanvas)
+    .navigationTitle("الودجت والنشاط المباشر").navigationBarTitleDisplayMode(.inline)
+  }
+}
+
+/// النسخ الاحتياطي في شاشة مستقلّة
+struct BackupView: View {
+  @Environment(AppModel.self) private var model
+  var body: some View {
+    Form { BackupSection().environment(model) }
+      .navigationTitle("النسخ الاحتياطي").navigationBarTitleDisplayMode(.inline)
+  }
+}
+
+/// بطاقة عنوان ونصّ مع محتوى اختياري أسفلها
+struct DSCardBlock<Content: View>: View {
+  let title: String
+  let body_: String
+  @ViewBuilder var content: () -> Content
+  init(_ title: String, _ body_: String, @ViewBuilder content: @escaping () -> Content) {
+    self.title = title; self.body_ = body_; self.content = content
+  }
+  var body: some View {
+    VStack(alignment: .trailing, spacing: DS.Space.s2) {
+      Text(title).font(DS.F.headingSm).foregroundStyle(DS.C.textPrimary)
+      Text(body_).font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary)
+        .frame(maxWidth: .infinity, alignment: .trailing)
+      content()
+    }
+    .dsCard(padding: DS.Space.s4)
   }
 }

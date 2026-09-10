@@ -13,7 +13,7 @@ android {
   buildTypes { release { isMinifyEnabled = false } }
   compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
   kotlinOptions { jvmTarget = "17" }
-  buildFeatures { compose = true }
+  buildFeatures { compose = true; buildConfig = true }
   packaging { resources.excludes += setOf("META-INF/AL2.0", "META-INF/LGPL2.1", "META-INF/versions/9/OSGI-INF/MANIFEST.MF") }
 }
 kotlin { jvmToolchain(21) }
