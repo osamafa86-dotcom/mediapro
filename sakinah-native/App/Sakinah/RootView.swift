@@ -1,19 +1,27 @@
 import SwiftUI
 import SakinahCore
 
+/// تبديل التبويب من داخل الشاشات (بلاطات الوصول السريع)
+struct SwitchTabKey: EnvironmentKey { static let defaultValue: (AppTab) -> Void = { _ in } }
+extension EnvironmentValues { var switchTab: (AppTab) -> Void { get { self[SwitchTabKey.self] } set { self[SwitchTabKey.self] = newValue } } }
+
 struct RootView: View {
   @Environment(AppModel.self) private var model
   @Environment(\.scenePhase) private var scenePhase
   @State private var showOnboarding = false
+  @State private var tab: AppTab = .prayer
 
   var body: some View {
-    TabView {
-      PrayerView().tabItem { Label("الصلاة", systemImage: "sun.horizon") }
-      QiblaView().tabItem { Label("القبلة", systemImage: "location.north.circle") }
-      MushafHomeView().tabItem { Label("المصحف", systemImage: "book") }
-      AdhkarHomeView().tabItem { Label("الأذكار", systemImage: "hands.sparkles") }
-      MoreView().tabItem { Label("المزيد", systemImage: "ellipsis.circle") }
+    TabView(selection: $tab) {
+      PrayerView().hiddenSystemTabBar().tag(AppTab.prayer)
+      QiblaView().hiddenSystemTabBar().tag(AppTab.qibla)
+      MushafHomeView().hiddenSystemTabBar().tag(AppTab.mushaf)
+      AdhkarHomeView().hiddenSystemTabBar().tag(AppTab.adhkar)
+      MoreView().hiddenSystemTabBar().tag(AppTab.more)
     }
+    .safeAreaInset(edge: .bottom, spacing: 0) { DSTabBar(selection: $tab) }
+    .environment(\.switchTab, { t in withAnimation(.snappy(duration: 0.2)) { tab = t } })
+    .background(DS.C.bgCanvas)
     .fullScreenCover(isPresented: $showOnboarding) { OnboardingView().environment(model) }
     .onAppear {
       if !model.settings.seenIntro && model.location.coordinate == nil { showOnboarding = true }

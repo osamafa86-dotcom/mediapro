@@ -35,6 +35,47 @@ def convert(src: pathlib.Path, name: str) -> int:
     return len(z)
 
 ANDROID_OUT = ROOT.parent / 'sakinah-android' / 'app' / 'src' / 'main' / 'assets' / 'fonts'
+
+# ---- خطوط الواجهة (نظام التصميم): Readex Pro للواجهة والأرقام، Reem Kufi للعناوين، Amiri للقراءة — كلها برخصة OFL من مستودع Google Fonts
+GF = 'https://raw.githubusercontent.com/google/fonts/main/ofl/'
+UI_VARIABLE = {
+    # (ملف الخط المتغيّر، محاور ثابتة، [(اسم النمط، الوزن)])
+    'ReadexPro': ('readexpro/ReadexPro%5BHEXP%2Cwght%5D.ttf', {'HEXP': 0}, [('Light', 300), ('Regular', 400), ('Medium', 500), ('SemiBold', 600), ('Bold', 700)]),
+    'ReemKufi': ('reemkufi/ReemKufi%5Bwght%5D.ttf', {}, [('Regular', 400), ('SemiBold', 600), ('Bold', 700)]),
+}
+UI_STATIC = {'Amiri-Regular': 'amiri/Amiri-Regular.ttf', 'Amiri-Bold': 'amiri/Amiri-Bold.ttf'}
+UI_OUT = OUT / 'ui'
+ANDROID_UI_OUT = ANDROID_OUT / 'ui'
+
+def build_ui_fonts(android: bool) -> int:
+    """يولّد نسخًا ثابتة (static instances) من الخطوط المتغيّرة بأسماء PostScript على شكل Family-Style، غير مضغوطة (تُسجَّل عبر CoreText/AssetManager)"""
+    from fontTools.varLib import instancer
+    out = ANDROID_UI_OUT if android else UI_OUT
+    out.mkdir(parents=True, exist_ok=True)
+    total = 0
+    for fam, (rel, fixed, styles) in UI_VARIABLE.items():
+        src = fetch('ui/' + rel.split('/')[-1].replace('%5B', '[').replace('%5D', ']').replace('%2C', ','), GF + rel)
+        for style, wght in styles:
+            vf = TTFont(str(src))
+            axes = dict(fixed); axes['wght'] = wght
+            inst = instancer.instantiateVariableFont(vf, axes, inplace=True, updateFontNames=True)
+            ps = f'{fam}-{style}'
+            name = inst['name']
+            # ثبّت الأسماء كي تكون متوقعة على كل المنصات: العائلة + النمط + PostScript
+            for rec in name.names:
+                if rec.nameID == 1: rec.string = fam if style in ('Regular', 'Bold') else f'{fam} {style}'
+                elif rec.nameID == 2: rec.string = style if style in ('Regular', 'Bold') else 'Regular'
+                elif rec.nameID == 4: rec.string = f'{fam} {style}'
+                elif rec.nameID == 6: rec.string = ps
+                elif rec.nameID == 16: rec.string = fam
+                elif rec.nameID == 17: rec.string = style
+            buf = io.BytesIO(); inst.save(buf); data = buf.getvalue()
+            (out / f'{ps}.ttf').write_bytes(data); total += len(data)
+    for ps, rel in UI_STATIC.items():
+        src = fetch('ui/' + rel.split('/')[-1], GF + rel)
+        data = src.read_bytes(); (out / f'{ps}.ttf').write_bytes(data); total += len(data)
+    print(f'خطوط الواجهة: {len(list(out.glob("*.ttf")))} ملفًا → {out} ({total // 1024} ك.ب)')
+    return total
 def convert_raw(src: pathlib.Path, name: str) -> int:
     """TTF غير مضغوط لتطبيق Android (تُضغط داخل APK/AAB تلقائيًا)"""
     f = TTFont(str(src)); f.flavor = None
@@ -46,6 +87,10 @@ def main():
     args = sys.argv[1:]
     android = '--android' in args
     if android: args.remove('--android')
+    ui_only = '--ui-only' in args
+    if ui_only: args.remove('--ui-only')
+    build_ui_fonts(android)
+    if ui_only: return
     if len(args) > 1 and args[0] == '--pages':
         a, b = args[1].split('-'); pages = range(int(a), int(b) + 1)
     if android:

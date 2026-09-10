@@ -28,6 +28,7 @@ object Store {
   var locLat by mutableStateOf(Double.NaN); var locLon by mutableStateOf(Double.NaN); var locTz by mutableStateOf<String?>(null); var locName by mutableStateOf<String?>(null); var locCountry by mutableStateOf<String?>(null); var locCityId by mutableStateOf<String?>(null); var locMode by mutableStateOf("gps")
   var reminders by mutableStateOf(ReminderPrefs()); var extras by mutableStateOf(ExtraReminderPrefs())
   var lastRead by mutableStateOf<LastRead?>(null)
+  var seenIntro by mutableStateOf(false)
   var bookmarks by mutableStateOf<List<WebSettings.Bookmark>>(emptyList())
   var reciter by mutableStateOf(Catalog.shared.defaultReciter); var repeatAyah by mutableStateOf(1); var rate by mutableStateOf(1.0); var follow by mutableStateOf(true); var wordHighlight by mutableStateOf(true); var repeatRange by mutableStateOf(false); var hifzOnlyCurrent by mutableStateOf(true); var shareTheme by mutableStateOf("green")
   var theme by mutableStateOf("cream"); var themeAuto by mutableStateOf(false); var keepAwake by mutableStateOf(true); var view by mutableStateOf("pages"); var tajweed by mutableStateOf(false); var fontScale by mutableStateOf(1.0); var textFont by mutableStateOf("amiri")
@@ -38,7 +39,7 @@ object Store {
   private fun <T> put(key: String, ser: KSerializer<T>, v: T?) { sp.edit().apply { if (v == null) remove(key) else putString(key, json.encodeToString(ser, v)) }.apply() }
   private fun load() {
     methodId = sp.getString("prayer.method", methodId)!!; methodAuto = sp.getBoolean("prayer.methodAuto", true); madhab = sp.getString("prayer.madhab", "shafi")!!; highLat = sp.getString("prayer.highLat", "auto")!!
-    hour12 = sp.getBoolean("ui.hour12", true); numerals = sp.getString("ui.numerals", "latn")!!; hijriOffset = sp.getInt("hijri.offset", 0)
+    hour12 = sp.getBoolean("ui.hour12", true); seenIntro = sp.getBoolean("seenIntro", false); numerals = sp.getString("ui.numerals", "latn")!!; hijriOffset = sp.getInt("hijri.offset", 0)
     locLat = sp.getFloat("loc.lat", Float.NaN).toDouble(); locLon = sp.getFloat("loc.lon", Float.NaN).toDouble(); locTz = sp.getString("loc.tz", null); locName = sp.getString("loc.name", null); locCountry = sp.getString("loc.cc", null); locCityId = sp.getString("loc.city", null); locMode = sp.getString("loc.mode", "gps")!!
     reminders = get("notifications.prefs", ReminderPrefs.serializer()) ?: ReminderPrefs(); extras = get("notifications.extras", ExtraReminderPrefs.serializer()) ?: ExtraReminderPrefs()
     lastRead = get("quran.lastRead", LastRead.serializer()); bookmarks = get("quran.bookmarks", ListSerializer(WebSettings.Bookmark.serializer())) ?: emptyList()
@@ -50,7 +51,7 @@ object Store {
   /** حفظ كل الحالة (تُستدعى بعد أي تغيير) */
   fun save() {
     sp.edit().putString("prayer.method", methodId).putBoolean("prayer.methodAuto", methodAuto).putString("prayer.madhab", madhab).putString("prayer.highLat", highLat)
-      .putBoolean("ui.hour12", hour12).putString("ui.numerals", numerals).putInt("hijri.offset", hijriOffset)
+      .putBoolean("ui.hour12", hour12).putBoolean("seenIntro", seenIntro).putString("ui.numerals", numerals).putInt("hijri.offset", hijriOffset)
       .putFloat("loc.lat", locLat.toFloat()).putFloat("loc.lon", locLon.toFloat()).putString("loc.tz", locTz).putString("loc.name", locName).putString("loc.cc", locCountry).putString("loc.city", locCityId).putString("loc.mode", locMode)
       .putString("quran.reciter", reciter).putInt("quran.repeatAyah", repeatAyah).putFloat("quran.rate", rate.toFloat()).putBoolean("quran.follow", follow).putBoolean("quran.wordHighlight", wordHighlight).putBoolean("quran.repeatRange", repeatRange).putBoolean("quran.hifzOnlyCurrent", hifzOnlyCurrent).putString("shareTheme", shareTheme)
       .putString("quran.theme", theme).putBoolean("quran.themeAuto", themeAuto).putBoolean("quran.keepAwake", keepAwake).putString("quran.view", view).putBoolean("quran.tajweed", tajweed).putFloat("quran.fontScale", fontScale.toFloat()).putString("quran.textFont", textFont).putFloat("textScale", textScale.toFloat()).apply()

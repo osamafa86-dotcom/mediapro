@@ -41,7 +41,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.emdatra.sakinah.native
         PRODUCT_NAME: Sakinah
-        MARKETING_VERSION: "4.1.0"
+        MARKETING_VERSION: "5.0.0"
         CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -93,7 +93,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.emdatra.sakinah.native.widget
         PRODUCT_NAME: SakinahWidget
-        MARKETING_VERSION: "4.1.0"
+        MARKETING_VERSION: "5.0.0"
         CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1,2"
         SWIFT_STRICT_CONCURRENCY: minimal
