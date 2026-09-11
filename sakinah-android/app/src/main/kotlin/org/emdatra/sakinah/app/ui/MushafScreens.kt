@@ -223,7 +223,7 @@ import org.emdatra.sakinah.core.*
 
   Column(Modifier.fillMaxSize().background(paper).statusBarsPadding().navigationBarsPadding()) {
     AnimatedVisibility(chrome, enter = slideInVertically { -it } + fadeIn(), exit = slideOutVertically { -it } + fadeOut()) {
-      Row(Modifier.fillMaxWidth().background(paper).padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+      Row(Modifier.fillMaxWidth().background(paper).padding(horizontal = 6.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
         BarButton(Icons.Filled.ChevronRight, "إغلاق المصحف", ink, onClose)
         val l = QuranText.shared.label(page)
         Column(Modifier.weight(1f)) {
@@ -269,22 +269,18 @@ import org.emdatra.sakinah.core.*
       hifz?.let { h -> HifzPanel(h, onExit = { h.stopSpeech(); hifz = null }, onNextPage = { if (page < 604) { val veil = h.veil; scope.launch { pager.scrollToPage(page); kotlinx.coroutines.delay(400); QuranText.shared.pageAyahs(page + 1).firstOrNull()?.let { a -> hifz = HifzSession(page + 1, a.n, veil) } } } }) }
       if (Recitation.current != null) Box(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) { AudioBar() }
       AnimatedVisibility(chrome && hifz == null, enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
-        Column(Modifier.fillMaxWidth().background(paper).padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Column(Modifier.fillMaxWidth().background(paper).padding(horizontal = 14.dp, vertical = 2.dp)) {
           Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             BarButton(Icons.Outlined.PlayCircle, "تشغيل تلاوة الصفحة", ink) { chromeNonce++; playPage() }
             BarButton(Icons.Outlined.Mic, "مراجعة الحفظ", ink) { first?.let { Recitation.stop(); hifz = HifzSession(page, it.n, veil = false) } }
             BarButton(Icons.Outlined.VisibilityOff, "إخفاء الآيات للحفظ", ink) { first?.let { Recitation.stop(); hifz = HifzSession(page, it.n, veil = true) } }
             BarButton(Icons.Outlined.Search, "التنقل والبحث", ink) { sheet = "nav" }
             Spacer(Modifier.weight(1f))
+            Text(Fmt.number(page), style = DSType.numericSm, color = ink.copy(alpha = 0.85f))
+            Spacer(Modifier.weight(1f))
             BarButton(Icons.Outlined.Download, "التلاوات دون اتصال", ink) { downloads = true }
           }
-          Slider(page.toFloat(), { v -> chromeNonce++; lastPage = v.toInt(); scope.launch { pager.scrollToPage(v.toInt() - 1) } }, valueRange = 1f..604f, colors = SliderDefaults.colors(thumbColor = c.accentGold, activeTrackColor = c.accentGold, inactiveTrackColor = ink.copy(alpha = 0.15f)))
-          val l2 = QuranText.shared.label(page)
-          Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(l2?.let { "${QuranMeta.juzName(it.juz, false)} · الحزب ${Fmt.number(it.hizb)}" } ?: "", style = DSType.labelXs, color = ink.copy(alpha = 0.55f), maxLines = 1)
-            Spacer(Modifier.weight(1f)); Text(Fmt.number(page), style = DSType.numericMd, color = ink.copy(alpha = 0.85f)); Spacer(Modifier.weight(1f))
-            Text(l2?.let { QuranMeta.surah(it.surah).name } ?: "", style = DSType.labelXs, color = ink.copy(alpha = 0.55f), maxLines = 1)
-          }
+          Slider(page.toFloat(), { v -> chromeNonce++; lastPage = v.toInt(); scope.launch { pager.scrollToPage(v.toInt() - 1) } }, Modifier.height(24.dp), valueRange = 1f..604f, colors = SliderDefaults.colors(thumbColor = c.accentGold, activeTrackColor = c.accentGold, inactiveTrackColor = ink.copy(alpha = 0.15f)))
         }
       }
     }
@@ -309,7 +305,7 @@ import org.emdatra.sakinah.core.*
   }
 }
 @Composable private fun BarButton(icon: ImageVector, label: String, tint: Color, onClick: () -> Unit) {
-  Icon(icon, label, Modifier.size(40.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onClick).padding(10.dp), tint = tint)
+  Icon(icon, label, Modifier.size(34.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onClick).padding(8.dp), tint = tint)
 }
 /** خيارات التلاوة والمراجعة (تظهر فوق خيارات المصحف) */
 @Composable fun PlaybackOptions() {

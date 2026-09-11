@@ -259,7 +259,7 @@ struct MushafReaderView: View {
       barButton("list.bullet", "الفهرس", ink) { sheet = .index }
       barButton("ellipsis", "خيارات المصحف", ink) { sheet = .options }
     }
-    .padding(.horizontal, 8).padding(.top, 2).padding(.bottom, 6)
+    .padding(.horizontal, 6).padding(.vertical, 3)
     .background(alignment: .bottom) {
       Rectangle().fill(MushafPalette.background(for: rs.theme)).ignoresSafeArea(edges: .top)
         .overlay(alignment: .bottom) { Rectangle().fill(ink.opacity(0.10)).frame(height: 0.5) }
@@ -267,34 +267,28 @@ struct MushafReaderView: View {
   }
   private func bottomBar(_ rs: MushafReaderState) -> some View {
     let firstAyah = QuranText.shared.pageAyahs(current).first
-    let ink = Color(hex: rs.theme.ink); let l = QuranText.shared.label(ofPage: Int(slider))
-    return VStack(spacing: 4) {
-      HStack(spacing: 2) {
+    let ink = Color(hex: rs.theme.ink)
+    return VStack(spacing: 0) {
+      HStack(spacing: 0) {
         barButton("play.circle", "تشغيل تلاوة الصفحة", ink) { if let a = firstAyah { playFrom(a.n, scope: .page) } }
         barButton("mic", "مراجعة الحفظ", ink) { if let a = firstAyah { startHifz(from: a.n) } }
         barButton("eye.slash", "إخفاء الآيات", ink) { startVeil() }
         barButton("magnifyingglass", "التنقل والبحث", ink) { sheet = .quickNav }
         Spacer(minLength: 0)
+        Text(num(Int(slider))).font(DS.F.numericSm).foregroundStyle(ink.opacity(0.85)).monospacedDigit()
+        Spacer(minLength: 0)
         barButton("arrow.down.circle", "التلاوات دون اتصال", ink) { sheet = .downloads }
       }
       Slider(value: $slider, in: 1...Double(MushafLayout.totalPages), step: 1) { editing in if !editing { go(to: Int(slider)) } }.tint(DS.C.accentGold)
-      HStack {
-        Text(l.map { "\(QuranMeta.juzName($0.juz, vocalized: false)) · الحزب \(num($0.hizb))" } ?? "").font(DS.F.labelXs).foregroundStyle(ink.opacity(0.55))
-        Spacer()
-        Text(num(Int(slider))).font(DS.F.numericMd).foregroundStyle(ink.opacity(0.85))
-        Spacer()
-        Text(l.map { QuranMeta.surah($0.surah).name } ?? "").font(DS.F.labelXs).foregroundStyle(ink.opacity(0.55))
-      }
-      .lineLimit(1)
     }
-    .padding(.horizontal, 16).padding(.top, 6).padding(.bottom, 4)
+    .padding(.horizontal, 14).padding(.vertical, 2)
     .background(alignment: .top) {
       Rectangle().fill(MushafPalette.background(for: rs.theme)).ignoresSafeArea(edges: .bottom)
         .overlay(alignment: .top) { Rectangle().fill(ink.opacity(0.10)).frame(height: 0.5) }
     }
   }
   private func barButton(_ icon: String, _ label: String, _ ink: Color, action: @escaping () -> Void) -> some View {
-    Button(action: { scheduleChromeHide(); action() }) { Image(systemName: icon).font(.system(size: 17, weight: .medium)).foregroundStyle(ink).frame(width: 38, height: 40).contentShape(Rectangle()) }.buttonStyle(.plain).accessibilityLabel(label)
+    Button(action: { scheduleChromeHide(); action() }) { Image(systemName: icon).font(.system(size: 16, weight: .medium)).foregroundStyle(ink).frame(width: 34, height: 34).contentShape(Rectangle()) }.buttonStyle(.plain).accessibilityLabel(label)
   }
   private func num(_ n: Int) -> String { Fmt.number(n, numerals: model.settings.numerals) }
 
