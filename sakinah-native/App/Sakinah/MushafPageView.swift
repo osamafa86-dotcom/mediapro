@@ -42,6 +42,16 @@ enum MushafMetrics {
     cache[key] = f
     return f
   }
+  /// عرض رمز كلمة واحدة، مخبّأ — تُقاس لكل كلمة في كل سطر عند كل رسم، فبلا خبء يثقُل التقليب
+  private static var glyphCache: [String: CGFloat] = [:]
+  static func glyphWidth(_ glyph: String, fontName: String, size: CGFloat) -> CGFloat {
+    let key = "\(fontName)|\(Int(size * 4))|\(glyph)"
+    if let c = glyphCache[key] { return c }
+    let w = textWidth(glyph, fontName: fontName, size: size)
+    if glyphCache.count > 6000 { glyphCache.removeAll() }
+    glyphCache[key] = w
+    return w
+  }
   static func textWidth(_ s: String, fontName: String, size: CGFloat) -> CGFloat {
     let font = CTFontCreateWithName(fontName as CFString, size, nil)
     let attr = NSAttributedString(string: s, attributes: [NSAttributedString.Key(kCTFontAttributeName as String): font])
@@ -114,42 +124,89 @@ struct MushafPageView: View {
     case .basmala:
       Text(QuranMeta.basmala).font(.custom(MushafFonts.amiriQuranFont, fixedSize: size * 0.98)).foregroundStyle(rs.palette.ink).lineLimit(1).minimumScaleFactor(0.5).frame(maxWidth: width * 0.62)
     case .words(let ws):
-      HStack(spacing: 0) {
-        ForEach(Array(ws.enumerated()), id: \.offset) { _, w in PageWord(word: w, page: page, size: size) }
-      }
-      .frame(maxWidth: .infinity)
+      MushafLineView(words: ws, page: page, size: size).frame(maxWidth: .infinity)
     }
   }
 }
 
-/// كلمة بخط الصفحة: علامة نهاية الآية وربع الحزب والسجدة بلونها، وخلفية للتظليل/الإخفاء، ونقرة تفتح قائمة الآية
-struct PageWord: View {
+/// سطر كامل بخطّ الصفحة في مقطع نصّي واحد — كما صُمِّم خطّ QCF.
+///
+/// علامات الوقف في هذا الخطّ عرضُها المحجوز ٨٠ وحدة تقريبًا بينما يمتدّ حبرها إلى ٩٠٠ وحدة،
+/// أي أنها تُرسم عمدًا فوق ما يليها؛ والسطر كلّه وحدةٌ متشابكة. فرسمُ كل كلمة في عنصر مستقلّ
+/// يقصّ ذلك الامتداد ويُراكم تقريبَ العرض كلمةً كلمة حتى ينزاح السطر وتضيع كلمة من طرفه.
+///
+/// فالسطر هنا نصٌّ واحد، والتلوين والستر يجريان على مدى كل كلمة داخله، والنقر على مستطيلات
+/// شفّافة بعرض كل كلمة فوقه — فيبقى التفاعل كما كان والرسم مطابقًا للمطبوع.
+struct MushafLineView: View {
   @Environment(MushafReaderState.self) private var rs
-  let word: MushafWord
+  let words: [MushafWord]
   let page: Int
   let size: CGFloat
 
   var body: some View {
-    let st = rs.style(n: word.n, k: word.k, base: word.end ? rs.palette.marker : rs.palette.ink)
-    Text(attributed(st))
-      .lineLimit(1).fixedSize()
-      .background(st.bg.map { RoundedRectangle(cornerRadius: size * 0.16).fill($0) })
-      // خطّ سفليّ صريح: القارئ يعرف أن الكلمة مستورة عمدًا، لا ساقطة من المصحف
-      .overlay(alignment: .bottom) { if st.hidden { Capsule().fill(rs.accents.hideLine).frame(height: max(1, size * 0.045)).padding(.horizontal, size * 0.08) } }
-      .overlay { if st.current { RoundedRectangle(cornerRadius: size * 0.16).stroke(rs.accents.hideLine, lineWidth: 1) } }
-      .contentShape(Rectangle())
-      .onTapGesture { rs.onTapAyah?(word.n) }
+    let fontName = MushafFonts.pageFontName(page)
+    let styles = words.map { rs.style(n: $0.n, k: $0.k, base: $0.end ? rs.palette.marker : rs.palette.ink) }
+    Text(line(fontName: fontName, styles: styles))
+      .lineLimit(1)
+      .fixedSize()
+      .background { backgrounds(fontName: fontName, styles: styles) }
+      .overlay { marks(fontName: fontName, styles: styles) }
   }
-  private func attributed(_ st: MushafReaderState.WordStyle) -> AttributedString {
-    let font = Font.custom(MushafFonts.pageFontName(page), fixedSize: size)
-    let chars = Array(word.glyph)
-    func piece(_ s: String, _ c: Color) -> AttributedString { var a = AttributedString(s); a.font = font; a.foregroundColor = c; return a }
-    if st.hidden { return piece(word.glyph, .clear) }
+
+  /// السطر كلّه في AttributedString واحد، ولكل كلمة لونها في مداها
+  private func line(fontName: String, styles: [MushafReaderState.WordStyle]) -> AttributedString {
+    let font = Font.custom(fontName, fixedSize: size)
     var out = AttributedString()
-    if word.rub, chars.count > 1 { out.append(piece(String(chars[0]), rs.palette.rub)); out.append(piece(String(chars[1...]), st.fg)) }
-    else if word.sajda, chars.count > 1 { out.append(piece(String(chars[..<(chars.count - 1)]), st.fg)); out.append(piece(String(chars[chars.count - 1]), rs.palette.marker)) }
-    else { out.append(piece(word.glyph, st.fg)) }
+    for (i, w) in words.enumerated() {
+      let st = styles[i]
+      func piece(_ t: String, _ c: Color) -> AttributedString {
+        var a = AttributedString(t)
+        a.font = font
+        a.foregroundColor = c
+        return a
+      }
+      let chars = Array(w.glyph)
+      if st.hidden { out.append(piece(w.glyph, .clear)) }
+      else if w.rub, chars.count > 1 {
+        out.append(piece(String(chars[0]), rs.palette.rub))
+        out.append(piece(String(chars[1...]), st.fg))
+      } else if w.sajda, chars.count > 1 {
+        out.append(piece(String(chars[..<(chars.count - 1)]), st.fg))
+        out.append(piece(String(chars[chars.count - 1]), rs.palette.marker))
+      } else {
+        out.append(piece(w.glyph, st.fg))
+      }
+    }
     return out
+  }
+
+  /// طبقة تحت النصّ: خلفية التظليل والتحديد والستر، بأقراص مستديرة كما كانت
+  private func backgrounds(fontName: String, styles: [MushafReaderState.WordStyle]) -> some View {
+    HStack(spacing: 0) {
+      ForEach(Array(words.enumerated()), id: \.offset) { i, w in
+        Color.clear
+          .frame(width: MushafMetrics.glyphWidth(w.glyph, fontName: fontName, size: size))
+          .overlay { if let bg = styles[i].bg { RoundedRectangle(cornerRadius: size * 0.16).fill(bg) } }
+      }
+    }
+  }
+
+  /// طبقة شفّافة فوق النصّ: النقر، وخطّ الكلمة المستورة، وإطار الكلمة الحالية
+  private func marks(fontName: String, styles: [MushafReaderState.WordStyle]) -> some View {
+    HStack(spacing: 0) {
+      ForEach(Array(words.enumerated()), id: \.offset) { i, w in
+        let st = styles[i]
+        Color.clear
+          .frame(width: MushafMetrics.glyphWidth(w.glyph, fontName: fontName, size: size))
+          .overlay(alignment: .bottom) {
+            // خطّ سفليّ صريح: القارئ يعرف أن الكلمة مستورة عمدًا، لا ساقطة من المصحف
+            if st.hidden { Capsule().fill(rs.accents.hideLine).frame(height: max(1, size * 0.045)).padding(.horizontal, size * 0.08) }
+          }
+          .overlay { if st.current { RoundedRectangle(cornerRadius: size * 0.16).stroke(rs.accents.hideLine, lineWidth: 1) } }
+          .contentShape(Rectangle())
+          .onTapGesture { rs.onTapAyah?(w.n) }
+      }
+    }
   }
 }
 
