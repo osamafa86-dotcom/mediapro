@@ -74,7 +74,7 @@ const tokenize = [1, 6, 262, 1001, 6236].map((n) => ({ n, words: quran.tokenize(
 const hifzWords = quran.pageAyahs(1).flatMap((a) => quran.tokenize(a.text).filter((w) => w.spoken).map((w, k) => ({ n: a.n, k, norm: w.norm, raw: w.raw })));
 const hifzFeeds = ['بسم الله الرحمن الرحيم', 'الحمد لله رب العالمين', 'الرحمن', 'ملك يوم الدين', 'اياك نعبد و اياك نستعين', 'اهدنا الصراط المستقيم صراط الذين انعمت عليهم غير المغضوب عليهم ولا الضالين'];
 const hm = new quran.HifzMatcher(hifzWords); const hifzSteps = hifzFeeds.map((t) => ({ t, revealed: hm.feed(t), pos: hm.pos, matched: hm.matched, skipped: hm.skipped, unmatched: hm.unmatched, done: hm.done, progress: hm.progress }));
-const hm2 = new quran.HifzMatcher(hifzWords); const hifzNoisy = [['بسم الله الرحيم', hm2.feed('بسم الله الرحيم')], ['الحمد الحمد لله', hm2.feed('الحمد الحمد لله')], ['رب', hm2.feed('رب')], ['hint', [hm2.hint()]]].map(([t, r]) => ({ t, revealed: r, pos: hm2.pos }));
+const hm2 = new quran.HifzMatcher(hifzWords); const hifzNoisy = [['بسم الله الرحيم', hm2.feed('بسم الله الرحيم')], ['الحمد الحمد لله', hm2.feed('الحمد الحمد لله')], ['رب', hm2.feed('رب')], ['hint', [hm2.hint()]], ['الرحمنالرحيم', hm2.feed('الرحمنالرحيم')], ['م لك', hm2.feed('م لك')]].map(([t, r]) => ({ t, revealed: r, pos: hm2.pos }));
 const lev = [['كتاب', 'كتب'], ['الرحمن', 'الرحيم'], ['', 'ابج'], ['سلام', 'سلام'], ['نعبد', 'نعبده']].map(([a, b]) => ({ a, b, d: quran.levenshtein(a, b), sim: quran.similarity(a, b) }));
 const kh = await import(path.join(web, 'khatmah.js')); const ch = await import(path.join(web, 'challenges.js')); const tb = await import(path.join(web, 'tasbih.js'));
 const readLog = { '2026-09-08': [1, 2, 3], '2026-09-09': [4, 5], '2026-09-10': [6], '2026-08-15': [10, 11] };

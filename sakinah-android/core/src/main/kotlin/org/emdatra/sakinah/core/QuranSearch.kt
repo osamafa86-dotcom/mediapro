@@ -54,7 +54,7 @@ object QuranNormalize {
 
 data class HifzWord(val n: Int, val k: Int, val norm: String, val raw: String)
 /** مُطابِق الحفظ (متسامح، مع تخطي كلمة أو كلمتين) */
-class HifzMatcher(val words: List<HifzWord>, val threshold: Double = 0.66, val lookahead: Int = 2, val lookaheadThreshold: Double = 0.85) {
+class HifzMatcher(val words: List<HifzWord>, val threshold: Double = 0.66, val lookahead: Int = 2, val lookaheadThreshold: Double = 0.85, val fuseThreshold: Double = 0.8) {
   var pos = 0; private set
   var matched = 0; private set
   var skipped = 0; private set
@@ -65,18 +65,40 @@ class HifzMatcher(val words: List<HifzWord>, val threshold: Double = 0.66, val l
   fun feed(transcript: String): List<Int> {
     val spoken = QuranNormalize.forMatch(transcript).split(' ').filter { it.isNotEmpty() }
     val revealed = ArrayList<Int>()
-    for (w in spoken) {
+    var i = 0
+    while (i < spoken.size) {
       if (pos >= words.size) break
-      var hit = -1; var k = 0
+      val w = spoken[i]
+      var hit = -1   // كم كلمة متوقّعة نتخطّاها قبل المطابقة
+      var span = 1   // كم كلمة متوقّعة تستهلكها هذه المطابقة
+      var take = 1   // كم كلمة منطوقة نستهلكها
+      var k = 0
       while (k <= lookahead && pos + k < words.size) {
         val exp = words[pos + k].norm; val th = if (k == 0) threshold else lookaheadThreshold
         val wl = w.codePointCount(0, w.length); val el = exp.codePointCount(0, exp.length)
         if (exp == w || QuranNormalize.similarity(exp, w) >= th || (k == 0 && wl >= 4 && el >= 4 && (exp.startsWith(w) || w.startsWith(exp)))) { hit = k; break }
         k++
       }
-      if (hit < 0) { unmatched++; continue }
+      // التعرّف يدمج كلمتين في واحدة («اياك نعبد» ← «اياكنعبد»)
+      if (hit < 0 && pos + 1 < words.size && QuranNormalize.similarity(words[pos].norm + words[pos + 1].norm, w) >= fuseThreshold) { hit = 0; span = 2 }
+      // أو يقسم الكلمة الواحدة إلى اثنتين («نستعين» ← «نست عين»)
+      if (hit < 0 && i + 1 < spoken.size && QuranNormalize.similarity(words[pos].norm, w + spoken[i + 1]) >= fuseThreshold) { hit = 0; take = 2 }
+      if (hit < 0) { unmatched++; i++; continue }
+      // امتداد الدمج: الكلمة المنطوقة قد تضمّ أكثر من كلمة متوقّعة — نتوسّع ما دام التشابه يتحسّن
+      if (span == 1) {
+        var acc = words[pos + hit].norm; var best = QuranNormalize.similarity(acc, w)
+        while (pos + hit + span < words.size) {
+          val next = acc + words[pos + hit + span].norm; val sim = QuranNormalize.similarity(next, w)
+          if (sim <= best) break
+          acc = next; best = sim; span++
+        }
+      }
       for (j in 0 until hit) revealed.add(pos + j)
-      skipped += hit; revealed.add(pos + hit); matched++; pos += hit + 1
+      skipped += hit
+      for (j in 0 until span) revealed.add(pos + hit + j)
+      matched++
+      pos += hit + span
+      i += take
     }
     return revealed
   }

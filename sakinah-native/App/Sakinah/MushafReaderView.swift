@@ -408,7 +408,9 @@ struct MushafReaderView: View {
     model.player.stop()
     let s = HifzSession(page: a.page, from: n, veil: veil)
     rs?.hifz = s; rs?.selected = nil
-    if veil { show("انقر الصفحة لكشف الآية التالية") } else if !s.speechSupported { show("التعرّف على الصوت غير متاح — انقر الصفحة لكشف الكلمة التالية") }
+    if veil { show("انقر الصفحة لكشف الآية التالية") }
+    else if s.speechSupported { s.toggleSpeech(); show("اقرأ من حفظك — تُكشف الكلمات مع نطقك") }
+    else { show("التعرّف على الصوت غير متاح — انقر الصفحة لكشف الكلمة التالية") }
   }
   private func startVeil() { if let a = QuranText.shared.pageAyahs(current).first { startHifz(from: a.n, veil: true) } }
   private func exitHifz() { rs?.hifz?.stopSpeech(); rs?.hifz = nil }

@@ -272,7 +272,7 @@ import org.emdatra.sakinah.core.*
         Column(Modifier.fillMaxWidth().background(paper).padding(horizontal = 14.dp, vertical = 2.dp)) {
           Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             BarButton(Icons.Outlined.PlayCircle, "تشغيل تلاوة الصفحة", ink) { chromeNonce++; playPage() }
-            BarButton(Icons.Outlined.Mic, "مراجعة الحفظ", ink) { first?.let { Recitation.stop(); hifz = HifzSession(page, it.n, veil = false) } }
+            BarButton(Icons.Outlined.Mic, "مراجعة الحفظ", ink) { first?.let { Recitation.stop(); hifz = HifzSession(page, it.n, veil = false).also { h -> h.toggleSpeech(ctx) } } }
             BarButton(Icons.Outlined.VisibilityOff, "إخفاء الآيات للحفظ", ink) { first?.let { Recitation.stop(); hifz = HifzSession(page, it.n, veil = true) } }
             BarButton(Icons.Outlined.Search, "التنقل والبحث", ink) { sheet = "nav" }
             Spacer(Modifier.weight(1f))
@@ -285,7 +285,7 @@ import org.emdatra.sakinah.core.*
       }
     }
   }
-  ayahSheet?.let { a -> AyahSheet(a, onDismiss = { ayahSheet = null; selected = null }, onHifz = { ayahSheet = null; selected = null; Recitation.stop(); hifz = HifzSession(page, a.n, veil = false) }) }
+  ayahSheet?.let { a -> AyahSheet(a, onDismiss = { ayahSheet = null; selected = null }, onHifz = { ayahSheet = null; selected = null; Recitation.stop(); hifz = HifzSession(page, a.n, veil = false).also { h -> h.toggleSpeech(ctx) } }) }
   if (downloads) ModalBottomSheet(onDismissRequest = { downloads = false }, containerColor = c.bgSurface) { DownloadsSheet(first?.surah) }
   when (sheet) {
     "index", "nav" -> ModalBottomSheet(onDismissRequest = { sheet = null }, containerColor = c.bgSurface) { IndexSheet(page) { p, n -> sheet = null; lastPage = p; scope.launch { pager.scrollToPage(p - 1) }; if (n != null) selected = n } }

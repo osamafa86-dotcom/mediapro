@@ -5,67 +5,147 @@ import Observation
 import UIKit
 import SakinahCore
 
-/// التعرّف على الكلام (Speech) لمراجعة الحفظ: جلسات متتابعة (النظام ينهي الجلسة بعد نحو دقيقة أو صمت) مع إعادة تشغيل تلقائي
+/// التعرّف على الكلام لمراجعة الحفظ.
+///
+/// محرّك الصوت والمِجَسّ يبقيان يعملان طوال الجلسة؛ لا يُعاد إنشاء إلا طلب التعرّف ومهمّته،
+/// فلا تنقطع الأذن بين الدورات. ويُصدِر الذيل الجديد من النصّ فقط، ويضبط عدّاد الاستهلاك
+/// داخليًا مع كل دورة — فلا يمكن أن يختلّ التزامن كما كان يحدث.
 final class SpeechListener {
-  var onResult: ((_ cumulative: String, _ alternatives: [String], _ isFinal: Bool) -> Void)?
+  /// النصّ الجديد فقط منذ آخر نداء (ليس النصّ التراكمي)
+  var onTail: ((_ tail: String, _ alternatives: [String]) -> Void)?
+  /// النصّ التراكمي للعرض
+  var onTranscript: ((String) -> Void)?
   var onState: ((Bool) -> Void)?
   var onError: ((String) -> Void)?
+  /// الكلمات المتوقّعة الآن — تُمرَّر إلى المُعرِّف لترجيحها (أكبر مكسب في الدقّة)
+  var context: (() -> [String])?
+
   private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "ar-SA"))
   private let engine = AVAudioEngine()
   private var request: SFSpeechAudioBufferRecognitionRequest?
   private var task: SFSpeechRecognitionTask?
   private(set) var active = false
-  private var startedAt = Date(); private var rapid = 0
+  /// كم كلمة استُهلكت من نصّ الدورة الحالية — يعود صفرًا مع كل دورة جديدة
+  private var consumed = 0
+  private var backoff: Double = 0.15
+  private var rotate: DispatchWorkItem?
 
-  static var isSupported: Bool { SFSpeechRecognizer(locale: Locale(identifier: "ar-SA"))?.isAvailable ?? false }
+  /// الخادم يقطع بعد نحو دقيقة؛ ندوّر قبلها بأمان. التعرّف على الجهاز بلا حدّ فنطيل الدورة
+  private var rotateAfter: TimeInterval { onDevice ? 240 : 45 }
+  private var onDevice: Bool { recognizer?.supportsOnDeviceRecognition ?? false }
+
+  static var isSupported: Bool { SFSpeechRecognizer(locale: Locale(identifier: "ar-SA")) != nil }
   static func requestAuthorization() async -> Bool {
     let speech = await withCheckedContinuation { c in SFSpeechRecognizer.requestAuthorization { c.resume(returning: $0 == .authorized) } }
     guard speech else { return false }
     return await withCheckedContinuation { c in AVAudioSession.sharedInstance().requestRecordPermission { c.resume(returning: $0) } }
   }
 
+  // MARK: - البدء والإيقاف
+
   func start() throws {
-    guard let recognizer, recognizer.isAvailable else { throw NSError(domain: "speech", code: 1, userInfo: [NSLocalizedDescriptionKey: "unsupported"]) }
-    stop(silent: true)
+    guard let recognizer, recognizer.isAvailable else {
+      throw NSError(domain: "speech", code: 1, userInfo: [NSLocalizedDescriptionKey: "unsupported"])
+    }
     let s = AVAudioSession.sharedInstance()
-    try s.setCategory(.playAndRecord, mode: .measurement, options: [.duckOthers, .defaultToSpeaker])
+    try s.setCategory(.playAndRecord, mode: .measurement, options: [.duckOthers, .defaultToSpeaker, .allowBluetooth])
     try s.setActive(true, options: .notifyOthersOnDeactivation)
-    let req = SFSpeechAudioBufferRecognitionRequest(); req.shouldReportPartialResults = true; req.taskHint = .dictation
-    if recognizer.supportsOnDeviceRecognition { req.requiresOnDeviceRecognition = false }
-    request = req
-    let input = engine.inputNode; let fmt = input.outputFormat(forBus: 0)
+
+    let input = engine.inputNode
+    let fmt = input.outputFormat(forBus: 0)
+    guard fmt.sampleRate > 0, fmt.channelCount > 0 else {
+      throw NSError(domain: "speech", code: 2, userInfo: [NSLocalizedDescriptionKey: "no-input"])
+    }
     input.removeTap(onBus: 0)
-    input.installTap(onBus: 0, bufferSize: 1024, format: fmt) { [weak self] buf, _ in self?.request?.append(buf) }
-    engine.prepare(); try engine.start()
-    active = true; startedAt = Date(); onState?(true)
+    // المِجَسّ يقرأ request في كل نبضة، فتنتقل الدورة الجديدة تلقائيًا بلا انقطاع
+    input.installTap(onBus: 0, bufferSize: 2048, format: fmt) { [weak self] buf, _ in self?.request?.append(buf) }
+    engine.prepare()
+    try engine.start()
+
+    active = true
+    backoff = 0.15
+    onState?(true)
+    beginTask()
+  }
+
+  func stop(silent: Bool = false) {
+    let wasActive = active
+    active = false
+    rotate?.cancel(); rotate = nil
+    task?.cancel(); task = nil
+    request?.endAudio(); request = nil
+    consumed = 0
+    if engine.isRunning { engine.stop() }
+    engine.inputNode.removeTap(onBus: 0)
+    if wasActive {
+      try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
+      if !silent { onState?(false) }
+    }
+  }
+
+  // MARK: - دورة تعرّف واحدة
+
+  private func beginTask() {
+    guard active, let recognizer else { return }
+    task?.cancel()
+    request?.endAudio()
+
+    let req = SFSpeechAudioBufferRecognitionRequest()
+    req.shouldReportPartialResults = true
+    req.taskHint = .dictation
+    // على الجهاز حين يتوفّر: يعمل دون اتصال، وبلا حدّ زمني، وبلا خنق من الخادم
+    req.requiresOnDeviceRecognition = onDevice
+    if #available(iOS 16.0, *) { req.addsPunctuation = false }
+    // ترجيح الكلمات المتوقّعة: أهمّ رافعة لدقّة التعرّف على النصّ القرآني
+    req.contextualStrings = Array((context?() ?? []).prefix(60))
+    request = req
+    consumed = 0
+
     task = recognizer.recognitionTask(with: req) { [weak self] result, error in
       guard let self else { return }
       if let r = result {
-        let alts = r.transcriptions.dropFirst().prefix(2).map(\.formattedString)
-        self.onResult?(r.bestTranscription.formattedString, Array(alts), r.isFinal)
-        if r.isFinal { self.restartIfActive() }
+        self.emit(r.bestTranscription.formattedString, alternatives: r.transcriptions.dropFirst().prefix(2).map(\.formattedString))
+        if r.isFinal { self.cycle() }
       }
       if let e = error as NSError? {
-        // 1110 = no speech، 216/301 = إلغاء: تُعاد الجلسة؛ سوى ذلك يُبلَّغ
-        let benign = [1110, 216, 301, 203].contains(e.code)
-        if !benign { self.onError?(e.localizedDescription) }
-        if benign || e.code == 1101 { self.restartIfActive() } else { self.stop() }
+        // 1110 لا كلام، 216/301/203/1101 إلغاء أو انتهاء دورة: كلّها طبيعية أثناء التلاوة المتقطّعة
+        let benign = [1110, 216, 301, 203, 1101, 209].contains(e.code)
+        if !benign, self.active { self.onError?(e.localizedDescription) }
+        self.cycle()
       }
     }
+
+    // تدوير استباقي قبل أن يقطع النظام الدورة من تلقائه
+    let work = DispatchWorkItem { [weak self] in self?.cycle(immediate: true) }
+    rotate = work
+    DispatchQueue.main.asyncAfter(deadline: .now() + rotateAfter, execute: work)
   }
-  private func restartIfActive() {
+
+  /// يبدأ دورة جديدة دون أن يمسّ محرّك الصوت — لا صمت ولا فقدان كلمات
+  private func cycle(immediate: Bool = false) {
     guard active else { return }
-    let quick = Date().timeIntervalSince(startedAt) < 1.5
-    rapid = quick ? rapid + 1 : 0
-    if rapid >= 3 { stop(); onError?("restart-loop"); return }
-    let delay = quick ? 0.25 * pow(2, Double(rapid)) : 0.25
-    DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in guard let self, self.active else { return }; try? self.start() }
+    rotate?.cancel(); rotate = nil
+    let delay = immediate ? 0 : backoff
+    backoff = min(backoff * 1.6, 0.6)
+    DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+      guard let self, self.active else { return }
+      self.backoff = 0.15
+      self.beginTask()
+    }
   }
-  func stop(silent: Bool = false) {
-    let wasActive = active; active = false
-    task?.cancel(); task = nil; request?.endAudio(); request = nil
-    if engine.isRunning { engine.stop() }; engine.inputNode.removeTap(onBus: 0)
-    if wasActive { try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio); if !silent { onState?(false) } }
+
+  /// يمرّر الذيل الجديد فقط؛ لا يعيد ما استُهلك ولو تراجع النصّ
+  private func emit(_ transcript: String, alternatives: [String]) {
+    let ws = transcript.split(separator: " ").map(String.init)
+    onTranscript?(transcript)
+    guard ws.count > consumed else { return }
+    let tail = ws[consumed...].joined(separator: " ")
+    let altTails = alternatives.compactMap { alt -> String? in
+      let a = alt.split(separator: " ").map(String.init)
+      return a.count > consumed ? a[consumed...].joined(separator: " ") : nil
+    }
+    consumed = ws.count
+    onTail?(tail, altTails)
   }
 }
 
@@ -84,7 +164,8 @@ final class HifzSession {
   var version = 0
   var finished = false
   var error: String?
-  @ObservationIgnored private var fed = 0
+  /// آخر لحظة تقدّم فيها المطابق — لإظهار «لم أسمعك» بلطف
+  var lastProgressAt = Date()
   @ObservationIgnored private var speech: SpeechListener?
 
   init(page: Int, from: Int, veil: Bool = false) {
@@ -112,6 +193,7 @@ final class HifzSession {
   func reveal(_ idx: [Int]) {
     guard !idx.isEmpty else { return }
     version += 1
+    lastProgressAt = Date()
     UIImpactFeedbackGenerator(style: .light).impactOccurred()
     if matcher.done { finish() }
   }
@@ -125,30 +207,44 @@ final class HifzSession {
   func revealAll() { var idx: [Int] = []; while let i = matcher.hint() { idx.append(i) }; reveal(idx) }
   private func finish() { finished = true; stopSpeech() }
 
+  /// الكلمات المتوقّعة الآن بصيغتها المكتوبة — تُرجَّح في المُعرِّف
+  private func upcomingContext() -> [String] {
+    guard matcher.pos < words.count else { return [] }
+    let end = min(words.count, matcher.pos + 40)
+    var out = words[matcher.pos..<end].map(\.raw)
+    // أزواج متجاورة أيضًا: التعرّف يميل إلى دمج الكلمات القصيرة
+    if end - matcher.pos >= 2 {
+      for i in matcher.pos..<(end - 1) { out.append(words[i].raw + " " + words[i + 1].raw) }
+    }
+    return out
+  }
+
   // MARK: - الصوت
   var speechSupported: Bool { SpeechListener.isSupported }
   func toggleSpeech() {
     if listening { stopSpeech(); return }
     Task { @MainActor in
-      guard await SpeechListener.requestAuthorization() else { self.error = "لم يُمنح إذن الميكروفون أو التعرّف على الكلام"; return }
-      let s = SpeechListener()
-      s.onResult = { [weak self] cumulative, alts, isFinal in
-        guard let self else { return }
-        // النتائج المؤقتة تراكمية: نغذّي المطابق بالكلمات الجديدة فقط
-        let ws = cumulative.split(separator: " ").map(String.init)
-        let fresh = ws.dropFirst(self.fed).joined(separator: " ")
-        if !fresh.isEmpty {
-          var r = self.matcher.feed(fresh)
-          if r.isEmpty, let alt = alts.first { r = self.matcher.feed(alt.split(separator: " ").dropFirst(self.fed).joined(separator: " ")) }
-          self.reveal(r)
-        }
-        self.heard = cumulative
-        self.fed = isFinal ? 0 : ws.count
+      guard await SpeechListener.requestAuthorization() else {
+        self.error = "لم يُمنح إذن الميكروفون أو التعرّف على الكلام"; return
       }
-      s.onState = { [weak self] on in self?.listening = on; if !on { self?.fed = 0 } }
-      s.onError = { [weak self] msg in self?.error = msg == "restart-loop" ? "توقف التعرّف على الكلام — أعد المحاولة" : msg }
-      do { try s.start(); self.speech = s; self.listening = true; self.fed = 0 } catch { self.error = "تعذّر تشغيل التعرّف على الكلام على هذا الجهاز" }
+      let s = SpeechListener()
+      s.context = { [weak self] in self?.upcomingContext() ?? [] }
+      s.onTail = { [weak self] tail, alts in
+        guard let self, !tail.isEmpty else { return }
+        var r = self.matcher.feed(tail)
+        // إن لم يُطابق الاختيار الأول، نجرّب البدائل التي يعرضها المُعرِّف
+        if r.isEmpty { for alt in alts where !alt.isEmpty { r = self.matcher.feed(alt); if !r.isEmpty { break } } }
+        self.reveal(r)
+      }
+      s.onTranscript = { [weak self] t in self?.heard = t }
+      s.onState = { [weak self] on in self?.listening = on }
+      s.onError = { [weak self] msg in self?.error = msg }
+      do {
+        try s.start(); self.speech = s; self.listening = true; self.lastProgressAt = Date()
+      } catch {
+        self.error = "تعذّر تشغيل التعرّف على الكلام على هذا الجهاز"
+      }
     }
   }
-  func stopSpeech() { speech?.stop(silent: true); speech = nil; listening = false; fed = 0 }
+  func stopSpeech() { speech?.stop(silent: true); speech = nil; listening = false }
 }

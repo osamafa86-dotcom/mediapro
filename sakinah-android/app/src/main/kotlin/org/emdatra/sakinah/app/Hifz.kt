@@ -80,8 +80,22 @@ class HifzSession(val page: Int, val from: Int, val veil: Boolean) {
   fun revealAll() { val idx = ArrayList<Int>(); while (true) { val i = hintIndex() ?: break; idx.add(i) }; reveal(idx) }
 
   fun toggleSpeech(ctx: Context) { if (listening) stopSpeech() else start(ctx) }
+
+  private val main = Handler(Looper.getMainLooper())
+  private var appCtx: Context? = null
+  private var restartPending = false
+
   private fun start(ctx: Context) {
     if (!SpeechRecognizer.isRecognitionAvailable(ctx)) { error = "التعرّف على الكلام غير متاح على هذا الجهاز"; return }
+    appCtx = ctx.applicationContext
+    listening = true
+    createAndListen()
+  }
+
+  /** دورة تعرّف جديدة بمُعرِّف جديد — أندرويد ينهي الجلسة مع كل صمت، فالتدوير جزء من التشغيل لا استثناء */
+  private fun createAndListen() {
+    val ctx = appCtx ?: return
+    runCatching { recognizer?.destroy() }
     val r = SpeechRecognizer.createSpeechRecognizer(ctx); recognizer = r
     r.setRecognitionListener(object : RecognitionListener {
       override fun onReadyForSpeech(params: Bundle?) { listening = true }
@@ -92,36 +106,72 @@ class HifzSession(val page: Int, val from: Int, val veil: Boolean) {
       override fun onError(code: Int) {
         when (code) {
           SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> { error = "لم يُمنح إذن الميكروفون"; stopSpeech() }
-          SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> { error = "التعرّف على الكلام يحتاج اتصالًا بالإنترنت"; stopSpeech() }
-          else -> restart()
+          // صمت أو لا تطابق: طبيعيّ تمامًا بين الآيات — نعاود فورًا بلا رسالة
+          SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> restart(recreate = false, delay = 80)
+          // المُعرِّف مشغول أو عطب في العميل: نبنيه من جديد
+          SpeechRecognizer.ERROR_RECOGNIZER_BUSY, SpeechRecognizer.ERROR_CLIENT -> restart(recreate = true, delay = 250)
+          SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> restart(recreate = true, delay = 400)
+          else -> restart(recreate = true, delay = 250)
         }
       }
-      override fun onResults(results: Bundle?) { handle(results, true); restart() }
+      override fun onResults(results: Bundle?) { handle(results, true); restart(recreate = false, delay = 80) }
       override fun onPartialResults(partialResults: Bundle?) { handle(partialResults, false) }
       override fun onEvent(eventType: Int, params: Bundle?) {}
     })
-    listening = true; fed = 0; listen(r)
+    fed = 0
+    listen(r)
   }
+
   private fun listen(r: SpeechRecognizer) {
     val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
       .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-      .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-SA").putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true).putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-    r.startListening(i)
+      .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-SA")
+      .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+      .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+      // لا تُنهِ الجلسة عند أول سكتة بين آيتين
+      .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2500)
+      .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2500)
+      .putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 1200)
+    // دون اتصال حين تتوفّر حزمة اللغة — أسرع ويحفظ وعد العمل بلا شبكة
+    if (android.os.Build.VERSION.SDK_INT >= 23) i.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+    runCatching { r.startListening(i) }.onFailure { restart(recreate = true, delay = 300) }
   }
-  private fun restart() { if (!listening) return; fed = 0; val r = recognizer ?: return; Handler(Looper.getMainLooper()).postDelayed({ if (listening && recognizer === r) listen(r) }, 300) }
+
+  private fun restart(recreate: Boolean, delay: Long) {
+    if (!listening || restartPending) return
+    restartPending = true
+    main.postDelayed({
+      restartPending = false
+      if (!listening) return@postDelayed
+      if (recreate) createAndListen() else { fed = 0; recognizer?.let { listen(it) } ?: createAndListen() }
+    }, delay)
+  }
+
   private fun handle(b: Bundle?, final: Boolean) {
     val list = b?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION) ?: return
-    val cumulative = list.firstOrNull() ?: return
-    val ws = cumulative.split(' ').filter { it.isNotEmpty() }
-    val fresh = ws.drop(fed).joinToString(" ")
-    if (fresh.isNotEmpty()) {
-      var r = matcher.feed(fresh)
-      if (r.isEmpty() && list.size > 1) r = matcher.feed(list[1].split(' ').filter { it.isNotEmpty() }.drop(fed).joinToString(" "))
+    val best = list.firstOrNull() ?: return
+    val ws = best.split(' ').filter { it.isNotEmpty() }
+    if (ws.size > fed) {
+      val tail = ws.drop(fed).joinToString(" ")
+      val altTails = list.drop(1).mapNotNull { alt ->
+        val a = alt.split(' ').filter { it.isNotEmpty() }
+        if (a.size > fed) a.drop(fed).joinToString(" ") else null
+      }
+      fed = ws.size
+      var r = matcher.feed(tail)
+      if (r.isEmpty()) for (alt in altTails) { r = matcher.feed(alt); if (r.isNotEmpty()) break }
       reveal(r)
     }
-    heard = cumulative; fed = if (final) 0 else ws.size
+    heard = best
+    if (final) fed = 0
   }
-  fun stopSpeech() { listening = false; recognizer?.let { runCatching { it.stopListening() }; runCatching { it.destroy() } }; recognizer = null; fed = 0 }
+
+  fun stopSpeech() {
+    listening = false; restartPending = false
+    main.removeCallbacksAndMessages(null)
+    recognizer?.let { runCatching { it.cancel() }; runCatching { it.destroy() } }
+    recognizer = null; fed = 0
+  }
 }
 
 /** لوحة مراجعة الحفظ / إخفاء الآيات */

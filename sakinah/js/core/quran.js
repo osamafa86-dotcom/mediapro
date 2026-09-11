@@ -107,27 +107,47 @@ export function similarity(a, b) { const m = Math.max(a.length, b.length); retur
  * ويتجاهل الكلمات غير المطابقة (تكرار، تلعثم) بدل أن يتعطل.
  */
 export class HifzMatcher {
-  constructor(words, { threshold = 0.66, lookahead = 2, lookaheadThreshold = 0.85 } = {}) {
+  constructor(words, { threshold = 0.66, lookahead = 2, lookaheadThreshold = 0.85, fuseThreshold = 0.8 } = {}) {
     this.words = words; // [{norm, ...}] الكلمات المنطوقة فقط
     this.pos = 0; this.threshold = threshold; this.lookahead = lookahead; this.lookaheadThreshold = lookaheadThreshold; // القفز فوق كلمة يتطلب تطابقًا أوثق
+    this.fuseThreshold = fuseThreshold; // دمج/تقسيم التعرّف (كلمة منطوقة ↔ كلمتان متوقّعتان) يتطلب تطابقًا أوثق
     this.matched = 0; this.skipped = 0; this.unmatched = 0;
   }
   /** يعالج نصًا منطوقًا (كلمة أو أكثر) ويعيد قائمة فهارس الكلمات التي كُشفت الآن */
   feed(transcript) {
     const spoken = normalizeForMatch(transcript).split(' ').filter(Boolean);
     const revealed = [];
-    for (const w of spoken) {
+    let i = 0;
+    while (i < spoken.length) {
       if (this.pos >= this.words.length) break;
-      let hit = -1;
+      const w = spoken[i];
+      let hit = -1; // كم كلمة متوقّعة نتخطّاها قبل المطابقة
+      let span = 1; // كم كلمة متوقّعة تستهلكها هذه المطابقة
+      let take = 1; // كم كلمة منطوقة نستهلكها
       for (let k = 0; k <= this.lookahead && this.pos + k < this.words.length; k++) {
         const exp = this.words[this.pos + k].norm; const th = k === 0 ? this.threshold : this.lookaheadThreshold;
         if (exp === w || similarity(exp, w) >= th || (k === 0 && w.length >= 4 && exp.length >= 4 && (exp.startsWith(w) || w.startsWith(exp)))) { hit = k; break; }
       }
-      if (hit < 0) { this.unmatched++; continue; }
+      // التعرّف يدمج كلمتين في واحدة («اياك نعبد» ← «اياكنعبد»)
+      if (hit < 0 && this.pos + 1 < this.words.length && similarity(this.words[this.pos].norm + this.words[this.pos + 1].norm, w) >= this.fuseThreshold) { hit = 0; span = 2; }
+      // أو يقسم الكلمة الواحدة إلى اثنتين («نستعين» ← «نست عين»)
+      if (hit < 0 && i + 1 < spoken.length && similarity(this.words[this.pos].norm, w + spoken[i + 1]) >= this.fuseThreshold) { hit = 0; take = 2; }
+      if (hit < 0) { this.unmatched++; i++; continue; }
+      // امتداد الدمج: الكلمة المنطوقة قد تضمّ أكثر من كلمة متوقّعة — نتوسّع ما دام التشابه يتحسّن
+      if (span === 1) {
+        let acc = this.words[this.pos + hit].norm; let best = similarity(acc, w);
+        while (this.pos + hit + span < this.words.length) {
+          const next = acc + this.words[this.pos + hit + span].norm; const sim = similarity(next, w);
+          if (sim <= best) break;
+          acc = next; best = sim; span++;
+        }
+      }
       for (let k = 0; k < hit; k++) revealed.push(this.pos + k); // كلمات متخطّاة تُكشف أيضًا
       this.skipped += hit;
-      revealed.push(this.pos + hit); this.matched++;
-      this.pos += hit + 1;
+      for (let j = 0; j < span; j++) revealed.push(this.pos + hit + j);
+      this.matched++;
+      this.pos += hit + span;
+      i += take;
     }
     return revealed;
   }

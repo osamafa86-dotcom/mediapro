@@ -114,9 +114,9 @@ public final class HifzMatcher {
   public let words: [HifzWord]
   public private(set) var pos = 0
   public private(set) var matched = 0, skipped = 0, unmatched = 0
-  public let threshold: Double, lookahead: Int, lookaheadThreshold: Double
-  public init(words: [HifzWord], threshold: Double = 0.66, lookahead: Int = 2, lookaheadThreshold: Double = 0.85) {
-    self.words = words; self.threshold = threshold; self.lookahead = lookahead; self.lookaheadThreshold = lookaheadThreshold
+  public let threshold: Double, lookahead: Int, lookaheadThreshold: Double, fuseThreshold: Double
+  public init(words: [HifzWord], threshold: Double = 0.66, lookahead: Int = 2, lookaheadThreshold: Double = 0.85, fuseThreshold: Double = 0.8) {
+    self.words = words; self.threshold = threshold; self.lookahead = lookahead; self.lookaheadThreshold = lookaheadThreshold; self.fuseThreshold = fuseThreshold
   }
   /// كلمات المراجعة من آيات (المنطوقة فقط) بدءًا من آية معيّنة
   public static func words(from ayahs: [Ayah], startingAt n: Int = 0) -> [HifzWord] {
@@ -132,9 +132,13 @@ public final class HifzMatcher {
   public func feed(_ transcript: String) -> [Int] {
     let spoken = QuranNormalize.forMatch(transcript).split(separator: " ").map(String.init)
     var revealed: [Int] = []
-    for w in spoken {
+    var i = 0
+    while i < spoken.count {
       if pos >= words.count { break }
-      var hit = -1
+      let w = spoken[i]
+      var hit = -1   // كم كلمة متوقّعة نتخطّاها قبل المطابقة
+      var span = 1   // كم كلمة متوقّعة تستهلكها هذه المطابقة
+      var take = 1   // كم كلمة منطوقة نستهلكها
       var k = 0
       while k <= lookahead && pos + k < words.count {
         let exp = words[pos + k].norm; let th = k == 0 ? threshold : lookaheadThreshold
@@ -142,11 +146,26 @@ public final class HifzMatcher {
         if exp == w || QuranNormalize.similarity(exp, w) >= th || (k == 0 && wl >= 4 && el >= 4 && (exp.hasPrefix(w) || w.hasPrefix(exp))) { hit = k; break }
         k += 1
       }
-      if hit < 0 { unmatched += 1; continue }
+      // التعرّف يدمج كلمتين في واحدة («اياك نعبد» ← «اياكنعبد»)
+      if hit < 0, pos + 1 < words.count, QuranNormalize.similarity(words[pos].norm + words[pos + 1].norm, w) >= fuseThreshold { hit = 0; span = 2 }
+      // أو يقسم الكلمة الواحدة إلى اثنتين («نستعين» ← «نست عين»)
+      if hit < 0, i + 1 < spoken.count, QuranNormalize.similarity(words[pos].norm, w + spoken[i + 1]) >= fuseThreshold { hit = 0; take = 2 }
+      if hit < 0 { unmatched += 1; i += 1; continue }
+      // امتداد الدمج: الكلمة المنطوقة قد تضمّ أكثر من كلمة متوقّعة — نتوسّع ما دام التشابه يتحسّن
+      if span == 1 {
+        var acc = words[pos + hit].norm; var best = QuranNormalize.similarity(acc, w)
+        while pos + hit + span < words.count {
+          let next = acc + words[pos + hit + span].norm; let sim = QuranNormalize.similarity(next, w)
+          if sim <= best { break }
+          acc = next; best = sim; span += 1
+        }
+      }
       for j in 0..<hit { revealed.append(pos + j) }
       skipped += hit
-      revealed.append(pos + hit); matched += 1
-      pos += hit + 1
+      for j in 0..<span { revealed.append(pos + hit + j) }
+      matched += 1
+      pos += hit + span
+      i += take
     }
     return revealed
   }
