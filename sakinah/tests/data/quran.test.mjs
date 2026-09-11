@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { similarity, setQuranData, pageAyahs, surahAyahs, getAyahBySurah, normalizeForMatch, tokenize, HifzMatcher, surahsStartingOn, pageLabel, searchText, SURAHS, JUZ_STARTS, TOTAL_PAGES } from '../../js/core/quran.js';
+import { similarity, setQuranData, pageAyahs, surahAyahs, getAyah, getAyahBySurah, normalizeForMatch, tokenize, HifzMatcher, surahsStartingOn, pageLabel, searchText, SURAHS, JUZ_STARTS, TOTAL_PAGES, TOTAL_AYAHS } from '../../js/core/quran.js';
 
 const raw = JSON.parse(fs.readFileSync(new URL('../../data/quran.json', import.meta.url), 'utf8'));
 const q = setQuranData(raw);
@@ -87,6 +87,49 @@ test('مُطابِق الحفظ: يستعيد التزامن إن أسقط ال�
   const single = new HifzMatcher(words);
   for (const w of [spoken[0], 'xxxxxxxx', spoken[40]]) single.feed(w);
   assert.equal(single.resynced, 0);
+});
+
+test('سلامة تخطيط المصحف: رموز كل سطر تطابق كلماته، وكلمات كل آية متسلسلة كاملة بلا فجوة ولا تكرار', () => {
+  const L = JSON.parse(fs.readFileSync(new URL('../../data/mushaf-layout.json', import.meta.url), 'utf8'));
+  assert.equal(L.pages.length, TOTAL_PAGES);
+
+  // ١) عدد الرموز في كل سطر = عدد الكلمات المعلنة في مقاطعه
+  let wordLines = 0;
+  for (const [pi, page] of L.pages.entries()) {
+    for (const [li, ln] of page.entries()) {
+      if (ln[0] !== 0) continue;
+      wordLines++;
+      const cells = ln[1].split('|').length;
+      const declared = (ln[2] || []).reduce((a, r) => a + r[2], 0);
+      assert.equal(cells, declared, `ص${pi + 1} س${li + 1}: ${cells} رمزًا مقابل ${declared} كلمة`);
+    }
+  }
+  assert.ok(wordLines > 8000, `أسطر الكلمات ${wordLines}`);
+
+  // ٢) كلمات كل آية مغطّاة مرة واحدة بالترتيب ٠..ن-١، ولها علامة نهاية واحدة بالضبط
+  const cover = new Map(); const marks = new Map();
+  for (const page of L.pages) for (const ln of page) {
+    if (ln[0] !== 0) continue;
+    for (const [n, k0, cnt, e] of ln[2] || []) {
+      if (e) marks.set(n, (marks.get(n) || 0) + 1);
+      if (!cover.has(n)) cover.set(n, []);
+      for (let i = 0; i < (e ? cnt - 1 : cnt); i++) cover.get(n).push(k0 + i);
+    }
+  }
+  assert.equal(cover.size, TOTAL_AYAHS);
+  for (let n = 1; n <= TOTAL_AYAHS; n++) {
+    const spoken = tokenize(getAyah(n).text).filter((w) => w.spoken).length;
+    const got = cover.get(n);
+    assert.equal(marks.get(n), 1, `الآية ${n}: علامات نهاية ${marks.get(n)}`);
+    // ٣٧:١٣٠ وحدها يختلف فيها تقسيم المجمع عن تقسيم Tanzil («إِلْ يَاسِينَ» رمز واحد) وتُعالَج بـ maps
+    const expected = L.maps[n] ? L.maps[n].length : spoken;
+    assert.equal(got.length, expected, `الآية ${n}: ${got.length} كلمة في التخطيط مقابل ${expected}`);
+    for (let i = 0; i < got.length; i++) assert.equal(got[i], i, `الآية ${n}: تسلسل الكلمات انكسر عند ${i}`);
+  }
+
+  // ٣) الاستثناء الوحيد موثّق ومحصور
+  assert.deepEqual(Object.keys(L.maps), ['3918']);
+  assert.equal(getAyah(3918).surah, 37); assert.equal(getAyah(3918).ayah, 130);
 });
 
 test('البحث النصي يجد الآية بلا تشكيل', () => {
