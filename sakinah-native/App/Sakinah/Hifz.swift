@@ -28,6 +28,8 @@ final class SpeechListener {
   /// كم كلمة استُهلكت من نصّ الدورة الحالية — يعود صفرًا مع كل دورة جديدة
   private var consumed = 0
   private var backoff: Double = 0.15
+  /// أعطال حقيقية متتابعة (الصمت لا يُحسب) — تمنع دورانًا أبديًا عند عطب فعلي
+  private var failures = 0
   private var rotate: DispatchWorkItem?
 
   /// الخادم يقطع بعد نحو دقيقة؛ ندوّر قبلها بأمان. التعرّف على الجهاز بلا حدّ فنطيل الدورة
@@ -64,6 +66,7 @@ final class SpeechListener {
 
     active = true
     backoff = 0.15
+    failures = 0
     onState?(true)
     beginTask()
   }
@@ -102,16 +105,27 @@ final class SpeechListener {
     consumed = 0
 
     task = recognizer.recognitionTask(with: req) { [weak self] result, error in
-      guard let self else { return }
-      if let r = result {
-        self.emit(r.bestTranscription.formattedString, alternatives: r.transcriptions.dropFirst().prefix(2).map(\.formattedString))
-        if r.isFinal { self.cycle() }
-      }
-      if let e = error as NSError? {
-        // 1110 لا كلام، 216/301/203/1101 إلغاء أو انتهاء دورة: كلّها طبيعية أثناء التلاوة المتقطّعة
-        let benign = [1110, 216, 301, 203, 1101, 209].contains(e.code)
-        if !benign, self.active { self.onError?(e.localizedDescription) }
-        self.cycle()
+      // النداءات تصل على خيط عشوائي؛ كل ما يلي يمسّ حالة الواجهة فيلزم الخيط الرئيسي
+      let best = result?.bestTranscription.formattedString
+      let alts = result.map { Array($0.transcriptions.dropFirst().prefix(2).map(\.formattedString)) } ?? []
+      let isFinal = result?.isFinal ?? false
+      let code = (error as NSError?)?.code
+      let message = error?.localizedDescription
+      DispatchQueue.main.async {
+        guard let self, self.active else { return }
+        if let best { self.emit(best, alternatives: alts) }
+        if let code {
+          // 1110 لا كلام، 216/301/203/1101/209 إلغاء أو انتهاء دورة: كلّها طبيعية أثناء التلاوة المتقطّعة
+          let benign = [1110, 216, 301, 203, 1101, 209].contains(code)
+          if benign { self.failures = 0 } else {
+            self.failures += 1
+            if self.failures >= 8 { self.onError?(message ?? "تعذّر التعرّف على الكلام"); self.stop(); return }
+          }
+          self.cycle()
+        } else if isFinal {
+          self.failures = 0
+          self.cycle()
+        }
       }
     }
 
@@ -145,6 +159,7 @@ final class SpeechListener {
       return a.count > consumed ? a[consumed...].joined(separator: " ") : nil
     }
     consumed = ws.count
+    failures = 0
     onTail?(tail, altTails)
   }
 }
