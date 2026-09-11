@@ -37,10 +37,18 @@ final class SpeechListener {
   /// مستوى الصوت الداخل (0…1) لمؤشّر حيّ يُظهر أن الأذن تعمل
   var onLevel: ((Double) -> Void)?
   private var lastLevelAt = Date.distantPast
+  /// تراجع تلقائي إلى تعرّف الخادم إن تبيّن أن نموذج الجهاز لا ينتج شيئًا.
+  /// ساكن فيبقى لبقية عمر التطبيق: نموذج عربي غائب لن يظهر في الجلسة التالية،
+  /// فلا نُضيّع ثماني ثوانٍ صامتة في كل مرة. يُقرأ ويُكتب على الخيط الرئيسي وحده.
+  private static var onDeviceFailed = false
+  private var everTranscribed = false
+  private var spokeAt: Date?
 
   /// الخادم يقطع بعد نحو دقيقة؛ ندوّر قبلها بأمان. التعرّف على الجهاز بلا حدّ فنطيل الدورة
-  private var rotateAfter: TimeInterval { onDevice ? 240 : 45 }
+  private var rotateAfter: TimeInterval { usingOnDevice ? 240 : 45 }
   private var onDevice: Bool { recognizer?.supportsOnDeviceRecognition ?? false }
+  /// ما نستعمله فعلًا الآن — بعد التراجع نعود إلى إيقاع الخادم وإلا قطعَنا قبل أن ندوّر
+  private var usingOnDevice: Bool { onDevice && !Self.onDeviceFailed }
 
   static var isSupported: Bool { SFSpeechRecognizer(locale: Locale(identifier: "ar-SA")) != nil }
   static func requestAuthorization() async -> Bool {
@@ -78,6 +86,8 @@ final class SpeechListener {
     backoff = 0.15
     failures = 0
     cycling = false
+    everTranscribed = false
+    spokeAt = nil
     onState?(true)
     beginTask()
   }
@@ -112,7 +122,7 @@ final class SpeechListener {
     req.shouldReportPartialResults = true
     req.taskHint = .dictation
     // على الجهاز حين يتوفّر: يعمل دون اتصال، وبلا حدّ زمني، وبلا خنق من الخادم
-    req.requiresOnDeviceRecognition = onDevice
+    req.requiresOnDeviceRecognition = usingOnDevice
     if #available(iOS 16.0, *) { req.addsPunctuation = false }
     // ترجيح الكلمات المتوقّعة: أهمّ رافعة لدقّة التعرّف على النصّ القرآني
     req.contextualStrings = Array((context?() ?? []).prefix(60))
@@ -158,6 +168,10 @@ final class SpeechListener {
   /// يبدأ دورة جديدة دون أن يمسّ محرّك الصوت — لا صمت ولا فقدان كلمات
   private func cycle(immediate: Bool = false) {
     guard active, !cycling else { return }
+    // تكلّم القارئ ووصلنا صوته، ومع ذلك لم يصلنا نصّ قطّ ← نموذج الجهاز لا ينتج شيئًا، فنتراجع إلى الخادم
+    if !everTranscribed, usingOnDevice, let spoke = spokeAt, Date().timeIntervalSince(spoke) > 8 {
+      Self.onDeviceFailed = true
+    }
     cycling = true
     rotate?.cancel(); rotate = nil
     let delay = immediate ? 0 : backoff
@@ -182,12 +196,17 @@ final class SpeechListener {
     for i in stride(from: 0, to: n, by: 8) { sum += ch[i] * ch[i] }
     let rms = (sum / Float(max(1, n / 8))).squareRoot()
     let level = min(1, Double(rms) * 12)
-    DispatchQueue.main.async { [weak self] in self?.onLevel?(level) }
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+      if level > 0.15 { self.spokeAt = Date() }
+      self.onLevel?(level)
+    }
   }
 
   /// يمرّر الذيل الجديد فقط؛ لا يعيد ما استُهلك ولو تراجع النصّ
   private func emit(_ transcript: String, alternatives: [String]) {
     let ws = transcript.split(separator: " ").map(String.init)
+    if !transcript.isEmpty { everTranscribed = true }
     onTranscript?(transcript)
     guard ws.count > consumed else { return }
     let tail = ws[consumed...].joined(separator: " ")
