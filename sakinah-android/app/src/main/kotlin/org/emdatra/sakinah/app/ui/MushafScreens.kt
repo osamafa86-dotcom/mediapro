@@ -2,6 +2,14 @@ package org.emdatra.sakinah.app.ui
 
 import android.content.Intent
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.AbsoluteAlignment
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -199,49 +207,83 @@ import org.emdatra.sakinah.core.*
   BackHandler { if (sheet != null) sheet = null else onClose() }
   val first = QuranText.shared.pageAyahs(page).firstOrNull()
   fun playPage() { first?.let { Recitation.reciter = Store.reciter; Recitation.repeatAyah = Store.repeatAyah; Recitation.repeatRange = Store.repeatRange; Recitation.words = Store.wordHighlight; Recitation.play(ctx, QuranText.shared.pageAyahs(page).map { a -> a.n }) } }
-  Box(Modifier.fillMaxSize().background(paper)) {
-    HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, key = { it }) { i ->
-      val p = i + 1
-      Box(Modifier.fillMaxSize().clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { val h = hifz; if (h != null) { if (h.veil) h.revealAyah() else h.hint() } else chrome = !chrome }) {
-        if (Store.view == "text") TextPage(p, ink, paper, selected, hifz) { a -> selected = a.n; ayahSheet = a } else MushafPage(p, ink, paper, selected, hifz) { a -> selected = a.n; ayahSheet = a }
-      }
+  // الشريطان: يظهران لحظة ثم ينزلقان، ولا يعلوان النصّ أبدًا — الصفحة تنكمش بينهما
+  var chromeNonce by remember { mutableIntStateOf(0) }
+  var lastPage by remember { mutableIntStateOf(startPage) }
+  fun showChrome() { chrome = true; chromeNonce++ }
+  LaunchedEffect(page) { if (page != lastPage) { lastPage = page; chrome = false } }
+  LaunchedEffect(chrome, chromeNonce, sheet, ayahSheet, downloads, hifz) {
+    if (chrome && hifz == null && sheet == null && ayahSheet == null && !downloads) {
+      kotlinx.coroutines.delay(3600); chrome = false
     }
-    if (chrome) {
-      Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().background(paper.copy(alpha = 0.94f)).statusBarsPadding().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+  }
+
+  Column(Modifier.fillMaxSize().background(paper).statusBarsPadding().navigationBarsPadding()) {
+    AnimatedVisibility(chrome, enter = slideInVertically { -it } + fadeIn(), exit = slideOutVertically { -it } + fadeOut()) {
+      Row(Modifier.fillMaxWidth().background(paper).padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         BarButton(Icons.Filled.ChevronRight, "إغلاق المصحف", ink, onClose)
         val l = QuranText.shared.label(page)
         Column(Modifier.weight(1f)) {
           Text(l?.let { "سورة ${QuranMeta.surah(it.surah).name}" } ?: "", style = DSType.headingSm, color = ink, maxLines = 1)
           Text(l?.let { val su = QuranMeta.surah(it.surah); "${QuranMeta.juzName(it.juz, false)} · الحزب ${Fmt.number(it.hizb)} · ${su.type} · ${Fmt.number(su.ayahs)} آية" } ?: "", style = DSType.labelXs, color = ink.copy(alpha = 0.6f), maxLines = 1)
         }
-        BarButton(if (Store.bookmarks.any { it.page == page }) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder, "علامة", ink) { first?.let { Store.toggleBookmark(it) } }
+        BarButton(if (Store.bookmarks.any { it.page == page }) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder, "علامة", ink) { chromeNonce++; first?.let { Store.toggleBookmark(it) } }
         BarButton(Icons.Outlined.FormatSize, "العرض والخط", ink) { sheet = "display" }
         BarButton(Icons.Outlined.List, "الفهرس", ink) { sheet = "index" }
         BarButton(Icons.Filled.MoreVert, "خيارات", ink) { sheet = "options" }
       }
-      Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
-        hifz?.let { h -> HifzPanel(h, onExit = { h.stopSpeech(); hifz = null }, onNextPage = { if (page < 604) { val veil = h.veil; scope.launch { pager.scrollToPage(page); kotlinx.coroutines.delay(400); QuranText.shared.pageAyahs(page + 1).firstOrNull()?.let { a -> hifz = HifzSession(page + 1, a.n, veil) } } } }) }
-        if (Recitation.current != null) Box(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) { AudioBar() }
-        if (hifz == null) Column(Modifier.fillMaxWidth().background(paper.copy(alpha = 0.94f)).navigationBarsPadding().padding(horizontal = 16.dp, vertical = 4.dp)) {
+    }
+
+    Box(Modifier.weight(1f).fillMaxWidth()) {
+      HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, key = { it }) { i ->
+        val p = i + 1
+        Box(Modifier.fillMaxSize().clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { val h = hifz; if (h != null) { if (h.veil) h.revealAyah() else h.hint() } else if (chrome) chrome = false else showChrome() }) {
+          if (Store.view == "text") TextPage(p, ink, paper, selected, hifz) { a -> selected = a.n; ayahSheet = a } else MushafPage(p, ink, paper, selected, hifz) { a -> selected = a.n; ayahSheet = a }
+        }
+      }
+      // في الوضع الغامر: حافّتان تستقبلان النقر والسحب بعيدًا عن الكلمات
+      if (!chrome && hifz == null) {
+        Box(
+          Modifier.align(Alignment.TopCenter).fillMaxWidth().height(30.dp)
+            .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { showChrome() }
+            .pointerInput(Unit) { detectVerticalDragGestures { _, dy -> if (dy > 3f) showChrome() } }
+        )
+        Column(
+          Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+            .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { showChrome() }
+            .pointerInput(Unit) { detectVerticalDragGestures { _, dy -> if (dy < -3f) showChrome() } },
+          horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+          JuzHairline(page, ink)
+          Spacer(Modifier.height(18.dp))
+        }
+      }
+      if (hifz != null && !chrome) Text(if (hifz!!.veil) "انقر الصفحة لكشف الآية التالية" else "انقر الصفحة لكشف الكلمة التالية", Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp).clip(CircleShape).background(c.bgInverse.copy(alpha = 0.9f)).padding(horizontal = 16.dp, vertical = 10.dp), style = DSType.labelMd, color = c.bgCanvas)
+    }
+
+    Column(Modifier.fillMaxWidth()) {
+      hifz?.let { h -> HifzPanel(h, onExit = { h.stopSpeech(); hifz = null }, onNextPage = { if (page < 604) { val veil = h.veil; scope.launch { pager.scrollToPage(page); kotlinx.coroutines.delay(400); QuranText.shared.pageAyahs(page + 1).firstOrNull()?.let { a -> hifz = HifzSession(page + 1, a.n, veil) } } } }) }
+      if (Recitation.current != null) Box(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) { AudioBar() }
+      AnimatedVisibility(chrome && hifz == null, enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
+        Column(Modifier.fillMaxWidth().background(paper).padding(horizontal = 16.dp, vertical = 4.dp)) {
           Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            BarButton(Icons.Outlined.PlayCircle, "تشغيل تلاوة الصفحة", ink) { playPage() }
+            BarButton(Icons.Outlined.PlayCircle, "تشغيل تلاوة الصفحة", ink) { chromeNonce++; playPage() }
             BarButton(Icons.Outlined.Mic, "مراجعة الحفظ", ink) { first?.let { Recitation.stop(); hifz = HifzSession(page, it.n, veil = false) } }
             BarButton(Icons.Outlined.VisibilityOff, "إخفاء الآيات للحفظ", ink) { first?.let { Recitation.stop(); hifz = HifzSession(page, it.n, veil = true) } }
             BarButton(Icons.Outlined.Search, "التنقل والبحث", ink) { sheet = "nav" }
             Spacer(Modifier.weight(1f))
             BarButton(Icons.Outlined.Download, "التلاوات دون اتصال", ink) { downloads = true }
           }
-          Slider(page.toFloat(), { v -> scope.launch { pager.scrollToPage(v.toInt() - 1) } }, valueRange = 1f..604f, colors = SliderDefaults.colors(thumbColor = c.accentGold, activeTrackColor = c.accentGold, inactiveTrackColor = ink.copy(alpha = 0.15f)))
+          Slider(page.toFloat(), { v -> chromeNonce++; scope.launch { pager.scrollToPage(v.toInt() - 1) } }, valueRange = 1f..604f, colors = SliderDefaults.colors(thumbColor = c.accentGold, activeTrackColor = c.accentGold, inactiveTrackColor = ink.copy(alpha = 0.15f)))
           val l2 = QuranText.shared.label(page)
           Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(l2?.let { "${QuranMeta.juzName(it.juz, false)} · الحزب ${Fmt.number(it.hizb)}" } ?: "", style = DSType.labelXs, color = ink.copy(alpha = 0.55f), maxLines = 1)
             Spacer(Modifier.weight(1f)); Text(Fmt.number(page), style = DSType.numericMd, color = ink.copy(alpha = 0.85f)); Spacer(Modifier.weight(1f))
             Text(l2?.let { QuranMeta.surah(it.surah).name } ?: "", style = DSType.labelXs, color = ink.copy(alpha = 0.55f), maxLines = 1)
           }
-        } else Spacer(Modifier.navigationBarsPadding())
+        }
       }
-    } else if (Recitation.current != null && hifz == null) Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().padding(12.dp)) { AudioBar() }
-    if (hifz != null && !chrome) Text(if (hifz!!.veil) "انقر الصفحة لكشف الآية التالية" else "انقر الصفحة لكشف الكلمة التالية", Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 24.dp).clip(CircleShape).background(c.bgInverse.copy(alpha = 0.9f)).padding(horizontal = 16.dp, vertical = 10.dp), style = DSType.labelMd, color = c.bgCanvas)
+    }
   }
   ayahSheet?.let { a -> AyahSheet(a, onDismiss = { ayahSheet = null; selected = null }, onHifz = { ayahSheet = null; selected = null; Recitation.stop(); hifz = HifzSession(page, a.n, veil = false) }) }
   if (downloads) ModalBottomSheet(onDismissRequest = { downloads = false }, containerColor = c.bgSurface) { DownloadsSheet(first?.surah) }
@@ -249,6 +291,17 @@ import org.emdatra.sakinah.core.*
     "index", "nav" -> ModalBottomSheet(onDismissRequest = { sheet = null }, containerColor = c.bgSurface) { IndexSheet(page) { p, n -> sheet = null; scope.launch { pager.scrollToPage(p - 1) }; if (n != null) selected = n } }
     "display" -> ModalBottomSheet(onDismissRequest = { sheet = null }, containerColor = c.bgSurface) { DisplaySheet() }
     "options" -> ModalBottomSheet(onDismissRequest = { sheet = null }, containerColor = c.bgSurface) { Column { PlaybackOptions(); OptionsSheet(page) { sheet = null } } }
+  }
+}
+/** خيط ذهبي رفيع: موضع الصفحة داخل جزئها — الأثر الوحيد الباقي في الوضع الغامر */
+@Composable private fun JuzHairline(page: Int, ink: Color) {
+  val juz = QuranMeta.juzOfPage(page)
+  val starts = QuranMeta.juzStarts
+  val from = starts.firstOrNull { it.juz == juz }?.page ?: 1
+  val to = starts.firstOrNull { it.juz == juz + 1 }?.page ?: 605
+  val p = if (to > from) ((page - from + 1).toFloat() / (to - from)).coerceIn(0f, 1f) else 0f
+  Box(Modifier.width(132.dp).height(3.dp).clip(CircleShape).background(ink.copy(alpha = 0.12f)), contentAlignment = AbsoluteAlignment.CenterRight) {
+    Box(Modifier.fillMaxWidth(p.coerceAtLeast(0.03f)).height(3.dp).clip(CircleShape).background(DS.c.accentGold.copy(alpha = 0.8f)))
   }
 }
 @Composable private fun BarButton(icon: ImageVector, label: String, tint: Color, onClick: () -> Unit) {

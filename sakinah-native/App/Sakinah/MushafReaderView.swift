@@ -22,6 +22,7 @@ struct MushafReaderView: View {
   /// وضع الصفحتين (iPad): فهرس الزوج، الصفحة الفردية يمينًا والزوجية يسارًا كالكتاب المفتوح
   @State private var pair: Int?
   @State private var chrome = true
+  @State private var chromeTask: Task<Void, Never>?
   @State private var sheet: ReaderSheet?
   @State private var slider: Double
   @State private var toast: String?
@@ -60,8 +61,11 @@ struct MushafReaderView: View {
       if let rs {
         Rectangle().fill(MushafPalette.background(for: rs.theme)).ignoresSafeArea()
         pager(rs).environment(rs)
+          .safeAreaInset(edge: .top, spacing: 0) { topSlot(rs) }
+          .safeAreaInset(edge: .bottom, spacing: 0) { bottomSlot(rs).environment(rs) }
         Color.black.opacity(min(0.7, prefs.dim)).ignoresSafeArea().allowsHitTesting(false)
-        overlays(rs).environment(rs)
+        edgeHandles(rs)
+        toastOverlay
       } else { Theme.paper.ignoresSafeArea() }
     }
     .statusBarHidden(!chrome)
@@ -73,6 +77,7 @@ struct MushafReaderView: View {
     .onChange(of: prefs.theme) { syncTheme() }
     .onChange(of: prefs.themeAuto) { syncTheme() }
     .onChange(of: prefs.keepAwake) { keepAwakeChanged() }
+    .onChange(of: sheet == nil) { _, closed in if closed && chrome { scheduleChromeHide() } }
   }
   private var hifzFinished: Bool { rs?.hifz?.finished ?? false }
   private var hifzError: String? { rs?.hifz?.error }
@@ -107,7 +112,6 @@ struct MushafReaderView: View {
         .onChange(of: prefs.scroll) { DispatchQueue.main.async { proxy.scrollTo(spread ? (current + 1) / 2 : current, anchor: .center) } }
         .onChange(of: pair) { _, k in guard spread, let k else { return }; let p = 2 * k - 1; if page != p && page != p + 1 { page = p } }
       }
-      .ignoresSafeArea()
     }
     .environment(\.layoutDirection, .rightToLeft)
   }
@@ -134,24 +138,103 @@ struct MushafReaderView: View {
       if rs.textMode { MushafTextPageView(page: p, insets: geo.safeAreaInsets) } else { MushafPageView(page: p, insets: geo.safeAreaInsets) }
     }
     .contentShape(Rectangle())
-    .onTapGesture { if rs.hifz != nil { hifzTap() } else { withAnimation(.easeInOut(duration: 0.2)) { chrome.toggle() } } }
+    .onTapGesture { if rs.hifz != nil { hifzTap() } else { toggleChrome() } }
   }
 
-  // MARK: - الأزرار والشرائط
-  @ViewBuilder
-  private func overlays(_ rs: MushafReaderState) -> some View {
+  // MARK: - الشريطان: حوافّ لا تغطّي النصّ
+
+  /// الشريط العلوي كحافّة آمنة — الصفحة تنكمش تحته ولا تختفي وراءه
+  @ViewBuilder private func topSlot(_ rs: MushafReaderState) -> some View {
+    if chrome { topBar(rs).transition(.move(edge: .top).combined(with: .opacity)) }
+  }
+
+  /// الحافّة السفلى: لوحة الحفظ ثم المشغّل ثم شريط الصفحة — كلّها تُزيح الصفحة ولا تعلوها
+  @ViewBuilder private func bottomSlot(_ rs: MushafReaderState) -> some View {
     VStack(spacing: 0) {
-      if chrome { topBar(rs).transition(.move(edge: .top).combined(with: .opacity)) }
-      Spacer()
       if let h = rs.hifz { HifzPanelView(session: h, onExit: exitHifz, onNextPage: { nextHifzPage(veil: h.veil) }).transition(.move(edge: .bottom)) }
       if model.player.current != nil { AudioBarView(onPickReciter: { sheet = .reciter }, onGoToPage: { go(to: $0) }, toast: show).padding(.horizontal, 12).padding(.bottom, 6).transition(.move(edge: .bottom)) }
       if chrome && rs.hifz == nil { bottomBar(rs).transition(.move(edge: .bottom).combined(with: .opacity)) }
     }
+  }
+
+  @ViewBuilder private var toastOverlay: some View {
     if let toast {
       VStack { Spacer(); Text(toast).font(DS.F.labelMd).foregroundStyle(DS.C.textOnDark).multilineTextAlignment(.center).padding(.horizontal, 16).padding(.vertical, 10).background(DS.C.bgInverse.opacity(0.92), in: Capsule()).padding(.bottom, 140) }
         .transition(.opacity).allowsHitTesting(false)
     }
   }
+
+  /// في الوضع الغامر: حافّتان تستقبلان النقر والسحب (بعيدًا عن الكلمات)، وخيط ذهبي يدلّ على الموضع في الجزء
+  @ViewBuilder private func edgeHandles(_ rs: MushafReaderState) -> some View {
+    if !chrome && rs.hifz == nil {
+      let ink = Color(hex: rs.theme.ink)
+      VStack(spacing: 0) {
+        Color.clear.frame(height: 30).contentShape(Rectangle())
+          .onTapGesture { showChrome() }
+          .gesture(DragGesture(minimumDistance: 10).onEnded { v in if v.translation.height > 8 { showChrome() } })
+          .accessibilityLabel("إظهار شريطي المصحف")
+          .accessibilityAddTraits(.isButton)
+        Spacer(minLength: 0)
+        VStack(spacing: 0) {
+          juzHairline(ink)
+          Color.clear.frame(height: 18)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { showChrome() }
+        .gesture(DragGesture(minimumDistance: 10).onEnded { v in if v.translation.height < -8 { showChrome() } })
+        .accessibilityLabel("إظهار شريطي المصحف")
+        .accessibilityAddTraits(.isButton)
+      }
+      .ignoresSafeArea()
+      .transition(.opacity)
+    }
+  }
+
+  /// خيط ذهبي رفيع: موضع الصفحة داخل الجزء الحالي (يملأ من اليمين كاتجاه القراءة)
+  private func juzHairline(_ ink: Color) -> some View {
+    let w: CGFloat = 132
+    return ZStack(alignment: .trailing) {
+      Capsule().fill(ink.opacity(0.12)).frame(width: w, height: 3)
+      Capsule().fill(DS.C.accentGold.opacity(0.8)).frame(width: max(3, w * juzProgress), height: 3)
+    }
+    .frame(width: w, height: 3)
+    .padding(.bottom, 5)
+  }
+
+  /// نسبة تقدّم الصفحة الحالية داخل جزئها
+  private var juzProgress: Double {
+    guard let l = QuranText.shared.label(ofPage: current) else { return 0 }
+    let starts = QuranMeta.juzStarts
+    let from = starts.first { $0.juz == l.juz }?.page ?? 1
+    let to = starts.first { $0.juz == l.juz + 1 }?.page ?? (MushafLayout.totalPages + 1)
+    guard to > from else { return 0 }
+    return min(1, max(0, Double(current - from + 1) / Double(to - from)))
+  }
+
+  // MARK: - التحكّم في الشريطين
+
+  private static let chromeDwell: UInt64 = 3_600_000_000
+
+  private func showChrome() {
+    withAnimation(.spring(response: 0.34, dampingFraction: 0.92)) { chrome = true }
+    scheduleChromeHide()
+  }
+  private func hideChrome() {
+    chromeTask?.cancel(); chromeTask = nil
+    withAnimation(.spring(response: 0.34, dampingFraction: 0.92)) { chrome = false }
+  }
+  private func toggleChrome() { chrome ? hideChrome() : showChrome() }
+  /// ينزلق الشريطان بعد سكون قصير كي تعود الصفحة كاملة من تلقاء نفسها
+  private func scheduleChromeHide() {
+    chromeTask?.cancel()
+    chromeTask = Task { @MainActor in
+      try? await Task.sleep(nanoseconds: Self.chromeDwell)
+      guard !Task.isCancelled, sheet == nil else { return }
+      hideChrome()
+    }
+  }
+
+  // MARK: - الأزرار والشرائط
   private func topBar(_ rs: MushafReaderState) -> some View {
     let label = QuranText.shared.label(ofPage: current); let ink = Color(hex: rs.theme.ink)
     let firstAyah = QuranText.shared.pageAyahs(current).first
@@ -173,7 +256,10 @@ struct MushafReaderView: View {
       barButton("ellipsis", "خيارات المصحف", ink) { sheet = .options }
     }
     .padding(.horizontal, 8).padding(.top, 2).padding(.bottom, 6)
-    .background { Rectangle().fill(MushafPalette.background(for: rs.theme)).opacity(0.94).ignoresSafeArea(edges: .top) }
+    .background(alignment: .bottom) {
+      Rectangle().fill(MushafPalette.background(for: rs.theme)).ignoresSafeArea(edges: .top)
+        .overlay(alignment: .bottom) { Rectangle().fill(ink.opacity(0.10)).frame(height: 0.5) }
+    }
   }
   private func bottomBar(_ rs: MushafReaderState) -> some View {
     let firstAyah = QuranText.shared.pageAyahs(current).first
@@ -198,10 +284,13 @@ struct MushafReaderView: View {
       .lineLimit(1)
     }
     .padding(.horizontal, 16).padding(.top, 6).padding(.bottom, 4)
-    .background { Rectangle().fill(MushafPalette.background(for: rs.theme)).opacity(0.94).ignoresSafeArea(edges: .bottom) }
+    .background(alignment: .top) {
+      Rectangle().fill(MushafPalette.background(for: rs.theme)).ignoresSafeArea(edges: .bottom)
+        .overlay(alignment: .top) { Rectangle().fill(ink.opacity(0.10)).frame(height: 0.5) }
+    }
   }
   private func barButton(_ icon: String, _ label: String, _ ink: Color, action: @escaping () -> Void) -> some View {
-    Button(action: action) { Image(systemName: icon).font(.system(size: 17, weight: .medium)).foregroundStyle(ink).frame(width: 38, height: 40).contentShape(Rectangle()) }.buttonStyle(.plain).accessibilityLabel(label)
+    Button(action: { scheduleChromeHide(); action() }) { Image(systemName: icon).font(.system(size: 17, weight: .medium)).foregroundStyle(ink).frame(width: 38, height: 40).contentShape(Rectangle()) }.buttonStyle(.plain).accessibilityLabel(label)
   }
   private func num(_ n: Int) -> String { Fmt.number(n, numerals: model.settings.numerals) }
 
@@ -260,6 +349,7 @@ struct MushafReaderView: View {
     }
     model.player.onSleep = { show("انتهى مؤقت النوم — توقفت التلاوة") }
     syncPlaying()
+    scheduleChromeHide()
     remember(page: startPage)
     if let a = startAyah { DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { flash(a) } }
     if !prefs.hintShown { prefs.hintShown = true; show("انقر الصفحة لإظهار الأدوات، وانقر كلمة لقائمة الآية") }
@@ -268,12 +358,13 @@ struct MushafReaderView: View {
     UIApplication.shared.isIdleTimerDisabled = false
     rs?.hifz?.stopSpeech(); rs?.hifz = nil
     model.player.onAyah = nil
-    dwellTask?.cancel(); saveTask?.cancel()
+    dwellTask?.cancel(); saveTask?.cancel(); chromeTask?.cancel()
   }
   private func syncTheme() { rs?.apply(theme: prefs.effectiveTheme(systemDark: scheme == .dark)) }
   private func syncPlaying() { rs?.playingAyah = model.player.current; if model.player.current == nil { rs?.playingWord = nil } }
   private func onPageChanged(_ p: Int) {
     MushafFonts.shared.prefetch(around: p)
+    if chrome, sheet == nil { hideChrome() }
     if let h = rs?.hifz, h.page != p { exitHifz(); show("انتهت مراجعة الحفظ بتغيير الصفحة") }
     if let s = rs?.selected, QuranText.shared.ayah(s)?.page != p { rs?.selected = nil }
     saveTask?.cancel(); saveTask = Task { try? await Task.sleep(nanoseconds: 900_000_000); if !Task.isCancelled { remember(page: p) } }
