@@ -30,8 +30,12 @@ enum MushafMetrics {
     if let c = cache[key] { return c }
     var size = W / fullLineEm
     if H > 0 { let rowH = H / CGFloat(rows); if rowH < size * rowMinEm { size = rowH / rowMinEm } }
+    // أسطر QCF مصمَّمة لتملأ عرض الصفحة بالضبط (قِسناها: كلها متساوية تمامًا)، فالملاءمة على
+    // العرض كاملًا لا تترك فسحة. ونحن نرسم كل كلمة عنصرًا مستقلًّا، فيكفي تقريبٌ جزئيّ في عرض
+    // كلمة واحدة ليفيض السطر ويُقتطع من طرفه — وفقدُ كلمة من صفحة مصحف لا يُحتمل. فنترك شعرة.
+    let safeW = W * 0.995
     let maxW = maxLineWidth(fontName: MushafFonts.pageFontName(p), size: size, lines: lines)
-    if maxW > W + 0.5 { size *= W / maxW }
+    if maxW > safeW { size *= safeW / maxW }
     let bodyH = H > 0 ? min(H, CGFloat(rows) * size * rowMaxEm) : CGFloat(rows) * size * 1.09
     let f = Fit(fontSize: size, bodyHeight: bodyH)
     if cache.count > 64 { cache.removeAll() }
@@ -43,19 +47,9 @@ enum MushafMetrics {
     let attr = NSAttributedString(string: s, attributes: [NSAttributedString.Key(kCTFontAttributeName as String): font])
     return CGFloat(CTLineGetTypographicBounds(CTLineCreateWithAttributedString(attr), nil, nil, nil))
   }
-  /// يُقاس السطر كما يُرسم تمامًا: كلمةً كلمةً، لا نصًّا موصولًا.
-  /// خطوط QCF تُقارب (kern) بين آخر رمز في كلمة وأول رمز في التي تليها، وترسمُنا يفصل الكلمات
-  /// في عناصر مستقلّة فيسقط ذلك التقارب — فيتّسع السطر المرسوم حتى ١٠٪ عن المقيس موصولًا.
-  /// وحين قِسنا موصولًا ورسمنا مُقطَّعًا فاض السطر عن عرض الصفحة واقتُطعت كلمة من طرفه.
   static func maxLineWidth(fontName: String, size: CGFloat, lines: [MushafLine]) -> CGFloat {
     var maxW: CGFloat = 0
-    for l in lines {
-      let ws = l.words
-      if ws.isEmpty { continue }
-      var w: CGFloat = 0
-      for word in ws { w += textWidth(word.glyph, fontName: fontName, size: size) }
-      maxW = max(maxW, w)
-    }
+    for l in lines { let ws = l.words; if ws.isEmpty { continue }; maxW = max(maxW, textWidth(ws.map(\.glyph).joined(), fontName: fontName, size: size)) }
     return maxW
   }
 }
