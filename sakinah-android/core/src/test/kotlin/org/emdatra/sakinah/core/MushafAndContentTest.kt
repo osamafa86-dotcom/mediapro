@@ -98,6 +98,19 @@ class MushafAndContentTest {
     }
     runOne("emptyHypotheses", listOf("", ""))
     runOne("altWins", listOf("xxxxxxxx", spoken[0]))  // الفرضية الأولى فاشلة والثانية تكشف: لا أثر للأولى
+
+    // التلميح اليدوي يتجاوز المرشّح؛ فلو بقي صالحًا لتراجع pos إلى الخلف
+    val stl = h.getValue("stale").jsonObject
+    val mS = HifzMatcher(rw)
+    mS.feed(spoken[0]); mS.feed("غرغرة"); mS.feed(spoken[20])
+    assertEquals(stl.getValue("armed").jsonPrimitive.int, mS.resyncAt, "armed")
+    repeat(30) { mS.hint() }
+    val ah = stl.getValue("afterHints").jsonObject
+    assertEquals(ah.getValue("pos").jsonPrimitive.int, mS.pos, "afterHints pos")
+    assertEquals(ah.getValue("resyncAt").jsonPrimitive.int, mS.resyncAt, "afterHints resyncAt")
+    assertEquals(stl.getValue("revealed").jsonArray.map { it.jsonPrimitive.int }, mS.feed(spoken[17]), "stale revealed")
+    assertEquals(stl.getValue("pos").jsonPrimitive.int, mS.pos, "stale pos")
+    assertEquals(stl.getValue("resynced").jsonPrimitive.int, mS.resynced, "stale resynced")
   }
 
   @Test fun khatmahChallengesTasbihTajweedHadith() {

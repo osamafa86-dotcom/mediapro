@@ -119,7 +119,9 @@ public final class HifzMatcher {
   /// فبعد resyncAfter إخفاقًا متتاليًا نبحث أمامنا في نافذة أوسع، ولا نقفز إلا بتأكيد كلمتين
   /// متتاليتين — فالكلمة الواحدة تتكرّر في القرآن كثيرًا ولا يُعتمد عليها وحدها.
   public let resyncAfter: Int, resyncWindow: Int, resyncThreshold: Double
-  private var misses = 0, resyncAt = -1
+  private var misses = 0
+  /// موضع المرشّح الحالي لإعادة التزامن (‑١ إن لم يوجد) — مكشوف للاختبارات وحدها
+  public private(set) var resyncAt = -1
   public init(words: [HifzWord], threshold: Double = 0.66, lookahead: Int = 2, lookaheadThreshold: Double = 0.85, fuseThreshold: Double = 0.8,
               resyncAfter: Int = 2, resyncWindow: Int = 25, resyncThreshold: Double = 0.85) {
     self.words = words; self.threshold = threshold; self.lookahead = lookahead; self.lookaheadThreshold = lookaheadThreshold; self.fuseThreshold = fuseThreshold
@@ -169,7 +171,8 @@ public final class HifzMatcher {
       if hit < 0, i + 1 < spoken.count, QuranNormalize.similarity(words[pos].norm, w + spoken[i + 1]) >= fuseThreshold { hit = 0; take = 2 }
       if hit < 0 {
         // مرشّح من الكلمة السابقة: إن أكّدته هذه الكلمة فقد وجدنا موضع القارئ الحقيقي
-        if resyncAt >= 0, QuranNormalize.similarity(words[resyncAt + 1].norm, w) >= resyncThreshold {
+        // المرشّح لا يُقبل إلا وهو أمامنا: التلميح اليدوي قد يكون تجاوزه، والقفز إلى الخلف يُنقص pos
+        if resyncAt >= pos, QuranNormalize.similarity(words[resyncAt + 1].norm, w) >= resyncThreshold {
           let j = resyncAt
           for k in pos...(j + 1) { revealed.append(k) }  // ما أسقطه التعرّف يُكشف أيضًا
           skipped += j + 1 - pos; matched += 1; resynced += 1
@@ -223,7 +226,7 @@ public final class HifzMatcher {
   }
   /// كشف الكلمة التالية يدويًا (تلميح)
   @discardableResult
-  public func hint() -> Int? { guard pos < words.count else { return nil }; defer { pos += 1 }; return pos }
+  public func hint() -> Int? { guard pos < words.count else { return nil }; misses = 0; resyncAt = -1; defer { pos += 1 }; return pos }
   public var done: Bool { pos >= words.count }
   public var progress: Double { words.isEmpty ? 1 : Double(pos) / Double(words.count) }
 }

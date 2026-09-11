@@ -94,6 +94,16 @@ const hifzBest = {
   emptyHypotheses: (() => { const m = new quran.HifzMatcher(resyncWords); const r = m.feedBest(['', '']); return { revealed: r, pos: m.pos, unmatched: m.unmatched }; })(),
   altWins: (() => { const m = new quran.HifzMatcher(resyncWords); const r = m.feedBest(['xxxxxxxx', resyncSpoken[0]]); return { revealed: r, pos: m.pos, unmatched: m.unmatched }; })(),
 };
+// التلميح اليدوي يتجاوز مرشّح إعادة التزامن؛ فلو بقي المرشّح صالحًا لتراجع pos إلى الخلف (وفي Swift مدًى غير صالح)
+const hifzStale = (() => {
+  const m = new quran.HifzMatcher(resyncWords);
+  m.feed(resyncSpoken[0]); m.feed('غرغرة'); m.feed(resyncSpoken[20]);
+  const armed = m.resyncAt;
+  for (let i = 0; i < 30; i++) m.hint();
+  const afterHints = { pos: m.pos, resyncAt: m.resyncAt };
+  const r = m.feed(resyncSpoken[17]);
+  return { armed, afterHints, revealed: r, pos: m.pos, resynced: m.resynced };
+})();
 const lev = [['كتاب', 'كتب'], ['الرحمن', 'الرحيم'], ['', 'ابج'], ['سلام', 'سلام'], ['نعبد', 'نعبده']].map(([a, b]) => ({ a, b, d: quran.levenshtein(a, b), sim: quran.similarity(a, b) }));
 const kh = await import(path.join(web, 'khatmah.js')); const ch = await import(path.join(web, 'challenges.js')); const tb = await import(path.join(web, 'tasbih.js'));
 const readLog = { '2026-09-08': [1, 2, 3], '2026-09-09': [4, 5], '2026-09-10': [6], '2026-08-15': [10, 11] };
@@ -116,7 +126,7 @@ const hd = await import(path.resolve(here, '../../sakinah/js/data/hadith.js'));
 const hadithOfDay = [[2026, 9, 10], [2026, 1, 1], [2027, 3, 15], [2030, 12, 31]].map(([y, m, d]) => ({ y, m, d, id: hd.hadithOfDay(new Date(y, m - 1, d)).id }));
 const hadithRef = hd.HADITHS.filter((h) => h.alsoIn).slice(0, 3).map((h) => ({ id: h.id, ref: hd.hadithReference(h) })).concat(hd.HADITHS.filter((h) => !h.alsoIn).slice(0, 2).map((h) => ({ id: h.id, ref: hd.hadithReference(h) })));
 const out = { generatedAt: new Date().toISOString(), prayer, timeline, hijri, qibla, sunMoments, zenith, geomag, methods, layoutPages, juzNames,
-  normalize, search, tokenize, hifz: { words: hifzWords, steps: hifzSteps, noisy: hifzNoisy, resync: hifzResync, best: hifzBest }, lev, khatmah, challenges, tasbih, tajweed, hadithOfDay, hadithRef };
+  normalize, search, tokenize, hifz: { words: hifzWords, steps: hifzSteps, noisy: hifzNoisy, resync: hifzResync, best: hifzBest, stale: hifzStale }, lev, khatmah, challenges, tasbih, tajweed, hadithOfDay, hadithRef };
 const dest = path.resolve(here, '../Tests/SakinahCoreTests/Fixtures/golden.json');
 fs.writeFileSync(dest, JSON.stringify(out));
 console.log(`golden: prayer ${prayer.length}, timeline ${timeline.length}, hijri ${hijri.length}, qibla ${qibla.length}, sunMoments ${sunMoments.length}, geomag ${geomag.length} → ${path.relative(process.cwd(), dest)} (${(fs.statSync(dest).size / 1024).toFixed(0)} KB)`);

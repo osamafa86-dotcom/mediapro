@@ -65,7 +65,8 @@ class HifzMatcher(val words: List<HifzWord>, val threshold: Double = 0.66, val l
   var unmatched = 0; private set
   var resynced = 0; private set
   private var misses = 0
-  private var resyncAt = -1
+  /** موضع المرشّح الحالي لإعادة التزامن (‑١ إن لم يوجد) — مكشوف للاختبارات وحدها */
+  var resyncAt = -1; private set
   /** أقرب موضع أمامنا تُطابقه الكلمة المنطوقة بثقة — الأقرب لا الأفضل، فالتلاوة تسير إلى الأمام */
   private fun findResync(w: String): Int {
     val end = minOf(words.size - 1, pos + resyncWindow)
@@ -125,7 +126,8 @@ class HifzMatcher(val words: List<HifzWord>, val threshold: Double = 0.66, val l
       if (hit < 0 && i + 1 < spoken.size && QuranNormalize.similarity(words[pos].norm, w + spoken[i + 1]) >= fuseThreshold) { hit = 0; take = 2 }
       if (hit < 0) {
         // مرشّح من الكلمة السابقة: إن أكّدته هذه الكلمة فقد وجدنا موضع القارئ الحقيقي
-        if (resyncAt >= 0 && QuranNormalize.similarity(words[resyncAt + 1].norm, w) >= resyncThreshold) {
+        // المرشّح لا يُقبل إلا وهو أمامنا: التلميح اليدوي قد يكون تجاوزه، والقفز إلى الخلف يُنقص pos
+        if (resyncAt >= pos && QuranNormalize.similarity(words[resyncAt + 1].norm, w) >= resyncThreshold) {
           val j = resyncAt
           for (k in pos..(j + 1)) revealed.add(k)  // ما أسقطه التعرّف يُكشف أيضًا
           skipped += j + 1 - pos; matched++; resynced++
@@ -155,7 +157,7 @@ class HifzMatcher(val words: List<HifzWord>, val threshold: Double = 0.66, val l
     }
     return revealed
   }
-  fun hint(): Int? { if (pos >= words.size) return null; return pos++ }
+  fun hint(): Int? { if (pos >= words.size) return null; misses = 0; resyncAt = -1; return pos++ }
   val done get() = pos >= words.size
   val progress get() = if (words.isEmpty()) 1.0 else pos.toDouble() / words.size
 }

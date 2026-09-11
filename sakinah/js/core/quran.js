@@ -148,7 +148,8 @@ export class HifzMatcher {
       if (hit < 0 && i + 1 < spoken.length && similarity(this.words[this.pos].norm, w + spoken[i + 1]) >= this.fuseThreshold) { hit = 0; take = 2; }
       if (hit < 0) {
         // مرشّح من الكلمة السابقة: إن أكّدته هذه الكلمة فقد وجدنا موضع القارئ الحقيقي
-        if (this.resyncAt >= 0 && similarity(this.words[this.resyncAt + 1].norm, w) >= this.resyncThreshold) {
+        // المرشّح لا يُقبل إلا وهو أمامنا: التلميح اليدوي قد يكون تجاوزه، والقفز إلى الخلف يُنقص pos
+        if (this.resyncAt >= this.pos && similarity(this.words[this.resyncAt + 1].norm, w) >= this.resyncThreshold) {
           const j = this.resyncAt;
           for (let k = this.pos; k <= j + 1; k++) revealed.push(k); // ما أسقطه التعرّف يُكشف أيضًا
           this.skipped += j + 1 - this.pos; this.matched++; this.resynced++;
@@ -200,7 +201,7 @@ export class HifzMatcher {
   snapshot() { return { pos: this.pos, matched: this.matched, skipped: this.skipped, unmatched: this.unmatched, resynced: this.resynced, misses: this.misses, resyncAt: this.resyncAt }; }
   restore(s) { this.pos = s.pos; this.matched = s.matched; this.skipped = s.skipped; this.unmatched = s.unmatched; this.resynced = s.resynced; this.misses = s.misses; this.resyncAt = s.resyncAt; }
   /** كشف الكلمة التالية يدويًا (تلميح) */
-  hint() { if (this.pos >= this.words.length) return null; return this.pos++; }
+  hint() { if (this.pos >= this.words.length) return null; this.misses = 0; this.resyncAt = -1; return this.pos++; }
   get done() { return this.pos >= this.words.length; }
   get progress() { return this.words.length ? this.pos / this.words.length : 1; }
 }

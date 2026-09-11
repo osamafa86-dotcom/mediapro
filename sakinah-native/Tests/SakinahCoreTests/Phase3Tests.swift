@@ -12,7 +12,9 @@ final class Phase3Tests: XCTestCase {
   private struct GResync: Decodable { let words: Int; let dropped: GResyncRun; let clean: GResyncRun; let noise: GResyncRun; let single: GResyncRun }
   private struct GBestOne: Decodable, Equatable { let revealed: [Int]; let pos: Int; let unmatched: Int }
   private struct GBest: Decodable { let droppedWithNoisyAlts: GResyncRun; let cleanWithFarAlts: GResyncRun; let emptyHypotheses: GBestOne; let altWins: GBestOne }
-  private struct GHifz: Decodable { let words: [HifzWord]; let steps: [GHifzStep]; let noisy: [GHifzNoisy]; let resync: GResync; let best: GBest }
+  private struct GAfterHints: Decodable, Equatable { let pos: Int; let resyncAt: Int }
+  private struct GStale: Decodable { let armed: Int; let afterHints: GAfterHints; let revealed: [Int]; let pos: Int; let resynced: Int }
+  private struct GHifz: Decodable { let words: [HifzWord]; let steps: [GHifzStep]; let noisy: [GHifzNoisy]; let resync: GResync; let best: GBest; let stale: GStale }
   private struct GLev: Decodable { let a: String; let b: String; let d: Int; let sim: Double }
   private struct GKhatmah: Decodable { let plan: KhatmahPlan; let status: KhatmahStatus; let status2: KhatmahStatus; let streak: Int; let streakYesterday: Int; let streakNone: Int; let logged: ReadLog; let stats: ReadStats; let daysBetween: Int; let addDays: String; let pagesDone: Int }
   private struct GRange: Decodable { let from: Int; let to: Int }
@@ -93,6 +95,16 @@ final class Phase3Tests: XCTestCase {
     XCTAssertEqual(GBestOne(revealed: mEmpty.feedBest(["", ""]), pos: mEmpty.pos, unmatched: mEmpty.unmatched), b.emptyHypotheses)
     let mAlt = HifzMatcher(words: rw)  // الفرضية الأولى فاشلة والثانية تكشف: لا أثر للأولى
     XCTAssertEqual(GBestOne(revealed: mAlt.feedBest(["xxxxxxxx", spoken[0]]), pos: mAlt.pos, unmatched: mAlt.unmatched), b.altWins)
+
+    // التلميح اليدوي يتجاوز المرشّح؛ فلو بقي صالحًا لتراجع pos إلى الخلف — وفي Swift مدًى غير صالح يُسقط التطبيق
+    let st = g.stale
+    let mS = HifzMatcher(words: rw)
+    mS.feed(spoken[0]); mS.feed("غرغرة"); mS.feed(spoken[20])
+    XCTAssertEqual(mS.resyncAt, st.armed)
+    for _ in 0..<30 { _ = mS.hint() }
+    XCTAssertEqual(GAfterHints(pos: mS.pos, resyncAt: mS.resyncAt), st.afterHints)
+    XCTAssertEqual(mS.feed(spoken[17]), st.revealed)
+    XCTAssertEqual(mS.pos, st.pos); XCTAssertEqual(mS.resynced, st.resynced)
   }
 
   func testKhatmahChallengesTasbih() {
