@@ -199,6 +199,28 @@ public final class HifzMatcher {
     }
     return revealed
   }
+  /// لقطة حالة المطابق — لتجربة فرضيات التعرّف بلا أثر
+  public struct Snapshot: Sendable, Equatable { let pos, matched, skipped, unmatched, resynced, misses, resyncAt: Int }
+  public func snapshot() -> Snapshot { Snapshot(pos: pos, matched: matched, skipped: skipped, unmatched: unmatched, resynced: resynced, misses: misses, resyncAt: resyncAt) }
+  public func restore(_ s: Snapshot) { pos = s.pos; matched = s.matched; skipped = s.skipped; unmatched = s.unmatched; resynced = s.resynced; misses = s.misses; resyncAt = s.resyncAt }
+  /// فرضيات التعرّف للصوت نفسه (الاختيار الأول ثم بدائله): تُجرَّب بلا أثر جانبي، وتُعتمد أولى
+  /// التي تكشف شيئًا. وإن لم تكشف أيٌّ منها بقيت محاسبة الفرضية الأولى وحدها — وإلا محا
+  /// ضجيجُ البدائل مرشّحَ إعادة التزامن الذي وجدته الفرضية الصحيحة.
+  @discardableResult
+  public func feedBest(_ hypotheses: [String]) -> [Int] {
+    let list = hypotheses.filter { !$0.isEmpty }
+    guard !list.isEmpty else { return [] }
+    let before = snapshot()
+    var primary: Snapshot?
+    for h in list {
+      if primary != nil { restore(before) }
+      let r = feed(h)
+      if !r.isEmpty { return r }
+      if primary == nil { primary = snapshot() }
+    }
+    if let primary { restore(primary) }
+    return []
+  }
   /// كشف الكلمة التالية يدويًا (تلميح)
   @discardableResult
   public func hint() -> Int? { guard pos < words.count else { return nil }; defer { pos += 1 }; return pos }

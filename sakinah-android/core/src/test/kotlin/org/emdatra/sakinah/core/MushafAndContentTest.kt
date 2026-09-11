@@ -76,6 +76,28 @@ class MushafAndContentTest {
     run("clean", spoken.subList(0, 60))                             // تلاوة سليمة كلمةً كلمة
     run("noise", "السلام عليكم كيف حالك اليوم الطقس جميل هنا".split(' '))
     run("single", listOf(spoken[0], "xxxxxxxx", spoken[40]))        // كلمة بعيدة واحدة لا تكفي للقفز
+
+    // feedBest: البدائل فرضيات لصوت واحد، فلا يجوز أن يمحو ضجيجُها مرشّحَ إعادة التزامن
+    val bs = h.getValue("best").jsonObject
+    fun runBest(key: String, seq: List<String>, alts: List<String>) {
+      val m = HifzMatcher(rw); for (w in seq) m.feedBest(listOf(w) + alts)
+      val e = bs.getValue(key).jsonObject
+      assertEquals(e.getValue("pos").jsonPrimitive.int, m.pos, "$key pos")
+      assertEquals(e.getValue("matched").jsonPrimitive.int, m.matched, "$key matched")
+      assertEquals(e.getValue("skipped").jsonPrimitive.int, m.skipped, "$key skipped")
+      assertEquals(e.getValue("unmatched").jsonPrimitive.int, m.unmatched, "$key unmatched")
+      assertEquals(e.getValue("resynced").jsonPrimitive.int, m.resynced, "$key resynced")
+    }
+    runBest("droppedWithNoisyAlts", spoken.subList(0, 8) + spoken.subList(14, 60), listOf("غرغرة", "اه"))
+    runBest("cleanWithFarAlts", spoken.subList(0, 60), listOf("xxxxxxxx"))
+    fun runOne(key: String, hyp: List<String>) {
+      val m = HifzMatcher(rw); val r = m.feedBest(hyp); val e = bs.getValue(key).jsonObject
+      assertEquals(e.getValue("revealed").jsonArray.map { it.jsonPrimitive.int }, r, "$key revealed")
+      assertEquals(e.getValue("pos").jsonPrimitive.int, m.pos, "$key pos")
+      assertEquals(e.getValue("unmatched").jsonPrimitive.int, m.unmatched, "$key unmatched")
+    }
+    runOne("emptyHypotheses", listOf("", ""))
+    runOne("altWins", listOf("xxxxxxxx", spoken[0]))  // الفرضية الأولى فاشلة والثانية تكشف: لا أثر للأولى
   }
 
   @Test fun khatmahChallengesTasbihTajweedHadith() {

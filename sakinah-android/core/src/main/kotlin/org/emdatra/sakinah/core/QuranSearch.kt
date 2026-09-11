@@ -79,6 +79,29 @@ class HifzMatcher(val words: List<HifzWord>, val threshold: Double = 0.66, val l
   companion object {
     fun words(ayahs: List<Ayah>, startingAt: Int = 0): List<HifzWord> { val out = ArrayList<HifzWord>(); for (a in ayahs) { if (a.n < startingAt) continue; var k = 0; for (t in QuranNormalize.tokenize(a.text)) if (t.spoken) { out.add(HifzWord(a.n, k, t.norm, t.raw)); k++ } }; return out }
   }
+  /** لقطة حالة المطابق — لتجربة فرضيات التعرّف بلا أثر */
+  data class Snapshot(val pos: Int, val matched: Int, val skipped: Int, val unmatched: Int, val resynced: Int, val misses: Int, val resyncAt: Int)
+  fun snapshot() = Snapshot(pos, matched, skipped, unmatched, resynced, misses, resyncAt)
+  fun restore(s: Snapshot) { pos = s.pos; matched = s.matched; skipped = s.skipped; unmatched = s.unmatched; resynced = s.resynced; misses = s.misses; resyncAt = s.resyncAt }
+  /**
+   * فرضيات التعرّف للصوت نفسه (الاختيار الأول ثم بدائله): تُجرَّب بلا أثر جانبي، وتُعتمد أولى
+   * التي تكشف شيئًا. وإن لم تكشف أيٌّ منها بقيت محاسبة الفرضية الأولى وحدها — وإلا محا
+   * ضجيجُ البدائل مرشّحَ إعادة التزامن الذي وجدته الفرضية الصحيحة.
+   */
+  fun feedBest(hypotheses: List<String>): List<Int> {
+    val list = hypotheses.filter { it.isNotEmpty() }
+    if (list.isEmpty()) return emptyList()
+    val before = snapshot()
+    var primary: Snapshot? = null
+    for (h in list) {
+      if (primary != null) restore(before)
+      val r = feed(h)
+      if (r.isNotEmpty()) return r
+      if (primary == null) primary = snapshot()
+    }
+    primary?.let { restore(it) }
+    return emptyList()
+  }
   fun feed(transcript: String): List<Int> {
     val spoken = QuranNormalize.forMatch(transcript).split(' ').filter { it.isNotEmpty() }
     val revealed = ArrayList<Int>()

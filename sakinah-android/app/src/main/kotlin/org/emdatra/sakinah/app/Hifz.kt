@@ -164,8 +164,8 @@ class HifzSession(val page: Int, val from: Int, val veil: Boolean) {
         if (a.size > fed) a.drop(fed).joinToString(" ") else null
       }
       fed = ws.size
-      var r = matcher.feed(tail)
-      if (r.isEmpty()) for (alt in altTails) { r = matcher.feed(alt); if (r.isNotEmpty()) break }
+      // الاختيار الأول وبدائله فرضيات لصوت واحد: يجرّبها المطابق بلا أثر ويعتمد أولى ما يكشف
+      val r = matcher.feedBest(listOf(tail) + altTails)
       reveal(r)
     }
     heard = best

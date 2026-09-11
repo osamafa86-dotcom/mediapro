@@ -178,6 +178,27 @@ export class HifzMatcher {
     }
     return revealed;
   }
+  /**
+   * فرضيات التعرّف للصوت نفسه (الاختيار الأول ثم بدائله): تُجرَّب بلا أثر جانبي،
+   * وتُعتمد أولى التي تكشف شيئًا. وإن لم تكشف أيٌّ منها بقيت محاسبة الفرضية الأولى وحدها —
+   * وإلا محا ضجيجُ البدائل مرشّحَ إعادة التزامن الذي وجدته الفرضية الصحيحة.
+   */
+  feedBest(hypotheses) {
+    const list = (hypotheses || []).filter(Boolean);
+    if (!list.length) return [];
+    const before = this.snapshot();
+    let primary = null;
+    for (const h of list) {
+      if (primary) this.restore(before);
+      const r = this.feed(h);
+      if (r.length) return r;
+      if (!primary) primary = this.snapshot();
+    }
+    this.restore(primary);
+    return [];
+  }
+  snapshot() { return { pos: this.pos, matched: this.matched, skipped: this.skipped, unmatched: this.unmatched, resynced: this.resynced, misses: this.misses, resyncAt: this.resyncAt }; }
+  restore(s) { this.pos = s.pos; this.matched = s.matched; this.skipped = s.skipped; this.unmatched = s.unmatched; this.resynced = s.resynced; this.misses = s.misses; this.resyncAt = s.resyncAt; }
   /** كشف الكلمة التالية يدويًا (تلميح) */
   hint() { if (this.pos >= this.words.length) return null; return this.pos++; }
   get done() { return this.pos >= this.words.length; }

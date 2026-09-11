@@ -664,7 +664,7 @@ export function mount(container, app) {
           hifz.heard = interim || hifz.heard;
           // النتائج المؤقتة تراكمية: نغذّي المطابق بالكلمات الجديدة فقط (لا النص كله من جديد وإلا تقدّم المؤشر فوق كلمات لم تُقل)
           if (finals.length) {
-            for (const alts of finals) { const words = alts[0].split(/\s+/).filter(Boolean); const fresh = words.slice(hifz.fed || 0).join(' '); if (fresh) { const r = hifz.matcher.feed(fresh); if (!r.length && alts[1]) reveal(hifz.matcher.feed(alts[1].split(/\s+/).slice(hifz.fed || 0).join(' '))); else reveal(r); } }
+            for (const alts of finals) { const words = alts[0].split(/\s+/).filter(Boolean); const fed = hifz.fed || 0; const fresh = words.slice(fed).join(' '); if (fresh) { /* الاختيار الأول وبدائله فرضيات لصوت واحد: يجرّبها المطابق بلا أثر ويعتمد أولى ما يكشف */ reveal(hifz.matcher.feedBest([fresh, ...alts.slice(1).map((a) => a.split(/\s+/).slice(fed).join(' '))])); } }
             hifz.fed = 0; hifz.heard = finals.map((a) => a[0]).join(' ');
           } else if (interim) {
             const words = interim.split(/\s+/).filter(Boolean); const fresh = words.slice(hifz.fed || 0).join(' ');

@@ -304,10 +304,8 @@ final class HifzSession {
       s.context = { [weak self] in self?.upcomingContext() ?? [] }
       s.onTail = { [weak self] tail, alts in
         guard let self, !tail.isEmpty else { return }
-        var r = self.matcher.feed(tail)
-        // إن لم يُطابق الاختيار الأول، نجرّب البدائل التي يعرضها المُعرِّف
-        if r.isEmpty { for alt in alts where !alt.isEmpty { r = self.matcher.feed(alt); if !r.isEmpty { break } } }
-        self.reveal(r)
+        // الاختيار الأول وبدائله فرضيات لصوت واحد: يجرّبها المطابق بلا أثر ويعتمد أولى ما يكشف
+        self.reveal(self.matcher.feedBest([tail] + alts))
       }
       s.onTranscript = { [weak self] t in self?.heard = t }
       s.onLevel = { [weak self] v in self?.level = v }

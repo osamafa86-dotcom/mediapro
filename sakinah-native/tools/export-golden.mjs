@@ -86,6 +86,14 @@ const hifzResync = {
   noise: resyncRun('السلام عليكم كيف حالك اليوم الطقس جميل هنا'.split(' ')),           // ضجيج لا علاقة له
   single: resyncRun([resyncSpoken[0], 'xxxxxxxx', resyncSpoken[40]]),                  // كلمة واحدة بعيدة لا تكفي للقفز
 };
+// feedBest: البدائل فرضيات لصوت واحد، فلا يجوز أن يمحو ضجيجُها مرشّحَ إعادة التزامن
+function bestRun(seq, alts) { const m = new quran.HifzMatcher(resyncWords); for (const w of seq) m.feedBest([w, ...alts]); return { pos: m.pos, matched: m.matched, skipped: m.skipped, unmatched: m.unmatched, resynced: m.resynced }; }
+const hifzBest = {
+  droppedWithNoisyAlts: bestRun([...resyncSpoken.slice(0, 8), ...resyncSpoken.slice(14, 60)], ['غرغرة', 'اه']),
+  cleanWithFarAlts: bestRun(resyncSpoken.slice(0, 60), ['xxxxxxxx']),
+  emptyHypotheses: (() => { const m = new quran.HifzMatcher(resyncWords); const r = m.feedBest(['', '']); return { revealed: r, pos: m.pos, unmatched: m.unmatched }; })(),
+  altWins: (() => { const m = new quran.HifzMatcher(resyncWords); const r = m.feedBest(['xxxxxxxx', resyncSpoken[0]]); return { revealed: r, pos: m.pos, unmatched: m.unmatched }; })(),
+};
 const lev = [['كتاب', 'كتب'], ['الرحمن', 'الرحيم'], ['', 'ابج'], ['سلام', 'سلام'], ['نعبد', 'نعبده']].map(([a, b]) => ({ a, b, d: quran.levenshtein(a, b), sim: quran.similarity(a, b) }));
 const kh = await import(path.join(web, 'khatmah.js')); const ch = await import(path.join(web, 'challenges.js')); const tb = await import(path.join(web, 'tasbih.js'));
 const readLog = { '2026-09-08': [1, 2, 3], '2026-09-09': [4, 5], '2026-09-10': [6], '2026-08-15': [10, 11] };
@@ -108,7 +116,7 @@ const hd = await import(path.resolve(here, '../../sakinah/js/data/hadith.js'));
 const hadithOfDay = [[2026, 9, 10], [2026, 1, 1], [2027, 3, 15], [2030, 12, 31]].map(([y, m, d]) => ({ y, m, d, id: hd.hadithOfDay(new Date(y, m - 1, d)).id }));
 const hadithRef = hd.HADITHS.filter((h) => h.alsoIn).slice(0, 3).map((h) => ({ id: h.id, ref: hd.hadithReference(h) })).concat(hd.HADITHS.filter((h) => !h.alsoIn).slice(0, 2).map((h) => ({ id: h.id, ref: hd.hadithReference(h) })));
 const out = { generatedAt: new Date().toISOString(), prayer, timeline, hijri, qibla, sunMoments, zenith, geomag, methods, layoutPages, juzNames,
-  normalize, search, tokenize, hifz: { words: hifzWords, steps: hifzSteps, noisy: hifzNoisy, resync: hifzResync }, lev, khatmah, challenges, tasbih, tajweed, hadithOfDay, hadithRef };
+  normalize, search, tokenize, hifz: { words: hifzWords, steps: hifzSteps, noisy: hifzNoisy, resync: hifzResync, best: hifzBest }, lev, khatmah, challenges, tasbih, tajweed, hadithOfDay, hadithRef };
 const dest = path.resolve(here, '../Tests/SakinahCoreTests/Fixtures/golden.json');
 fs.writeFileSync(dest, JSON.stringify(out));
 console.log(`golden: prayer ${prayer.length}, timeline ${timeline.length}, hijri ${hijri.length}, qibla ${qibla.length}, sunMoments ${sunMoments.length}, geomag ${geomag.length} → ${path.relative(process.cwd(), dest)} (${(fs.statSync(dest).size / 1024).toFixed(0)} KB)`);
