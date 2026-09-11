@@ -44,6 +44,8 @@ jobs:
         run: node tools/fetch-corpus.mjs
       - name: اختبارات الوحدة والبيانات
         run: npm test
+      - name: سلامة خطوط المصحف (كل رمز موجود في خطّ صفحته)
+        run: pip install --quiet fonttools brotli && python3 tools/verify-mushaf-fonts.py
       - name: متصفح Chromium
         run: npx playwright install --with-deps chromium
       - name: اختبار التصفح (التطبيق)
