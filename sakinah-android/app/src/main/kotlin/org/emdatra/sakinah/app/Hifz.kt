@@ -84,6 +84,8 @@ class HifzSession(val page: Int, val from: Int, val veil: Boolean) {
   private val main = Handler(Looper.getMainLooper())
   private var appCtx: Context? = null
   private var restartPending = false
+  /// رقم الدورة — نداءات المُعرِّف المُدمَّر تُتجاهل فلا تُشعل دورة زائدة
+  private var gen = 0
 
   private fun start(ctx: Context) {
     if (!SpeechRecognizer.isRecognitionAvailable(ctx)) { error = "التعرّف على الكلام غير متاح على هذا الجهاز"; return }
@@ -95,15 +97,19 @@ class HifzSession(val page: Int, val from: Int, val veil: Boolean) {
   /** دورة تعرّف جديدة بمُعرِّف جديد — أندرويد ينهي الجلسة مع كل صمت، فالتدوير جزء من التشغيل لا استثناء */
   private fun createAndListen() {
     val ctx = appCtx ?: return
+    gen++
+    val myGen = gen
     runCatching { recognizer?.destroy() }
     val r = SpeechRecognizer.createSpeechRecognizer(ctx); recognizer = r
     r.setRecognitionListener(object : RecognitionListener {
-      override fun onReadyForSpeech(params: Bundle?) { listening = true }
+      private fun stale() = myGen != gen || !listening
+      override fun onReadyForSpeech(params: Bundle?) { if (!stale()) listening = true }
       override fun onBeginningOfSpeech() {}
       override fun onRmsChanged(rmsdB: Float) {}
       override fun onBufferReceived(buffer: ByteArray?) {}
       override fun onEndOfSpeech() {}
       override fun onError(code: Int) {
+        if (stale()) return
         when (code) {
           SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> { error = "لم يُمنح إذن الميكروفون"; stopSpeech() }
           // صمت أو لا تطابق: طبيعيّ تمامًا بين الآيات — نعاود فورًا بلا رسالة
@@ -114,8 +120,8 @@ class HifzSession(val page: Int, val from: Int, val veil: Boolean) {
           else -> restart(recreate = true, delay = 250)
         }
       }
-      override fun onResults(results: Bundle?) { handle(results, true); restart(recreate = false, delay = 80) }
-      override fun onPartialResults(partialResults: Bundle?) { handle(partialResults, false) }
+      override fun onResults(results: Bundle?) { if (stale()) return; handle(results, true); restart(recreate = false, delay = 80) }
+      override fun onPartialResults(partialResults: Bundle?) { if (stale()) return; handle(partialResults, false) }
       override fun onEvent(eventType: Int, params: Bundle?) {}
     })
     fed = 0
@@ -167,7 +173,7 @@ class HifzSession(val page: Int, val from: Int, val veil: Boolean) {
   }
 
   fun stopSpeech() {
-    listening = false; restartPending = false
+    listening = false; restartPending = false; gen++
     main.removeCallbacksAndMessages(null)
     recognizer?.let { runCatching { it.cancel() }; runCatching { it.destroy() } }
     recognizer = null; fed = 0

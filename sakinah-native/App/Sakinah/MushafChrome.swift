@@ -243,6 +243,12 @@ struct HifzPanelView: View {
           Button { session.toggleSpeech() } label: {
             ZStack {
               Circle().fill(DS.C.brandPrimary.opacity(session.listening ? 0.16 : 0.08)).frame(width: 72, height: 72)
+              // هالة تنبض بمستوى الصوت الداخل: دليل حيّ على أن الأذن تعمل
+              if session.listening {
+                Circle().fill(DS.C.brandPrimary.opacity(0.22))
+                  .frame(width: 56 + CGFloat(session.level) * 26, height: 56 + CGFloat(session.level) * 26)
+                  .animation(.easeOut(duration: 0.12), value: session.level)
+              }
               Circle().fill(session.listening ? DS.C.danger : DS.C.brandPrimary).frame(width: 56, height: 56).shadow(color: DS.C.shadowFloat, radius: 10, y: 4)
               Image(systemName: session.listening ? "stop.fill" : "mic.fill").font(.system(size: 22, weight: .semibold)).foregroundStyle(DS.C.textOnBrand)
             }

@@ -31,6 +31,12 @@ final class SpeechListener {
   /// أعطال حقيقية متتابعة (الصمت لا يُحسب) — تمنع دورانًا أبديًا عند عطب فعلي
   private var failures = 0
   private var rotate: DispatchWorkItem?
+  /// رقم الدورة الحالية — نداءات الدورات الملغاة تُتجاهل (وإلا أشعل إلغاؤنا دورةً تلغي التي بعدها بلا نهاية)
+  private var generation = 0
+  private var cycling = false
+  /// مستوى الصوت الداخل (0…1) لمؤشّر حيّ يُظهر أن الأذن تعمل
+  var onLevel: ((Double) -> Void)?
+  private var lastLevelAt = Date.distantPast
 
   /// الخادم يقطع بعد نحو دقيقة؛ ندوّر قبلها بأمان. التعرّف على الجهاز بلا حدّ فنطيل الدورة
   private var rotateAfter: TimeInterval { onDevice ? 240 : 45 }
@@ -60,13 +66,18 @@ final class SpeechListener {
     }
     input.removeTap(onBus: 0)
     // المِجَسّ يقرأ request في كل نبضة، فتنتقل الدورة الجديدة تلقائيًا بلا انقطاع
-    input.installTap(onBus: 0, bufferSize: 2048, format: fmt) { [weak self] buf, _ in self?.request?.append(buf) }
+    input.installTap(onBus: 0, bufferSize: 2048, format: fmt) { [weak self] buf, _ in
+      guard let self else { return }
+      self.request?.append(buf)
+      self.publishLevel(buf)
+    }
     engine.prepare()
     try engine.start()
 
     active = true
     backoff = 0.15
     failures = 0
+    cycling = false
     onState?(true)
     beginTask()
   }
@@ -74,6 +85,8 @@ final class SpeechListener {
   func stop(silent: Bool = false) {
     let wasActive = active
     active = false
+    generation &+= 1
+    cycling = false
     rotate?.cancel(); rotate = nil
     task?.cancel(); task = nil
     request?.endAudio(); request = nil
@@ -90,8 +103,10 @@ final class SpeechListener {
 
   private func beginTask() {
     guard active, let recognizer else { return }
-    task?.cancel()
-    request?.endAudio()
+    generation &+= 1
+    let gen = generation
+    let oldTask = task
+    let oldRequest = request
 
     let req = SFSpeechAudioBufferRecognitionRequest()
     req.shouldReportPartialResults = true
@@ -101,6 +116,7 @@ final class SpeechListener {
     if #available(iOS 16.0, *) { req.addsPunctuation = false }
     // ترجيح الكلمات المتوقّعة: أهمّ رافعة لدقّة التعرّف على النصّ القرآني
     req.contextualStrings = Array((context?() ?? []).prefix(60))
+    // يُركَّب قبل إنهاء القديم كي ينتقل المِجَسّ إليه بلا فجوة صامتة
     request = req
     consumed = 0
 
@@ -112,7 +128,8 @@ final class SpeechListener {
       let code = (error as NSError?)?.code
       let message = error?.localizedDescription
       DispatchQueue.main.async {
-        guard let self, self.active else { return }
+        // دورة قديمة أُلغيت: نتجاهلها تمامًا — إلغاؤنا لها ليس سببًا لبدء دورة أخرى
+        guard let self, self.active, gen == self.generation else { return }
         if let best { self.emit(best, alternatives: alts) }
         if let code {
           // 1110 لا كلام، 216/301/203/1101/209 إلغاء أو انتهاء دورة: كلّها طبيعية أثناء التلاوة المتقطّعة
@@ -129,6 +146,9 @@ final class SpeechListener {
       }
     }
 
+    oldRequest?.endAudio()
+    oldTask?.cancel()
+
     // تدوير استباقي قبل أن يقطع النظام الدورة من تلقائه
     let work = DispatchWorkItem { [weak self] in self?.cycle(immediate: true) }
     rotate = work
@@ -137,15 +157,32 @@ final class SpeechListener {
 
   /// يبدأ دورة جديدة دون أن يمسّ محرّك الصوت — لا صمت ولا فقدان كلمات
   private func cycle(immediate: Bool = false) {
-    guard active else { return }
+    guard active, !cycling else { return }
+    cycling = true
     rotate?.cancel(); rotate = nil
     let delay = immediate ? 0 : backoff
     backoff = min(backoff * 1.6, 0.6)
     DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-      guard let self, self.active else { return }
+      guard let self else { return }
+      self.cycling = false
+      guard self.active else { return }
       self.backoff = 0.15
       self.beginTask()
     }
+  }
+
+  /// مستوى الصوت الداخل، عشر مرات في الثانية — مؤشّر حيّ يقول إن الميكروفون يعمل
+  private func publishLevel(_ buf: AVAudioPCMBuffer) {
+    let now = Date()
+    guard now.timeIntervalSince(lastLevelAt) > 0.1, let ch = buf.floatChannelData?[0] else { return }
+    lastLevelAt = now
+    let n = Int(buf.frameLength)
+    guard n > 0 else { return }
+    var sum: Float = 0
+    for i in stride(from: 0, to: n, by: 8) { sum += ch[i] * ch[i] }
+    let rms = (sum / Float(max(1, n / 8))).squareRoot()
+    let level = min(1, Double(rms) * 12)
+    DispatchQueue.main.async { [weak self] in self?.onLevel?(level) }
   }
 
   /// يمرّر الذيل الجديد فقط؛ لا يعيد ما استُهلك ولو تراجع النصّ
@@ -181,6 +218,8 @@ final class HifzSession {
   var error: String?
   /// آخر لحظة تقدّم فيها المطابق — لإظهار «لم أسمعك» بلطف
   var lastProgressAt = Date()
+  /// مستوى الصوت الداخل (0…1) — هالة الميكروفون تنبض به فيرى القارئ أن الأذن تعمل
+  var level: Double = 0
   @ObservationIgnored private var speech: SpeechListener?
 
   init(page: Int, from: Int, veil: Bool = false) {
@@ -252,6 +291,7 @@ final class HifzSession {
         self.reveal(r)
       }
       s.onTranscript = { [weak self] t in self?.heard = t }
+      s.onLevel = { [weak self] v in self?.level = v }
       s.onState = { [weak self] on in self?.listening = on }
       s.onError = { [weak self] msg in self?.error = msg }
       do {
@@ -261,5 +301,5 @@ final class HifzSession {
       }
     }
   }
-  func stopSpeech() { speech?.stop(silent: true); speech = nil; listening = false }
+  func stopSpeech() { speech?.stop(silent: true); speech = nil; listening = false; level = 0 }
 }
