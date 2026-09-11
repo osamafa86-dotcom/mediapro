@@ -334,7 +334,18 @@ private fun Modifier.hiddenWordRule(on: Boolean, color: Color) = if (!on) this e
     val sizePx = remember(p, wPx, hPx, family) {
       var s = wPx / 14.85f
       val rowH = hPx / 15f; if (rowH < s * 1.12f) s = rowH / 1.12f
-      if (family != null) { val maxW = lines.maxOf { l -> val ws = l.wordList; if (ws.isEmpty()) 0f else measurer.measure(AnnotatedString(ws.joinToString("") { it.glyph }), TextStyle(fontFamily = family, fontSize = with(density) { s.toSp() }), softWrap = false, maxLines = 1).size.width.toFloat() }; if (maxW > wPx + 0.5f) s *= wPx / maxW }
+      // يُقاس السطر كما يُرسم: كلمةً كلمةً لا نصًّا موصولًا. خطوط QCF تُقارب بين آخر رمز في كلمة
+      // وأول رمز في التي تليها، ورسمُنا يفصل الكلمات في عناصر مستقلّة فيسقط التقارب ويتّسع السطر
+      // حتى ١٠٪ — فلو قِسنا موصولًا لفاض المرسوم عن عرض الصفحة واقتُطعت كلمة من طرفه.
+      if (family != null) {
+        val style = TextStyle(fontFamily = family, fontSize = with(density) { s.toSp() })
+        val maxW = lines.maxOf { l ->
+          var w = 0f
+          for (word in l.wordList) w += measurer.measure(AnnotatedString(word.glyph), style, softWrap = false, maxLines = 1).size.width.toFloat()
+          w
+        }
+        if (maxW > wPx + 0.5f) s *= wPx / maxW
+      }
       s
     }
     val fontSize = with(density) { sizePx.toSp() }; val bodyH = minOf(hPx, 15 * sizePx * 2f)

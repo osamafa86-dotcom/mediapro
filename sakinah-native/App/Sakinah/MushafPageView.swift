@@ -43,9 +43,19 @@ enum MushafMetrics {
     let attr = NSAttributedString(string: s, attributes: [NSAttributedString.Key(kCTFontAttributeName as String): font])
     return CGFloat(CTLineGetTypographicBounds(CTLineCreateWithAttributedString(attr), nil, nil, nil))
   }
+  /// يُقاس السطر كما يُرسم تمامًا: كلمةً كلمةً، لا نصًّا موصولًا.
+  /// خطوط QCF تُقارب (kern) بين آخر رمز في كلمة وأول رمز في التي تليها، وترسمُنا يفصل الكلمات
+  /// في عناصر مستقلّة فيسقط ذلك التقارب — فيتّسع السطر المرسوم حتى ١٠٪ عن المقيس موصولًا.
+  /// وحين قِسنا موصولًا ورسمنا مُقطَّعًا فاض السطر عن عرض الصفحة واقتُطعت كلمة من طرفه.
   static func maxLineWidth(fontName: String, size: CGFloat, lines: [MushafLine]) -> CGFloat {
     var maxW: CGFloat = 0
-    for l in lines { let ws = l.words; if ws.isEmpty { continue }; maxW = max(maxW, textWidth(ws.map(\.glyph).joined(), fontName: fontName, size: size)) }
+    for l in lines {
+      let ws = l.words
+      if ws.isEmpty { continue }
+      var w: CGFloat = 0
+      for word in ws { w += textWidth(word.glyph, fontName: fontName, size: size) }
+      maxW = max(maxW, w)
+    }
     return maxW
   }
 }
