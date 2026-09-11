@@ -31,6 +31,8 @@ final class QuranPrefs {
   var themeAuto: Bool { didSet { Store.d.set(themeAuto, forKey: "quran.themeAuto") } }
   var dim: Double { didSet { Store.d.set(dim, forKey: "quran.dim") } }
   var keepAwake: Bool { didSet { Store.d.set(keepAwake, forKey: "quran.keepAwake") } }
+  /// عُرض تلميح إظهار شريطي القارئ مرة واحدة
+  var seenChromeHint: Bool { didSet { Store.d.set(seenChromeHint, forKey: "quran.seenChromeHint") } }
   var tajweed: Bool { didSet { Store.d.set(tajweed, forKey: "quran.tajweed") } }
   /// pages | text
   var view: String { didSet { Store.d.set(view, forKey: "quran.view") } }
@@ -54,7 +56,7 @@ final class QuranPrefs {
     rate = Store.dbl("quran.rate", 1); follow = Store.bool("quran.follow", true); wordHighlight = Store.bool("quran.wordHighlight", true)
     fontScale = Store.dbl("quran.fontScale", 1); lineHeight = Store.dbl("quran.lineHeight", 2.15); hifzOnlyCurrent = Store.bool("quran.hifzOnlyCurrent", true)
     theme = Store.str("quran.theme", "cream"); themeLight = Store.str("quran.themeLight", "cream"); themeDark = Store.str("quran.themeDark", "dark"); themeAuto = Store.bool("quran.themeAuto", false)
-    dim = Store.dbl("quran.dim", 0); keepAwake = Store.bool("quran.keepAwake", true); tajweed = Store.bool("quran.tajweed", false)
+    dim = Store.dbl("quran.dim", 0); keepAwake = Store.bool("quran.keepAwake", true); tajweed = Store.bool("quran.tajweed", false); seenChromeHint = Store.bool("quran.seenChromeHint", false)
     view = Store.str("quran.view", "pages"); scroll = Store.str("quran.scroll", "horizontal"); textFont = Store.str("quran.textFont", "amiri"); fitText = Store.bool("quran.fitText", true)
     tafsir = Store.str("quran.tafsir", "muyassar"); hintShown = Store.bool("quran.hintShown", false)
     translation = Store.int("quran.translation", QuranAPI.defaultTranslation); wbwLanguage = Store.str("quran.wbwLang", "en")

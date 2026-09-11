@@ -23,6 +23,8 @@ struct MushafReaderView: View {
   @State private var pair: Int?
   @State private var chrome = true
   @State private var chromeTask: Task<Void, Never>?
+  /// صفحة انتقلنا إليها بقصد (لا بتقليب) — لا يُخفى الشريطان عند بلوغها
+  @State private var navTarget: Int?
   @State private var sheet: ReaderSheet?
   @State private var slider: Double
   @State private var toast: String?
@@ -231,6 +233,8 @@ struct MushafReaderView: View {
       try? await Task.sleep(nanoseconds: Self.chromeDwell)
       guard !Task.isCancelled, sheet == nil else { return }
       hideChrome()
+      // مرة واحدة في عمر التطبيق: تعريف بمكان المفتاح كي لا يبحث عنه القارئ
+      if !prefs.seenChromeHint { prefs.seenChromeHint = true; show("اسحب من حافة الشاشة أو انقرها لإظهار الشريطين") }
     }
   }
 
@@ -364,7 +368,8 @@ struct MushafReaderView: View {
   private func syncPlaying() { rs?.playingAyah = model.player.current; if model.player.current == nil { rs?.playingWord = nil } }
   private func onPageChanged(_ p: Int) {
     MushafFonts.shared.prefetch(around: p)
-    if chrome, sheet == nil { hideChrome() }
+    if navTarget == p { navTarget = nil; if chrome { scheduleChromeHide() } }
+    else if chrome, sheet == nil { hideChrome() }
     if let h = rs?.hifz, h.page != p { exitHifz(); show("انتهت مراجعة الحفظ بتغيير الصفحة") }
     if let s = rs?.selected, QuranText.shared.ayah(s)?.page != p { rs?.selected = nil }
     saveTask?.cancel(); saveTask = Task { try? await Task.sleep(nanoseconds: 900_000_000); if !Task.isCancelled { remember(page: p) } }
@@ -373,6 +378,7 @@ struct MushafReaderView: View {
   }
   private func go(to p: Int) {
     let t = min(max(p, 1), MushafLayout.totalPages); guard t != page else { return }
+    navTarget = t
     if spread { let k = (t + 1) / 2; page = t; if pair != k { pair = k }; return }
     if abs(t - current) <= 2 { withAnimation(.easeInOut(duration: 0.25)) { page = t } } else { page = t }
   }

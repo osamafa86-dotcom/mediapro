@@ -212,9 +212,12 @@ import org.emdatra.sakinah.core.*
   var lastPage by remember { mutableIntStateOf(startPage) }
   fun showChrome() { chrome = true; chromeNonce++ }
   LaunchedEffect(page) { if (page != lastPage) { lastPage = page; chrome = false } }
+  var hint by remember { mutableStateOf(false) }
   LaunchedEffect(chrome, chromeNonce, sheet, ayahSheet, downloads, hifz) {
     if (chrome && hifz == null && sheet == null && ayahSheet == null && !downloads) {
       kotlinx.coroutines.delay(3600); chrome = false
+      // مرة واحدة في عمر التطبيق: تعريف بمكان المفتاح كي لا يبحث عنه القارئ
+      if (!Store.seenChromeHint) { Store.seenChromeHint = true; Store.save(); hint = true; kotlinx.coroutines.delay(3500); hint = false }
     }
   }
 
@@ -258,6 +261,7 @@ import org.emdatra.sakinah.core.*
           Spacer(Modifier.height(18.dp))
         }
       }
+      if (hint && hifz == null) Text("اسحب من حافة الشاشة أو انقرها لإظهار الشريطين", Modifier.align(Alignment.BottomCenter).padding(bottom = 34.dp).clip(CircleShape).background(c.bgInverse.copy(alpha = 0.9f)).padding(horizontal = 16.dp, vertical = 10.dp), style = DSType.labelMd, color = c.bgCanvas)
       if (hifz != null && !chrome) Text(if (hifz!!.veil) "انقر الصفحة لكشف الآية التالية" else "انقر الصفحة لكشف الكلمة التالية", Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp).clip(CircleShape).background(c.bgInverse.copy(alpha = 0.9f)).padding(horizontal = 16.dp, vertical = 10.dp), style = DSType.labelMd, color = c.bgCanvas)
     }
 
@@ -274,7 +278,7 @@ import org.emdatra.sakinah.core.*
             Spacer(Modifier.weight(1f))
             BarButton(Icons.Outlined.Download, "التلاوات دون اتصال", ink) { downloads = true }
           }
-          Slider(page.toFloat(), { v -> chromeNonce++; scope.launch { pager.scrollToPage(v.toInt() - 1) } }, valueRange = 1f..604f, colors = SliderDefaults.colors(thumbColor = c.accentGold, activeTrackColor = c.accentGold, inactiveTrackColor = ink.copy(alpha = 0.15f)))
+          Slider(page.toFloat(), { v -> chromeNonce++; lastPage = v.toInt(); scope.launch { pager.scrollToPage(v.toInt() - 1) } }, valueRange = 1f..604f, colors = SliderDefaults.colors(thumbColor = c.accentGold, activeTrackColor = c.accentGold, inactiveTrackColor = ink.copy(alpha = 0.15f)))
           val l2 = QuranText.shared.label(page)
           Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(l2?.let { "${QuranMeta.juzName(it.juz, false)} · الحزب ${Fmt.number(it.hizb)}" } ?: "", style = DSType.labelXs, color = ink.copy(alpha = 0.55f), maxLines = 1)
@@ -288,7 +292,7 @@ import org.emdatra.sakinah.core.*
   ayahSheet?.let { a -> AyahSheet(a, onDismiss = { ayahSheet = null; selected = null }, onHifz = { ayahSheet = null; selected = null; Recitation.stop(); hifz = HifzSession(page, a.n, veil = false) }) }
   if (downloads) ModalBottomSheet(onDismissRequest = { downloads = false }, containerColor = c.bgSurface) { DownloadsSheet(first?.surah) }
   when (sheet) {
-    "index", "nav" -> ModalBottomSheet(onDismissRequest = { sheet = null }, containerColor = c.bgSurface) { IndexSheet(page) { p, n -> sheet = null; scope.launch { pager.scrollToPage(p - 1) }; if (n != null) selected = n } }
+    "index", "nav" -> ModalBottomSheet(onDismissRequest = { sheet = null }, containerColor = c.bgSurface) { IndexSheet(page) { p, n -> sheet = null; lastPage = p; scope.launch { pager.scrollToPage(p - 1) }; if (n != null) selected = n } }
     "display" -> ModalBottomSheet(onDismissRequest = { sheet = null }, containerColor = c.bgSurface) { DisplaySheet() }
     "options" -> ModalBottomSheet(onDismissRequest = { sheet = null }, containerColor = c.bgSurface) { Column { PlaybackOptions(); OptionsSheet(page) { sheet = null } } }
   }
