@@ -54,11 +54,28 @@ object QuranNormalize {
 
 data class HifzWord(val n: Int, val k: Int, val norm: String, val raw: String)
 /** مُطابِق الحفظ (متسامح، مع تخطي كلمة أو كلمتين) */
-class HifzMatcher(val words: List<HifzWord>, val threshold: Double = 0.66, val lookahead: Int = 2, val lookaheadThreshold: Double = 0.85, val fuseThreshold: Double = 0.8) {
+// إعادة التزامن: إن أسقط التعرّف أكثر من lookahead كلمة تتابعًا، وقف المطابق إلى الأبد.
+// فبعد resyncAfter إخفاقًا متتاليًا نبحث أمامنا في نافذة أوسع، ولا نقفز إلا بتأكيد كلمتين
+// متتاليتين — فالكلمة الواحدة تتكرّر في القرآن كثيرًا ولا يُعتمد عليها وحدها.
+class HifzMatcher(val words: List<HifzWord>, val threshold: Double = 0.66, val lookahead: Int = 2, val lookaheadThreshold: Double = 0.85, val fuseThreshold: Double = 0.8,
+                  val resyncAfter: Int = 2, val resyncWindow: Int = 25, val resyncThreshold: Double = 0.85) {
   var pos = 0; private set
   var matched = 0; private set
   var skipped = 0; private set
   var unmatched = 0; private set
+  var resynced = 0; private set
+  private var misses = 0
+  private var resyncAt = -1
+  /** أقرب موضع أمامنا تُطابقه الكلمة المنطوقة بثقة — الأقرب لا الأفضل، فالتلاوة تسير إلى الأمام */
+  private fun findResync(w: String): Int {
+    val end = minOf(words.size - 1, pos + resyncWindow)
+    var j = pos + lookahead + 1
+    while (j < end) {
+      if (QuranNormalize.similarity(words[j].norm, w) >= resyncThreshold) return j
+      j++
+    }
+    return -1
+  }
   companion object {
     fun words(ayahs: List<Ayah>, startingAt: Int = 0): List<HifzWord> { val out = ArrayList<HifzWord>(); for (a in ayahs) { if (a.n < startingAt) continue; var k = 0; for (t in QuranNormalize.tokenize(a.text)) if (t.spoken) { out.add(HifzWord(a.n, k, t.norm, t.raw)); k++ } }; return out }
   }
@@ -83,7 +100,20 @@ class HifzMatcher(val words: List<HifzWord>, val threshold: Double = 0.66, val l
       if (hit < 0 && pos + 1 < words.size && QuranNormalize.similarity(words[pos].norm + words[pos + 1].norm, w) >= fuseThreshold) { hit = 0; span = 2 }
       // أو يقسم الكلمة الواحدة إلى اثنتين («نستعين» ← «نست عين»)
       if (hit < 0 && i + 1 < spoken.size && QuranNormalize.similarity(words[pos].norm, w + spoken[i + 1]) >= fuseThreshold) { hit = 0; take = 2 }
-      if (hit < 0) { unmatched++; i++; continue }
+      if (hit < 0) {
+        // مرشّح من الكلمة السابقة: إن أكّدته هذه الكلمة فقد وجدنا موضع القارئ الحقيقي
+        if (resyncAt >= 0 && QuranNormalize.similarity(words[resyncAt + 1].norm, w) >= resyncThreshold) {
+          val j = resyncAt
+          for (k in pos..(j + 1)) revealed.add(k)  // ما أسقطه التعرّف يُكشف أيضًا
+          skipped += j + 1 - pos; matched++; resynced++
+          pos = j + 2; misses = 0; resyncAt = -1
+          i++; continue
+        }
+        unmatched++; misses++
+        resyncAt = if (misses >= resyncAfter) findResync(w) else -1
+        i++; continue
+      }
+      misses = 0; resyncAt = -1
       // امتداد الدمج: الكلمة المنطوقة قد تضمّ أكثر من كلمة متوقّعة — نتوسّع ما دام التشابه يتحسّن
       if (span == 1) {
         var acc = words[pos + hit].norm; var best = QuranNormalize.similarity(acc, w)

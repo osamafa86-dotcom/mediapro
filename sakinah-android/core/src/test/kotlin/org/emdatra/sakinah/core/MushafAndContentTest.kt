@@ -57,6 +57,25 @@ class MushafAndContentTest {
     val m2 = HifzMatcher(words); val noisy = h.getValue("noisy").jsonArray
     for (st0 in noisy) { val st = st0.jsonObject; val t = st.getValue("t").jsonPrimitive.content; val r = if (t == "hint") listOf(m2.hint()!!) else m2.feed(t); assertEquals(st.getValue("revealed").jsonArray.map { it.jsonPrimitive.int }, r, t) }
     assertEquals(noisy.last().jsonObject.getValue("pos").jsonPrimitive.int, m2.pos)
+
+    // إعادة التزامن — سورة الرحمن، لأن «فبأي آلاء ربكما تكذبان» تتكرّر ٣١ مرة فهي أقسى اختبار للقفز الخاطئ
+    val rs = h.getValue("resync").jsonObject
+    val rw = HifzMatcher.words(QuranText.shared.surahAyahs(55))
+    assertEquals(rs.getValue("words").jsonPrimitive.int, rw.size)
+    val spoken = rw.map { it.norm }
+    fun run(key: String, seq: List<String>) {
+      val m = HifzMatcher(rw); for (w in seq) m.feed(w)
+      val e = rs.getValue(key).jsonObject
+      assertEquals(e.getValue("pos").jsonPrimitive.int, m.pos, "$key pos")
+      assertEquals(e.getValue("matched").jsonPrimitive.int, m.matched, "$key matched")
+      assertEquals(e.getValue("skipped").jsonPrimitive.int, m.skipped, "$key skipped")
+      assertEquals(e.getValue("unmatched").jsonPrimitive.int, m.unmatched, "$key unmatched")
+      assertEquals(e.getValue("resynced").jsonPrimitive.int, m.resynced, "$key resynced")
+    }
+    run("dropped", spoken.subList(0, 8) + spoken.subList(13, 60))   // التعرّف أسقط ٥ كلمات
+    run("clean", spoken.subList(0, 60))                             // تلاوة سليمة كلمةً كلمة
+    run("noise", "السلام عليكم كيف حالك اليوم الطقس جميل هنا".split(' '))
+    run("single", listOf(spoken[0], "xxxxxxxx", spoken[40]))        // كلمة بعيدة واحدة لا تكفي للقفز
   }
 
   @Test fun khatmahChallengesTasbihTajweedHadith() {

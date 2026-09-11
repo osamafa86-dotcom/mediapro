@@ -113,10 +113,27 @@ public struct HifzWord: Sendable, Hashable, Codable { public let n: Int; public 
 public final class HifzMatcher {
   public let words: [HifzWord]
   public private(set) var pos = 0
-  public private(set) var matched = 0, skipped = 0, unmatched = 0
+  public private(set) var matched = 0, skipped = 0, unmatched = 0, resynced = 0
   public let threshold: Double, lookahead: Int, lookaheadThreshold: Double, fuseThreshold: Double
-  public init(words: [HifzWord], threshold: Double = 0.66, lookahead: Int = 2, lookaheadThreshold: Double = 0.85, fuseThreshold: Double = 0.8) {
+  /// إعادة التزامن: إن أسقط التعرّف أكثر من lookahead كلمة تتابعًا، وقف المطابق إلى الأبد.
+  /// فبعد resyncAfter إخفاقًا متتاليًا نبحث أمامنا في نافذة أوسع، ولا نقفز إلا بتأكيد كلمتين
+  /// متتاليتين — فالكلمة الواحدة تتكرّر في القرآن كثيرًا ولا يُعتمد عليها وحدها.
+  public let resyncAfter: Int, resyncWindow: Int, resyncThreshold: Double
+  private var misses = 0, resyncAt = -1
+  public init(words: [HifzWord], threshold: Double = 0.66, lookahead: Int = 2, lookaheadThreshold: Double = 0.85, fuseThreshold: Double = 0.8,
+              resyncAfter: Int = 2, resyncWindow: Int = 25, resyncThreshold: Double = 0.85) {
     self.words = words; self.threshold = threshold; self.lookahead = lookahead; self.lookaheadThreshold = lookaheadThreshold; self.fuseThreshold = fuseThreshold
+    self.resyncAfter = resyncAfter; self.resyncWindow = resyncWindow; self.resyncThreshold = resyncThreshold
+  }
+  /// أقرب موضع أمامنا تُطابقه الكلمة المنطوقة بثقة — الأقرب لا الأفضل، فالتلاوة تسير إلى الأمام
+  private func findResync(_ w: String) -> Int {
+    let end = min(words.count - 1, pos + resyncWindow)
+    var j = pos + lookahead + 1
+    while j < end {
+      if QuranNormalize.similarity(words[j].norm, w) >= resyncThreshold { return j }
+      j += 1
+    }
+    return -1
   }
   /// كلمات المراجعة من آيات (المنطوقة فقط) بدءًا من آية معيّنة
   public static func words(from ayahs: [Ayah], startingAt n: Int = 0) -> [HifzWord] {
@@ -150,7 +167,20 @@ public final class HifzMatcher {
       if hit < 0, pos + 1 < words.count, QuranNormalize.similarity(words[pos].norm + words[pos + 1].norm, w) >= fuseThreshold { hit = 0; span = 2 }
       // أو يقسم الكلمة الواحدة إلى اثنتين («نستعين» ← «نست عين»)
       if hit < 0, i + 1 < spoken.count, QuranNormalize.similarity(words[pos].norm, w + spoken[i + 1]) >= fuseThreshold { hit = 0; take = 2 }
-      if hit < 0 { unmatched += 1; i += 1; continue }
+      if hit < 0 {
+        // مرشّح من الكلمة السابقة: إن أكّدته هذه الكلمة فقد وجدنا موضع القارئ الحقيقي
+        if resyncAt >= 0, QuranNormalize.similarity(words[resyncAt + 1].norm, w) >= resyncThreshold {
+          let j = resyncAt
+          for k in pos...(j + 1) { revealed.append(k) }  // ما أسقطه التعرّف يُكشف أيضًا
+          skipped += j + 1 - pos; matched += 1; resynced += 1
+          pos = j + 2; misses = 0; resyncAt = -1
+          i += 1; continue
+        }
+        unmatched += 1; misses += 1
+        resyncAt = misses >= resyncAfter ? findResync(w) : -1
+        i += 1; continue
+      }
+      misses = 0; resyncAt = -1
       // امتداد الدمج: الكلمة المنطوقة قد تضمّ أكثر من كلمة متوقّعة — نتوسّع ما دام التشابه يتحسّن
       if span == 1 {
         var acc = words[pos + hit].norm; var best = QuranNormalize.similarity(acc, w)

@@ -107,11 +107,25 @@ export function similarity(a, b) { const m = Math.max(a.length, b.length); retur
  * ويتجاهل الكلمات غير المطابقة (تكرار، تلعثم) بدل أن يتعطل.
  */
 export class HifzMatcher {
-  constructor(words, { threshold = 0.66, lookahead = 2, lookaheadThreshold = 0.85, fuseThreshold = 0.8 } = {}) {
+  constructor(words, { threshold = 0.66, lookahead = 2, lookaheadThreshold = 0.85, fuseThreshold = 0.8,
+                       resyncAfter = 2, resyncWindow = 25, resyncThreshold = 0.85 } = {}) {
     this.words = words; // [{norm, ...}] الكلمات المنطوقة فقط
     this.pos = 0; this.threshold = threshold; this.lookahead = lookahead; this.lookaheadThreshold = lookaheadThreshold; // القفز فوق كلمة يتطلب تطابقًا أوثق
     this.fuseThreshold = fuseThreshold; // دمج/تقسيم التعرّف (كلمة منطوقة ↔ كلمتان متوقّعتان) يتطلب تطابقًا أوثق
-    this.matched = 0; this.skipped = 0; this.unmatched = 0;
+    // إعادة التزامن: إن أسقط التعرّف أكثر من lookahead كلمة تتابعًا، وقف المطابق إلى الأبد.
+    // فبعد resyncAfter إخفاقًا متتاليًا نبحث أمامنا في نافذة أوسع، ولا نقفز إلا بتأكيد كلمتين
+    // متتاليتين — فالكلمة الواحدة تتكرّر في القرآن كثيرًا ولا يُعتمد عليها وحدها.
+    this.resyncAfter = resyncAfter; this.resyncWindow = resyncWindow; this.resyncThreshold = resyncThreshold;
+    this.misses = 0; this.resyncAt = -1;
+    this.matched = 0; this.skipped = 0; this.unmatched = 0; this.resynced = 0;
+  }
+  /** أقرب موضع أمامنا تُطابقه الكلمة المنطوقة بثقة — الأقرب لا الأفضل، فالتلاوة تسير إلى الأمام */
+  findResync(w) {
+    const end = Math.min(this.words.length - 1, this.pos + this.resyncWindow);
+    for (let j = this.pos + this.lookahead + 1; j < end; j++) {
+      if (similarity(this.words[j].norm, w) >= this.resyncThreshold) return j;
+    }
+    return -1;
   }
   /** يعالج نصًا منطوقًا (كلمة أو أكثر) ويعيد قائمة فهارس الكلمات التي كُشفت الآن */
   feed(transcript) {
@@ -132,7 +146,20 @@ export class HifzMatcher {
       if (hit < 0 && this.pos + 1 < this.words.length && similarity(this.words[this.pos].norm + this.words[this.pos + 1].norm, w) >= this.fuseThreshold) { hit = 0; span = 2; }
       // أو يقسم الكلمة الواحدة إلى اثنتين («نستعين» ← «نست عين»)
       if (hit < 0 && i + 1 < spoken.length && similarity(this.words[this.pos].norm, w + spoken[i + 1]) >= this.fuseThreshold) { hit = 0; take = 2; }
-      if (hit < 0) { this.unmatched++; i++; continue; }
+      if (hit < 0) {
+        // مرشّح من الكلمة السابقة: إن أكّدته هذه الكلمة فقد وجدنا موضع القارئ الحقيقي
+        if (this.resyncAt >= 0 && similarity(this.words[this.resyncAt + 1].norm, w) >= this.resyncThreshold) {
+          const j = this.resyncAt;
+          for (let k = this.pos; k <= j + 1; k++) revealed.push(k); // ما أسقطه التعرّف يُكشف أيضًا
+          this.skipped += j + 1 - this.pos; this.matched++; this.resynced++;
+          this.pos = j + 2; this.misses = 0; this.resyncAt = -1;
+          i++; continue;
+        }
+        this.unmatched++; this.misses++;
+        this.resyncAt = this.misses >= this.resyncAfter ? this.findResync(w) : -1;
+        i++; continue;
+      }
+      this.misses = 0; this.resyncAt = -1;
       // امتداد الدمج: الكلمة المنطوقة قد تضمّ أكثر من كلمة متوقّعة — نتوسّع ما دام التشابه يتحسّن
       if (span === 1) {
         let acc = this.words[this.pos + hit].norm; let best = similarity(acc, w);

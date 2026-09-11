@@ -61,6 +61,34 @@ test('مُطابِق الحفظ: يكشف الكلمات بالترتيب، يت
   assert.ok(m.done, `pos ${m.pos}/${words.length}`);
 });
 
+test('مُطابِق الحفظ: يستعيد التزامن إن أسقط التعرّف كلمات أكثر من مدى التخطي، ولا يقفز على ضجيج', () => {
+  const words = surahAyahs(55).flatMap((a) => tokenize(a.text)).filter((w) => w.spoken); // الرحمن: «فبأي آلاء ربكما تكذبان» متكرّرة ٣١ مرة
+  const spoken = words.map((w) => w.norm);
+
+  // التعرّف أسقط خمس كلمات متتالية — بلا استعادة تزامن يقف المطابق إلى الأبد
+  const m = new HifzMatcher(words);
+  for (const w of [...spoken.slice(0, 8), ...spoken.slice(13, 60)]) m.feed(w);
+  assert.ok(m.pos >= 58, `توقّف عند ${m.pos} من ${words.length}`);
+  assert.equal(m.resynced, 1);
+
+  // تلاوة سليمة كلمةً كلمة: لا يقفز رغم تكرار العبارة نفسها عشرات المرات
+  const clean = new HifzMatcher(words);
+  for (const w of spoken) clean.feed(w);
+  assert.ok(clean.done, `pos ${clean.pos}/${words.length}`);
+  assert.equal(clean.resynced, 0);
+
+  // ضجيج لا علاقة له بالنصّ: لا يتقدّم ولا يستعيد التزامن
+  const noise = new HifzMatcher(words);
+  for (const w of 'السلام عليكم كيف حالك اليوم الطقس جميل هنا'.split(' ')) noise.feed(w);
+  assert.equal(noise.pos, 0);
+  assert.equal(noise.resynced, 0);
+
+  // كلمة واحدة مطابقة بعيدًا لا تكفي للقفز — لا بدّ من تأكيد كلمتين متتاليتين
+  const single = new HifzMatcher(words);
+  for (const w of [spoken[0], 'xxxxxxxx', spoken[40]]) single.feed(w);
+  assert.equal(single.resynced, 0);
+});
+
 test('البحث النصي يجد الآية بلا تشكيل', () => {
   const r = searchText('الله لا اله الا هو الحي القيوم');
   assert.ok(r.some((a) => a.surah === 2 && a.ayah === 255));

@@ -75,6 +75,17 @@ const hifzWords = quran.pageAyahs(1).flatMap((a) => quran.tokenize(a.text).filte
 const hifzFeeds = ['بسم الله الرحمن الرحيم', 'الحمد لله رب العالمين', 'الرحمن', 'ملك يوم الدين', 'اياك نعبد و اياك نستعين', 'اهدنا الصراط المستقيم صراط الذين انعمت عليهم غير المغضوب عليهم ولا الضالين'];
 const hm = new quran.HifzMatcher(hifzWords); const hifzSteps = hifzFeeds.map((t) => ({ t, revealed: hm.feed(t), pos: hm.pos, matched: hm.matched, skipped: hm.skipped, unmatched: hm.unmatched, done: hm.done, progress: hm.progress }));
 const hm2 = new quran.HifzMatcher(hifzWords); const hifzNoisy = [['بسم الله الرحيم', hm2.feed('بسم الله الرحيم')], ['الحمد الحمد لله', hm2.feed('الحمد الحمد لله')], ['رب', hm2.feed('رب')], ['hint', [hm2.hint()]], ['الرحمنالرحيم', hm2.feed('الرحمنالرحيم')], ['م لك', hm2.feed('م لك')]].map(([t, r]) => ({ t, revealed: r, pos: hm2.pos }));
+// إعادة التزامن: سورة الرحمن لأن «فبأي آلاء ربكما تكذبان» تتكرّر ٣١ مرة — أقسى اختبار للقفز الخاطئ
+const resyncWords = quran.surahAyahs(55).flatMap((a) => quran.tokenize(a.text).filter((w) => w.spoken).map((w, k) => ({ n: a.n, k, norm: w.norm, raw: w.raw })));
+const resyncSpoken = resyncWords.map((w) => w.norm);
+function resyncRun(seq) { const m = new quran.HifzMatcher(resyncWords); for (const w of seq) m.feed(w); return { pos: m.pos, matched: m.matched, skipped: m.skipped, unmatched: m.unmatched, resynced: m.resynced }; }
+const hifzResync = {
+  words: resyncWords.length,
+  dropped: resyncRun([...resyncSpoken.slice(0, 8), ...resyncSpoken.slice(13, 60)]),   // التعرّف أسقط ٥ كلمات
+  clean: resyncRun(resyncSpoken.slice(0, 60)),                                        // تلاوة سليمة كلمةً كلمة
+  noise: resyncRun('السلام عليكم كيف حالك اليوم الطقس جميل هنا'.split(' ')),           // ضجيج لا علاقة له
+  single: resyncRun([resyncSpoken[0], 'xxxxxxxx', resyncSpoken[40]]),                  // كلمة واحدة بعيدة لا تكفي للقفز
+};
 const lev = [['كتاب', 'كتب'], ['الرحمن', 'الرحيم'], ['', 'ابج'], ['سلام', 'سلام'], ['نعبد', 'نعبده']].map(([a, b]) => ({ a, b, d: quran.levenshtein(a, b), sim: quran.similarity(a, b) }));
 const kh = await import(path.join(web, 'khatmah.js')); const ch = await import(path.join(web, 'challenges.js')); const tb = await import(path.join(web, 'tasbih.js'));
 const readLog = { '2026-09-08': [1, 2, 3], '2026-09-09': [4, 5], '2026-09-10': [6], '2026-08-15': [10, 11] };
@@ -97,7 +108,7 @@ const hd = await import(path.resolve(here, '../../sakinah/js/data/hadith.js'));
 const hadithOfDay = [[2026, 9, 10], [2026, 1, 1], [2027, 3, 15], [2030, 12, 31]].map(([y, m, d]) => ({ y, m, d, id: hd.hadithOfDay(new Date(y, m - 1, d)).id }));
 const hadithRef = hd.HADITHS.filter((h) => h.alsoIn).slice(0, 3).map((h) => ({ id: h.id, ref: hd.hadithReference(h) })).concat(hd.HADITHS.filter((h) => !h.alsoIn).slice(0, 2).map((h) => ({ id: h.id, ref: hd.hadithReference(h) })));
 const out = { generatedAt: new Date().toISOString(), prayer, timeline, hijri, qibla, sunMoments, zenith, geomag, methods, layoutPages, juzNames,
-  normalize, search, tokenize, hifz: { words: hifzWords, steps: hifzSteps, noisy: hifzNoisy }, lev, khatmah, challenges, tasbih, tajweed, hadithOfDay, hadithRef };
+  normalize, search, tokenize, hifz: { words: hifzWords, steps: hifzSteps, noisy: hifzNoisy, resync: hifzResync }, lev, khatmah, challenges, tasbih, tajweed, hadithOfDay, hadithRef };
 const dest = path.resolve(here, '../Tests/SakinahCoreTests/Fixtures/golden.json');
 fs.writeFileSync(dest, JSON.stringify(out));
 console.log(`golden: prayer ${prayer.length}, timeline ${timeline.length}, hijri ${hijri.length}, qibla ${qibla.length}, sunMoments ${sunMoments.length}, geomag ${geomag.length} → ${path.relative(process.cwd(), dest)} (${(fs.statSync(dest).size / 1024).toFixed(0)} KB)`);
