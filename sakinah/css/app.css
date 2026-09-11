@@ -398,7 +398,7 @@ details.more[open] summary::before { content: '▾ '; }
    ========================================================================== */
 .mp {
   --gold-1: #a98a3a; --gold-2: #cfb46f; --gold-3: #e9dcb2; --frame: #2f5a3a; --marker: #8f7430; --rub: #b8336a;
-  --mp-hl: rgba(15, 118, 110, .16); --mp-sel: rgba(183, 121, 31, .22); --mp-hide: rgba(60, 50, 20, .07); --mp-hide-line: rgba(60, 50, 20, .25);
+  --mp-hl: rgba(15, 118, 110, .16); --mp-sel: rgba(183, 121, 31, .22); --mp-hide: rgba(60, 50, 20, .13); --mp-hide-line: rgba(60, 50, 20, .25);
   --mp-size: 20px;
   position: relative; display: flex; flex-direction: column; background: var(--paper-bg, var(--paper)); color: var(--ink);
   border-radius: 10px; box-shadow: 0 2px 6px rgba(0, 0, 0, .18), 0 12px 30px rgba(0, 0, 0, .22);

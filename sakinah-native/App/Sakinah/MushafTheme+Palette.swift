@@ -23,7 +23,8 @@ extension MushafPalette {
     let dark = theme.isDark
     return MushafAccents(highlight: dark ? Color(red: 45/255, green: 212/255, blue: 191/255).opacity(0.22) : Color(red: 15/255, green: 118/255, blue: 110/255).opacity(0.16),
                          selection: dark ? Color(red: 226/255, green: 176/255, blue: 74/255).opacity(0.3) : Color(red: 183/255, green: 121/255, blue: 31/255).opacity(0.22),
-                         hide: dark ? Color(red: 236/255, green: 229/255, blue: 210/255).opacity(0.08) : Color(red: 60/255, green: 50/255, blue: 20/255).opacity(0.07),
+                         // الكلمة المخفيّة يجب أن تُقرأ «مخفيّة»، لا «ناقصة»: ٧٪ على الورق الكريمي فراغٌ أبيض لا يُميَّز
+                         hide: dark ? Color(red: 236/255, green: 229/255, blue: 210/255).opacity(0.16) : Color(red: 60/255, green: 50/255, blue: 20/255).opacity(0.13),
                          hideLine: dark ? Color(red: 236/255, green: 229/255, blue: 210/255).opacity(0.3) : Color(red: 60/255, green: 50/255, blue: 20/255).opacity(0.25),
                          wordLine: Color(hex: dark ? "#b8993f" : "#a98a3a").opacity(0.38))
   }

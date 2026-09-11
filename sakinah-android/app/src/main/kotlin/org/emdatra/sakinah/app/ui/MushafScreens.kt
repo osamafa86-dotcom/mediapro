@@ -2,6 +2,8 @@ package org.emdatra.sakinah.app.ui
 
 import android.content.Intent
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -187,6 +189,12 @@ import org.emdatra.sakinah.core.*
     dismissButton = { if (Store.khatmah != null) TextButton(onClick = { Store.khatmah = null; Store.save(); onDismiss() }) { Text("إنهاء الخطة") } else TextButton(onClick = onDismiss) { Text("إلغاء") } })
 }
 
+/** الكلمة المستورة في مراجعة الحفظ: خطّ سفليّ صريح كي تُقرأ «مخفيّة» لا «ناقصة» (مطابقةً لنسخة الويب) */
+private fun Modifier.hiddenWordRule(on: Boolean, color: Color) = if (!on) this else this.drawBehind {
+  val h = maxOf(1f, size.height * 0.045f)
+  drawLine(color, Offset(size.width * 0.08f, size.height - h / 2), Offset(size.width * 0.92f, size.height - h / 2), strokeWidth = h)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 
 /** القارئ: تقليب أفقي من اليمين، شريط علوي (سورة/جزء وأزرار)، مشغّل عائم، لوحة الحفظ، وشريط سفلي بأزرار الصفحة والتنقّل */
@@ -348,9 +356,9 @@ import org.emdatra.sakinah.core.*
                     val cur = hifz != null && w.k >= 0 && hifz.isCurrent(w.n, w.k)
                     val playingWord = Recitation.current == w.n && Store.wordHighlight && Recitation.currentWord == w.k + 1
                     val col = if (hidden) Color.Transparent else if (w.end) Gold else ink
-                    val bg = if (hidden) ink.copy(alpha = 0.08f) else if (playingWord) Gold.copy(alpha = 0.38f) else if (selected == w.n || Recitation.current == w.n) Teal.copy(alpha = 0.18f) else Color.Transparent
+                    val bg = if (hidden) ink.copy(alpha = 0.13f) else if (playingWord) Gold.copy(alpha = 0.38f) else if (selected == w.n || Recitation.current == w.n) Teal.copy(alpha = 0.18f) else Color.Transparent
                     Text(w.glyph, fontFamily = family, fontSize = fontSize, color = col, maxLines = 1, softWrap = false,
-                      modifier = Modifier.background(bg, RoundedCornerShape(3.dp)).then(if (cur) Modifier.border(1.dp, ink.copy(alpha = 0.3f), RoundedCornerShape(3.dp)) else Modifier).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { if (a != null && hifz == null) onTap(a) })
+                      modifier = Modifier.background(bg, RoundedCornerShape(3.dp)).hiddenWordRule(hidden, ink.copy(alpha = 0.35f)).then(if (cur) Modifier.border(1.dp, ink.copy(alpha = 0.3f), RoundedCornerShape(3.dp)) else Modifier).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { if (a != null && hifz == null) onTap(a) })
                   }
                 }
               }
@@ -391,9 +399,9 @@ import org.emdatra.sakinah.core.*
             val cur = hifz != null && kk >= 0 && hifz.isCurrent(a.n, kk)
             val playingWord = Recitation.current == a.n && Store.wordHighlight && kk >= 0 && Recitation.currentWord == kk + 1
             val styled = buildAnnotatedString { if (spans.isEmpty() || !t.spoken) append(t.raw) else for ((seg, code) in Tajweed.segments(t.raw, start, spans)) { val c = code?.let { tajweedColor(it, dark) }; if (c != null) withStyle(SpanStyle(color = c)) { append(seg) } else append(seg) } }
-            val bg = if (hidden) ink.copy(alpha = 0.08f) else if (playingWord) Gold.copy(alpha = 0.38f) else if (selected == a.n || Recitation.current == a.n) Teal.copy(alpha = 0.18f) else Color.Transparent
+            val bg = if (hidden) ink.copy(alpha = 0.13f) else if (playingWord) Gold.copy(alpha = 0.38f) else if (selected == a.n || Recitation.current == a.n) Teal.copy(alpha = 0.18f) else Color.Transparent
             Text(styled, fontFamily = family, fontSize = if (t.spoken) size else size * 0.75, lineHeight = size * 2.05, color = if (hidden) Color.Transparent else if (t.spoken) ink else Gold,
-              modifier = Modifier.background(bg, RoundedCornerShape(3.dp)).then(if (cur) Modifier.border(1.dp, ink.copy(alpha = 0.3f), RoundedCornerShape(3.dp)) else Modifier).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { if (hifz == null) onTap(a) })
+              modifier = Modifier.background(bg, RoundedCornerShape(3.dp)).hiddenWordRule(hidden, ink.copy(alpha = 0.35f)).then(if (cur) Modifier.border(1.dp, ink.copy(alpha = 0.3f), RoundedCornerShape(3.dp)) else Modifier).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { if (hifz == null) onTap(a) })
           }
           Text(if (hafs) QuranMeta.arabicDigits(a.ayah) else "۝" + QuranMeta.arabicDigits(a.ayah), fontFamily = family, fontSize = size * 0.95, lineHeight = size * 2.05, color = Gold)
         }

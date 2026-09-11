@@ -130,6 +130,8 @@ struct PageWord: View {
     Text(attributed(st))
       .lineLimit(1).fixedSize()
       .background(st.bg.map { RoundedRectangle(cornerRadius: size * 0.16).fill($0) })
+      // خطّ سفليّ صريح: القارئ يعرف أن الكلمة مستورة عمدًا، لا ساقطة من المصحف
+      .overlay(alignment: .bottom) { if st.hidden { Capsule().fill(rs.accents.hideLine).frame(height: max(1, size * 0.045)).padding(.horizontal, size * 0.08) } }
       .overlay { if st.current { RoundedRectangle(cornerRadius: size * 0.16).stroke(rs.accents.hideLine, lineWidth: 1) } }
       .contentShape(Rectangle())
       .onTapGesture { rs.onTapAyah?(word.n) }
