@@ -230,20 +230,6 @@ private fun Modifier.hiddenWordRule(on: Boolean, color: Color) = if (!on) this e
   }
 
   Column(Modifier.fillMaxSize().background(paper).statusBarsPadding().navigationBarsPadding()) {
-    AnimatedVisibility(chrome, enter = slideInVertically { -it } + fadeIn(), exit = slideOutVertically { -it } + fadeOut()) {
-      Row(Modifier.fillMaxWidth().background(paper).padding(horizontal = 6.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-        BarButton(Icons.Filled.ChevronRight, "إغلاق المصحف", ink, onClose)
-        val l = QuranText.shared.label(page)
-        Column(Modifier.weight(1f)) {
-          Text(l?.let { "سورة ${QuranMeta.surah(it.surah).name}" } ?: "", style = DSType.headingSm, color = ink, maxLines = 1)
-          Text(l?.let { val su = QuranMeta.surah(it.surah); "${QuranMeta.juzName(it.juz, false)} · الحزب ${Fmt.number(it.hizb)} · ${su.type} · ${Fmt.number(su.ayahs)} آية" } ?: "", style = DSType.labelXs, color = ink.copy(alpha = 0.6f), maxLines = 1)
-        }
-        BarButton(if (Store.bookmarks.any { it.page == page }) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder, "علامة", ink) { chromeNonce++; first?.let { Store.toggleBookmark(it) } }
-        BarButton(Icons.Outlined.FormatSize, "العرض والخط", ink) { sheet = "display" }
-        BarButton(Icons.Outlined.List, "الفهرس", ink) { sheet = "index" }
-        BarButton(Icons.Filled.MoreVert, "خيارات", ink) { sheet = "options" }
-      }
-    }
 
     Box(Modifier.weight(1f).fillMaxWidth()) {
       HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, key = { it }) { i ->
@@ -271,12 +257,23 @@ private fun Modifier.hiddenWordRule(on: Boolean, color: Color) = if (!on) this e
       }
       if (hint && hifz == null) Text("اسحب من حافة الشاشة أو انقرها لإظهار الشريطين", Modifier.align(Alignment.BottomCenter).padding(bottom = 34.dp).clip(CircleShape).background(c.bgInverse.copy(alpha = 0.9f)).padding(horizontal = 16.dp, vertical = 10.dp), style = DSType.labelMd, color = c.bgCanvas)
       if (hifz != null && !chrome) Text(if (hifz!!.veil) "انقر الصفحة لكشف الآية التالية" else "انقر الصفحة لكشف الكلمة التالية", Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp).clip(CircleShape).background(c.bgInverse.copy(alpha = 0.9f)).padding(horizontal = 16.dp, vertical = 10.dp), style = DSType.labelMd, color = c.bgCanvas)
-    }
-
-    Column(Modifier.fillMaxWidth()) {
-      hifz?.let { h -> HifzPanel(h, onExit = { h.stopSpeech(); hifz = null }, onNextPage = { if (page < 604) { val veil = h.veil; scope.launch { pager.scrollToPage(page); kotlinx.coroutines.delay(400); QuranText.shared.pageAyahs(page + 1).firstOrNull()?.let { a -> hifz = HifzSession(page + 1, a.n, veil) } } } }) }
-      if (Recitation.current != null) Box(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) { AudioBar() }
-      AnimatedVisibility(chrome && hifz == null, enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
+      // الشريطان يعلوان الصفحة ولا يُزيحانها: لو كانا من أبناء العمود لاقتطعا من ارتفاعها،
+      // فأُعيدت ملاءمتها بخطٍّ أصغر وتقلّصت وتغيّر منظرها مع كل ظهور واختفاء.
+      androidx.compose.animation.AnimatedVisibility(chrome, Modifier.align(Alignment.TopCenter), enter = slideInVertically { -it } + fadeIn(), exit = slideOutVertically { -it } + fadeOut()) {
+        Row(Modifier.fillMaxWidth().background(paper).padding(horizontal = 6.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+          BarButton(Icons.Filled.ChevronRight, "إغلاق المصحف", ink, onClose)
+          val l = QuranText.shared.label(page)
+          Column(Modifier.weight(1f)) {
+            Text(l?.let { "سورة ${QuranMeta.surah(it.surah).name}" } ?: "", style = DSType.headingSm, color = ink, maxLines = 1)
+            Text(l?.let { val su = QuranMeta.surah(it.surah); "${QuranMeta.juzName(it.juz, false)} · الحزب ${Fmt.number(it.hizb)} · ${su.type} · ${Fmt.number(su.ayahs)} آية" } ?: "", style = DSType.labelXs, color = ink.copy(alpha = 0.6f), maxLines = 1)
+          }
+          BarButton(if (Store.bookmarks.any { it.page == page }) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder, "علامة", ink) { chromeNonce++; first?.let { Store.toggleBookmark(it) } }
+          BarButton(Icons.Outlined.FormatSize, "العرض والخط", ink) { sheet = "display" }
+          BarButton(Icons.Outlined.List, "الفهرس", ink) { sheet = "index" }
+          BarButton(Icons.Filled.MoreVert, "خيارات", ink) { sheet = "options" }
+        }
+      }
+      androidx.compose.animation.AnimatedVisibility(chrome && hifz == null, Modifier.align(Alignment.BottomCenter), enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
         Column(Modifier.fillMaxWidth().background(paper).padding(horizontal = 14.dp, vertical = 2.dp)) {
           Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             BarButton(Icons.Outlined.PlayCircle, "تشغيل تلاوة الصفحة", ink) { chromeNonce++; playPage() }
@@ -291,6 +288,11 @@ private fun Modifier.hiddenWordRule(on: Boolean, color: Color) = if (!on) this e
           Slider(page.toFloat(), { v -> chromeNonce++; lastPage = v.toInt(); scope.launch { pager.scrollToPage(v.toInt() - 1) } }, Modifier.height(24.dp), valueRange = 1f..604f, colors = SliderDefaults.colors(thumbColor = c.accentGold, activeTrackColor = c.accentGold, inactiveTrackColor = ink.copy(alpha = 0.15f)))
         }
       }
+    }
+
+    Column(Modifier.fillMaxWidth()) {
+      hifz?.let { h -> HifzPanel(h, onExit = { h.stopSpeech(); hifz = null }, onNextPage = { if (page < 604) { val veil = h.veil; scope.launch { pager.scrollToPage(page); kotlinx.coroutines.delay(400); QuranText.shared.pageAyahs(page + 1).firstOrNull()?.let { a -> hifz = HifzSession(page + 1, a.n, veil) } } } }) }
+      if (Recitation.current != null) Box(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) { AudioBar() }
     }
   }
   ayahSheet?.let { a -> AyahSheet(a, onDismiss = { ayahSheet = null; selected = null }, onHifz = { ayahSheet = null; selected = null; Recitation.stop(); hifz = HifzSession(page, a.n, veil = false).also { h -> h.toggleSpeech(ctx) } }) }

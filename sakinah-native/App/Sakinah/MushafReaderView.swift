@@ -63,8 +63,12 @@ struct MushafReaderView: View {
       if let rs {
         Rectangle().fill(MushafPalette.background(for: rs.theme)).ignoresSafeArea()
         pager(rs).environment(rs)
-          .safeAreaInset(edge: .top, spacing: 0) { topSlot(rs) }
-          .safeAreaInset(edge: .bottom, spacing: 0) { bottomSlot(rs).environment(rs) }
+          // اللوحات التي تبقى (الحفظ والمشغّل) تُزيح الصفحة لأن وجودها حالٌ مقصود يطول.
+          // أما الشريطان اللذان يظهران ويختفيان مع كل نقرة فيعلوان الصفحة ولا يمسّان حجمها —
+          // فلو اقتطعا منها لأُعيدت ملاءمتها بخطٍّ أصغر، وتقلّصت الصفحة وتغيّر منظرها في كل مرة.
+          .safeAreaInset(edge: .bottom, spacing: 0) { persistentSlot(rs).environment(rs) }
+          .overlay(alignment: .top) { topSlot(rs) }
+          .overlay(alignment: .bottom) { chromeBottomSlot(rs).environment(rs) }
         Color.black.opacity(min(0.7, prefs.dim)).ignoresSafeArea().allowsHitTesting(false)
         edgeHandles(rs)
         toastOverlay
@@ -145,17 +149,22 @@ struct MushafReaderView: View {
 
   // MARK: - الشريطان: حوافّ لا تغطّي النصّ
 
-  /// الشريط العلوي كحافّة آمنة — الصفحة تنكمش تحته ولا تختفي وراءه
+  /// الشريط العلوي ينزلق فوق الصفحة — خلفيته معتمة فلا يظهر النصّ من تحته، والصفحة لا تتحرّك
   @ViewBuilder private func topSlot(_ rs: MushafReaderState) -> some View {
     if chrome { topBar(rs).transition(.move(edge: .top).combined(with: .opacity)) }
   }
 
-  /// الحافّة السفلى: لوحة الحفظ ثم المشغّل ثم شريط الصفحة — كلّها تُزيح الصفحة ولا تعلوها
-  @ViewBuilder private func bottomSlot(_ rs: MushafReaderState) -> some View {
+  /// الشريط السفلي كذلك يعلو الصفحة. وهو فوق المشغّل إن كان يعمل، لأن الإطفاء يقع على حافّة
+  /// المساحة بعد إزاحة المشغّل — فيستقرّ كلٌّ في موضعه بلا تراكب
+  @ViewBuilder private func chromeBottomSlot(_ rs: MushafReaderState) -> some View {
+    if chrome && rs.hifz == nil { bottomBar(rs).transition(.move(edge: .bottom).combined(with: .opacity)) }
+  }
+
+  /// ما يبقى معروضًا: لوحة مراجعة الحفظ والمشغّل — هذان يُزيحان الصفحة عمدًا كي لا يحجبا سطورها
+  @ViewBuilder private func persistentSlot(_ rs: MushafReaderState) -> some View {
     VStack(spacing: 0) {
       if let h = rs.hifz { HifzPanelView(session: h, onExit: exitHifz, onNextPage: { nextHifzPage(veil: h.veil) }).transition(.move(edge: .bottom)) }
       if model.player.current != nil { AudioBarView(onPickReciter: { sheet = .reciter }, onGoToPage: { go(to: $0) }, toast: show).padding(.horizontal, 12).padding(.bottom, 6).transition(.move(edge: .bottom)) }
-      if chrome && rs.hifz == nil { bottomBar(rs).transition(.move(edge: .bottom).combined(with: .opacity)) }
     }
   }
 
