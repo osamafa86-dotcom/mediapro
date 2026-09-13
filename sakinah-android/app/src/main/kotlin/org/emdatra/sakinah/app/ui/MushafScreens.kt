@@ -336,7 +336,7 @@ private fun Modifier.hiddenWordRule(on: Boolean, color: Color) = if (!on) this e
       val rowH = hPx / 15f; if (rowH < s * 1.12f) s = rowH / 1.12f
       // أسطر QCF تملأ العرض بالضبط، ونرسم كل كلمة عنصرًا مستقلًّا: تقريبٌ جزئيّ في كلمة يُفيض
       // السطر فيُقتطع من طرفه، وفقدُ كلمة من صفحة مصحف لا يُحتمل — فنترك شعرة.
-      if (family != null) { val maxW = lines.maxOf { l -> val ws = l.wordList; if (ws.isEmpty()) 0f else measurer.measure(AnnotatedString(ws.joinToString("") { it.glyph }), TextStyle(fontFamily = family, fontSize = with(density) { s.toSp() }), softWrap = false, maxLines = 1).size.width.toFloat() }; val safeW = wPx * 0.995f; if (maxW > safeW) s *= safeW / maxW }
+      if (family != null) { val maxW = lines.maxOf { l -> val ws = l.wordList; if (ws.isEmpty()) 0f else measurer.measure(AnnotatedString(ws.joinToString("") { it.glyph }), TextStyle(fontFamily = family, fontSize = with(density) { s.toSp() }), softWrap = false, maxLines = 1).size.width.toFloat() }; val safeW = wPx * 0.988f; if (maxW > safeW) s *= safeW / maxW }
       s
     }
     val fontSize = with(density) { sizePx.toSp() }; val bodyH = minOf(hPx, 15 * sizePx * 2f)

@@ -33,7 +33,9 @@ enum MushafMetrics {
     // أسطر QCF مصمَّمة لتملأ عرض الصفحة بالضبط (قِسناها: كلها متساوية تمامًا)، فالملاءمة على
     // العرض كاملًا لا تترك فسحة. ونحن نرسم كل كلمة عنصرًا مستقلًّا، فيكفي تقريبٌ جزئيّ في عرض
     // كلمة واحدة ليفيض السطر ويُقتطع من طرفه — وفقدُ كلمة من صفحة مصحف لا يُحتمل. فنترك شعرة.
-    let safeW = W * 0.995
+    // حبر QCF يتجاوز العرض المحجوز عند نهاية السطر بما يبلغ ٠٫٦٥٪ (مقيسًا على ص ٢٧٠)،
+    // فالفسحة تغطّيه وزيادة — والفرق في حجم الخطّ نحو واحد بالمئة، لا تراه العين.
+    let safeW = W * 0.988
     let maxW = maxLineWidth(fontName: MushafFonts.pageFontName(p), size: size, lines: lines)
     if maxW > safeW { size *= safeW / maxW }
     let bodyH = H > 0 ? min(H, CGFloat(rows) * size * rowMaxEm) : CGFloat(rows) * size * 1.09
@@ -124,7 +126,7 @@ struct MushafPageView: View {
     case .basmala:
       Text(QuranMeta.basmala).font(.custom(MushafFonts.amiriQuranFont, fixedSize: size * 0.98)).foregroundStyle(rs.palette.ink).lineLimit(1).minimumScaleFactor(0.5).frame(maxWidth: width * 0.62)
     case .words(let ws):
-      MushafLineView(words: ws, page: page, size: size).frame(maxWidth: .infinity)
+      MushafLineView(words: ws, page: page, size: size, maxWidth: width).frame(maxWidth: .infinity)
     }
   }
 }
@@ -142,15 +144,22 @@ struct MushafLineView: View {
   let words: [MushafWord]
   let page: Int
   let size: CGFloat
+  let maxWidth: CGFloat
 
   var body: some View {
     let fontName = MushafFonts.pageFontName(page)
     let styles = words.map { rs.style(n: $0.n, k: $0.k, base: $0.end ? rs.palette.marker : rs.palette.ink) }
+    // حارسٌ أخير: لو فاض السطر عن عرض الصفحة بشعرة، تقلّص كاملًا بدل أن يُقتطع طرفه.
+    // اقتطاعُ كلمة من صفحة مصحف لا يُحتمل، والتقلّص بنسبة لا تكاد تُرى. والطبقات الثلاث
+    // تتقلّص معًا فيبقى النقر والتظليل منطبقين على مواضعهما.
+    let lineWidth = words.reduce(CGFloat.zero) { $0 + MushafMetrics.glyphWidth($1.glyph, fontName: fontName, size: size) }
+    let scale = (lineWidth > 0 && maxWidth > 0) ? min(1, maxWidth / lineWidth) : 1
     Text(line(fontName: fontName, styles: styles))
       .lineLimit(1)
       .fixedSize()
       .background { backgrounds(fontName: fontName, styles: styles) }
       .overlay { marks(fontName: fontName, styles: styles) }
+      .scaleEffect(scale, anchor: .center)
   }
 
   /// السطر كلّه في AttributedString واحد، ولكل كلمة لونها في مداها
