@@ -172,9 +172,6 @@ struct MushafPageView: View {
   }
 }
 
-/// راية تشخيص مؤقّتة — تُرفع في بناء واحد لتحديد طبقة العطب ثم تُزال
-enum MushafDebug { static let showWordIndex = true }
-
 /// سطر كامل بخطّ الصفحة، مرسومٌ برموزه مباشرة.
 ///
 /// خطوط QCF تحمل جدول `morx` من آبل (ولا تحمل GSUB/GPOS)، وفيه استبدالٌ سياقيّ عربيّ
@@ -254,11 +251,6 @@ struct MushafLineView: View {
           }
           .overlay {
             if marksLayer && st.current { RoundedRectangle(cornerRadius: size * 0.16).stroke(rs.accents.hideLine, lineWidth: 1) }
-          }
-          .overlay(alignment: .bottom) {
-            if marksLayer && MushafDebug.showWordIndex {
-              Text("\(i)").font(.system(size: max(7, size * 0.3))).foregroundStyle(.red).offset(y: size * 0.62)
-            }
           }
           .contentShape(Rectangle())
           .onTapGesture { if marksLayer { rs.onTapAyah?(w.n) } }
