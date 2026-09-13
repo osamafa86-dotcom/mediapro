@@ -131,6 +131,9 @@ struct MushafPageView: View {
   }
 }
 
+/// راية تشخيص مؤقّتة — تُرفع في بناء واحد لتحديد طبقة العطب ثم تُزال
+enum MushafDebug { static let showWordIndex = true }
+
 /// سطر كامل بخطّ الصفحة في مقطع نصّي واحد — كما صُمِّم خطّ QCF.
 ///
 /// علامات الوقف في هذا الخطّ عرضُها المحجوز ٨٠ وحدة تقريبًا بينما يمتدّ حبرها إلى ٩٠٠ وحدة،
@@ -212,6 +215,13 @@ struct MushafLineView: View {
             if st.hidden { Capsule().fill(rs.accents.hideLine).frame(height: max(1, size * 0.045)).padding(.horizontal, size * 0.08) }
           }
           .overlay { if st.current { RoundedRectangle(cornerRadius: size * 0.16).stroke(rs.accents.hideLine, lineWidth: 1) } }
+          // تشخيص مؤقّت: رقم موضع الكلمة في البيانات. يفصل قطعًا بين «البيانات مرتّبة والرسم
+          // يقلبها» و«البيانات نفسها مقلوبة» — ويُزال فور ظهور الجواب.
+          .overlay(alignment: .bottom) {
+            if MushafDebug.showWordIndex {
+              Text("\(i)").font(.system(size: max(7, size * 0.3))).foregroundStyle(.red).offset(y: size * 0.62)
+            }
+          }
           .contentShape(Rectangle())
           .onTapGesture { rs.onTapAyah?(w.n) }
       }
