@@ -189,21 +189,22 @@ import kotlin.math.sin
             Offset(ctr.x + rr * sin(a).toFloat(), ctr.y - rr * cos(a).toFloat())
           )
         }
-        // الكعبة عند الشمال
-        val kr = r - 58.dp.toPx()
-        drawRoundRect(
-          c.textPrimary,
-          Offset(ctr.x - 9.dp.toPx(), ctr.y - kr - 9.dp.toPx()),
-          androidx.compose.ui.geometry.Size(18.dp.toPx(), 18.dp.toPx()),
-          androidx.compose.ui.geometry.CornerRadius(3.dp.toPx())
-        )
-        drawRect(
-          c.accentGold,
-          Offset(ctr.x - 9.dp.toPx(), ctr.y - kr - 2.dp.toPx()),
-          androidx.compose.ui.geometry.Size(18.dp.toPx(), 3.dp.toPx())
-        )
         // الإبرة: رأس نحو القبلة وذيل داكن
         rotate(bearing.toFloat(), ctr) {
+          // الكعبة ترافق رأس الإبرة عند اتجاه القبلة. وكانت عند شمال القرص، وهو موضعٌ يُقرأ في
+          // شاشة قبلةٍ على أنه القبلة نفسها فيُوجَّه القارئ إلى غير جهتها وهو يظنّ أنه مصيب.
+          val kr = r - 58.dp.toPx()
+          drawRoundRect(
+            c.textPrimary,
+            Offset(ctr.x - 9.dp.toPx(), ctr.y - kr - 9.dp.toPx()),
+            androidx.compose.ui.geometry.Size(18.dp.toPx(), 18.dp.toPx()),
+            androidx.compose.ui.geometry.CornerRadius(3.dp.toPx())
+          )
+          drawRect(
+            c.accentGold,
+            Offset(ctr.x - 9.dp.toPx(), ctr.y - kr - 2.dp.toPx()),
+            androidx.compose.ui.geometry.Size(18.dp.toPx(), 3.dp.toPx())
+          )
           val tip = ctr.y - (r - 66.dp.toPx())
           val head = Path().apply {
             moveTo(ctr.x, tip)

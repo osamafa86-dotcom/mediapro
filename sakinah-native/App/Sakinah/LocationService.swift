@@ -1,5 +1,6 @@
 import Foundation
 import CoreLocation
+import UIKit
 import Observation
 import SakinahCore
 
@@ -67,8 +68,32 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
   }
 
-  func startHeading() { if CLLocationManager.headingAvailable() { manager.startUpdatingHeading() } }
+  func startHeading() {
+    guard CLLocationManager.headingAvailable() else { return }
+    syncHeadingOrientation()
+    manager.startUpdatingHeading()
+  }
   func stopHeading() { manager.stopUpdatingHeading() }
+
+  /// مرجعُ قراءة البوصلة هو اتجاه الجهاز، وافتراضه دائمًا «رأسي». فإن دارت الواجهة (والآيباد
+  /// يدور) ولم يدُر المرجع معها، انحرفت قراءة الاتجاه تسعين درجة — والقبلة معها.
+  ///
+  /// ومَزلقٌ في UIKit: landscapeLeft في اصطلاح الواجهة هو landscapeRight في اصطلاح الجهاز
+  /// (هكذا عُرِّفا في UIInterfaceOrientation نفسها)، وCLDeviceOrientation يتبع اصطلاح الجهاز.
+  /// فالترجمة الساذجة تقلب الاتجاه بدل أن تصحّحه.
+  func syncHeadingOrientation() {
+    let interface = UIApplication.shared.connectedScenes
+      .compactMap { ($0 as? UIWindowScene)?.interfaceOrientation }
+      .first ?? .portrait
+    let device: CLDeviceOrientation
+    switch interface {
+    case .portraitUpsideDown: device = .portraitUpsideDown
+    case .landscapeLeft: device = .landscapeRight
+    case .landscapeRight: device = .landscapeLeft
+    default: device = .portrait
+    }
+    if manager.headingOrientation != device { manager.headingOrientation = device }
+  }
 
   // MARK: - CLLocationManagerDelegate (تصل على الخيط الرئيسي)
   func locationManagerDidChangeAuthorization(_ m: CLLocationManager) {

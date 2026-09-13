@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreLocation
+import UIKit
 import SakinahCore
 
 /// شاشة القبلة (تصميم Figma 10): شريط حالة، بوصلة بقرص مرقّم وإبرة ذهبية، بلاطتا المسافة والاتجاه، بطاقة الموقع، وتلميح المعايرة
@@ -20,6 +21,10 @@ struct QiblaView: View {
       .navigationBarHidden(true)
       .onAppear { model.location.startHeading() }
       .onDisappear { model.location.stopHeading() }
+      // الآيباد يدور: يُعاد ضبط مرجع البوصلة مع كل دوران وإلا انحرفت القراءة تسعين درجة
+      .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
+        model.location.syncHeadingOrientation()
+      }
       .sheet(isPresented: $showInfo) { QiblaInfoSheet().environment(model) }
     }
   }
@@ -176,21 +181,26 @@ struct CompassDial: View {
               .offset(y: -(r - 34))
               .rotationEffect(.degrees(angle))
           }
+          // الكعبة ترافق رأس الإبرة عند اتجاه القبلة. وكانت مثبّتة عند شمال القرص، وهو موضعٌ
+          // يُقرأ في شاشة قبلةٍ على أنه القبلة نفسها — وفي بلاد الشام الشمالُ عكسُ القبلة تقريبًا،
+          // فكان القارئ يُوجَّه إلى غير جهتها وهو يظنّ أنه على الصواب.
           Image(systemName: "building.columns.fill")
             .font(.system(size: 17))
-            .foregroundStyle(DS.C.textPrimary)
+            .foregroundStyle(aligned ? DS.C.brandPrimary : DS.C.accentGoldStrong)
             .offset(y: -(r - 58))
+            .rotationEffect(.degrees(bearing))
           // الإبرة: رأس ذهبي نحو القبلة وذيل أخضر
           NeedleShape()
             .fill(aligned ? DS.C.brandPrimary : DS.C.accentGold)
             .frame(width: 22, height: r - 66)
             .offset(y: -(r - 66) / 2)
             .rotationEffect(.degrees(bearing))
+          // القلب قبل الإزاحة: لو أُزيح أولًا لدار موضعُه مع القلب فوقع الذيل فوق الرأس
           NeedleShape()
             .fill(DS.C.brandDeep)
             .frame(width: 18, height: (r - 66) * 0.82)
-            .offset(y: (r - 66) * 0.41)
             .rotationEffect(.degrees(180))
+            .offset(y: (r - 66) * 0.41)
             .rotationEffect(.degrees(bearing))
           Circle().fill(DS.C.bgSurface).frame(width: 18, height: 18)
             .overlay { Circle().stroke(DS.C.brandPrimary, lineWidth: 3) }
