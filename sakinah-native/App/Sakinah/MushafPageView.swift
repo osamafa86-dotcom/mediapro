@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreText
+import UIKit
 import SakinahCore
 
 /// ألوان صفحة المصحف (تُشتق من السمة؛ القيم الافتراضية للسمة الكريمية)
@@ -44,24 +45,64 @@ enum MushafMetrics {
     cache[key] = f
     return f
   }
-  /// عرض رمز كلمة واحدة، مخبّأ — تُقاس لكل كلمة في كل سطر عند كل رسم، فبلا خبء يثقُل التقليب
-  private static var glyphCache: [String: CGFloat] = [:]
-  static func glyphWidth(_ glyph: String, fontName: String, size: CGFloat) -> CGFloat {
-    let key = "\(fontName)|\(Int(size * 4))|\(glyph)"
-    if let c = glyphCache[key] { return c }
-    let w = textWidth(glyph, fontName: fontName, size: size)
-    if glyphCache.count > 6000 { glyphCache.removeAll() }
-    glyphCache[key] = w
-    return w
+  /// صعود الخطّ ونزوله — لتحديد خطّ الأساس وارتفاع السطر عند الرسم المباشر
+  struct FontMetrics { let ascent: CGFloat; let descent: CGFloat; var height: CGFloat { ascent + descent } }
+  private static var metricsCache: [String: FontMetrics] = [:]
+  static func fontMetrics(fontName: String, size: CGFloat) -> FontMetrics {
+    let key = "\(fontName)|\(Int(size * 4))"
+    if let c = metricsCache[key] { return c }
+    let f = CTFontCreateWithName(fontName as CFString, size, nil)
+    let m = FontMetrics(ascent: CTFontGetAscent(f), descent: CTFontGetDescent(f))
+    if metricsCache.count > 256 { metricsCache.removeAll() }
+    metricsCache[key] = m
+    return m
   }
+  /// رموز كلمة ومقاييسها، مأخوذة من جدول cmap مباشرة
+  struct GlyphRun { let ids: [CGGlyph]; let advances: [CGFloat]; let width: CGFloat }
+  private static var runCache: [String: GlyphRun] = [:]
+  /// يحوّل رموز الكلمة إلى معرّفات رسم عبر cmap وحده — لا محرّك نصّ ولا تشكيل ولا morx.
+  /// خطوط QCF تحمل جدول morx من آبل يُطبّق استبدالًا سياقيًا عربيًا، وهو يُبدّل رموزنا
+  /// بصور أخرى من عائلة الحرف فتظهر كلمات في غير مواضعها. والرسم بالمعرّفات يتجاوزه كلّه.
+  static func glyphRun(_ glyph: String, fontName: String, size: CGFloat) -> GlyphRun {
+    let key = "\(fontName)|\(Int(size * 4))|\(glyph)"
+    if let c = runCache[key] { return c }
+    let font = CTFontCreateWithName(fontName as CFString, size, nil)
+    let chars = Array(glyph.utf16)
+    var ids = [CGGlyph](repeating: 0, count: max(1, chars.count))
+    var advances = [CGSize](repeating: .zero, count: max(1, chars.count))
+    if !chars.isEmpty {
+      CTFontGetGlyphsForCharacters(font, chars, &ids, chars.count)
+      CTFontGetAdvancesForGlyphs(font, .horizontal, ids, &advances, chars.count)
+    }
+    let n = chars.count
+    let adv = Array(advances.prefix(n)).map(\.width)
+    let run = GlyphRun(ids: Array(ids.prefix(n)), advances: adv, width: adv.reduce(0, +))
+    if runCache.count > 6000 { runCache.removeAll() }
+    runCache[key] = run
+    return run
+  }
+  static func glyphWidth(_ glyph: String, fontName: String, size: CGFloat) -> CGFloat {
+    glyphRun(glyph, fontName: fontName, size: size).width
+  }
+  /// عرض نصّ عبر محرّك النصّ — لوضع النصّ المتدفّق، حيث الخطّ عربيّ عادي والتشكيل مطلوب.
+  /// لا يصلح لخطوط الصفحات: جدول morx فيها يستبدل الرموز فيختلف المقيس عن المرسوم.
   static func textWidth(_ s: String, fontName: String, size: CGFloat) -> CGFloat {
     let font = CTFontCreateWithName(fontName as CFString, size, nil)
     let attr = NSAttributedString(string: s, attributes: [NSAttributedString.Key(kCTFontAttributeName as String): font])
     return CGFloat(CTLineGetTypographicBounds(CTLineCreateWithAttributedString(attr), nil, nil, nil))
   }
+  /// يُقاس السطر كما يُرسم تمامًا: بجمع عروض الرموز من cmap.
+  /// القياس عبر محرّك النصّ (CTLine) يخضع لجدول morx نفسه الذي نتجاوزه في الرسم،
+  /// فلو قِسنا به لاختلف المقيس عن المرسوم واختلّت الملاءمة.
   static func maxLineWidth(fontName: String, size: CGFloat, lines: [MushafLine]) -> CGFloat {
     var maxW: CGFloat = 0
-    for l in lines { let ws = l.words; if ws.isEmpty { continue }; maxW = max(maxW, textWidth(ws.map(\.glyph).joined(), fontName: fontName, size: size)) }
+    for l in lines {
+      let ws = l.words
+      if ws.isEmpty { continue }
+      var w: CGFloat = 0
+      for word in ws { w += glyphWidth(word.glyph, fontName: fontName, size: size) }
+      maxW = max(maxW, w)
+    }
     return maxW
   }
 }
@@ -134,14 +175,16 @@ struct MushafPageView: View {
 /// راية تشخيص مؤقّتة — تُرفع في بناء واحد لتحديد طبقة العطب ثم تُزال
 enum MushafDebug { static let showWordIndex = true }
 
-/// سطر كامل بخطّ الصفحة في مقطع نصّي واحد — كما صُمِّم خطّ QCF.
+/// سطر كامل بخطّ الصفحة، مرسومٌ برموزه مباشرة.
 ///
-/// علامات الوقف في هذا الخطّ عرضُها المحجوز ٨٠ وحدة تقريبًا بينما يمتدّ حبرها إلى ٩٠٠ وحدة،
-/// أي أنها تُرسم عمدًا فوق ما يليها؛ والسطر كلّه وحدةٌ متشابكة. فرسمُ كل كلمة في عنصر مستقلّ
-/// يقصّ ذلك الامتداد ويُراكم تقريبَ العرض كلمةً كلمة حتى ينزاح السطر وتضيع كلمة من طرفه.
+/// خطوط QCF تحمل جدول `morx` من آبل (ولا تحمل GSUB/GPOS)، وفيه استبدالٌ سياقيّ عربيّ
+/// يُطبّقه CoreText افتراضيًا. ورموزُ هذه الخطوط حروفٌ عربية حقيقية في يونيكود
+/// (U+FB6C = ARABIC LETTER VEH INITIAL FORM مثلًا)، فيرى المُشكِّل سلسلةَ حروفٍ متّصلة
+/// ويستبدل صورها بأخرى من عائلة الحرف — فتظهر كلماتٌ في غير مواضعها في صفحة المصحف.
+/// ولا يوجد في جدول `feat` إعدادٌ يُطفئ ذلك الاتّصال.
 ///
-/// فالسطر هنا نصٌّ واحد، والتلوين والستر يجريان على مدى كل كلمة داخله، والنقر على مستطيلات
-/// شفّافة بعرض كل كلمة فوقه — فيبقى التفاعل كما كان والرسم مطابقًا للمطبوع.
+/// فنتجاوز محرّك النصّ كلّه: تُحوَّل الرموز إلى معرّفات عبر cmap وحده، وتُرسم بـ
+/// CTFontDrawGlyphs في مواضع نحسبها من عروضها. لا تشكيل ولا ربط ولا إعادة ترتيب.
 struct MushafLineView: View {
   @Environment(MushafReaderState.self) private var rs
   let words: [MushafWord]
@@ -152,78 +195,73 @@ struct MushafLineView: View {
   var body: some View {
     let fontName = MushafFonts.pageFontName(page)
     let styles = words.map { rs.style(n: $0.n, k: $0.k, base: $0.end ? rs.palette.marker : rs.palette.ink) }
-    // حارسٌ أخير: لو فاض السطر عن عرض الصفحة بشعرة، تقلّص كاملًا بدل أن يُقتطع طرفه.
-    // اقتطاعُ كلمة من صفحة مصحف لا يُحتمل، والتقلّص بنسبة لا تكاد تُرى. والطبقات الثلاث
-    // تتقلّص معًا فيبقى النقر والتظليل منطبقين على مواضعهما.
-    let lineWidth = words.reduce(CGFloat.zero) { $0 + MushafMetrics.glyphWidth($1.glyph, fontName: fontName, size: size) }
+    let runs = words.map { MushafMetrics.glyphRun($0.glyph, fontName: fontName, size: size) }
+    let lineWidth = runs.reduce(CGFloat.zero) { $0 + $1.width }
+    let m = MushafMetrics.fontMetrics(fontName: fontName, size: size)
+    // حارس: لو فاض السطر رغم الملاءمة، تقلّص كاملًا بدل أن يُقتطع طرفه
     let scale = (lineWidth > 0 && maxWidth > 0) ? min(1, maxWidth / lineWidth) : 1
-    Text(line(fontName: fontName, styles: styles))
-      .lineLimit(1)
-      .fixedSize()
-      .background { backgrounds(fontName: fontName, styles: styles) }
-      .overlay { marks(fontName: fontName, styles: styles) }
-      .scaleEffect(scale, anchor: .center)
-  }
-
-  /// السطر كلّه في AttributedString واحد، ولكل كلمة لونها في مداها
-  private func line(fontName: String, styles: [MushafReaderState.WordStyle]) -> AttributedString {
-    let font = Font.custom(fontName, fixedSize: size)
-    var out = AttributedString()
-    for (i, w) in words.enumerated() {
-      let st = styles[i]
-      func piece(_ t: String, _ c: Color) -> AttributedString {
-        var a = AttributedString(t)
-        a.font = font
-        a.foregroundColor = c
-        return a
-      }
-      let chars = Array(w.glyph)
-      if st.hidden { out.append(piece(w.glyph, .clear)) }
-      else if w.rub, chars.count > 1 {
-        out.append(piece(String(chars[0]), rs.palette.rub))
-        out.append(piece(String(chars[1...]), st.fg))
-      } else if w.sajda, chars.count > 1 {
-        out.append(piece(String(chars[..<(chars.count - 1)]), st.fg))
-        out.append(piece(String(chars[chars.count - 1]), rs.palette.marker))
-      } else {
-        out.append(piece(w.glyph, st.fg))
-      }
+    Canvas { ctx, canvasSize in
+      paint(ctx, width: canvasSize.width, fontName: fontName, runs: runs, styles: styles, ascent: m.ascent)
     }
-    return out
+    .frame(width: max(1, lineWidth), height: max(1, m.height))
+    .background { band(runs: runs, styles: styles, marksLayer: false) }
+    .overlay { band(runs: runs, styles: styles, marksLayer: true) }
+    .scaleEffect(scale, anchor: .center)
   }
 
-  /// طبقة تحت النصّ: خلفية التظليل والتحديد والستر، بأقراص مستديرة كما كانت
-  private func backgrounds(fontName: String, styles: [MushafReaderState.WordStyle]) -> some View {
-    HStack(spacing: 0) {
-      ForEach(Array(words.enumerated()), id: \.offset) { i, w in
-        Color.clear
-          .frame(width: MushafMetrics.glyphWidth(w.glyph, fontName: fontName, size: size))
-          .overlay { if let bg = styles[i].bg { RoundedRectangle(cornerRadius: size * 0.16).fill(bg) } }
+  /// يرسم رموز السطر من اليمين إلى اليسار بمواضع محسوبة من عروضها
+  private func paint(_ ctx: GraphicsContext, width: CGFloat, fontName: String,
+                     runs: [MushafMetrics.GlyphRun], styles: [MushafReaderState.WordStyle], ascent: CGFloat) {
+    let font = CTFontCreateWithName(fontName as CFString, size, nil)
+    ctx.withCGContext { cg in
+      cg.textMatrix = .identity
+      cg.translateBy(x: 0, y: ascent)
+      cg.scaleBy(x: 1, y: -1)
+      var x = width
+      for (i, w) in words.enumerated() {
+        let run = runs[i]
+        let st = styles[i]
+        let many = run.ids.count > 1
+        for gi in run.ids.indices {
+          x -= run.advances[gi]
+          if st.hidden { continue }
+          let color: Color
+          if w.rub && many && gi == 0 { color = rs.palette.rub }
+          else if w.sajda && many && gi == run.ids.count - 1 { color = rs.palette.marker }
+          else { color = st.fg }
+          cg.setFillColor(UIColor(color).cgColor)
+          var g = run.ids[gi]
+          var pt = CGPoint(x: x, y: 0)
+          CTFontDrawGlyphs(font, &g, &pt, 1, cg)
+        }
       }
     }
   }
 
-  /// طبقة شفّافة فوق النصّ: النقر، وخطّ الكلمة المستورة، وإطار الكلمة الحالية
-  private func marks(fontName: String, styles: [MushafReaderState.WordStyle]) -> some View {
+  /// شريط بعرض كل كلمة: تحت النصّ خلفياتُ التظليل والستر، وفوقه النقرُ والعلامات
+  private func band(runs: [MushafMetrics.GlyphRun], styles: [MushafReaderState.WordStyle], marksLayer: Bool) -> some View {
     HStack(spacing: 0) {
       ForEach(Array(words.enumerated()), id: \.offset) { i, w in
         let st = styles[i]
         Color.clear
-          .frame(width: MushafMetrics.glyphWidth(w.glyph, fontName: fontName, size: size))
+          .frame(width: max(1, runs[i].width))
+          .overlay {
+            if !marksLayer, let bg = st.bg { RoundedRectangle(cornerRadius: size * 0.16).fill(bg) }
+          }
           .overlay(alignment: .bottom) {
             // خطّ سفليّ صريح: القارئ يعرف أن الكلمة مستورة عمدًا، لا ساقطة من المصحف
-            if st.hidden { Capsule().fill(rs.accents.hideLine).frame(height: max(1, size * 0.045)).padding(.horizontal, size * 0.08) }
+            if marksLayer && st.hidden { Capsule().fill(rs.accents.hideLine).frame(height: max(1, size * 0.045)).padding(.horizontal, size * 0.08) }
           }
-          .overlay { if st.current { RoundedRectangle(cornerRadius: size * 0.16).stroke(rs.accents.hideLine, lineWidth: 1) } }
-          // تشخيص مؤقّت: رقم موضع الكلمة في البيانات. يفصل قطعًا بين «البيانات مرتّبة والرسم
-          // يقلبها» و«البيانات نفسها مقلوبة» — ويُزال فور ظهور الجواب.
+          .overlay {
+            if marksLayer && st.current { RoundedRectangle(cornerRadius: size * 0.16).stroke(rs.accents.hideLine, lineWidth: 1) }
+          }
           .overlay(alignment: .bottom) {
-            if MushafDebug.showWordIndex {
+            if marksLayer && MushafDebug.showWordIndex {
               Text("\(i)").font(.system(size: max(7, size * 0.3))).foregroundStyle(.red).offset(y: size * 0.62)
             }
           }
           .contentShape(Rectangle())
-          .onTapGesture { rs.onTapAyah?(w.n) }
+          .onTapGesture { if marksLayer { rs.onTapAyah?(w.n) } }
       }
     }
   }
