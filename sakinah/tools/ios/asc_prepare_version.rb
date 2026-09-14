@@ -57,15 +57,36 @@ else
   changed << 'categories'
 end
 
+# ⚠️ أسماء المتجر فريدة عالمياً ولا يوجد استعلام «هل الاسم متاح؟» — الطريقة الوحيدة
+# هي محاولة الكتابة. (قِيس: «سكينة» مرفوض لأن تطبيقاً آخر يحمله.) فيُقبل هنا أكثر
+# من مرشّح مفصولاً بـ«|» وتُجرَّب بالترتيب، ويُثبَّت أوّل ما تقبله آبل. الفشل في كل
+# المرشّحين يُوقف السير لأن deliver سيفشل على الاسم نفسه بعد رفع كل شيء.
+candidates = app_name.split('|').map(&:strip).reject(&:empty?)
 info.get_app_info_localizations.each do |l|
   next unless l.locale == 'ar-SA'
-  if l.name == app_name
-    puts "• اسم المتجر «#{app_name}» مضبوط أصلاً"
-  else
-    puts "• اسم المتجر: «#{l.name}» ← «#{app_name}»"
-    l.update(attributes: { name: app_name })
-    changed << 'name'
+  if candidates.include?(l.name)
+    puts "• اسم المتجر «#{l.name}» مضبوط أصلاً"
+    next
   end
+  chosen = nil
+  candidates.each do |cand|
+    abort "✗ الاسم «#{cand}» يتجاوز ٣٠ حرفاً (#{cand.length})" if cand.length > 30
+    begin
+      l.update(attributes: { name: cand })
+      chosen = cand
+      puts "• اسم المتجر: «#{l.name}» ← «#{cand}» ✓"
+      break
+    rescue Spaceship::UnexpectedResponse => e
+      if e.message.include?('already being used')
+        puts "  · «#{cand}» مأخوذ عند آبل — أجرّب التالي"
+      else
+        raise
+      end
+    end
+  end
+  abort "✗ كل المرشّحين مأخوذة عند آبل: #{candidates.join(' · ')}" if chosen.nil?
+  changed << "name→#{chosen}"
+  File.write(ENV['CHOSEN_NAME_FILE'], chosen) if ENV['CHOSEN_NAME_FILE']
 end
 
 puts changed.empty? ? "\n✓ لا تغيير — كل شيء مضبوط" : "\n✓ غُيّر: #{changed.join(' · ')}"
