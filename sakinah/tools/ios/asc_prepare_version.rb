@@ -49,8 +49,9 @@ cur_secondary = (info.secondary_category&.id).to_s
 if cur_primary == primary_cat && (secondary_cat.nil? || cur_secondary == secondary_cat)
   puts "• الفئات مضبوطة أصلاً (#{cur_primary}#{secondary_cat ? " · #{cur_secondary}" : ''})"
 else
-  attrs = { primaryCategoryId: primary_cat }
-  attrs[:secondaryCategoryId] = secondary_cat if secondary_cat
+  # مفاتيح Spaceship snake_case: primary_category_id / secondary_category_id — لا camelCase
+  attrs = { primary_category_id: primary_cat }
+  attrs[:secondary_category_id] = secondary_cat if secondary_cat
   puts "• ضبط الفئات: #{primary_cat}#{secondary_cat ? " · #{secondary_cat}" : ''} (كانت #{cur_primary.empty? ? '—' : cur_primary})"
   info.update_categories(category_id_map: attrs)
   changed << 'categories'
