@@ -40,6 +40,10 @@ enum ScreenshotMode {
   static func seed(_ model: AppModel) {
     guard active else { return }
     model.settings.seenIntro = true
+    // أرقام عربية-هندية: إعدادٌ يختاره المستخدم فعلاً، وصفحة المتجر عربية،
+    // وصفحة المصحف نفسها ترقّم بها — فالخلط بين ٢٧٠ في الصفحة و270 في الشريط
+    // يظهر في اللقطة تنافرًا لا داعي له.
+    model.settings.numerals = "arab"
     if let c = CityDatabase.bundled.city(id: "jo-amman") { model.location.useCity(c) }
   }
 }
