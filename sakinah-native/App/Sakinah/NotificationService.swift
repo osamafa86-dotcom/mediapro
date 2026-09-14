@@ -60,7 +60,8 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
   }
   private func requestAuthorizationIfNeeded() async -> Bool {
     let s = await center.notificationSettings()
-    if s.authorizationStatus == .notDetermined { return await requestAuthorization() }
+    // في وضع لقطات المتجر لا يُطلب الإذن: نافذة النظام تعلو الشاشة فتفسد اللقطة
+    if s.authorizationStatus == .notDetermined { return ScreenshotMode.active ? false : await requestAuthorization() }
     return s.authorizationStatus == .authorized || s.authorizationStatus == .provisional
   }
 
