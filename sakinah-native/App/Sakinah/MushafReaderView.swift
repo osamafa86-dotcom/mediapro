@@ -231,6 +231,8 @@ struct MushafReaderView: View {
   private func toggleChrome() { chrome ? hideChrome() : showChrome() }
   /// ينزلق الشريط بعد سكون قصير كي تعود الصفحة كاملة من تلقاء نفسها
   private func scheduleChromeHide() {
+    // لقطات المتجر: الشريط هو موضوع اللقطة، فلا يُخفى تحت أعين الكاميرا
+    if ScreenshotMode.keepChrome { return }
     chromeTask?.cancel()
     chromeTask = Task { @MainActor in
       try? await Task.sleep(nanoseconds: Self.chromeDwell)

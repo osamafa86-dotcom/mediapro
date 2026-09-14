@@ -23,7 +23,7 @@ enum ScreenshotMode {
     switch route {
     case "prayer": return .prayer
     case "qibla": return .qibla
-    case "mushaf", "mushaf-page": return .mushaf
+    case "mushaf", "mushaf-page", "mushaf-bar": return .mushaf
     case "adhkar", "hisn", "tasbih": return .adhkar
     case "hadith", "more": return .more
     default: return nil
@@ -31,7 +31,10 @@ enum ScreenshotMode {
   }
 
   /// الصفحة التي يُفتح عليها قارئ المصحف، إن كان المسار يطلب القارئ
-  static var readerPage: Int? { route == "mushaf-page" ? 270 : nil }
+  static var readerPage: Int? { (route == "mushaf-page" || route == "mushaf-bar") ? 270 : nil }
+
+  /// يُبقى الشريط ظاهرًا: القارئ يخفيه بعد ثوانٍ، فلا يلتقطه انتظارُ تحميل الخطوط
+  static var keepChrome: Bool { route == "mushaf-bar" }
 
   /// موقع ثابت كي تُحسب المواقيت والقبلة بلا إذنٍ ولا شبكة — واللقطات تتكرّر بالنتيجة نفسها
   static func seed(_ model: AppModel) {

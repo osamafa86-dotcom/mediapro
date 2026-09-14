@@ -51,7 +51,11 @@ struct QiblaView: View {
   @ViewBuilder private func content(for c: Coordinates) -> some View {
     let s = model.settings
     let q = Qibla.info(latitude: c.latitude, longitude: c.longitude)
+    // المحاكي بلا مغناطيسية فتبقى القراءة nil وتظهر الشاشة في حال «لا بوصلة» أبدًا.
+    // في وضع اللقطات وحده يُفترض اتجاهٌ يطابق القبلة: حالٌ يبلغها كل جهازٍ حقيقي،
+    // وهي التي يجب أن يراها من ينظر إلى صفحة المتجر.
     let heading = model.location.heading.map { trueHeading($0, at: c) }
+      ?? (ScreenshotMode.active ? Qibla.info(latitude: c.latitude, longitude: c.longitude).bearing : nil)
     let diff = heading.map { Qibla.signedDifference(target: q.bearing, reference: $0) }
     let aligned = diff.map { abs($0) <= 3 } ?? false
     let lowAccuracy = (model.location.heading?.headingAccuracy ?? 0) > 15
@@ -64,10 +68,14 @@ struct QiblaView: View {
       metricTile(icon: "location.north.line", value: Fmt.degrees(q.bearing, numerals: s.numerals), label: "اتجاه القبلة")
     }
     locationCard(c, numerals: s.numerals)
-    if !model.location.headingAvailable {
-      hintBar(icon: "exclamationmark.triangle", text: "هذا الجهاز بلا بوصلة؛ استعمل الاتجاه بالدرجات مع بوصلة خارجية.", warn: true)
-    } else {
-      hintBar(icon: "arrow.triangle.2.circlepath", text: "إن بدت الإبرة مضطربة حرّك الهاتف على شكل ٨ لمعايرة البوصلة", warn: lowAccuracy)
+    // في لقطات المتجر لا يُعرض تنبيها البوصلة: المحاكي بلا مغناطيسية فيظهران دائمًا،
+    // ولا يظهران على جهازٍ حقيقي — فعرضهما في اللقطة يصوّر التطبيق بغير حاله.
+    if !ScreenshotMode.active {
+      if !model.location.headingAvailable {
+        hintBar(icon: "exclamationmark.triangle", text: "هذا الجهاز بلا بوصلة؛ استعمل الاتجاه بالدرجات مع بوصلة خارجية.", warn: true)
+      } else {
+        hintBar(icon: "arrow.triangle.2.circlepath", text: "إن بدت الإبرة مضطربة حرّك الهاتف على شكل ٨ لمعايرة البوصلة", warn: lowAccuracy)
+      }
     }
     if q.antipodal {
       hintBar(icon: "exclamationmark.circle", text: "أنت قريب جدًا من الكعبة أو في نقطة يتعذّر فيها تحديد اتجاه واحد.", warn: true)
