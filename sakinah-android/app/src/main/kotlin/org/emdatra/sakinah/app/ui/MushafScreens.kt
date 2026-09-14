@@ -10,6 +10,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.layout.onSizeChanged
+import kotlin.math.roundToInt
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.*
@@ -215,7 +218,7 @@ private fun Modifier.hiddenWordRule(on: Boolean, color: Color) = if (!on) this e
   BackHandler { if (sheet != null) sheet = null else onClose() }
   val first = QuranText.shared.pageAyahs(page).firstOrNull()
   fun playPage() { first?.let { Recitation.reciter = Store.reciter; Recitation.repeatAyah = Store.repeatAyah; Recitation.repeatRange = Store.repeatRange; Recitation.words = Store.wordHighlight; Recitation.play(ctx, QuranText.shared.pageAyahs(page).map { a -> a.n }) } }
-  // الشريطان: يظهران لحظة ثم ينزلقان، ولا يعلوان النصّ أبدًا — الصفحة تنكمش بينهما
+  // الشريط الموحّد: يظهر لحظة ثم ينزلق، ويعلو الصفحة ولا يمسّ حجمها
   var chromeNonce by remember { mutableIntStateOf(0) }
   var lastPage by remember { mutableIntStateOf(startPage) }
   fun showChrome() { chrome = true; chromeNonce++ }
@@ -255,38 +258,32 @@ private fun Modifier.hiddenWordRule(on: Boolean, color: Color) = if (!on) this e
           Spacer(Modifier.height(18.dp))
         }
       }
-      if (hint && hifz == null) Text("اسحب من حافة الشاشة أو انقرها لإظهار الشريطين", Modifier.align(Alignment.BottomCenter).padding(bottom = 34.dp).clip(CircleShape).background(c.bgInverse.copy(alpha = 0.9f)).padding(horizontal = 16.dp, vertical = 10.dp), style = DSType.labelMd, color = c.bgCanvas)
+      if (hint && hifz == null) Text("اسحب من حافة الشاشة أو انقرها لإظهار الشريط", Modifier.align(Alignment.BottomCenter).padding(bottom = 34.dp).clip(CircleShape).background(c.bgInverse.copy(alpha = 0.9f)).padding(horizontal = 16.dp, vertical = 10.dp), style = DSType.labelMd, color = c.bgCanvas)
       if (hifz != null && !chrome) Text(if (hifz!!.veil) "انقر الصفحة لكشف الآية التالية" else "انقر الصفحة لكشف الكلمة التالية", Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp).clip(CircleShape).background(c.bgInverse.copy(alpha = 0.9f)).padding(horizontal = 16.dp, vertical = 10.dp), style = DSType.labelMd, color = c.bgCanvas)
-      // الشريطان يعلوان الصفحة ولا يُزيحانها: لو كانا من أبناء العمود لاقتطعا من ارتفاعها،
+      // الشريط الموحّد يعلو الصفحة ولا يُزيحها: لو كان من أبناء العمود لاقتطع من ارتفاعها،
       // فأُعيدت ملاءمتها بخطٍّ أصغر وتقلّصت وتغيّر منظرها مع كل ظهور واختفاء.
       androidx.compose.animation.AnimatedVisibility(chrome, Modifier.align(Alignment.TopCenter), enter = slideInVertically { -it } + fadeIn(), exit = slideOutVertically { -it } + fadeOut()) {
-        Row(Modifier.fillMaxWidth().background(paper).padding(horizontal = 6.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-          BarButton(Icons.Filled.ChevronRight, "إغلاق المصحف", ink, onClose)
-          val l = QuranText.shared.label(page)
-          Column(Modifier.weight(1f)) {
-            Text(l?.let { "سورة ${QuranMeta.surah(it.surah).name}" } ?: "", style = DSType.headingSm, color = ink, maxLines = 1)
-            Text(l?.let { val su = QuranMeta.surah(it.surah); "${QuranMeta.juzName(it.juz, false)} · الحزب ${Fmt.number(it.hizb)} · ${su.type} · ${Fmt.number(su.ayahs)} آية" } ?: "", style = DSType.labelXs, color = ink.copy(alpha = 0.6f), maxLines = 1)
-          }
-          BarButton(if (Store.bookmarks.any { it.page == page }) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder, "علامة", ink) { chromeNonce++; first?.let { Store.toggleBookmark(it) } }
-          BarButton(Icons.Outlined.FormatSize, "العرض والخط", ink) { sheet = "display" }
-          BarButton(Icons.Outlined.List, "الفهرس", ink) { sheet = "index" }
-          BarButton(Icons.Filled.MoreVert, "خيارات", ink) { sheet = "options" }
-        }
-      }
-      androidx.compose.animation.AnimatedVisibility(chrome && hifz == null, Modifier.align(Alignment.BottomCenter), enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
-        Column(Modifier.fillMaxWidth().background(paper).padding(horizontal = 14.dp, vertical = 2.dp)) {
-          Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            BarButton(Icons.Outlined.PlayCircle, "تشغيل تلاوة الصفحة", ink) { chromeNonce++; playPage() }
-            BarButton(Icons.Outlined.Mic, "مراجعة الحفظ", ink) { first?.let { Recitation.stop(); hifz = HifzSession(page, it.n, veil = false).also { h -> h.toggleSpeech(ctx) } } }
-            BarButton(Icons.Outlined.VisibilityOff, "إخفاء الآيات للحفظ", ink) { first?.let { Recitation.stop(); hifz = HifzSession(page, it.n, veil = true) } }
-            BarButton(Icons.Outlined.Search, "التنقل والبحث", ink) { sheet = "nav" }
-            Spacer(Modifier.weight(1f))
-            Text(Fmt.number(page), style = DSType.numericSm, color = ink.copy(alpha = 0.85f))
-            Spacer(Modifier.weight(1f))
-            BarButton(Icons.Outlined.Download, "التلاوات دون اتصال", ink) { downloads = true }
-          }
-          Slider(page.toFloat(), { v -> chromeNonce++; lastPage = v.toInt(); scope.launch { pager.scrollToPage(v.toInt() - 1) } }, Modifier.height(24.dp), valueRange = 1f..604f, colors = SliderDefaults.colors(thumbColor = c.accentGold, activeTrackColor = c.accentGold, inactiveTrackColor = ink.copy(alpha = 0.15f)))
-        }
+        UnifiedBar(
+          page = page, ink = ink, paper = paper, dark = theme.isDark, hifzOn = hifz != null,
+          marked = Store.bookmarks.any { it.page == page },
+          onClose = onClose,
+          onIndex = { chromeNonce++; sheet = "index" },
+          onPlay = { chromeNonce++; playPage() },
+          onHifz = {
+            chromeNonce++
+            val h = hifz
+            if (h != null) { h.stopSpeech(); hifz = null }
+            else first?.let { Recitation.stop(); hifz = HifzSession(page, it.n, veil = false).also { s -> s.toggleSpeech(ctx) } }
+          },
+          onBookmark = { chromeNonce++; first?.let { Store.toggleBookmark(it) } },
+          onSearch = { chromeNonce++; sheet = "nav" },
+          onDisplay = { chromeNonce++; sheet = "display" },
+          onVeil = { chromeNonce++; first?.let { Recitation.stop(); hifz = HifzSession(page, it.n, veil = true) } },
+          onDownloads = { chromeNonce++; downloads = true },
+          onOptions = { chromeNonce++; sheet = "options" },
+          onMenuOpen = { chromeNonce++ },
+          onGoToPage = { p -> chromeNonce++; lastPage = p; scope.launch { pager.scrollToPage(p - 1) } },
+        )
       }
     }
 
@@ -314,6 +311,157 @@ private fun Modifier.hiddenWordRule(on: Boolean, color: Color) = if (!on) this e
     Box(Modifier.fillMaxWidth(p.coerceAtLeast(0.03f)).height(3.dp).clip(CircleShape).background(DS.c.accentGold.copy(alpha = 0.8f)))
   }
 }
+/**
+ * الشريط الموحّد لقارئ المصحف: زرّ الإغلاق يمينًا، ثم هويّة الموضع (وهي نفسها زرّ الفهرس)،
+ * ثم كبسولة الإجراءات يسارًا، وحافّته السفلى خطٌّ ذهبي هو نفسه منزلق الصفحات الـ٦٠٤.
+ * الارتفاع ٥٥ نقطة: ٤٦ للصفّ و٩ للشريحة التي تحمل الخطّ وتستقبل السحب.
+ */
+@Composable private fun UnifiedBar(
+  page: Int, ink: Color, paper: Color, dark: Boolean, hifzOn: Boolean, marked: Boolean,
+  onClose: () -> Unit, onIndex: () -> Unit, onPlay: () -> Unit, onHifz: () -> Unit,
+  onBookmark: () -> Unit, onSearch: () -> Unit, onDisplay: () -> Unit, onVeil: () -> Unit,
+  onDownloads: () -> Unit, onOptions: () -> Unit, onMenuOpen: () -> Unit, onGoToPage: (Int) -> Unit,
+) {
+  val brand = if (dark) Color(0xFF2DD4BF) else Color(0xFF0F766E)
+  val onBrand = if (dark) Color(0xFF0C1514) else Color(0xFFF6F1E2)
+  val gold = if (dark) Color(0xFFB8993F) else Color(0xFFA98A3A)
+  val goldTrack = if (dark) Color(0xFF4A3F22) else Color(0xFFE9DCB2)
+  val l = QuranText.shared.label(page)
+  var scrub by remember { mutableStateOf<Int?>(null) }
+
+  Column(Modifier.fillMaxWidth().background(paper)) {
+    Row(Modifier.fillMaxWidth().height(46.dp).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+      BarButton(Icons.Filled.ChevronRight, "إغلاق المصحف", ink, onClose)
+      Spacer(Modifier.width(8.dp))
+      // هويّة الموضع: الكتلة كلّها تفتح الفهرس، والسهم يدلّ على ذلك
+      Column(
+        Modifier.weight(1f).clip(RoundedCornerShape(8.dp))
+          .clickable(role = Role.Button, onClick = onIndex).padding(vertical = 2.dp)
+      ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          if (marked) {
+            Icon(Icons.Filled.Bookmark, null, Modifier.size(12.dp), tint = gold)
+            Spacer(Modifier.width(5.dp))
+          }
+          Text(l?.let { "سورة ${QuranMeta.surah(it.surah).name}" } ?: "", style = DSType.headingSm, color = ink, maxLines = 1)
+          Spacer(Modifier.width(5.dp))
+          Icon(Icons.Filled.KeyboardArrowDown, null, Modifier.size(12.dp), tint = ink.copy(alpha = 0.45f))
+        }
+        // سطر التفاصيل: سطرٌ واحد لا يُقصّ ولا يلتفّ — يصغر عند الضرورة وحدها
+        AutoShrinkText(
+          l?.let { "صفحة ${Fmt.number(page)} · الجزء ${Fmt.number(it.juz)} · الحزب ${Fmt.number(it.hizb)} · ${QuranMeta.surah(it.surah).type}" } ?: "",
+          DSType.labelXs, ink.copy(alpha = 0.6f),
+        )
+      }
+      Spacer(Modifier.width(8.dp))
+      ActionCapsule(
+        ink = ink, brand = brand, onBrand = onBrand, hifzOn = hifzOn, marked = marked,
+        onPlay = onPlay, onHifz = onHifz, onIndex = onIndex, onBookmark = onBookmark,
+        onSearch = onSearch, onDisplay = onDisplay, onVeil = onVeil,
+        onDownloads = onDownloads, onOptions = onOptions, onMenuOpen = onMenuOpen,
+      )
+    }
+    PageProgress(page = scrub ?: page, gold = gold, track = goldTrack,
+      onScrub = { scrub = it }, onCommit = { scrub = null; onGoToPage(it) })
+  }
+}
+
+/** كبسولة الإجراءات: تشغيل (ممتلئ) ثم الحفظ ثم الفهرس ثم المزيد — بترتيب القراءة من اليمين */
+@Composable private fun ActionCapsule(
+  ink: Color, brand: Color, onBrand: Color, hifzOn: Boolean, marked: Boolean,
+  onPlay: () -> Unit, onHifz: () -> Unit, onIndex: () -> Unit, onBookmark: () -> Unit,
+  onSearch: () -> Unit, onDisplay: () -> Unit, onVeil: () -> Unit,
+  onDownloads: () -> Unit, onOptions: () -> Unit, onMenuOpen: () -> Unit,
+) {
+  var menu by remember { mutableStateOf(false) }
+  Row(
+    Modifier.height(40.dp).clip(CircleShape).background(ink.copy(alpha = 0.05f))
+      .border(1.dp, ink.copy(alpha = 0.12f), CircleShape).padding(4.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    CapsuleButton(Icons.Filled.PlayArrow, "تشغيل تلاوة الصفحة", if (hifzOn) ink else onBrand, if (hifzOn) null else brand, onPlay)
+    CapsuleButton(Icons.Outlined.Mic, "مراجعة الحفظ", if (hifzOn) onBrand else ink, if (hifzOn) brand else null, onHifz)
+    CapsuleButton(Icons.Outlined.List, "الفهرس", ink, null, onIndex)
+    Box {
+      CapsuleButton(Icons.Filled.MoreVert, "خيارات المصحف", ink, null) { onMenuOpen(); menu = true }
+      DropdownMenu(menu, onDismissRequest = { menu = false }) {
+        DropdownMenuItem(
+          text = { Text(if (marked) "إزالة علامة الصفحة" else "علامة على هذه الصفحة", style = DSType.labelMd) },
+          leadingIcon = { Icon(if (marked) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder, null) },
+          onClick = { menu = false; onBookmark() })
+        DropdownMenuItem(text = { Text("بحث وتنقّل", style = DSType.labelMd) },
+          leadingIcon = { Icon(Icons.Outlined.Search, null) }, onClick = { menu = false; onSearch() })
+        DropdownMenuItem(text = { Text("العرض والخطّ والسمة", style = DSType.labelMd) },
+          leadingIcon = { Icon(Icons.Outlined.FormatSize, null) }, onClick = { menu = false; onDisplay() })
+        DropdownMenuItem(text = { Text("إخفاء الآيات للحفظ", style = DSType.labelMd) },
+          leadingIcon = { Icon(Icons.Outlined.VisibilityOff, null) }, onClick = { menu = false; onVeil() })
+        DropdownMenuItem(text = { Text("التلاوات دون اتّصال", style = DSType.labelMd) },
+          leadingIcon = { Icon(Icons.Outlined.Download, null) }, onClick = { menu = false; onDownloads() })
+        HorizontalDivider()
+        DropdownMenuItem(text = { Text("خيارات المصحف", style = DSType.labelMd) },
+          leadingIcon = { Icon(Icons.Outlined.Settings, null) }, onClick = { menu = false; onOptions() })
+      }
+    }
+  }
+}
+
+/**
+ * سطرٌ واحد يصغر حتى يتّسع، لا يُقصّ ولا يلتفّ.
+ * (إصدار Compose هنا أقدم من `autoSize` في BasicText، فالتصغير بقياس الفيض خطوةً خطوة.)
+ */
+@Composable private fun AutoShrinkText(text: String, style: TextStyle, color: Color, minScale: Float = 0.92f) {
+  var scale by remember(text) { mutableFloatStateOf(1f) }
+  Text(
+    text, style = style.copy(fontSize = style.fontSize * scale), color = color,
+    maxLines = 1, softWrap = false, overflow = TextOverflow.Clip,
+    onTextLayout = { r -> if (r.hasVisualOverflow && scale > minScale) scale = (scale - 0.02f).coerceAtLeast(minScale) },
+  )
+}
+
+@Composable private fun CapsuleButton(icon: ImageVector, label: String, tint: Color, fill: Color?, onClick: () -> Unit) {
+  Box(
+    Modifier.size(32.dp).clip(CircleShape).then(if (fill != null) Modifier.background(fill) else Modifier)
+      .clickable(role = Role.Button, onClick = onClick),
+    contentAlignment = Alignment.Center,
+  ) { Icon(icon, label, Modifier.size(18.dp), tint = tint) }
+}
+
+/**
+ * خطّ موضع الصفحة: يملأ من اليمين، وهو نفسه المنزلق بين ٦٠٤ صفحات.
+ * يُرسم ويُقاس في فضاء من اليسار إلى اليمين صراحةً كي لا يلتبس اتّجاه اللمسة باتّجاه الكتابة.
+ */
+@Composable private fun PageProgress(page: Int, gold: Color, track: Color, onScrub: (Int) -> Unit, onCommit: (Int) -> Unit) {
+  var width by remember { mutableFloatStateOf(0f) }
+  // الصفحة الجارية تحت الإصبع تُحفظ في حالة، لا في وسيط: كتلة اللمس تُنشأ مرّة واحدة
+  // (مفتاحها Unit) فلو قرأت الوسيط لبقيت على قيمته الأولى وعادت الصفحة إلى ما كانت.
+  var dragPage by remember { mutableIntStateOf(page) }
+  fun pageAt(x: Float): Int {
+    if (width <= 0f) return dragPage
+    val frac = 1f - (x / width).coerceIn(0f, 1f)
+    return (frac * 604f).roundToInt().coerceIn(1, 604)
+  }
+  CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+    Box(
+      Modifier.fillMaxWidth().height(9.dp)
+        .onSizeChanged { width = it.width.toFloat() }
+        .pointerInput(Unit) {
+          detectHorizontalDragGestures(
+            onDragStart = { o -> dragPage = pageAt(o.x); onScrub(dragPage) },
+            onDragEnd = { onCommit(dragPage) },
+            onDragCancel = { onCommit(dragPage) },
+          ) { change, _ -> dragPage = pageAt(change.position.x); onScrub(dragPage) }
+        }
+        .drawBehind {
+          val h = 3.dp.toPx()
+          val y = size.height - h
+          drawRect(track, topLeft = Offset(0f, y), size = androidx.compose.ui.geometry.Size(size.width, h))
+          val filled = (size.width * page / 604f).coerceAtLeast(h)
+          drawRect(gold, topLeft = Offset(size.width - filled, y), size = androidx.compose.ui.geometry.Size(filled, h))
+        }
+    )
+  }
+}
+
 @Composable private fun BarButton(icon: ImageVector, label: String, tint: Color, onClick: () -> Unit) {
   Icon(icon, label, Modifier.size(34.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onClick).padding(8.dp), tint = tint)
 }

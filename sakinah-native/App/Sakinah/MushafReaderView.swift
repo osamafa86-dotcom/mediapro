@@ -23,10 +23,11 @@ struct MushafReaderView: View {
   @State private var pair: Int?
   @State private var chrome = true
   @State private var chromeTask: Task<Void, Never>?
-  /// صفحة انتقلنا إليها بقصد (لا بتقليب) — لا يُخفى الشريطان عند بلوغها
+  /// صفحة انتقلنا إليها بقصد (لا بتقليب) — لا يُخفى الشريط عند بلوغها
   @State private var navTarget: Int?
   @State private var sheet: ReaderSheet?
-  @State private var slider: Double
+  /// الصفحة التي يجرّ إليها القارئ الخطّ الذهبي الآن (nil حين لا يجرّ)
+  @State private var scrub: Int?
   @State private var toast: String?
   @State private var toastTask: Task<Void, Never>?
   @State private var dwellTask: Task<Void, Never>?
@@ -37,7 +38,7 @@ struct MushafReaderView: View {
   init(startPage: Int, ayah: Int? = nil) {
     let p = min(max(startPage, 1), MushafLayout.totalPages)
     self.startPage = p; startAyah = ayah
-    _page = State(initialValue: p); _slider = State(initialValue: Double(p))
+    _page = State(initialValue: p)
   }
 
   private var prefs: QuranPrefs { model.quran }
@@ -64,11 +65,10 @@ struct MushafReaderView: View {
         Rectangle().fill(MushafPalette.background(for: rs.theme)).ignoresSafeArea()
         pager(rs).environment(rs)
           // اللوحات التي تبقى (الحفظ والمشغّل) تُزيح الصفحة لأن وجودها حالٌ مقصود يطول.
-          // أما الشريطان اللذان يظهران ويختفيان مع كل نقرة فيعلوان الصفحة ولا يمسّان حجمها —
-          // فلو اقتطعا منها لأُعيدت ملاءمتها بخطٍّ أصغر، وتقلّصت الصفحة وتغيّر منظرها في كل مرة.
+          // أما الشريط الموحّد الذي يظهر ويختفي مع كل نقرة فيعلو الصفحة ولا يمسّ حجمها —
+          // فلو اقتطع منها لأُعيدت ملاءمتها بخطٍّ أصغر، وتقلّصت الصفحة وتغيّر منظرها في كل مرة.
           .safeAreaInset(edge: .bottom, spacing: 0) { persistentSlot(rs).environment(rs) }
           .overlay(alignment: .top) { topSlot(rs) }
-          .overlay(alignment: .bottom) { chromeBottomSlot(rs).environment(rs) }
         Color.black.opacity(min(0.7, prefs.dim)).ignoresSafeArea().allowsHitTesting(false)
         edgeHandles(rs)
         toastOverlay
@@ -89,7 +89,7 @@ struct MushafReaderView: View {
   private var hifzError: String? { rs?.hifz?.error }
   private func shareSheet(_ s: ShareItems) -> some View { ShareSheet(items: s.items) }
   private func shareCardSheet(_ req: ShareCardRequest) -> some View { ShareCardSheet(request: req).environment(model) }
-  private func pageDidChange(_ p: Int?) { guard let p else { return }; slider = Double(p); if spread, pair != (p + 1) / 2 { pair = (p + 1) / 2 }; onPageChanged(p) }
+  private func pageDidChange(_ p: Int?) { guard let p else { return }; if spread, pair != (p + 1) / 2 { pair = (p + 1) / 2 }; onPageChanged(p) }
   private func wordDidChange(_ w: Int?) { rs?.playingWord = w }
   private func keepAwakeChanged() { UIApplication.shared.isIdleTimerDisabled = prefs.keepAwake }
   private func playerErrorChanged() {
@@ -147,17 +147,11 @@ struct MushafReaderView: View {
     .onTapGesture { if rs.hifz != nil { hifzTap() } else { toggleChrome() } }
   }
 
-  // MARK: - الشريطان: حوافّ لا تغطّي النصّ
+  // MARK: - الشريط الموحّد: حافّة لا تغطّي النصّ
 
-  /// الشريط العلوي ينزلق فوق الصفحة — خلفيته معتمة فلا يظهر النصّ من تحته، والصفحة لا تتحرّك
+  /// شريط واحد علويّ ينزلق فوق الصفحة — خلفيته معتمة فلا يظهر النصّ من تحته، والصفحة لا تتحرّك
   @ViewBuilder private func topSlot(_ rs: MushafReaderState) -> some View {
-    if chrome { topBar(rs).transition(.move(edge: .top).combined(with: .opacity)) }
-  }
-
-  /// الشريط السفلي كذلك يعلو الصفحة. وهو فوق المشغّل إن كان يعمل، لأن الإطفاء يقع على حافّة
-  /// المساحة بعد إزاحة المشغّل — فيستقرّ كلٌّ في موضعه بلا تراكب
-  @ViewBuilder private func chromeBottomSlot(_ rs: MushafReaderState) -> some View {
-    if chrome && rs.hifz == nil { bottomBar(rs).transition(.move(edge: .bottom).combined(with: .opacity)) }
+    if chrome { unifiedBar(rs).transition(.move(edge: .top).combined(with: .opacity)) }
   }
 
   /// ما يبقى معروضًا: لوحة مراجعة الحفظ والمشغّل — هذان يُزيحان الصفحة عمدًا كي لا يحجبا سطورها
@@ -183,7 +177,7 @@ struct MushafReaderView: View {
         Color.clear.frame(height: 30).contentShape(Rectangle())
           .onTapGesture { showChrome() }
           .gesture(DragGesture(minimumDistance: 10).onEnded { v in if v.translation.height > 8 { showChrome() } })
-          .accessibilityLabel("إظهار شريطي المصحف")
+          .accessibilityLabel("إظهار شريط المصحف")
           .accessibilityAddTraits(.isButton)
         Spacer(minLength: 0)
         VStack(spacing: 0) {
@@ -193,7 +187,7 @@ struct MushafReaderView: View {
         .contentShape(Rectangle())
         .onTapGesture { showChrome() }
         .gesture(DragGesture(minimumDistance: 10).onEnded { v in if v.translation.height < -8 { showChrome() } })
-        .accessibilityLabel("إظهار شريطي المصحف")
+        .accessibilityLabel("إظهار شريط المصحف")
         .accessibilityAddTraits(.isButton)
       }
       .ignoresSafeArea()
@@ -222,7 +216,7 @@ struct MushafReaderView: View {
     return min(1, max(0, Double(current - from + 1) / Double(to - from)))
   }
 
-  // MARK: - التحكّم في الشريطين
+  // MARK: - التحكّم في الشريط
 
   private static let chromeDwell: UInt64 = 3_600_000_000
 
@@ -235,7 +229,7 @@ struct MushafReaderView: View {
     withAnimation(.spring(response: 0.34, dampingFraction: 0.92)) { chrome = false }
   }
   private func toggleChrome() { chrome ? hideChrome() : showChrome() }
-  /// ينزلق الشريطان بعد سكون قصير كي تعود الصفحة كاملة من تلقاء نفسها
+  /// ينزلق الشريط بعد سكون قصير كي تعود الصفحة كاملة من تلقاء نفسها
   private func scheduleChromeHide() {
     chromeTask?.cancel()
     chromeTask = Task { @MainActor in
@@ -243,61 +237,197 @@ struct MushafReaderView: View {
       guard !Task.isCancelled, sheet == nil else { return }
       hideChrome()
       // مرة واحدة في عمر التطبيق: تعريف بمكان المفتاح كي لا يبحث عنه القارئ
-      if !prefs.seenChromeHint { prefs.seenChromeHint = true; show("اسحب من حافة الشاشة أو انقرها لإظهار الشريطين") }
+      if !prefs.seenChromeHint { prefs.seenChromeHint = true; show("اسحب من حافة الشاشة أو انقرها لإظهار الشريط") }
     }
   }
 
-  // MARK: - الأزرار والشرائط
-  private func topBar(_ rs: MushafReaderState) -> some View {
-    let label = QuranText.shared.label(ofPage: current); let ink = Color(hex: rs.theme.ink)
-    let firstAyah = QuranText.shared.pageAyahs(current).first
-    let marked = firstAyah.map { a in prefs.bookmarks.contains { $0.page == a.page } } ?? false
-    return HStack(spacing: 2) {
-      barButton("chevron.forward", "إغلاق المصحف", ink) { dismiss() }
-      VStack(alignment: .leading, spacing: 0) {
+  // MARK: - الشريط الموحّد
+
+  /// شريط واحد في أعلى الصفحة: زرّ الإغلاق يمينًا، ثم هويّة الموضع، ثم كبسولة الإجراءات يسارًا،
+  /// وحافّته السفلى خطٌّ ذهبي هو نفسه منزلق الصفحات الـ٦٠٤. ارتفاعه ٥٥ نقطة فوق حشوة الأمان.
+  private func unifiedBar(_ rs: MushafReaderState) -> some View {
+    let ink = Color(hex: rs.theme.ink)
+    return VStack(spacing: 0) {
+      HStack(spacing: 8) {
+        barButton("chevron.forward", "إغلاق المصحف", ink) { dismiss() }
+        titleBlock(rs, ink)
+        actionCapsule(rs, ink)
+      }
+      .padding(.horizontal, 10)
+      .frame(height: 46)
+      pageProgress(rs)
+    }
+    .background(alignment: .bottom) {
+      Rectangle().fill(MushafPalette.background(for: rs.theme)).ignoresSafeArea(edges: .top)
+    }
+    .shadow(color: ink.opacity(0.10), radius: 10, x: 0, y: 3)
+  }
+
+  /// هويّة الموضع: اسم السورة وسطر التفاصيل. الكتلة كلّها زرٌّ يفتح الفهرس، والسهم يدلّ على ذلك.
+  /// سطر التفاصيل وحده يصغر عند الضرورة (أطول تركيبة تحتاج ١٩٧ نقطة في مساحة ١٨٥) فيبقى سطرًا واحدًا.
+  private func titleBlock(_ rs: MushafReaderState, _ ink: Color) -> some View {
+    let label = QuranText.shared.label(ofPage: current)
+    let marked = QuranText.shared.pageAyahs(current).first.map { a in prefs.bookmarks.contains { $0.page == a.page } } ?? false
+    return Button(action: { scheduleChromeHide(); sheet = .index }) {
+      VStack(alignment: .leading, spacing: 2) {
         if let label {
           let su = QuranMeta.surah(label.surah)
-          Text("سورة \(su.name)").font(DS.F.headingSm).foregroundStyle(ink)
-          Text("\(QuranMeta.juzName(label.juz, vocalized: false)) · الحزب \(num(label.hizb)) · \(su.type) · \(num(su.ayahs)) آية").font(DS.F.labelXs).foregroundStyle(ink.opacity(0.6))
+          HStack(spacing: 5) {
+            if marked {
+              Image(systemName: "bookmark.fill").font(.system(size: 11))
+                .foregroundStyle(MushafPalette.gold(for: rs.theme))
+                .accessibilityHidden(true)
+            }
+            Text("سورة \(su.name)").font(DS.F.headingSm).foregroundStyle(ink)
+            Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
+              .foregroundStyle(ink.opacity(0.45)).accessibilityHidden(true)
+          }
+          Text("صفحة \(num(current)) · الجزء \(num(label.juz)) · الحزب \(num(label.hizb)) · \(su.type)")
+            .font(DS.F.labelXs).foregroundStyle(ink.opacity(0.6))
+            .lineLimit(1).minimumScaleFactor(0.92)
         }
       }
       .lineLimit(1)
-      Spacer(minLength: 0)
-      barButton(marked ? "bookmark.fill" : "bookmark", "علامة", ink) { toggleBookmark() }
-      barButton("textformat.size", "العرض والخط", ink) { sheet = .display }
-      barButton("list.bullet", "الفهرس", ink) { sheet = .index }
-      barButton("ellipsis", "خيارات المصحف", ink) { sheet = .options }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .contentShape(Rectangle())
     }
-    .padding(.horizontal, 6).padding(.vertical, 3)
-    .background(alignment: .bottom) {
-      Rectangle().fill(MushafPalette.background(for: rs.theme)).ignoresSafeArea(edges: .top)
-        .overlay(alignment: .bottom) { Rectangle().fill(ink.opacity(0.10)).frame(height: 0.5) }
-    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(label.map { "\(QuranMeta.surah($0.surah).name)، صفحة \(num(current)). افتح الفهرس" } ?? "الفهرس")
   }
-  private func bottomBar(_ rs: MushafReaderState) -> some View {
+
+  /// كبسولة الإجراءات: تشغيل (ممتلئ) ثم الحفظ ثم الفهرس ثم المزيد — بترتيب القراءة من اليمين
+  private func actionCapsule(_ rs: MushafReaderState, _ ink: Color) -> some View {
     let firstAyah = QuranText.shared.pageAyahs(current).first
-    let ink = Color(hex: rs.theme.ink)
-    return VStack(spacing: 0) {
-      HStack(spacing: 0) {
-        barButton("play.circle", "تشغيل تلاوة الصفحة", ink) { if let a = firstAyah { playFrom(a.n, scope: .page) } }
-        barButton("mic", "مراجعة الحفظ", ink) { if let a = firstAyah { startHifz(from: a.n) } }
-        barButton("eye.slash", "إخفاء الآيات", ink) { startVeil() }
-        barButton("magnifyingglass", "التنقل والبحث", ink) { sheet = .quickNav }
-        Spacer(minLength: 0)
-        Text(num(Int(slider))).font(DS.F.numericSm).foregroundStyle(ink.opacity(0.85)).monospacedDigit()
-        Spacer(minLength: 0)
-        barButton("arrow.down.circle", "التلاوات دون اتصال", ink) { sheet = .downloads }
+    let hifzOn = rs.hifz != nil
+    let brand = MushafPalette.brand(for: rs.theme)
+    let onBrand = MushafPalette.onBrand(for: rs.theme)
+    return HStack(spacing: 0) {
+      capsuleButton("play.fill", "تشغيل تلاوة الصفحة", hifzOn ? ink : onBrand, fill: hifzOn ? nil : brand, size: 13) {
+        if let a = firstAyah { playFrom(a.n, scope: .page) }
       }
-      Slider(value: $slider, in: 1...Double(MushafLayout.totalPages), step: 1) { editing in if !editing { go(to: Int(slider)) } }.tint(DS.C.accentGold)
+      capsuleButton("mic", "مراجعة الحفظ", hifzOn ? onBrand : ink, fill: hifzOn ? brand : nil, size: 15) {
+        if hifzOn { exitHifz() } else if let a = firstAyah { startHifz(from: a.n) }
+      }
+      capsuleButton("list.bullet", "الفهرس", ink, fill: nil, size: 15) { sheet = .index }
+      moreMenu(ink)
     }
-    .padding(.horizontal, 14).padding(.vertical, 2)
-    .background(alignment: .top) {
-      Rectangle().fill(MushafPalette.background(for: rs.theme)).ignoresSafeArea(edges: .bottom)
-        .overlay(alignment: .top) { Rectangle().fill(ink.opacity(0.10)).frame(height: 0.5) }
+    .padding(4)
+    .background {
+      Capsule().fill(ink.opacity(0.05))
+        .overlay { Capsule().strokeBorder(ink.opacity(0.12), lineWidth: 1) }
     }
   }
+
+  /// ما خرج من الشريط إلى قائمة واحدة: العلامة، البحث، العرض، الإخفاء، التنزيلات، وبقيّة الخيارات.
+  /// لا شيء هنا غير مبلوغ من مكان آخر؛ القائمة اختصار لا مخبأ.
+  private func moreMenu(_ ink: Color) -> some View {
+    let target = (rs?.selected).flatMap { QuranText.shared.ayah($0) } ?? QuranText.shared.pageAyahs(current).first
+    let marked = target.map { prefs.isBookmarked($0) } ?? false
+    return Menu {
+      Button { pick { toggleBookmark() } } label: {
+        Label(marked ? "إزالة علامة الصفحة" : "علامة على هذه الصفحة", systemImage: marked ? "bookmark.slash" : "bookmark")
+      }
+      Button { pick { sheet = .quickNav } } label: { Label("بحث وتنقّل", systemImage: "magnifyingglass") }
+      Button { pick { sheet = .display } } label: { Label("العرض والخطّ والسمة", systemImage: "textformat.size") }
+      Button { pick { startVeil() } } label: { Label("إخفاء الآيات للحفظ", systemImage: "eye.slash") }
+      Button { pick { sheet = .downloads } } label: { Label("التلاوات دون اتّصال", systemImage: "arrow.down.circle") }
+      Divider()
+      Button { pick { sheet = .options } } label: { Label("خيارات المصحف", systemImage: "gearshape") }
+    } label: {
+      Image(systemName: "ellipsis").font(.system(size: 15, weight: .medium))
+        .foregroundStyle(ink)
+        .frame(width: 32, height: 32)
+        .contentShape(Circle())
+    }
+    // القائمة ليست نافذة فلا يراها حارس الإخفاء التلقائي: نوقف المؤقّت عند فتحها
+    // ونعيد جدولته مع أول اختيار، فلا ينزلق الشريط من تحت قائمة مفتوحة
+    .simultaneousGesture(TapGesture().onEnded { chromeTask?.cancel(); chromeTask = nil })
+    .accessibilityLabel("خيارات المصحف")
+  }
+
+  /// اختيارٌ من القائمة: ينفّذ ثم يعيد جدولة إخفاء الشريط
+  private func pick(_ action: () -> Void) { action(); scheduleChromeHide() }
+
+  private func capsuleButton(_ icon: String, _ label: String, _ tint: Color, fill: Color?, size: CGFloat, action: @escaping () -> Void) -> some View {
+    Button(action: { scheduleChromeHide(); action() }) {
+      Image(systemName: icon).font(.system(size: size, weight: .medium))
+        .foregroundStyle(tint)
+        .frame(width: 32, height: 32)
+        .background { if let fill { Circle().fill(fill) } }
+        .contentShape(Circle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(label)
+  }
+
+  /// خطّ موضع الصفحة: يملأ من اليمين، وهو نفسه المنزلق بين ٦٠٤ صفحات.
+  ///
+  /// شريحةٌ بتسع نقاط داخل حدود الشريط تحمل الخطّ في قاعها وتستقبل اللمس كلّه — ولم أجعل مساحة
+  /// اللمس تتجاوز الشريط إلى الصفحة لأن SwiftUI لا يضمن وصول اللمس إلى ما رُسم خارج حدود أبيه.
+  /// وتُرسم في فضاء من اليسار إلى اليمين صراحةً كي لا يلتبس اتّجاه اللمسة باتّجاه الكتابة.
+  private func pageProgress(_ rs: MushafReaderState) -> some View {
+    let total = CGFloat(MushafLayout.totalPages)
+    let shown = CGFloat(scrub ?? current)
+    let gold = MushafPalette.gold(for: rs.theme)
+    return GeometryReader { geo in
+      let w = geo.size.width
+      let filled = max(3, w * shown / total)
+      ZStack(alignment: .bottomLeading) {
+        Color.clear.frame(width: w, height: 9).contentShape(Rectangle())
+        Rectangle().fill(MushafPalette.goldTrack(for: rs.theme)).frame(width: w, height: 3)
+        Rectangle().fill(gold).frame(width: filled, height: 3).offset(x: w - filled)
+      }
+      .frame(width: w, height: 9, alignment: .bottomLeading)
+      .overlay(alignment: .topLeading) {
+        if let s = scrub { scrubBubble(rs, page: s, x: w - filled, width: w) }
+      }
+      .contentShape(Rectangle())
+      .gesture(
+        DragGesture(minimumDistance: 0)
+          .onChanged { v in scrub = scrubPage(atX: v.location.x, width: w) }
+          .onEnded { v in
+            let p = scrubPage(atX: v.location.x, width: w)
+            scrub = nil; scheduleChromeHide(); go(to: p)
+          }
+      )
+      .environment(\.layoutDirection, .leftToRight)
+      .accessibilityElement()
+      .accessibilityLabel("الانتقال بين الصفحات")
+      .accessibilityValue("صفحة \(num(current)) من \(num(MushafLayout.totalPages))")
+      .accessibilityAdjustableAction { d in
+        let next = d == .increment ? current + 1 : current - 1
+        go(to: min(max(next, 1), MushafLayout.totalPages))
+      }
+    }
+    .frame(height: 9)
+  }
+
+  /// فقاعة تُظهر الصفحة والحزب أثناء الجرّ، تحت الخطّ مباشرة ومقيّدة داخل الشاشة
+  private func scrubBubble(_ rs: MushafReaderState, page p: Int, x: CGFloat, width: CGFloat) -> some View {
+    let hizb = QuranText.shared.label(ofPage: p).map { "الحزب \(num($0.hizb))" }
+    return HStack(spacing: 7) {
+      if let hizb { Text(hizb).font(DS.F.labelXs) }
+      Text("صفحة \(num(p))").font(DS.F.numericSm)
+    }
+    .foregroundStyle(MushafPalette.onBrand(for: rs.theme))
+    .padding(.horizontal, 12).padding(.vertical, 6)
+    .background(Capsule().fill(MushafPalette.gold(for: rs.theme)))
+    .shadow(color: .black.opacity(0.22), radius: 12, x: 0, y: 4)
+    .fixedSize()
+    .offset(x: min(max(x - 60, 10), max(10, width - 130)), y: 12)  // تحت الشريط مباشرة
+    .allowsHitTesting(false)
+    .transition(.opacity)
+  }
+
+  /// الصفحة المقابلة للمسة: الخطّ يملأ من اليمين فالصفر عند الحافّة اليسرى
+  private func scrubPage(atX x: CGFloat, width w: CGFloat) -> Int {
+    guard w > 0 else { return current }
+    let frac = 1 - min(max(x / w, 0), 1)
+    return min(max(Int((frac * CGFloat(MushafLayout.totalPages)).rounded()), 1), MushafLayout.totalPages)
+  }
+
   private func barButton(_ icon: String, _ label: String, _ ink: Color, action: @escaping () -> Void) -> some View {
-    Button(action: { scheduleChromeHide(); action() }) { Image(systemName: icon).font(.system(size: 16, weight: .medium)).foregroundStyle(ink).frame(width: 34, height: 34).contentShape(Rectangle()) }.buttonStyle(.plain).accessibilityLabel(label)
+    Button(action: { scheduleChromeHide(); action() }) { Image(systemName: icon).font(.system(size: 16, weight: .medium)).foregroundStyle(ink).frame(width: 36, height: 36).contentShape(Rectangle()) }.buttonStyle(.plain).accessibilityLabel(label)
   }
   private func num(_ n: Int) -> String { Fmt.number(n, numerals: model.settings.numerals) }
 

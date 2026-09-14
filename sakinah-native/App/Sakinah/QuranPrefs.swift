@@ -31,7 +31,7 @@ final class QuranPrefs {
   var themeAuto: Bool { didSet { Store.d.set(themeAuto, forKey: "quran.themeAuto") } }
   var dim: Double { didSet { Store.d.set(dim, forKey: "quran.dim") } }
   var keepAwake: Bool { didSet { Store.d.set(keepAwake, forKey: "quran.keepAwake") } }
-  /// عُرض تلميح إظهار شريطي القارئ مرة واحدة
+  /// عُرض تلميح إظهار شريط القارئ مرة واحدة
   var seenChromeHint: Bool { didSet { Store.d.set(seenChromeHint, forKey: "quran.seenChromeHint") } }
   var tajweed: Bool { didSet { Store.d.set(tajweed, forKey: "quran.tajweed") } }
   /// pages | text

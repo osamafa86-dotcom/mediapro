@@ -28,6 +28,14 @@ extension MushafPalette {
                          hideLine: dark ? Color(red: 236/255, green: 229/255, blue: 210/255).opacity(0.3) : Color(red: 60/255, green: 50/255, blue: 20/255).opacity(0.25),
                          wordLine: Color(hex: dark ? "#b8993f" : "#a98a3a").opacity(0.38))
   }
+  /// لون العلامة داخل القارئ — يتبع سمة الورق لا سمة النظام، فقد يقرأ المرء على ورق داكن ونظامه فاتح
+  static func brand(for theme: MushafTheme) -> Color { Color(hex: theme.isDark ? "#2dd4bf" : "#0f766e") }
+  /// ما يُكتب أو يُرسم فوق لون العلامة
+  static func onBrand(for theme: MushafTheme) -> Color { Color(hex: theme.isDark ? "#0c1514" : "#f6f1e2") }
+  /// الذهبي ومساره: خطّ موضع الصفحة في الشريط الموحّد
+  static func gold(for theme: MushafTheme) -> Color { Color(hex: theme.isDark ? "#b8993f" : "#a98a3a") }
+  static func goldTrack(for theme: MushafTheme) -> Color { Color(hex: theme.isDark ? "#4a3f22" : "#e9dcb2") }
+
   /// خلفية الصفحة: تدرّج هادئ للسمات المتدرّجة وإلا لون الورق
   static func background(for theme: MushafTheme) -> AnyShapeStyle {
     if theme.gradient != nil { return AnyShapeStyle(LinearGradient(colors: [Color(hex: theme.paper).opacity(1), Color(hex: theme.paper2)], startPoint: .topTrailing, endPoint: .bottomLeading)) }
