@@ -33,7 +33,9 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const out = path.join(root, 'www');
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
-for (const item of ['index.html', 'manifest.webmanifest', 'sw.js', 'css', 'js', 'data', 'assets']) {
+// privacy.html صفحة مستقلّة يقصدها رابط سياسة الخصوصية في App Store — لا يصل إليها التطبيق،
+// لكنّها تُنشر مع الموقع كي يكون الرابط حيًّا حيثما نُشر (GitHub Pages أو غيره)
+for (const item of ['index.html', 'privacy.html', 'manifest.webmanifest', 'sw.js', 'css', 'js', 'data', 'assets']) {
   fs.cpSync(path.join(root, item), path.join(out, item), { recursive: true });
 }
 // داخل الغلاف الأصلي لا يعمل عامل الخدمة على نظام الملفات المحلي؛ نضيف علمًا يعطّله ويُعلم التطبيق أنه داخل غلاف
