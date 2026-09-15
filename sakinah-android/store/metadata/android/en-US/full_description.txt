@@ -1,0 +1,11 @@
+Sakinah is a complete Islamic companion that works offline, with no account, no ads and no tracking. The interface is in Arabic.
+
+• Prayer times computed astronomically with official calculation methods (Umm al-Qura, MWL, Egyptian, Jordan, Diyanet, ISNA…), adhan reminders that arrive even when the app is closed, a Hijri calendar and calendar export.
+• Geodesic Qibla direction with magnetic declination correction (WMM2025), sun check and map.
+• The Madinah Mushaf (604 pages) with 21 reciters, word-by-word highlighting, offline downloads, full offline tafsir (Muyassar), Uthmani-aware search, bookmarks with notes, khatmah plans and a voice-checked memorisation mode.
+• The complete Hisn al-Muslim (132 chapters), morning/evening adhkar with a daily counter and reminders, and a tasbih counter.
+• Selected hadith from Bukhari and Muslim, the Forty Hadith of an-Nawawi, hadith of the day, and shareable image cards.
+
+Privacy first: everything is computed on your device. Only a coarse location (about 1 km) is sent to name your city, and that can be turned off. The network is used only to fetch recitations, tafsir and Mushaf fonts on demand.
+
+Sources: Quran text from Tanzil, Mushaf pages in the King Fahd Glorious Quran Printing Complex fonts (Madinah Mushaf, Hafs), adhkar from Hisn al-Muslim, recitations from Islamic Network and quran.com.

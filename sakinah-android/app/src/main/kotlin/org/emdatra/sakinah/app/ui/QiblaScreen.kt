@@ -50,9 +50,11 @@ import kotlin.math.sin
   val ctx = LocalContext.current
   val c = DS.c
   val coords = Store.coords
-  var heading by remember { mutableFloatStateOf(0f) }
-  var sensorAccuracy by remember { mutableIntStateOf(-1) }
-  var live by remember { mutableStateOf(false) }
+  val shot = org.emdatra.sakinah.app.ScreenshotMode.active
+  // لقطات المتجر: المحاكي بلا بوصلة (0° دائماً)، فتُثبَّت الإبرة على القبلة وتُقرأ الحالة «متّجه»
+  var heading by remember { mutableFloatStateOf(if (shot && coords != null) ((Qibla.info(coords.latitude, coords.longitude).bearing - Geomag.declination(coords.latitude, coords.longitude) + 360.0) % 360.0).toFloat() else 0f) }
+  var sensorAccuracy by remember { mutableIntStateOf(if (shot) 3 else -1) }
+  var live by remember { mutableStateOf(shot) }
   var info by remember { mutableStateOf(false) }
   val scope = rememberCoroutineScope()
   val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { g ->
@@ -74,7 +76,7 @@ import kotlin.math.sin
       }
       override fun onAccuracyChanged(s: Sensor?, a: Int) { sensorAccuracy = a }
     }
-    if (sensor != null) sm.registerListener(l, sensor, SensorManager.SENSOR_DELAY_UI)
+    if (sensor != null && !shot) sm.registerListener(l, sensor, SensorManager.SENSOR_DELAY_UI)
     onDispose { sm.unregisterListener(l) }
   }
 

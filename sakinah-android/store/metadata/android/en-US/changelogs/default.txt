@@ -1,0 +1,5 @@
+First release of Sakinah on Google Play.
+
+• The Madinah Mushaf (604 pages) with a single reader bar whose edge is the page slider.
+• Prayer times with official calculation methods and adhan reminders that arrive even when the app is closed.
+• Qibla with magnetic declination correction, the complete Hisn al-Muslim, tasbih, and voice-checked memorisation.

@@ -10,7 +10,18 @@ android {
     versionCode = (System.getenv("SAKINAH_BUILD") ?: "1").toInt(); versionName = "5.0.0"
     vectorDrawables.useSupportLibrary = true
   }
-  buildTypes { release { isMinifyEnabled = false } }
+  // مفتاح الرفع إلى Google Play من البيئة (سير sakinah-play-release في wilt)؛ بلا مفتاحٍ يُوقَّع
+  // الإصدار بمفتاح debug كي يبقى بناء التجربة ممكناً بلا أسرار — ولا يُرفع مثل هذا البناء للمتجر.
+  val uploadKeystore = System.getenv("SAKINAH_KEYSTORE")?.takeIf { it.isNotBlank() && file(it).exists() }
+  signingConfigs {
+    if (uploadKeystore != null) create("upload") {
+      storeFile = file(uploadKeystore)
+      storePassword = System.getenv("SAKINAH_KEYSTORE_PASSWORD")
+      keyAlias = System.getenv("SAKINAH_KEY_ALIAS") ?: "upload"
+      keyPassword = System.getenv("SAKINAH_KEY_PASSWORD") ?: System.getenv("SAKINAH_KEYSTORE_PASSWORD")
+    }
+  }
+  buildTypes { release { isMinifyEnabled = false; signingConfig = signingConfigs.getByName(if (uploadKeystore != null) "upload" else "debug") } }
   compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
   kotlinOptions { jvmTarget = "17" }
   buildFeatures { compose = true; buildConfig = true }

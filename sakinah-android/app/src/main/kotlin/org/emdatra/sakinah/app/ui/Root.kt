@@ -8,6 +8,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import org.emdatra.sakinah.app.ScreenshotMode
 import org.emdatra.sakinah.app.Store
 
 /** تبديل التبويب من داخل الشاشات (بلاطات الوصول السريع) */
@@ -15,7 +16,7 @@ val LocalSwitchTab = staticCompositionLocalOf<(AppTab) -> Unit> { {} }
 
 /** الجذر: تهيئة أول تشغيل ثم خمسة تبويبات بشريط مخصّص */
 @Composable fun RootScreen() {
-  var tabIndex by rememberSaveable { mutableIntStateOf(0) }
+  var tabIndex by rememberSaveable { mutableIntStateOf(ScreenshotMode.tab?.ordinal ?: 0) }
   var intro by remember { mutableStateOf(!Store.seenIntro && Store.coords == null) }
   if (intro) { OnboardingScreen(onDone = { Store.seenIntro = true; Store.save(); intro = false }); return }
   val tab = AppTab.entries[tabIndex]

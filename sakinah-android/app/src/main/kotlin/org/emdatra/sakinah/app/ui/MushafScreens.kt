@@ -64,7 +64,8 @@ import org.emdatra.sakinah.core.*
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable fun MushafHome() {
   val c = DS.c
-  var reader by remember { mutableStateOf<Pair<Int, Int?>?>(null) }
+  // لقطات المتجر وحدها: يُفتح القارئ على صفحةٍ بعينها بلا قيادة واجهة
+  var reader by remember { mutableStateOf<Pair<Int, Int?>?>(org.emdatra.sakinah.app.ScreenshotMode.readerPage?.let { it to null }) }
   var q by remember { mutableStateOf("") }; var tab by remember { mutableIntStateOf(0) }; var searching by remember { mutableStateOf(false) }
   var sheet by remember { mutableStateOf<String?>(null) }
   if (reader != null) { MushafReader(startPage = reader!!.first, startAyah = reader!!.second, onClose = { reader = null }); return }
@@ -225,7 +226,7 @@ private fun Modifier.hiddenWordRule(on: Boolean, color: Color) = if (!on) this e
   LaunchedEffect(page) { if (page != lastPage) { lastPage = page; chrome = false } }
   var hint by remember { mutableStateOf(false) }
   LaunchedEffect(chrome, chromeNonce, sheet, ayahSheet, downloads, hifz) {
-    if (chrome && hifz == null && sheet == null && ayahSheet == null && !downloads) {
+    if (chrome && hifz == null && sheet == null && ayahSheet == null && !downloads && !org.emdatra.sakinah.app.ScreenshotMode.keepChrome) {
       kotlinx.coroutines.delay(3600); chrome = false
       // مرة واحدة في عمر التطبيق: تعريف بمكان المفتاح كي لا يبحث عنه القارئ
       if (!Store.seenChromeHint) { Store.seenChromeHint = true; Store.save(); hint = true; kotlinx.coroutines.delay(3500); hint = false }
