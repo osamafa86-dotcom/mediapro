@@ -21,6 +21,12 @@
    (ستّة صفوف برموز الشمس والقمر وأجراس التذكير وصفّ «القادمة» مميّز)، وشريط تبويبات عائم رباعي:
    الرئيسية · المصحف · الأذكار · المزيد. الرموز كلّها مسارات SVG بسماكة ١٫٧٥ ورؤوس مستديرة.
 
+   **التنفيذ (5.1.0):** iOS في `App/Sakinah/HomeView.swift` (`HomeView`، `CompassMedallion`،
+   `StarLattice`) وشريط `DSTabBar` العائم في `Components.swift`؛ أندرويد في
+   `ui/HomeScreen.kt` (`HomeScreen`، `rememberCompass`، `CompassMedallion`، `StarLattice`)
+   و`DSTabBar` في `ui/Components.kt`. القبلة الكاملة هي شاشة القبلة السابقة بزرّ إغلاق،
+   ومسار اللقطات `qibla` يفتحها فوق الرئيسية.
+
 خلفيّات الشاشات هي صورة صفحة ٢٧٠ الحقيقيّة المرسومة بخطّ QCF v1 (`tools/` في `sakinah/`).
 
 ## المتغيّرات

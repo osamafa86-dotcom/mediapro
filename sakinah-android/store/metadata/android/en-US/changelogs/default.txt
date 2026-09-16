@@ -1,5 +1,5 @@
-First release of Sakinah on Google Play.
+A new home screen brings prayer times and the Qibla together.
 
-• The Madinah Mushaf (604 pages) with a single reader bar whose edge is the page slider.
-• Prayer times with official calculation methods and adhan reminders that arrive even when the app is closed.
-• Qibla with magnetic declination correction, the complete Hisn al-Muslim, tasbih, and voice-checked memorisation.
+• The «Now» card pairs the next prayer countdown with a live compass medallion; tap it to open the full Qibla.
+• A clearer daily timetable with the next prayer highlighted and one-tap reminder bells.
+• A floating four-tab bar: Home, Mushaf, Adhkar, More.
