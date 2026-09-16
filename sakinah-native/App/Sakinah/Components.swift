@@ -241,6 +241,12 @@ struct DSTabBar: View {
     .overlay(Capsule().stroke(DS.C.bgSurface.opacity(0.9), lineWidth: 1))
     .shadow(color: DS.C.shadowFloat, radius: 20, x: 0, y: 10)
     .padding(.horizontal, 20).padding(.top, 6).padding(.bottom, 4)
+    // تلاشٍ بلون الورق خلف الشريط: بعض الشاشات تمدّ محتواها تحت المنطقة الآمنة فكان يظهر تحت الكبسولة
+    .background {
+      LinearGradient(colors: [DS.C.bgCanvas.opacity(0), DS.C.bgCanvas, DS.C.bgCanvas], startPoint: .top, endPoint: .bottom)
+        .padding(.top, -24)
+        .ignoresSafeArea(edges: .bottom)
+    }
   }
 }
 

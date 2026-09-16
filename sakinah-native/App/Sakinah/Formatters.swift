@@ -14,9 +14,12 @@ enum Fmt {
     return f.string(from: date)
   }
 
+  // ⚠️ محلّية ar_SA تجعل تقويم DateFormatter الافتراضي هجريًّا (أمّ القرى) — قِيس: «التاريخ الميلادي»
+  // خرج «٦ ربيع الآخر». فالتقويم الميلادي يُضبط صراحةً في كل منسّق تاريخ.
   static func gregorian(_ date: Date, tz: TimeZone, numerals: String) -> String {
     let f = DateFormatter()
     f.locale = locale(numerals: numerals)
+    f.calendar = Calendar(identifier: .gregorian)
     f.timeZone = tz
     f.dateFormat = "EEEE، d MMMM yyyy"
     return f.string(from: date)
@@ -33,7 +36,7 @@ enum Fmt {
   }
   /// تاريخ مختصر «١٠ سبتمبر»
   static func shortDate(_ date: Date, tz: TimeZone, numerals: String) -> String {
-    let f = DateFormatter(); f.locale = locale(numerals: numerals); f.timeZone = tz; f.dateFormat = "d MMMM"; return f.string(from: date)
+    let f = DateFormatter(); f.locale = locale(numerals: numerals); f.calendar = Calendar(identifier: .gregorian); f.timeZone = tz; f.dateFormat = "d MMMM"; return f.string(from: date)
   }
   static func shortDate(key: String, numerals: String) -> String {
     guard let p = DayKey.parse(key) else { return key }

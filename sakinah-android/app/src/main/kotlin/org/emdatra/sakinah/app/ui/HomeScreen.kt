@@ -113,7 +113,7 @@ class CompassReading(val heading: Float?, val accuracy: Int)
         Text(Store.locName ?: "حدّد موقعك", style = DSType.displayLg, color = c.textPrimary, maxLines = 1)
         Icon(Icons.Filled.Place, null, Modifier.size(18.dp), tint = c.accentGold)
       }
-      Text("${h.weekday} ${h.formatted}  ·  ${Fmt.gregorian(now).substringAfter("، ").substringBeforeLast(" ")}", style = DSType.labelSm, color = c.textTertiary, maxLines = 1)
+      Text("${h.weekday} ${Fmt.number(h.day)} ${h.monthName} ${Fmt.number(h.year)}هـ  ·  ${Fmt.gregorian(now).substringAfter("، ").substringBeforeLast(" ")}", style = DSType.labelSm, color = c.textTertiary, maxLines = 1)
     }
     HeaderIcon(Icons.Outlined.CalendarMonth, "الجدول الشهري", onMonth)
     HeaderIcon(if (Store.locMode == "gps") Icons.Outlined.MyLocation else Icons.Outlined.Place, "الموقع", onCity)
@@ -127,7 +127,8 @@ class CompassReading(val heading: Float?, val accuracy: Int)
 @Composable private fun NowCard(tl: PrayerTimes.DayTimeline, now: Instant, coords: Coordinates, compass: CompassReading, onMethod: () -> Unit, onQibla: () -> Unit) {
   val c = DS.c
   val secs = tl.next.time.epochSecond - now.epochSecond
-  val start = tl.times[tl.current] ?: tl.yesterdayIsha
+  // بعد منتصف الليل «الحالية» هي عشاء الأمس لا عشاء اليوم (وقتها لم يحن بعد) — وإلا قُرئ التقدّم صفرًا
+  val start = tl.times[tl.current]?.takeIf { !it.isAfter(now) } ?: tl.yesterdayIsha
   val total = start?.let { (tl.next.time.epochSecond - it.epochSecond).toFloat() } ?: 0f
   val elapsed = if (start != null && total > 0f) ((now.epochSecond - start.epochSecond) / total).coerceIn(0f, 1f) else 0f
   val qibla = remember(coords) { Qibla.info(coords.latitude, coords.longitude) }

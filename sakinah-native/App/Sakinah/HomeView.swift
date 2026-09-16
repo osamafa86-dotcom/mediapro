@@ -52,8 +52,13 @@ struct HomeView: View {
           Text(model.location.placeName ?? "حدّد موقعك").font(DS.F.displayLg).foregroundStyle(DS.C.textPrimary).lineLimit(1).minimumScaleFactor(0.7)
           Image(systemName: "mappin").font(.system(size: 16, weight: .semibold)).foregroundStyle(DS.C.accentGold)
         }
-        Text("\(h.weekday) \(h.formatted)  ·  \(Fmt.shortDate(now, tz: model.timeZone, numerals: s.numerals))")
-          .font(DS.F.labelSm).foregroundStyle(DS.C.textTertiary).lineLimit(1).minimumScaleFactor(0.8)
+        // نصوصٌ منفصلة لا سلسلة واحدة: خلط الأرقام العربية والغربية في سلسلةٍ واحدة قلب ترتيب الكلمات (قِيس)
+        HStack(spacing: 6) {
+          Text("\(h.weekday) \(Fmt.number(h.day, numerals: s.numerals)) \(h.monthName) \(Fmt.number(h.year, numerals: s.numerals))هـ")
+          Text("·")
+          Text(Fmt.shortDate(now, tz: model.timeZone, numerals: s.numerals))
+        }
+        .font(DS.F.labelSm).foregroundStyle(DS.C.textTertiary).lineLimit(1).minimumScaleFactor(0.8)
       }
       Spacer(minLength: 8)
       NavigationLink { MonthTableView() } label: { headerIcon("calendar") }.buttonStyle(.plain).accessibilityLabel("الجدول الشهري")
@@ -68,7 +73,8 @@ struct HomeView: View {
   private func nowCard(_ t: PrayerTimes.DayTimeline, now: Date, coords c: Coordinates) -> some View {
     let s = model.settings
     let remaining = t.next.time.timeIntervalSince(now)
-    let start = t.times[t.current] ?? t.yesterdayIsha
+    // بعد منتصف الليل «الحالية» هي عشاء الأمس لا عشاء اليوم (وقتها لم يحن بعد) — وإلا قُرئ التقدّم صفرًا
+    let start = t.times[t.current].flatMap { $0 <= now ? $0 : nil } ?? t.yesterdayIsha
     let total = start.map { t.next.time.timeIntervalSince($0) } ?? 0
     let elapsed = total > 0 ? min(1, max(0, now.timeIntervalSince(start!) / total)) : 0
     let pct = Fmt.number(Int((elapsed * 100).rounded()), numerals: s.numerals)
