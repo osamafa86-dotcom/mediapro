@@ -21,8 +21,7 @@ enum ScreenshotMode {
   /// التبويب الذي يُفتح عليه التطبيق
   static var tab: AppTab? {
     switch route {
-    case "prayer": return .prayer
-    case "qibla": return .qibla
+    case "prayer", "qibla", "home": return .home
     case "mushaf", "mushaf-page", "mushaf-bar": return .mushaf
     case "adhkar", "hisn", "tasbih": return .adhkar
     case "hadith", "more": return .more
@@ -35,6 +34,8 @@ enum ScreenshotMode {
 
   /// يُبقى الشريط ظاهرًا: القارئ يخفيه بعد ثوانٍ، فلا يلتقطه انتظارُ تحميل الخطوط
   static var keepChrome: Bool { route == "mushaf-bar" }
+  /// مسار «qibla» يفتح القبلة الكاملة فوق الرئيسية
+  static var fullQibla: Bool { route == "qibla" }
 
   /// موقع ثابت كي تُحسب المواقيت والقبلة بلا إذنٍ ولا شبكة — واللقطات تتكرّر بالنتيجة نفسها
   static func seed(_ model: AppModel) {

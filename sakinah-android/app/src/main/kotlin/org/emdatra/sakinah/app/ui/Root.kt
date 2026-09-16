@@ -23,7 +23,7 @@ val LocalSwitchTab = staticCompositionLocalOf<(AppTab) -> Unit> { {} }
   CompositionLocalProvider(LocalSwitchTab provides { t -> tabIndex = t.ordinal }) {
     Scaffold(containerColor = DS.c.bgCanvas, bottomBar = { DSTabBar(tab) { tabIndex = it.ordinal } }) { pad ->
       Box(Modifier.fillMaxSize().background(DS.c.bgCanvas).padding(pad)) {
-        when (tab) { AppTab.Prayer -> PrayerScreen(); AppTab.Qibla -> QiblaScreen(); AppTab.Mushaf -> MushafHome(); AppTab.Adhkar -> AdhkarHome(); AppTab.More -> MoreScreen() }
+        when (tab) { AppTab.Home -> HomeScreen(); AppTab.Mushaf -> MushafHome(); AppTab.Adhkar -> AdhkarHome(); AppTab.More -> MoreScreen() }
       }
     }
   }

@@ -6,6 +6,9 @@ import SakinahCore
 /// شاشة القبلة (تصميم Figma 10): شريط حالة، بوصلة بقرص مرقّم وإبرة ذهبية، بلاطتا المسافة والاتجاه، بطاقة الموقع، وتلميح المعايرة
 struct QiblaView: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.dismiss) private var dismiss
+  /// تُعرض فوق الرئيسية (من ميدالية البوصلة) فتحتاج زرّ إغلاق
+  var presented = false
   @State private var showInfo = false
 
   var body: some View {
@@ -32,6 +35,7 @@ struct QiblaView: View {
   private var navBar: some View {
     HStack {
       HStack(spacing: DS.Space.s2) {
+        if presented { DSIconButton(systemName: "xmark", label: "إغلاق") { dismiss() } }
         DSIconButton(systemName: "location", label: "تحديث الموقع") { model.location.requestLocation() }
         DSIconButton(systemName: "info", label: "عن حساب القبلة") { showInfo = true }
       }

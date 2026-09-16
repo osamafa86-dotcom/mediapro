@@ -206,35 +206,41 @@ struct DSNavBar<Trailing: View>: View {
 extension DSNavBar where Trailing == EmptyView { init(title: String, subtitle: String? = nil, back: (() -> Void)? = nil) { self.init(title: title, subtitle: subtitle, back: back) { EmptyView() } } }
 
 // MARK: - شريط التبويبات
+/// أربعة تبويبات (تصميم «الرئيسية المدمجة»): الرئيسية تجمع الصلاة والقبلة، والقبلة الكاملة تُفتح من ميداليتها
 enum AppTab: Int, CaseIterable, Identifiable {
-  case prayer, qibla, mushaf, adhkar, more
+  case home, mushaf, adhkar, more
   var id: Int { rawValue }
-  var title: String { switch self { case .prayer: return "الصلاة"; case .qibla: return "القبلة"; case .mushaf: return "المصحف"; case .adhkar: return "الأذكار"; case .more: return "المزيد" } }
-  var icon: String { switch self { case .prayer: return "house"; case .qibla: return "location.north.circle"; case .mushaf: return "book"; case .adhkar: return "circle.hexagongrid"; case .more: return "ellipsis" } }
-  var iconSelected: String { switch self { case .prayer: return "house.fill"; case .qibla: return "location.north.circle.fill"; case .mushaf: return "book.fill"; case .adhkar: return "circle.hexagongrid.fill"; case .more: return "ellipsis" } }
+  var title: String { switch self { case .home: return "الرئيسية"; case .mushaf: return "المصحف"; case .adhkar: return "الأذكار"; case .more: return "المزيد" } }
+  var icon: String { switch self { case .home: return "house"; case .mushaf: return "book"; case .adhkar: return "sparkles"; case .more: return "ellipsis" } }
+  var iconSelected: String { switch self { case .home: return "house.fill"; case .mushaf: return "book.fill"; case .adhkar: return "sparkles"; case .more: return "ellipsis" } }
 }
+/// شريط تبويبات عائم: كبسولة زجاجية بظلّ ناعم، والمختار في حبّة نعناعية
 struct DSTabBar: View {
   @Binding var selection: AppTab
   var body: some View {
-    HStack(spacing: 0) {
+    HStack(spacing: 4) {
       ForEach(AppTab.allCases) { tab in
         let on = selection == tab
         Button { withAnimation(.snappy(duration: 0.2)) { selection = tab } } label: {
-          VStack(spacing: 4) {
-            Image(systemName: on ? tab.iconSelected : tab.icon).font(.system(size: 22, weight: on ? .semibold : .regular)).frame(height: 26)
-            Text(tab.title).font(DS.F.labelXs)
+          VStack(spacing: 3) {
+            Image(systemName: on ? tab.iconSelected : tab.icon).font(.system(size: 21, weight: on ? .semibold : .regular)).frame(height: 24)
+            Text(tab.title).font(DS.readex(10.5, on ? .semibold : .medium))
           }
-          .foregroundStyle(on ? DS.C.brandPrimary : DS.C.textTertiary)
-          .frame(maxWidth: .infinity).padding(.top, 8).padding(.bottom, 4)
-          .contentShape(Rectangle())
+          .foregroundStyle(on ? DS.C.brandStrong : DS.C.textTertiary)
+          .frame(maxWidth: .infinity).padding(.top, 7).padding(.bottom, 6)
+          .background(on ? DS.C.brandSoft.opacity(0.85) : .clear, in: Capsule())
+          .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(tab.title).accessibilityAddTraits(on ? .isSelected : [])
       }
     }
-    .padding(.horizontal, 8)
-    .background(DS.C.bgSurface.ignoresSafeArea(edges: .bottom))
-    .overlay(alignment: .top) { Rectangle().fill(DS.C.borderSubtle).frame(height: 0.5) }
+    .padding(8)
+    .background(.ultraThinMaterial, in: Capsule())
+    .background(DS.C.bgSurface.opacity(0.85), in: Capsule())
+    .overlay(Capsule().stroke(DS.C.bgSurface.opacity(0.9), lineWidth: 1))
+    .shadow(color: DS.C.shadowFloat, radius: 20, x: 0, y: 10)
+    .padding(.horizontal, 20).padding(.top, 6).padding(.bottom, 4)
   }
 }
 

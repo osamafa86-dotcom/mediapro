@@ -12,7 +12,7 @@ object ScreenshotMode {
   var route: String? = null; private set
   val active: Boolean get() = route != null
   val tab: AppTab? get() = when (route) {
-    "prayer" -> AppTab.Prayer; "qibla" -> AppTab.Qibla
+    "prayer", "qibla", "home" -> AppTab.Home
     "mushaf", "mushaf-page", "mushaf-bar" -> AppTab.Mushaf
     "adhkar", "hisn", "tasbih" -> AppTab.Adhkar
     "hadith", "more" -> AppTab.More
@@ -22,6 +22,8 @@ object ScreenshotMode {
   val readerPage: Int? get() = if (route == "mushaf-page" || route == "mushaf-bar") 270 else null
   /** يُبقي الشريط الموحّد ظاهراً بدل انزلاقه بعد ثوانٍ */
   val keepChrome: Boolean get() = route == "mushaf-bar"
+  /** مسار «qibla» يفتح القبلة الكاملة فوق الرئيسية */
+  val fullQibla: Boolean get() = route == "qibla"
 
   /** تهيئة حالةٍ ثابتة: بلا مقدّمة، أرقام عربية، مدينة عمّان — فالمحاكي بلا موقع */
   fun arm(r: String?) {

@@ -12,14 +12,13 @@ struct RootView: View {
   @Environment(AppModel.self) private var model
   @Environment(\.scenePhase) private var scenePhase
   @State private var showOnboarding = false
-  @State private var tab: AppTab = ScreenshotMode.tab ?? .prayer
+  @State private var tab: AppTab = ScreenshotMode.tab ?? .home
   /// صفحة المصحف التي يُفتح عليها القارئ في وضع اللقطات وحده
   @State private var shotPage: Int? = ScreenshotMode.readerPage
 
   var body: some View {
     TabView(selection: $tab) {
-      PrayerView().hiddenSystemTabBar().tag(AppTab.prayer)
-      QiblaView().hiddenSystemTabBar().tag(AppTab.qibla)
+      HomeView().hiddenSystemTabBar().tag(AppTab.home)
       MushafHomeView().hiddenSystemTabBar().tag(AppTab.mushaf)
       AdhkarHomeView().hiddenSystemTabBar().tag(AppTab.adhkar)
       MoreView().hiddenSystemTabBar().tag(AppTab.more)

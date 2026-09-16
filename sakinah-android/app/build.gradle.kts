@@ -7,7 +7,7 @@ android {
   defaultConfig {
     applicationId = "org.emdatra.sakinah"
     minSdk = 26; targetSdk = 35
-    versionCode = (System.getenv("SAKINAH_BUILD") ?: "1").toInt(); versionName = "5.0.0"
+    versionCode = (System.getenv("SAKINAH_BUILD") ?: "1").toInt(); versionName = "5.1.0"
     vectorDrawables.useSupportLibrary = true
   }
   // مفتاح الرفع إلى Google Play من البيئة (سير sakinah-play-release في wilt)؛ بلا مفتاحٍ يُوقَّع

@@ -46,7 +46,8 @@ import kotlin.math.sin
 
 /** شاشة القبلة (تصميم Figma 10): شريط حالة، قرص بوصلة بإبرة ذهبية، بلاطتا المسافة والاتجاه، بطاقة الموقع، وتلميح المعايرة */
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable fun QiblaScreen() {
+@Composable fun QiblaScreen(onClose: (() -> Unit)? = null) {
+  androidx.activity.compose.BackHandler(enabled = onClose != null) { onClose?.invoke() }
   val ctx = LocalContext.current
   val c = DS.c
   val coords = Store.coords
@@ -82,6 +83,7 @@ import kotlin.math.sin
 
   Column(Modifier.fillMaxSize().background(c.bgCanvas).verticalScroll(rememberScrollState())) {
     DSNavBar("القبلة") {
+      if (onClose != null) { DSIconButton(Icons.Filled.Close, contentDescription = "إغلاق", onClick = onClose); Spacer(Modifier.width(8.dp)) }
       DSIconButton(Icons.Outlined.MyLocation, contentDescription = "تحديث الموقع") { refreshLocation() }
       Spacer(Modifier.width(8.dp))
       DSIconButton(Icons.Outlined.Info, contentDescription = "عن حساب القبلة") { info = true }

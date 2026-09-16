@@ -23,6 +23,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -136,22 +138,24 @@ enum class IconStyle { Outlined, Soft, GoldSoft, Glass, Brand, Plain }
   }
 }
 
+/** أربعة تبويبات (تصميم «الرئيسية المدمجة»): الرئيسية تجمع الصلاة والقبلة، والقبلة الكاملة تُفتح من ميداليتها */
 enum class AppTab(val title: String, val icon: ImageVector, val iconSelected: ImageVector) {
-  Prayer("الصلاة", Icons.Outlined.Home, Icons.Filled.Home), Qibla("القبلة", Icons.Outlined.Explore, Icons.Filled.Explore), Mushaf("المصحف", Icons.Outlined.MenuBook, Icons.Filled.MenuBook), Adhkar("الأذكار", Icons.Outlined.Grain, Icons.Filled.Grain), More("المزيد", Icons.Outlined.MoreHoriz, Icons.Filled.MoreHoriz)
+  Home("الرئيسية", Icons.Outlined.Home, Icons.Filled.Home), Mushaf("المصحف", Icons.Outlined.MenuBook, Icons.Filled.MenuBook), Adhkar("الأذكار", Icons.Outlined.AutoAwesome, Icons.Filled.AutoAwesome), More("المزيد", Icons.Outlined.MoreHoriz, Icons.Filled.MoreHoriz)
 }
 /** شريط التبويبات الخمسة */
+/** شريط تبويبات عائم: كبسولة بظلّ ناعم، والمختار في حبّة نعناعية */
 @Composable fun DSTabBar(selected: AppTab, onSelect: (AppTab) -> Unit) {
   val c = DS.c
-  Column(Modifier.fillMaxWidth().background(c.bgSurface)) {
-    Box(Modifier.fillMaxWidth().height(0.5.dp).background(c.borderSubtle))
-    Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 8.dp, vertical = 6.dp)) {
+  Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 6.dp)) {
+    Row(Modifier.fillMaxWidth().shadow(20.dp, CircleShape, ambientColor = c.shadow.copy(alpha = 0.12f), spotColor = c.shadow.copy(alpha = 0.16f)).clip(CircleShape).background(c.bgSurface.copy(alpha = 0.96f)).border(1.dp, c.bgSurface, CircleShape).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
       AppTab.entries.forEach { tab ->
         val on = tab == selected
-        val tint by animateColorAsState(if (on) c.brandPrimary else c.textTertiary, label = "tab")
-        Column(Modifier.weight(1f).clip(DS.shapeMd).clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Tab, onClick = { onSelect(tab) }).padding(vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-          Icon(if (on) tab.iconSelected else tab.icon, tab.title, Modifier.size(24.dp), tint = tint)
+        val tint by animateColorAsState(if (on) c.brandStrong else c.textTertiary, label = "tab")
+        val bg by animateColorAsState(if (on) c.brandSoft.copy(alpha = 0.85f) else Color.Transparent, label = "tabbg")
+        Column(Modifier.weight(1f).clip(CircleShape).background(bg).clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Tab, onClick = { onSelect(tab) }).padding(top = 7.dp, bottom = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+          Icon(if (on) tab.iconSelected else tab.icon, tab.title, Modifier.size(22.dp), tint = tint)
           Spacer(Modifier.height(3.dp))
-          Text(tab.title, style = DSType.labelXs, color = tint)
+          Text(tab.title, style = DSType.labelXs.copy(fontSize = 10.5.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium), color = tint)
         }
       }
     }
