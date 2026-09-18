@@ -9,6 +9,7 @@ struct HomeView: View {
   @Environment(AppModel.self) private var model
   @State private var showMethods = false
   @State private var showQibla = ScreenshotMode.fullQibla
+  @State private var mosques = MosqueFinder()
 
   var body: some View {
     NavigationStack {
@@ -33,6 +34,7 @@ struct HomeView: View {
         if let t = model.timeline(now: now), let c = model.coordinates {
           nowCard(t, now: now, coords: c)
           todayCard(t, now: now)
+          nearestMosqueCard(c)
         } else {
           locationPrompt
         }
@@ -220,6 +222,41 @@ struct HomeView: View {
           .fill(LinearGradient(colors: [DS.C.brandSoft.opacity(0.35), DS.C.brandSoft.opacity(0.75)], startPoint: .leading, endPoint: .trailing))
       }
     }
+  }
+
+  // MARK: أقرب مسجد
+  private func nearestMosqueCard(_ c: Coordinates) -> some View {
+    let s = model.settings; let n = s.numerals
+    return VStack(alignment: .leading, spacing: 10) {
+      HStack {
+        Text("أقرب مسجد").font(DS.F.headingMd).foregroundStyle(DS.C.textPrimary)
+        Spacer()
+        NavigationLink { MosquesView().environment(model) } label: { DSLinkLabel(title: "المساجد القريبة") }.buttonStyle(.plain)
+      }
+      if !s.nearbyMosques {
+        Text("يعرض أقرب مسجد إليك من خرائط آبل. يُرسل موقعك مقرّبًا إلى نحو كيلومتر عند البحث، ولا يُحفظ لدينا.")
+          .font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary)
+        DSButton(title: "اعرض أقرب مسجد", icon: "building.columns") { s.nearbyMosques = true }
+      } else if let m = mosques.results.first {
+        HStack(spacing: 12) {
+          DSIcon(systemName: "building.columns", style: .soft, size: 42, iconSize: 17)
+          VStack(alignment: .leading, spacing: 2) {
+            Text(m.name).font(DS.F.headingSm).foregroundStyle(DS.C.textPrimary).lineLimit(1)
+            Text("\(MosqueFinder.distanceLabel(m.distanceKm, numerals: n)) · \(MosqueFinder.walkLabel(m.distanceKm, numerals: n)) · \(Qibla.compassPointAr(m.bearing))")
+              .font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary).lineLimit(1)
+          }
+          Spacer(minLength: 4)
+          Button { MosqueFinder.openDirections(to: m) } label: { DSIcon(systemName: "arrow.triangle.turn.up.right.diamond", style: .brand, size: 38, iconSize: 16) }
+            .buttonStyle(.plain).accessibilityLabel("الاتجاهات إلى \(m.name)")
+        }
+      } else if mosques.loading {
+        HStack(spacing: 8) { ProgressView(); Text("جارٍ البحث حولك…").font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary) }
+      } else {
+        Text(mosques.error ?? "لا مساجد ضمن ٣ كم — افتح «المساجد القريبة» للبحث بالاسم").font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary)
+      }
+    }
+    .dsCard(padding: 16)
+    .task(id: "\(s.nearbyMosques)-\(MosqueFinder.cellKey(c))") { if s.nearbyMosques { await mosques.nearby(around: c) } }
   }
 
   // MARK: لا موقع بعد

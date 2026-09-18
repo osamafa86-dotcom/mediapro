@@ -249,6 +249,10 @@ struct MoreView: View {
               DSRow(icon: "bolt", title: "الودجت والنشاط المباشر", subtitle: "شاشة القفل والجزيرة الديناميكية") { DSChevron() }
             }.buttonStyle(.plain)
             Divider().overlay(DS.C.borderSubtle)
+            NavigationLink { MosquesView().environment(model) } label: {
+              DSRow(icon: "building.columns", title: "المساجد القريبة", subtitle: "أقرب مسجد والاتجاهات إليه") { DSChevron() }
+            }.buttonStyle(.plain)
+            Divider().overlay(DS.C.borderSubtle)
             NavigationLink { MonthTableView().environment(model) } label: {
               DSRow(icon: "calendar", title: "الجدول الشهري", subtitle: "تصدير ICS") { DSChevron() }
             }.buttonStyle(.plain)
@@ -270,7 +274,7 @@ struct MoreView: View {
               DSRow(icon: "circle.hexagongrid", title: "المسبحة", subtitle: "عدّاد التسبيح والإحصاء") { DSChevron() }
             }.buttonStyle(.plain)
           }
-          Text("سكينة \(version) (بناء \(build)) · تطبيق أصلي بالكامل يعمل دون اتصال. لا حساب ولا تتبّع؛ الشبكة تُستعمل فقط لجلب التلاوات وتلاوة الأذكار عند الطلب.")
+          Text("سكينة \(version) (بناء \(build)) · تطبيق أصلي بالكامل يعمل دون اتصال. لا حساب ولا تتبّع؛ الشبكة تُستعمل فقط لجلب التلاوات وتلاوة الأذكار والمساجد القريبة عند الطلب.")
             .font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).multilineTextAlignment(.center)
         }
         .padding(.horizontal, DS.Space.s4).padding(.top, DS.Space.s2).padding(.bottom, DS.Space.s8)

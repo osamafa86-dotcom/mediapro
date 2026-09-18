@@ -43,6 +43,7 @@ import java.time.Instant
     "nawawi" -> HadithScreen("nawawi") { screen = "home" }
     "settings" -> SettingsScreen { screen = "home" }
     "month" -> MonthTableScreen { screen = "home" }
+    "mosques" -> MosquesScreen { screen = "home" }
     else -> {
       var challenges by remember { mutableStateOf(false) }
       var downloads by remember { mutableStateOf(false) }
@@ -64,6 +65,8 @@ import java.time.Instant
         }
         item {
           MoreGroup("الأدوات") {
+            MoreRow(Icons.Outlined.Mosque, "المساجد القريبة", "أقرب مسجد والاتجاهات إليه") { screen = "mosques" }
+            DSDivider()
             MoreRow(Icons.Outlined.CalendarMonth, "الجدول الشهري", "تصدير ICS") { screen = "month" }
             DSDivider()
             MoreRow(Icons.Outlined.Download, "التنزيلات دون اتصال", downloadsLabel()) { downloads = true }

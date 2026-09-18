@@ -258,7 +258,7 @@ import kotlin.math.sin
   }
 }
 
-@Composable private fun HintBar(icon: ImageVector, text: String, warn: Boolean) {
+@Composable fun HintBar(icon: ImageVector, text: String, warn: Boolean) {
   val c = DS.c
   Row(
     Modifier.fillMaxWidth().clip(DS.shapeMd).background(c.bgSubtle).padding(12.dp),

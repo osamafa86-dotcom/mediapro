@@ -27,6 +27,8 @@ final class Settings {
   var haptics: Bool { didSet { d.set(haptics, forKey: "ui.haptics") } }
   /// نقرة مسموعة عند العدّ في المسبحة
   var tasbihSound: Bool { didSet { d.set(tasbihSound, forKey: "ui.tasbihSound") } }
+  /// بطاقة «أقرب مسجد» في الرئيسية — اختيارية لأنها تُرسل الموقع (مقرّبًا) إلى خرائط آبل
+  var nearbyMosques: Bool { didSet { d.set(nearbyMosques, forKey: "mosques.enabled") } }
   var lastRead: LastRead? { didSet { if let v = lastRead, let data = try? JSONEncoder().encode(v) { d.set(data, forKey: "quran.lastRead") } else { d.removeObject(forKey: "quran.lastRead") } } }
 
   init() {
@@ -43,6 +45,7 @@ final class Settings {
     liveActivity = d.bool(forKey: "liveActivity")
     haptics = d.object(forKey: "ui.haptics") as? Bool ?? true
     tasbihSound = d.bool(forKey: "ui.tasbihSound")
+    nearbyMosques = d.bool(forKey: "mosques.enabled")
     lastRead = d.data(forKey: "quran.lastRead").flatMap { try? JSONDecoder().decode(LastRead.self, from: $0) }
   }
 

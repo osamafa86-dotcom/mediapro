@@ -64,10 +64,12 @@ import kotlin.math.sin
   LaunchedEffect(Unit) { while (true) { delay(1000); now = Instant.now() } }
   var showCity by remember { mutableStateOf(false) }; var showMethod by remember { mutableStateOf(false) }; var showMonth by remember { mutableStateOf(false) }
   var showQibla by rememberSaveable { mutableStateOf(ScreenshotMode.fullQibla) }
+  var showMosques by rememberSaveable { mutableStateOf(false) }
   val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { if (it.values.any { g -> g }) scope.launch { Loc.current(ctx)?.let { l -> Loc.apply(ctx, l); Notify.schedule(ctx) } } }
   LaunchedEffect(Unit) { if (Store.coords == null && Store.locMode == "gps") { if (Loc.granted(ctx)) Loc.current(ctx)?.let { Loc.apply(ctx, it); Notify.schedule(ctx) } else permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) } }
   if (showMonth) { MonthScreen(onBack = { showMonth = false }); return }
   if (showQibla) { QiblaScreen(onClose = { showQibla = false }); return }
+  if (showMosques) { MosquesScreen(onBack = { showMosques = false }); return }
   val tl = Store.timeline(now); val h = Hijri.date(now, Store.zone, Store.hijriOffset); val coords = Store.coords
   val compass = rememberCompass(enabled = coords != null)
   Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(top = 4.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -76,6 +78,7 @@ import kotlin.math.sin
     else {
       NowCard(tl, now, coords, compass, onMethod = { showMethod = true }, onQibla = { showQibla = true })
       TodayCard(tl, now, onMonth = { showMonth = true })
+      NearestMosqueCard(coords, onAll = { showMosques = true })
     }
   }
   if (showCity) CityPickerSheet(onDismiss = { showCity = false }, onDevice = { showCity = false; permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) })
@@ -245,6 +248,43 @@ class CompassReading(val heading: Float?, val accuracy: Int)
         x += step
       }
       y += step; row++
+    }
+  }
+}
+
+// MARK: أقرب مسجد
+@Composable private fun NearestMosqueCard(coords: Coordinates, onAll: () -> Unit) {
+  val c = DS.c; val ctx = LocalContext.current
+  var results by remember { mutableStateOf<List<Mosque>>(emptyList()) }
+  var loading by remember { mutableStateOf(false) }; var error by remember { mutableStateOf<String?>(null) }
+  val key = MosqueFinder.cellKey(coords.latitude, coords.longitude)
+  LaunchedEffect(Store.nearbyMosques, key) {
+    if (!Store.nearbyMosques) return@LaunchedEffect
+    MosqueFinder.cached(coords.latitude, coords.longitude)?.let { results = it; return@LaunchedEffect }
+    loading = true; error = null
+    MosqueFinder.nearby(coords.latitude, coords.longitude).onSuccess { results = it }.onFailure { error = "تعذّر جلب المساجد — تحقّق من الاتصال" }
+    loading = false
+  }
+  DSCard(Modifier.fillMaxWidth(), padding = 16.dp) {
+    DSSectionHead("أقرب مسجد", link = "المساجد القريبة", onLink = onAll)
+    Spacer(Modifier.height(10.dp))
+    val m = results.firstOrNull()
+    when {
+      !Store.nearbyMosques -> {
+        Text("يعرض أقرب مسجد إليك من OpenStreetMap. يُرسل موقعك مقرّبًا إلى نحو كيلومتر عند البحث، ولا يُحفظ لدينا.", style = DSType.bodySm, color = c.textSecondary)
+        Spacer(Modifier.height(10.dp))
+        DSButton("اعرض أقرب مسجد", Modifier.fillMaxWidth(), icon = Icons.Outlined.Mosque) { Store.nearbyMosques = true; Store.save() }
+      }
+      m != null -> Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        DSIconButton(Icons.Outlined.Mosque, style = IconStyle.Soft, size = 42.dp, iconSize = 17.dp)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+          Text(m.name, style = DSType.headingSm, color = c.textPrimary, maxLines = 1)
+          Text("${MosqueFinder.distanceLabel(m.distanceKm)} · ${MosqueFinder.walkLabel(m.distanceKm)} · ${Qibla.compassPointAr(m.bearing)}", style = DSType.labelXs, color = c.textSecondary, maxLines = 1)
+        }
+        DSIconButton(Icons.Outlined.Directions, style = IconStyle.Brand, size = 38.dp, iconSize = 16.dp, contentDescription = "الاتجاهات إلى ${m.name}") { runCatching { ctx.startActivity(MosqueFinder.directionsIntent(m)) } }
+      }
+      loading -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { androidx.compose.material3.CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = c.brandPrimary); Text("جارٍ البحث حولك…", style = DSType.bodySm, color = c.textSecondary) }
+      else -> Text(error ?: "لا مساجد ضمن ٣ كم — افتح «المساجد القريبة» للبحث بالاسم", style = DSType.bodySm, color = c.textSecondary)
     }
   }
 }

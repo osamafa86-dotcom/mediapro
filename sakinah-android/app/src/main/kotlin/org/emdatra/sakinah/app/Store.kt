@@ -36,12 +36,15 @@ object Store {
   var adhkarProgress by mutableStateOf(WebSettings.AdhkarProgress()); var favorites by mutableStateOf<List<String>>(emptyList()); var tasbih by mutableStateOf(TasbihState()); var hisnFavorites by mutableStateOf<List<Int>>(emptyList()); var textScale by mutableStateOf(1.0)
   var adhkarLog by mutableStateOf<AdhkarLog>(emptyMap()); var haptics by mutableStateOf(true); var tasbihSound by mutableStateOf(false)
   var seenChromeHint by mutableStateOf(false)
+  /** بطاقة «أقرب مسجد» في الرئيسية — اختيارية لأنها تُرسل الموقع (مقرّبًا) إلى OpenStreetMap؛ والتخزين نصّ JSON لخلية واحدة */
+  var nearbyMosques by mutableStateOf(false); var mosquesCache: String? = null
 
   private fun <T> get(key: String, ser: KSerializer<T>): T? = sp.getString(key, null)?.let { runCatching { json.decodeFromString(ser, it) }.getOrNull() }
   private fun <T> put(key: String, ser: KSerializer<T>, v: T?) { sp.edit().apply { if (v == null) remove(key) else putString(key, json.encodeToString(ser, v)) }.apply() }
   private fun load() {
     methodId = sp.getString("prayer.method", methodId)!!; methodAuto = sp.getBoolean("prayer.methodAuto", true); madhab = sp.getString("prayer.madhab", "shafi")!!; highLat = sp.getString("prayer.highLat", "auto")!!
     hour12 = sp.getBoolean("ui.hour12", true); seenIntro = sp.getBoolean("seenIntro", false); numerals = sp.getString("ui.numerals", "latn")!!; hijriOffset = sp.getInt("hijri.offset", 0)
+    nearbyMosques = sp.getBoolean("mosques.enabled", false); mosquesCache = sp.getString("mosques.cache", null)
     locLat = sp.getFloat("loc.lat", Float.NaN).toDouble(); locLon = sp.getFloat("loc.lon", Float.NaN).toDouble(); locTz = sp.getString("loc.tz", null); locName = sp.getString("loc.name", null); locCountry = sp.getString("loc.cc", null); locCityId = sp.getString("loc.city", null); locMode = sp.getString("loc.mode", "gps")!!
     reminders = get("notifications.prefs", ReminderPrefs.serializer()) ?: ReminderPrefs(); extras = get("notifications.extras", ExtraReminderPrefs.serializer()) ?: ExtraReminderPrefs()
     lastRead = get("quran.lastRead", LastRead.serializer()); bookmarks = get("quran.bookmarks", ListSerializer(WebSettings.Bookmark.serializer())) ?: emptyList()
@@ -55,6 +58,7 @@ object Store {
   fun save() {
     sp.edit().putString("prayer.method", methodId).putBoolean("prayer.methodAuto", methodAuto).putString("prayer.madhab", madhab).putString("prayer.highLat", highLat)
       .putBoolean("ui.hour12", hour12).putBoolean("seenIntro", seenIntro).putString("ui.numerals", numerals).putInt("hijri.offset", hijriOffset)
+      .putBoolean("mosques.enabled", nearbyMosques).putString("mosques.cache", mosquesCache)
       .putFloat("loc.lat", locLat.toFloat()).putFloat("loc.lon", locLon.toFloat()).putString("loc.tz", locTz).putString("loc.name", locName).putString("loc.cc", locCountry).putString("loc.city", locCityId).putString("loc.mode", locMode)
       .putString("quran.reciter", reciter).putInt("quran.repeatAyah", repeatAyah).putFloat("quran.rate", rate.toFloat()).putBoolean("quran.follow", follow).putBoolean("quran.wordHighlight", wordHighlight).putBoolean("quran.repeatRange", repeatRange).putBoolean("quran.hifzOnlyCurrent", hifzOnlyCurrent).putString("shareTheme", shareTheme)
       .putString("quran.theme", theme).putBoolean("quran.themeAuto", themeAuto).putBoolean("quran.keepAwake", keepAwake).putString("quran.view", view).putBoolean("quran.tajweed", tajweed).putFloat("quran.fontScale", fontScale.toFloat()).putString("quran.textFont", textFont).putFloat("textScale", textScale.toFloat()).putBoolean("ui.haptics", haptics).putBoolean("ui.tasbihSound", tasbihSound).putBoolean("quran.seenChromeHint", seenChromeHint).apply()
