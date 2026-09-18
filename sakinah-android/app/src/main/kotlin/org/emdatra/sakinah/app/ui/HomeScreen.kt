@@ -8,7 +8,15 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -187,12 +195,20 @@ class CompassReading(val heading: Float?, val accuracy: Int)
 /** ميدالية البوصلة: قرص زجاجي داكن، ٤٨ علامة درجات، حروف الجهات، الكعبة عند رأس إبرة ذهبية متدرّجة، وجوهرة في المركز */
 @Composable fun CompassMedallion(bearing: Double, heading: Double, aligned: Boolean, live: Boolean, modifier: Modifier = Modifier) {
   val rot by animateFloatAsState(-heading.toFloat(), label = "medallion")
-  val gold = Color(0xFFE2C77A); val dark = Color(0xFF05221F)
+  val gold = Color(0xFFE2C77A); val dark = Color(0xFF05221F); val mint = Color(0xFF7BE0CF)
+  // عند التوجّه: هالة نعناعية تنبض حول القرص ونقرة لمسية — إشارة تُرى بلا قراءة
+  val pulse by rememberInfiniteTransition(label = "pulse").animateFloat(0f, 1f, infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "p")
+  val haptic = LocalHapticFeedback.current
+  LaunchedEffect(aligned) { if (aligned) haptic.performHapticFeedback(HapticFeedbackType.LongPress) }
   Box(modifier.alpha(if (live) 1f else 0.5f), contentAlignment = Alignment.Center) {
     Canvas(Modifier.fillMaxSize()) {
       val ctr = center; val r = size.minDimension / 2 - 5.dp.toPx()
+      if (aligned) {
+        drawCircle(Brush.radialGradient(listOf(mint.copy(alpha = 0.45f - 0.25f * pulse), Color.Transparent), center = ctr, radius = r * (1.3f + 0.08f * pulse)), r * (1.3f + 0.08f * pulse), ctr)
+        drawCircle(mint.copy(alpha = 0.95f - 0.6f * pulse), r + 4.dp.toPx() + 3.dp.toPx() * pulse, ctr, style = Stroke(3.dp.toPx()))
+      }
       drawCircle(Brush.radialGradient(listOf(Color(0xFF0B4A43).copy(alpha = 0.9f), dark.copy(alpha = 0.95f)), center = ctr, radius = r), r, ctr)
-      drawCircle(Color.White.copy(alpha = 0.14f), r, ctr, style = Stroke(1.dp.toPx()))
+      drawCircle(if (aligned) mint.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.14f), r, ctr, style = Stroke((if (aligned) 1.5f else 1f).dp.toPx()))
       rotate(rot, ctr) {
         for (i in 0 until 48) {
           val major = i % 12 == 0; val mid = i % 4 == 0

@@ -8,6 +8,7 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -25,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -175,7 +177,16 @@ import kotlin.math.sin
   val c = DS.c
   val rot by animateFloatAsState(-trueHeading.toFloat(), label = "qibla")
   val needle = if (aligned) c.brandPrimary else c.accentGold
+  // عند التوجّه: هالة تنبض حول القرص ونقرة لمسية
+  val pulse by androidx.compose.animation.core.rememberInfiniteTransition(label = "pulse").animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(900, easing = androidx.compose.animation.core.FastOutSlowInEasing), androidx.compose.animation.core.RepeatMode.Reverse), label = "p")
+  val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+  LaunchedEffect(aligned) { if (aligned) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress) }
   Box(Modifier.size(300.dp), contentAlignment = Alignment.Center) {
+    if (aligned) Canvas(Modifier.size(390.dp)) {
+      val r = 150.dp.toPx()
+      drawCircle(Brush.radialGradient(listOf(c.brandPrimary.copy(alpha = 0.35f - 0.2f * pulse), Color.Transparent), center = center, radius = r * (1.25f + 0.06f * pulse)), r * (1.25f + 0.06f * pulse), center)
+      drawCircle(c.brandPrimary.copy(alpha = 0.9f - 0.6f * pulse), r + 5.dp.toPx() + 3.dp.toPx() * pulse, center, style = Stroke(4.dp.toPx()))
+    }
     Box(Modifier.fillMaxSize().clip(CircleShape).background(c.bgSurface))
     Box(Modifier.fillMaxSize(0.78f).clip(CircleShape).background(c.bgSubtle))
     Canvas(Modifier.fillMaxSize()) {

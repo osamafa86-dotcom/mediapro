@@ -39,7 +39,8 @@ struct HomeView: View {
           locationPrompt
         }
       }
-      .padding(.horizontal, 20).padding(.top, 4).padding(.bottom, 24)
+      // ٤٠ لا ٢٤: آخر بطاقة كانت تختبئ خلف تلاشي الشريط العائم (مقيس على جهاز المالك)
+      .padding(.horizontal, 20).padding(.top, 4).padding(.bottom, 40)
     }
   }
 
@@ -288,17 +289,27 @@ struct CompassMedallion: View {
   let heading: Double
   let aligned: Bool
   var live: Bool = true
+  @State private var pulse = false
 
   var body: some View {
     GeometryReader { geo in
       let size = min(geo.size.width, geo.size.height)
       let r = size / 2 - 5
       ZStack {
+        // عند التوجّه: هالة نعناعية تنبض حول القرص — إشارة تُرى من بعيد، مع نقرة لمسية
+        if aligned {
+          Circle().fill(RadialGradient(colors: [Color(hex: 0x7BE0CF).opacity(0.45), .clear], center: .center, startRadius: r * 0.7, endRadius: r * 1.35))
+            .frame(width: r * 2.7, height: r * 2.7)
+            .scaleEffect(pulse ? 1.06 : 0.96).opacity(pulse ? 0.55 : 1)
+          Circle().stroke(Color(hex: 0x7BE0CF), lineWidth: 3)
+            .frame(width: r * 2 + 8, height: r * 2 + 8).blur(radius: 1.5)
+            .scaleEffect(pulse ? 1.05 : 0.99).opacity(pulse ? 0.35 : 0.95)
+        }
         Circle()
           .fill(RadialGradient(colors: [Color(hex: 0x0B4A43).opacity(0.9), Color(hex: 0x05221F).opacity(0.95)], center: .center, startRadius: 0, endRadius: r))
-          .overlay(Circle().stroke(Color.white.opacity(0.14), lineWidth: 1))
+          .overlay(Circle().stroke(aligned ? Color(hex: 0x7BE0CF).opacity(0.8) : Color.white.opacity(0.14), lineWidth: aligned ? 1.5 : 1))
           .frame(width: r * 2, height: r * 2)
-          .shadow(color: .black.opacity(0.35), radius: 18, x: 0, y: 8)
+          .shadow(color: aligned ? Color(hex: 0x7BE0CF).opacity(0.5) : .black.opacity(0.35), radius: 18, x: 0, y: aligned ? 0 : 8)
         ZStack {
           Canvas { ctx, sz in
             let c = CGPoint(x: sz.width / 2, y: sz.height / 2)
@@ -345,7 +356,11 @@ struct CompassMedallion: View {
       }
       .frame(width: size, height: size)
       .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
+      .animation(.easeOut(duration: 0.3), value: aligned)
     }
+    .onAppear { pulse = true }
+    .sensoryFeedback(trigger: aligned) { _, on in on ? .success : nil }
     .accessibilityLabel(aligned ? "متجه إلى القبلة" : "اتجاه القبلة \(Int(bearing)) درجة")
   }
 }

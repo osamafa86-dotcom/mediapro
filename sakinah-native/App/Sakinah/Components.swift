@@ -244,7 +244,6 @@ struct DSTabBar: View {
     // تلاشٍ بلون الورق خلف الشريط: بعض الشاشات تمدّ محتواها تحت المنطقة الآمنة فكان يظهر تحت الكبسولة
     .background {
       LinearGradient(colors: [DS.C.bgCanvas.opacity(0), DS.C.bgCanvas, DS.C.bgCanvas], startPoint: .top, endPoint: .bottom)
-        .padding(.top, -24)
         .ignoresSafeArea(edges: .bottom)
     }
   }

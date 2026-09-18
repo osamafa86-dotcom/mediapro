@@ -165,13 +165,22 @@ struct CompassDial: View {
   let heading: Double
   let aligned: Bool
   var live: Bool = true
+  @State private var pulse = false
 
   var body: some View {
     GeometryReader { geo in
       let size = min(geo.size.width, geo.size.height)
       let r = size / 2
       ZStack {
-        Circle().fill(DS.C.bgSurface).shadow(color: DS.C.shadowCard, radius: 18, x: 0, y: 8)
+        // عند التوجّه: هالة تنبض حول القرص ونقرة لمسية — الإشارة التي تُرى بلا قراءة
+        if aligned {
+          Circle().fill(RadialGradient(colors: [DS.C.brandPrimary.opacity(0.35), .clear], center: .center, startRadius: r * 0.8, endRadius: r * 1.25))
+            .frame(width: size * 1.3, height: size * 1.3)
+            .scaleEffect(pulse ? 1.05 : 0.97).opacity(pulse ? 0.5 : 1)
+          Circle().stroke(DS.C.brandPrimary, lineWidth: 4).frame(width: size + 10, height: size + 10).blur(radius: 2)
+            .scaleEffect(pulse ? 1.04 : 0.995).opacity(pulse ? 0.3 : 0.9)
+        }
+        Circle().fill(DS.C.bgSurface).shadow(color: aligned ? DS.C.brandPrimary.opacity(0.45) : DS.C.shadowCard, radius: 18, x: 0, y: aligned ? 0 : 8)
         Circle().fill(DS.C.bgSubtle).frame(width: size * 0.78, height: size * 0.78)
         ZStack {
           // حلقة النقاط: نقطة كل ٥ درجات، وأكبر عند الجهات الأصلية
@@ -223,7 +232,11 @@ struct CompassDial: View {
       }
       .frame(width: size, height: size)
       .frame(maxWidth: .infinity)
+      .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
+      .animation(.easeOut(duration: 0.3), value: aligned)
     }
+    .onAppear { pulse = true }
+    .sensoryFeedback(trigger: aligned) { _, on in on ? .success : nil }
     .accessibilityLabel(aligned ? "متجه إلى القبلة" : "اتجاه القبلة \(Int(bearing)) درجة")
   }
 }

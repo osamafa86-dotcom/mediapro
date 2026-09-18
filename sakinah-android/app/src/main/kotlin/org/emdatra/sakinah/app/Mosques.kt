@@ -42,11 +42,24 @@ object MosqueFinder {
 
   suspend fun nearby(lat: Double, lon: Double, query: String? = null): Result<List<Mosque>> = withContext(Dispatchers.IO) {
     runCatching {
-      val rl = Math.round(lat * 100) / 100.0; val ro = Math.round(lon * 100) / 100.0
       val q = query?.trim().orEmpty().replace("\"", "").replace("\\", "")
-      val radius = if (q.isEmpty()) 4000 else 15000
+      // ⚠️ `around` لا يرتّب بالقرب: مدى واسع بحدّ ٨٠ قد يُسقط الأقرب (قِيس في إسطنبول) —
+      // فالمدى يتّسع على مراحل حتى تُجمع خمسة على الأقلّ.
+      var items: List<Mosque> = emptyList()
+      for (radius in if (q.isEmpty()) listOf(1500, 4000, 10000) else listOf(15000)) {
+        items = fetch(lat, lon, radius, q)
+        if (items.size >= 5) break
+      }
+      if (q.isEmpty()) { Store.mosquesCache = Res.json.encodeToString(Cache.serializer(), Cache(cellKey(lat, lon), System.currentTimeMillis(), items)); Store.save() }
+      items
+    }
+  }
+
+  private fun fetch(lat: Double, lon: Double, radius: Int, q: String): List<Mosque> {
+    run {
+      val rl = Math.round(lat * 100) / 100.0; val ro = Math.round(lon * 100) / 100.0
       val nameFilter = if (q.isEmpty()) "" else "[\"name\"~\"$q\",i]"
-      val ql = "[out:json][timeout:20];nwr[\"amenity\"=\"place_of_worship\"][\"religion\"=\"muslim\"]$nameFilter(around:$radius,$rl,$ro);out center tags 60;"
+      val ql = "[out:json][timeout:20];nwr[\"amenity\"=\"place_of_worship\"][\"religion\"=\"muslim\"]$nameFilter(around:$radius,$rl,$ro);out center tags 80;"
       val c = URL(ENDPOINT).openConnection() as HttpURLConnection
       c.requestMethod = "POST"; c.connectTimeout = 15_000; c.readTimeout = 25_000; c.doOutput = true
       c.setRequestProperty("User-Agent", UA); c.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
@@ -62,9 +75,8 @@ object MosqueFinder {
         val name = tags["name:ar"]?.jsonPrimitive?.contentOrNull ?: tags["name"]?.jsonPrimitive?.contentOrNull ?: "مسجد (بلا اسم)"
         val addr = listOfNotNull(tags["addr:street"]?.jsonPrimitive?.contentOrNull, tags["addr:city"]?.jsonPrimitive?.contentOrNull).joinToString("، ").ifBlank { null }
         rerank(Mosque("${o["type"]?.jsonPrimitive?.contentOrNull}/${o["id"]?.jsonPrimitive?.contentOrNull}", name, la, lo, addr), lat, lon)
-      }.sortedBy { it.distanceKm }.take(40)
-      if (q.isEmpty()) { Store.mosquesCache = Res.json.encodeToString(Cache.serializer(), Cache(cellKey(lat, lon), System.currentTimeMillis(), items)); Store.save() }
-      items
+      }.sortedBy { it.distanceKm }.take(60)
+      return items
     }
   }
 
