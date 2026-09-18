@@ -131,9 +131,10 @@ final class AppModel {
     let daily = Reminders.daily(prefs: extras, khatmah: quran.khatmah, number: number)
     guard let coords = coordinates else { notifications.sync(reminders: [], daily: daily, prefs: prefs, tz: timeZone); return }
     let adhkar = Reminders.adhkar(coords: coords, tz: tz, params: s.params(tz: tz), prefs: extras, days: 7)
-    let budget = max(20, 60 - daily.count - adhkar.count)
+    let khatmahAfter = Reminders.khatmahAfterPrayer(coords: coords, tz: tz, params: s.params(tz: tz), plan: quran.khatmah, number: number)
+    let budget = max(20, 60 - daily.count - adhkar.count - khatmahAfter.count)
     let items = Reminders.upcoming(coords: coords, tz: tz, params: s.params(tz: tz), prefs: prefs, max: budget,
                                    format: { Fmt.time($0, tz: tz, hour12: s.hour12, numerals: s.numerals) }, number: number)
-    notifications.sync(reminders: items + adhkar, daily: daily, prefs: prefs, tz: tz)
+    notifications.sync(reminders: items + adhkar + khatmahAfter, daily: daily, prefs: prefs, tz: tz)
   }
 }

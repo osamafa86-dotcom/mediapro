@@ -4,9 +4,9 @@ import SakinahCore
 
 /// نوافذ القارئ
 enum ReaderSheet: Identifiable {
-  case index, quickNav, options, display, legend, reciter, downloads, khatmah, challenges
+  case index, quickNav, options, display, legend, reciter, downloads, khatmah
   case ayah(Int), bookmark(Int), tafsir(Int), translation(Int), words(Int)
-  var id: String { switch self { case .index: return "index"; case .quickNav: return "nav"; case .options: return "opt"; case .display: return "disp"; case .legend: return "leg"; case .reciter: return "rec"; case .downloads: return "dl"; case .khatmah: return "kh"; case .challenges: return "ch"; case .ayah(let n): return "a\(n)"; case .bookmark(let n): return "b\(n)"; case .tafsir(let n): return "t\(n)"; case .translation(let n): return "tr\(n)"; case .words(let n): return "w\(n)" } }
+  var id: String { switch self { case .index: return "index"; case .quickNav: return "nav"; case .options: return "opt"; case .display: return "disp"; case .legend: return "leg"; case .reciter: return "rec"; case .downloads: return "dl"; case .khatmah: return "kh"; case .ayah(let n): return "a\(n)"; case .bookmark(let n): return "b\(n)"; case .tafsir(let n): return "t\(n)"; case .translation(let n): return "tr\(n)"; case .words(let n): return "w\(n)" } }
 }
 
 /// قارئ المصحف: تقليب أفقي من اليمين (أو رأسي)، صفحات المطبوع أو نص متدفق، سمات، تلاوة بتظليل الكلمة، علامات، مراجعة حفظ، وفهرس وبحث
@@ -452,15 +452,13 @@ struct MushafReaderView: View {
   @ViewBuilder
   private func sheetView(_ s: ReaderSheet) -> some View {
     switch s {
-    case .index: MushafIndexView(currentPage: current) { p in sheet = nil; go(to: p) }.environment(model)
-    case .quickNav: QuickNavSheet(currentPage: current) { p, ayah in sheet = nil; go(to: p); if let ayah { flash(ayah) } }.environment(model)
+    case .index, .quickNav: QuickNavSheet(currentPage: current) { p, ayah in sheet = nil; go(to: p); if let ayah { flash(ayah) } }.environment(model)
     case .options: ReaderOptionsSheet(currentPage: current, onGo: { p, ayah in sheet = nil; go(to: p); if let a = ayah { flash(a) } }, onPlayPage: { sheet = nil; if let a = QuranText.shared.pageAyahs(current).first { playFrom(a.n, scope: .page) } }, onOpen: { sheet = $0 }).environment(model)
     case .display: DisplaySheet(onLegend: { sheet = .legend }).environment(model)
     case .legend: TajweedLegendSheet(dark: rs?.isDark ?? false)
     case .reciter: ReciterPickerSheet().environment(model)
     case .downloads: DownloadsView(focusSurah: QuranText.shared.pageAyahs(current).first?.surah).environment(model)
-    case .khatmah: KhatmahSheet().environment(model)
-    case .challenges: ChallengesSheet().environment(model)
+    case .khatmah: KhatmahSheet(onGo: { p in sheet = nil; go(to: p) }).environment(model)
     case .ayah(let n):
       if let a = QuranText.shared.ayah(n) {
         AyahOptionsSheet(ayah: a, onAction: { act in sheet = nil; handle(act, a) }).environment(model).presentationDetents([.medium, .large])

@@ -74,6 +74,9 @@ final class RecitationPlayer: NSObject {
   var reciter: String = Catalog.shared.defaultReciter
   var repeatAyah = 1
   var repeatRange = false
+  /// تكرار «أ–ب»: فهرسا البداية والنهاية داخل القائمة؛ عند بلوغ ب يعود إلى أ
+  var rangeA: Int?
+  var rangeB: Int?
   var rate: Double = 1
   var words = true
   var sleepAt: Date?
@@ -99,10 +102,19 @@ final class RecitationPlayer: NSObject {
   var currentAyah: Ayah? { current.flatMap { QuranText.shared.ayah($0) } }
   var reciterInfo: Reciter { Catalog.shared.reciter(reciter) }
   var hasWords: Bool { segments != nil }
+  var hasRange: Bool { rangeA != nil && rangeB != nil }
+  func setRange(a: Int?, b: Int?) { if let a, let b { rangeA = min(a, b); rangeB = max(a, b) } else { rangeA = a; rangeB = b } }
+  func clearRange() { rangeA = nil; rangeB = nil }
+  /// الانتقال داخل الآية الجارية (بالثواني)
+  func seek(to seconds: Double) {
+    let t = max(0, min(seconds, duration > 0 ? duration : seconds))
+    player?.seek(to: CMTime(seconds: t, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+    position = t
+  }
 
   /// تشغيل قائمة آيات (أرقام عامة) بدءًا من فهرس
   func play(queue q: [Int], startIndex: Int = 0) {
-    queue = q; index = min(max(0, startIndex), max(0, q.count - 1)); repeatsLeft = repeatAyah; attempt = 0
+    queue = q; index = min(max(0, startIndex), max(0, q.count - 1)); repeatsLeft = repeatAyah; attempt = 0; clearRange()
     guard let n = current else { return }
     activateSession(); setupRemoteCommands()
     load(n, autoplay: true)
@@ -168,7 +180,8 @@ final class RecitationPlayer: NSObject {
   private func onEnded() {
     if repeatsLeft > 1 { repeatsLeft -= 1; player?.seek(to: .zero); player?.rate = Float(rate); return }
     repeatsLeft = repeatAyah
-    if index + 1 < queue.count { index += 1; attempt = 0; load(queue[index], autoplay: true) }
+    if let a = rangeA, let b = rangeB, index >= b, a < queue.count { index = a; attempt = 0; load(queue[a], autoplay: true) }
+    else if index + 1 < queue.count { index += 1; attempt = 0; load(queue[index], autoplay: true) }
     else if repeatRange, !queue.isEmpty { index = 0; attempt = 0; load(queue[0], autoplay: true) }
     else { isPlaying = false; syncNowPlaying() }
   }
@@ -178,7 +191,7 @@ final class RecitationPlayer: NSObject {
   func stop() {
     loadToken += 1; loading = false; teardownItem()
     player?.pause(); player?.replaceCurrentItem(with: nil)
-    isPlaying = false; index = -1; queue = []; segments = nil; currentWord = nil; sleepAt = nil; position = 0; duration = 0
+    isPlaying = false; index = -1; queue = []; segments = nil; currentWord = nil; sleepAt = nil; position = 0; duration = 0; clearRange()
     MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
   }
   func nextAyah() { guard index + 1 < queue.count else { return }; index += 1; repeatsLeft = repeatAyah; attempt = 0; load(queue[index], autoplay: true) }

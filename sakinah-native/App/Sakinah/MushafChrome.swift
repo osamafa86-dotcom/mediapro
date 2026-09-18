@@ -120,7 +120,7 @@ struct AudioBarView: View {
   }
 }
 
-// MARK: - المشغّل الكامل (تصميم 05): خلفية الليل، القارئ، الآية بكلمتها الجارية، شريط موجة، أزرار التحكّم، شرائح الخيارات
+// MARK: - المشغّل الكامل: ميدالية أصغر، الآية (كلمةً بكلمة فقط حين تتوفّر التوقيتات)، شريط تقدّم صادق يُسحب، تحكّم، شرائح (أ–ب، السرعة، النوم، القارئ، تنزيل السورة، الصفحة)
 struct PlayerSheet: View {
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss
@@ -129,13 +129,14 @@ struct PlayerSheet: View {
   var toast: ((String) -> Void)? = nil
   @State private var showDownloads = false
   @State private var showReciters = false
-  private let bars: [CGFloat] = [8, 14, 22, 30, 18, 26, 34, 20, 12, 28, 36, 24, 16, 30, 22, 14, 26, 32, 18, 10, 24, 34, 28, 16, 20, 30, 12, 22, 26, 18, 32, 24, 14, 28, 20, 10, 16, 24, 30, 18]
+  /// الموضع أثناء سحب شريط التقدّم (nil حين لا يُسحب)
+  @State private var scrubbing: Double?
 
   var body: some View {
     let p = model.player; let q = model.quran; let numerals = model.settings.numerals
     ZStack {
       LinearGradient(colors: [DS.C.nightTop, Color(hex: 0x061716)], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
-      VStack(spacing: 16) {
+      VStack(spacing: 14) {
         HStack {
           DSIconButton(systemName: "chevron.down", style: .glass, size: 40, iconSize: 16, label: "إغلاق") { dismiss() }
           Spacer()
@@ -144,10 +145,10 @@ struct PlayerSheet: View {
           DSIconButton(systemName: "arrow.down.circle", style: .glass, size: 40, iconSize: 18, label: "التنزيلات") { showDownloads = true }
         }
         Spacer(minLength: 0)
-        reciterBlock(p)
+        reciterBlock(p, numerals)
         Spacer(minLength: 0)
         if let a = p.currentAyah { ayahBox(a, p, numerals) }
-        waveform(p, numerals)
+        progressBar(p, numerals)
         controls(p, q, numerals)
         chips(p, q, numerals)
         Spacer(minLength: 8)
@@ -159,53 +160,82 @@ struct PlayerSheet: View {
     .sheet(isPresented: $showReciters) { ReciterPickerSheet().environment(model) }
   }
 
-  private func reciterBlock(_ p: RecitationPlayer) -> some View {
-    let numerals = model.settings.numerals
-    return VStack(spacing: 8) {
+  private func reciterBlock(_ p: RecitationPlayer, _ numerals: String) -> some View {
+    VStack(spacing: 8) {
       ZStack {
-        Circle().stroke(DS.C.accentGold.opacity(0.8), lineWidth: 2).frame(width: 132, height: 132)
-        Circle().fill(Color.white.opacity(0.12)).frame(width: 112, height: 112)
-        Text(String(p.reciterInfo.name.prefix(1))).font(DS.kufi(40, .bold)).foregroundStyle(DS.C.accentGold)
+        Circle().stroke(DS.C.accentGold.opacity(0.8), lineWidth: 2).frame(width: 96, height: 96)
+        Circle().fill(Color.white.opacity(0.12)).frame(width: 80, height: 80)
+        Text(String(p.reciterInfo.name.prefix(1))).font(DS.kufi(30, .bold)).foregroundStyle(DS.C.accentGold)
       }
-      Button { showReciters = true } label: { Text(p.reciterInfo.name).font(DS.F.displayMd).foregroundStyle(DS.C.textOnDark).multilineTextAlignment(.center) }.buttonStyle(.plain)
+      .accessibilityHidden(true)
+      Button { showReciters = true } label: {
+        HStack(spacing: 6) { Text(p.reciterInfo.name).font(DS.F.displaySm).foregroundStyle(DS.C.textOnDark).multilineTextAlignment(.center); Image(systemName: "chevron.down").font(.system(size: 11, weight: .semibold)).foregroundStyle(DS.C.textOnDarkMuted) }
+      }.buttonStyle(.plain).accessibilityLabel("القارئ \(p.reciterInfo.name)").accessibilityHint("تغيير القارئ")
       if let a = p.currentAyah {
-        Text("سورة \(QuranMeta.surah(a.surah).name) · الآية \(Fmt.number(a.ayah, numerals: numerals)) من \(Fmt.number(QuranMeta.surah(a.surah).ayahs, numerals: numerals))\(p.hasWords ? " · كلمة بكلمة" : "")").font(DS.F.labelSm).foregroundStyle(DS.C.textOnDarkMuted)
+        Text("سورة \(QuranMeta.surah(a.surah).name) · الآية \(Fmt.number(a.ayah, numerals: numerals)) من \(Fmt.number(QuranMeta.surah(a.surah).ayahs, numerals: numerals))\(rangeLabel(p, numerals))\(p.hasWords ? "" : " · بلا توقيت كلمات")").font(DS.F.labelSm).foregroundStyle(DS.C.textOnDarkMuted).multilineTextAlignment(.center)
       }
     }
   }
+  private func rangeLabel(_ p: RecitationPlayer, _ numerals: String) -> String {
+    guard let a = p.rangeA, let b = p.rangeB, a < p.queue.count, b < p.queue.count, let x = QuranText.shared.ayah(p.queue[a]), let y = QuranText.shared.ayah(p.queue[b]) else { return "" }
+    return " · تكرار أ–ب \(Fmt.number(x.ayah, numerals: numerals))–\(Fmt.number(y.ayah, numerals: numerals))"
+  }
 
+  /// نصّ الآية: صندوق كلمة بكلمة فقط حين تتوفّر التوقيتات (الكلمة الجارية تتلوّن ولا تقفز: حشوة ثابتة)، وإلا الآية نصًّا
   private func ayahBox(_ a: Ayah, _ p: RecitationPlayer, _ numerals: String) -> some View {
     let words = a.text.split(separator: " ").map(String.init)
     let cur = (p.hasWords ? p.currentWord : nil).map { $0 - 1 }
-    return VStack(spacing: 8) {
-      FlowLayout(spacing: 8, lineHeight: 36, justify: false) {
-        ForEach(Array(words.enumerated()), id: \.offset) { i, w in
-          Text(w).font(.custom(MushafFonts.amiriQuranFont, fixedSize: 21))
-            .foregroundStyle(cur == i ? Color(hex: 0x16211F) : DS.C.textOnDark)
-            .padding(.horizontal, cur == i ? 8 : 0).padding(.vertical, 2)
-            .background(cur == i ? DS.C.accentGold : .clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    return Group {
+      if p.hasWords {
+        FlowLayout(spacing: 6, lineHeight: 36, justify: false) {
+          ForEach(Array(words.enumerated()), id: \.offset) { i, w in
+            Text(w).font(.custom(MushafFonts.amiriQuranFont, fixedSize: 21))
+              .foregroundStyle(cur == i ? Color(hex: 0x16211F) : DS.C.textOnDark)
+              .padding(.horizontal, 5).padding(.vertical, 2)
+              .background(cur == i ? DS.C.accentGold : Color.clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+          }
+          Text("﴿\(Fmt.number(a.ayah, numerals: numerals))﴾").font(.custom(MushafFonts.amiriQuranFont, fixedSize: 21)).foregroundStyle(DS.C.accentGold).padding(.horizontal, 5)
         }
-        Text("﴿\(Fmt.number(a.ayah, numerals: numerals))﴾").font(.custom(MushafFonts.amiriQuranFont, fixedSize: 21)).foregroundStyle(DS.C.accentGold)
+        .frame(maxWidth: .infinity)
+        .padding(14)
+        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: DS.Radius.xl, style: .continuous))
+        .animation(.easeInOut(duration: 0.12), value: p.currentWord)
+      } else {
+        Text(a.text + " ﴿\(Fmt.number(a.ayah, numerals: numerals))﴾").font(.custom(MushafFonts.amiriQuranFont, fixedSize: 20)).lineSpacing(10).multilineTextAlignment(.center).foregroundStyle(DS.C.textOnDark)
+          .frame(maxWidth: .infinity).lineLimit(4).minimumScaleFactor(0.75)
       }
-      .frame(maxWidth: .infinity)
-      Text(p.hasWords ? "تظليل الكلمة بتوقيتات quran.com" : "اختر قارئًا يدعم «كلمة بكلمة» لتظليل الكلمة الجارية").font(DS.F.labelXs).foregroundStyle(DS.C.textOnDarkMuted)
     }
-    .padding(16)
-    .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: DS.Radius.xl, style: .continuous))
-    .animation(.easeInOut(duration: 0.15), value: p.currentWord)
+    .accessibilityElement(children: .ignore).accessibilityLabel("الآية الجارية").accessibilityValue(a.text)
   }
 
-  private func waveform(_ p: RecitationPlayer, _ numerals: String) -> some View {
-    let frac = p.duration > 0 ? min(1, p.position / p.duration) : 0
+  /// شريط تقدّم صادق يملأ من اليمين (اتجاه القراءة) ويُسحب للانتقال داخل الآية؛ يُرسم في فضاء من اليسار إلى اليمين كي لا يلتبس اتجاه اللمسة
+  private func progressBar(_ p: RecitationPlayer, _ numerals: String) -> some View {
+    let frac = p.duration > 0 ? min(1, max(0, (scrubbing ?? p.position) / p.duration)) : 0
     return VStack(spacing: 6) {
-      HStack(spacing: 4) {
-        ForEach(Array(bars.enumerated()), id: \.offset) { i, h in
-          let played = Double(i) / Double(bars.count) < frac
-          Capsule().fill(played ? DS.C.accentGold : Color.white.opacity(0.35)).frame(width: 4, height: h)
+      GeometryReader { g in
+        let w = g.size.width
+        let fill = max(4, w * frac)
+        ZStack(alignment: .leading) {
+          Capsule().fill(Color.white.opacity(0.18)).frame(width: w, height: 4)
+          Capsule().fill(DS.C.accentGold).frame(width: fill, height: 4).offset(x: w - fill)
+          Circle().fill(DS.C.accentGold).frame(width: 14, height: 14).offset(x: min(max(w - fill - 7, 0), w - 14)).shadow(color: .black.opacity(0.3), radius: 4)
         }
+        .frame(width: w, height: 24, alignment: .leading)
+        .contentShape(Rectangle())
+        .gesture(
+          DragGesture(minimumDistance: 0)
+            .onChanged { v in guard p.duration > 0 else { return }; scrubbing = (1 - min(max(v.location.x / w, 0), 1)) * p.duration }
+            .onEnded { v in guard p.duration > 0 else { return }; let t = (1 - min(max(v.location.x / w, 0), 1)) * p.duration; scrubbing = nil; p.seek(to: t) }
+        )
       }
-      .frame(maxWidth: .infinity, alignment: .center).frame(height: 40)
-      HStack { Text(time(p.position, numerals)).font(DS.F.labelXs).foregroundStyle(DS.C.textOnDarkMuted); Spacer(); Text(time(p.duration, numerals)).font(DS.F.labelXs).foregroundStyle(DS.C.textOnDarkMuted) }
+      .frame(height: 24)
+      .environment(\.layoutDirection, .leftToRight)
+      .accessibilityElement()
+      .accessibilityLabel("موضع التلاوة")
+      .accessibilityValue("\(time(scrubbing ?? p.position, numerals)) من \(time(p.duration, numerals))")
+      .accessibilityAdjustableAction { d in p.seek(to: p.position + (d == .increment ? 5 : -5)) }
+      HStack { Text(time(scrubbing ?? p.position, numerals)).font(DS.F.numericSm).foregroundStyle(DS.C.textOnDarkMuted); Spacer(); Text(time(p.duration, numerals)).font(DS.F.numericSm).foregroundStyle(DS.C.textOnDarkMuted) }
+        .accessibilityHidden(true)
     }
   }
   private func time(_ t: Double, _ numerals: String) -> String { let s = max(0, Int(t)); return "\(Fmt.number(s / 60, numerals: numerals)):\(s % 60 < 10 ? Fmt.number(0, numerals: numerals) : "")\(Fmt.number(s % 60, numerals: numerals))" }
@@ -228,12 +258,19 @@ struct PlayerSheet: View {
   }
 
   private func chips(_ p: RecitationPlayer, _ q: QuranPrefs, _ numerals: String) -> some View {
-    ScrollView(.horizontal, showsIndicators: false) {
+    let ab: String = p.hasRange ? "أ–ب ✓" : (p.rangeA != nil ? "أ ✓ — اختر ب" : "تكرار أ–ب")
+    return ScrollView(.horizontal, showsIndicators: false) {
       HStack(spacing: 8) {
+        glassChip(ab, "repeat.1", on: p.rangeA != nil) {
+          if p.hasRange { p.clearRange(); toast?("أُلغي تكرار أ–ب") }
+          else if let a = p.rangeA { p.setRange(a: a, b: p.index); toast?("سيُكرَّر المقطع من أ إلى ب") }
+          else { p.setRange(a: p.index, b: nil); toast?("حُدّدت البداية (أ) — انتقل إلى آية النهاية ثم اضغط مرة أخرى") }
+        }
         glassChip("السرعة \(Fmt.decimal(p.rate, digits: 2, numerals: numerals))×", "speedometer", on: p.rate != 1) { let o = [0.75, 1, 1.25, 1.5]; let nx = o[((o.firstIndex(of: p.rate) ?? 1) + 1) % o.count]; p.setRate(nx); q.rate = nx }
-        glassChip("تكرار المقطع", "repeat.1", on: p.repeatRange) { p.repeatRange.toggle(); q.repeatRange = p.repeatRange }
+        glassChip("تكرار القائمة", "repeat", on: p.repeatRange) { p.repeatRange.toggle(); q.repeatRange = p.repeatRange }
         glassChip(p.sleepMinutesLeft.map { "نوم \(Fmt.number($0, numerals: numerals)) د" } ?? "مؤقت النوم", "moon", on: p.sleepAt != nil) { let o = [0, 15, 30, 45, 60]; let cur = p.sleepMinutesLeft ?? 0; let nx = o[((o.firstIndex { $0 >= cur } ?? 0) + 1) % o.count]; p.setSleep(minutes: nx) }
         glassChip("القارئ", "mic", on: false) { showReciters = true }
+        glassChip("تنزيل السورة", "arrow.down.circle", on: false) { showDownloads = true }
         if let a = p.currentAyah, let go = onGoToPage { glassChip("الانتقال إلى ص \(Fmt.number(a.page, numerals: numerals))", "arrow.turn.down.left", on: false) { dismiss(); go(a.page) } }
       }
     }
@@ -244,7 +281,7 @@ struct PlayerSheet: View {
         .foregroundStyle(on ? Color(hex: 0x16211F) : DS.C.textOnDark)
         .padding(.vertical, 8).padding(.horizontal, 12)
         .background(on ? DS.C.accentGold : Color.white.opacity(0.12), in: Capsule())
-    }.buttonStyle(.plain)
+    }.buttonStyle(.plain).accessibilityAddTraits(on ? .isSelected : [])
   }
 }
 

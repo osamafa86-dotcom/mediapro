@@ -219,6 +219,7 @@ struct NawawiCard: View {
 struct MoreView: View {
   @Environment(AppModel.self) private var model
   @State private var showChallenges = false
+  @Environment(\.switchTab) private var switchTab
   private var version: String { (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "—" }
   private var build: String { (Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? "—" }
 
@@ -241,7 +242,7 @@ struct MoreView: View {
             }.buttonStyle(.plain)
             Divider().overlay(DS.C.borderSubtle)
             Button { showChallenges = true } label: {
-              DSRow(icon: "flame", iconStyle: .gold, title: "التحدّيات والختمة", subtitle: streakLabel) { DSChevron() }
+              DSRow(icon: "book.closed", iconStyle: .gold, title: "الختمة والأوراد المسنونة", subtitle: streakLabel) { DSChevron() }
             }.buttonStyle(.plain)
           }
           group("الأدوات") {
@@ -286,7 +287,7 @@ struct MoreView: View {
           .padding(.horizontal, DS.Space.s4).padding(.vertical, DS.Space.s3).background(DS.C.bgCanvas)
       }
       .navigationBarHidden(true)
-      .sheet(isPresented: $showChallenges) { ChallengesSheet().environment(model) }
+      .sheet(isPresented: $showChallenges) { KhatmahSheet(onGo: { p in showChallenges = false; model.pendingReaderPage = p; switchTab(.mushaf) }).environment(model) }
     }
   }
 
@@ -312,9 +313,11 @@ struct MoreView: View {
     .dsCard()
   }
 
+  /// لا سلسلة تنكسر: التزامك بالورد في الأسبوعين الأخيرين إن كانت ثمّة خطة
   private var streakLabel: String? {
-    let n = Khatmah.streak(model.quran.readLog, today: model.todayKey)
-    return n > 0 ? "سلسلة \(Fmt.number(n, numerals: model.settings.numerals)) \(n == 1 ? "يوم" : n == 2 ? "يومان" : n <= 10 ? "أيام" : "يومًا")" : nil
+    guard let plan = model.quran.khatmah else { return nil }
+    let c = Wird.commitment(model.quran.wird, today: model.todayKey, target: plan.dailyPages, days: 14)
+    return "التزامك \(Fmt.number(c.done, numerals: model.settings.numerals)) من \(Fmt.number(c.total, numerals: model.settings.numerals)) يومًا"
   }
   private var downloadsLabel: String? {
     let n = model.downloads.summary(reciter: model.quran.reciter).count

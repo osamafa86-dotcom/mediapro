@@ -46,7 +46,7 @@ struct MushafHomeView: View {
       .onAppear { if let p = model.pendingReaderPage { model.pendingReaderPage = nil; Task { @MainActor in try? await Task.sleep(for: .milliseconds(80)); target = ReaderTarget(page: p) } } }
       .sheet(item: $sheet) { sh in
         switch sh {
-        case .khatmah: KhatmahSheet().environment(model)
+        case .khatmah: KhatmahSheet(onGo: { p in sheet = nil; DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { target = ReaderTarget(page: p) } }).environment(model)
         case .reciter: ReciterPickerSheet().environment(model)
         }
       }
@@ -383,57 +383,3 @@ struct QuranSearchRows: View {
     }
   }
 }
-
-/// فهرس المصحف داخل القارئ: السور (مع بحث)، الأجزاء، والعلامات
-struct MushafIndexView: View {
-  @Environment(AppModel.self) private var model
-  @Environment(\.dismiss) private var dismiss
-  let currentPage: Int
-  var onSelect: (Int) -> Void
-  @State private var tab = 0
-  @State private var query = ""
-  var body: some View {
-    let numerals = model.settings.numerals
-    NavigationStack {
-      VStack(spacing: 0) {
-        DSSegmented(items: ["السور", "الأجزاء", "العلامات"], selection: $tab).padding(.horizontal).padding(.bottom, 8)
-        switch tab {
-        case 0: SurahListView(query: $query, currentPage: currentPage) { onSelect($0) }
-        case 1:
-          List(QuranMeta.juzStarts, id: \.juz) { j in Button { onSelect(j.page) } label: { NavRow(num: Fmt.number(j.juz, numerals: numerals), title: QuranMeta.juzName(j.juz, vocalized: false), sub: "\(QuranMeta.surah(j.surah).name) · الآية \(Fmt.number(j.ayah, numerals: numerals))", page: Fmt.number(j.page, numerals: numerals), current: QuranMeta.juz(ofPage: currentPage) == j.juz) }.tint(.primary) }.listStyle(.plain)
-        default:
-          List {
-            if model.quran.bookmarks.isEmpty { Text("لا علامات بعد").foregroundStyle(DS.C.textSecondary) }
-            ForEach(model.quran.bookmarks.reversed(), id: \.self) { b in if let a = QuranText.shared.ayah(surah: b.surah, ayah: b.ayah) { Button { onSelect(a.page) } label: { BookmarkRow(bookmark: b, ayah: a, numerals: numerals) }.tint(.primary) } }
-          }.listStyle(.plain)
-        }
-      }
-      .background(DS.C.bgCanvas)
-      .navigationTitle("الفهرس").navigationBarTitleDisplayMode(.inline)
-      .toolbar { ToolbarItem(placement: .cancellationAction) { Button("إغلاق") { dismiss() }.font(DS.F.labelMd) } }
-    }
-  }
-}
-
-/// قائمة السور مع بحث بالاسم (تطبيع الهمزات والتاء المربوطة والتشكيل)
-struct SurahListView: View {
-  @Environment(AppModel.self) private var model
-  @Binding var query: String
-  var currentPage: Int = 0
-  var onSelect: (Int) -> Void
-  private var filtered: [Surah] {
-    let q = CityDatabase.normalize(query)
-    if q.isEmpty { return QuranMeta.surahs }
-    if let n = Int(QuranNormalize.foldDigits(q)), (1...114).contains(n) { return [QuranMeta.surah(n)] }
-    return QuranMeta.surahs.filter { CityDatabase.normalize($0.plain).contains(q) || CityDatabase.normalize($0.name).contains(q) || $0.en.lowercased().contains(q) }
-  }
-  var body: some View {
-    let s = model.settings
-    List(filtered) { su in
-      Button { onSelect(su.page) } label: { SurahRow(surah: su, numerals: s.numerals, current: currentPage >= su.page && currentPage < (su.n < 114 ? QuranMeta.surah(su.n + 1).page : 605)) }.tint(.primary)
-    }
-    .listStyle(.plain)
-    .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "ابحث عن سورة")
-  }
-}
-

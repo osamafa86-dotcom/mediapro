@@ -293,7 +293,7 @@ struct HomeView: View {
     let s = model.settings; let q = model.quran; let n = s.numerals; let today = model.todayKey
     let last = s.lastRead
     let page = last?.page ?? 1
-    let stt = q.khatmah.map { Khatmah.status($0, currentPage: page, log: q.readLog, today: today) }
+    let stt = q.khatmah.map { Khatmah.status($0, wird: q.wird, today: today) }
     let pct = stt.map { Double($0.percent) / 100 } ?? Double(page) / 604
     let pagesToday = q.readLog[today]?.count ?? 0
     let progressLine: String = {

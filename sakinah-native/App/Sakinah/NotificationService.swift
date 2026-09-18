@@ -34,15 +34,15 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     center.removeAllPendingNotificationRequests()
     var cal = Calendar(identifier: .gregorian); cal.timeZone = tz
     let prayerItems = prefs.enabled ? reminders.filter { $0.kind == .adhan || $0.kind == .pre || $0.kind == .sunrise } : []
-    let extraItems = reminders.filter { $0.kind == .adhkar }
+    let extraItems = reminders.filter { $0.kind == .adhkar || $0.kind == .khatmah }
     for r in prayerItems + extraItems {
       let content = UNMutableNotificationContent()
       content.title = r.title
       content.body = r.body
-      content.threadIdentifier = r.kind == .adhkar ? "adhkar" : "prayer"
+      content.threadIdentifier = r.kind == .adhkar ? "adhkar" : (r.kind == .khatmah ? "khatmah" : "prayer")
       content.userInfo = ["kind": r.kind.rawValue, "prayer": r.prayer?.rawValue ?? ""]
       if r.kind == .adhan && prefs.usesAdhanSound { content.sound = UNNotificationSound(named: UNNotificationSoundName("adhan_short.wav")) }
-      else if r.kind == .adhkar || prefs.sound != "none" { content.sound = .default }
+      else if r.kind == .adhkar || r.kind == .khatmah || prefs.sound != "none" { content.sound = .default }
       content.interruptionLevel = r.kind == .adhan ? .timeSensitive : .active
       let comps = cal.dateComponents([.year, .month, .day, .hour, .minute, .second], from: r.time)
       let req = UNNotificationRequest(identifier: r.id, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: false))

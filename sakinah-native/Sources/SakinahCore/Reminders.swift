@@ -112,5 +112,26 @@ extension Reminders {
     if let k = khatmah, let r = k.reminder, let hm = parseHM(r) { out.append(DailyReminder(id: "daily:khatmah", hour: hm.h, minute: hm.m, title: "ورد اليوم من القرآن", body: "\(number(k.dailyPages)) صفحات تُبقيك على جدول الختمة", kind: .khatmah)) }
     return out
   }
+  /// تذكير الختمة «بعد صلاة»: `after:isha` → الصلاة، وإلا nil (الوقت الثابت «HH:MM» يبقى في `daily`)
+  public static func afterPrayer(_ reminder: String?) -> Prayer? {
+    guard let r = reminder, r.hasPrefix("after:") else { return nil }
+    return Prayer(rawValue: String(r.dropFirst(6)))
+  }
+  /// تذكيرات ورد الختمة بعد صلاةٍ بعينها للأيام القادمة (بعد الأذان بـ `offsetMinutes`) — وقتها يتبع المواقيت فلا يصلح لها تذكير ثابت
+  public static func khatmahAfterPrayer(coords: Coordinates, tz: TimeZone, params: PrayerParams, plan: KhatmahPlan?, now: Date = Date(), days: Int = 7, offsetMinutes: Int = 20, number: (Int) -> String = { String($0) }) -> [Reminder] {
+    guard let plan, let prayer = afterPrayer(plan.reminder), prayer != .sunrise else { return [] }
+    var p = params; p.tz = tz.identifier
+    var out: [Reminder] = []
+    let start = CivilDate(now, in: tz)
+    for i in 0..<days {
+      let d = start.adding(days: i); let key = "\(d.year)-\(d.month)-\(d.day)"
+      let t = PrayerTimes.compute(coords: coords, date: d, params: p)
+      if let at = t[prayer] {
+        out.append(Reminder(id: "\(key):khatmah", time: at.addingTimeInterval(Double(offsetMinutes) * 60), kind: .khatmah, prayer: prayer,
+                            title: "ورد اليوم من القرآن", body: "بعد \(prayer.nameAr): \(number(plan.dailyPages)) صفحات تُبقيك على جدول الختمة"))
+      }
+    }
+    return out.filter { $0.time > now.addingTimeInterval(15) }.sorted { $0.time < $1.time }
+  }
   static func parseHM(_ s: String) -> (h: Int, m: Int)? { let p = s.split(separator: ":").compactMap { Int($0) }; guard p.count == 2, (0...23).contains(p[0]), (0...59).contains(p[1]) else { return nil }; return (p[0], p[1]) }
 }
