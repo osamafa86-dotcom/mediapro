@@ -179,8 +179,13 @@ import kotlin.math.sin
   val needle = if (aligned) c.brandPrimary else c.accentGold
   // عند التوجّه: هالة تنبض حول القرص ونقرة لمسية
   val pulse by androidx.compose.animation.core.rememberInfiniteTransition(label = "pulse").animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(900, easing = androidx.compose.animation.core.FastOutSlowInEasing), androidx.compose.animation.core.RepeatMode.Reverse), label = "p")
-  val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
-  LaunchedEffect(aligned) { if (aligned) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress) }
+  val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current; val view = androidx.compose.ui.platform.LocalView.current
+  // نقرة عند التوجّه ثم نبضة خفيفة مع كل توهّج ما دام متّجهًا
+  LaunchedEffect(aligned) {
+    if (!aligned) return@LaunchedEffect
+    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+    while (true) { kotlinx.coroutines.delay(900); view.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK) }
+  }
   Box(Modifier.size(300.dp), contentAlignment = Alignment.Center) {
     if (aligned) Canvas(Modifier.size(390.dp)) {
       val r = 150.dp.toPx()

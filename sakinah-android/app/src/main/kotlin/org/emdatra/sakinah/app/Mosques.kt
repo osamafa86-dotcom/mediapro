@@ -1,5 +1,7 @@
 package org.emdatra.sakinah.app
 
+import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import kotlinx.coroutines.Dispatchers
@@ -28,11 +30,13 @@ import java.net.URLEncoder
  * المركز المرسل مقرّب إلى ~١ كم كي يبقى ما يغادر الجهاز «موقعًا تقريبيًّا»، والمسافات تُحسب هنا من الموقع الدقيق.
  */
 object MosqueFinder {
-  private const val ENDPOINT = "https://overpass-api.de/api/interpreter"
+  /** الخادم العام أوّلًا ثم مرايا: كلٌّ منها يسقط أحيانًا (504) فيُجرَّب التالي */
+  private val ENDPOINTS = listOf("https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter", "https://overpass.private.coffee/api/interpreter")
   private const val UA = "Sakinah/5.1 (+https://github.com/osamafa86-dotcom/mediapro)"
   @Serializable private data class Cache(val key: String, val at: Long, val items: List<Mosque>)
 
-  fun cellKey(lat: Double, lon: Double): String = String.format(java.util.Locale.US, "%.2f,%.2f", lat, lon)
+  /** v2: نسخة الاستعلام القديمة قد تُسقط الأقرب (حدّ إخراج اعتباطي) فلا يُعاد استخدام مخزونها */
+  fun cellKey(lat: Double, lon: Double): String = String.format(java.util.Locale.US, "v2:%.2f,%.2f", lat, lon)
 
   fun cached(lat: Double, lon: Double): List<Mosque>? {
     val c = Store.mosquesCache?.let { runCatching { Res.json.decodeFromString(Cache.serializer(), it) }.getOrNull() } ?: return null
@@ -43,49 +47,61 @@ object MosqueFinder {
   suspend fun nearby(lat: Double, lon: Double, query: String? = null): Result<List<Mosque>> = withContext(Dispatchers.IO) {
     runCatching {
       val q = query?.trim().orEmpty().replace("\"", "").replace("\\", "")
-      // ⚠️ `around` لا يرتّب بالقرب: مدى واسع بحدّ ٨٠ قد يُسقط الأقرب (قِيس في إسطنبول) —
-      // فالمدى يتّسع على مراحل حتى تُجمع خمسة على الأقلّ.
-      var items: List<Mosque> = emptyList()
-      for (radius in if (q.isEmpty()) listOf(1500, 4000, 10000) else listOf(15000)) {
-        items = fetch(lat, lon, radius, q)
-        if (items.size >= 5) break
+      // ⚠️ `around` لا يرتّب بالقرب وحدّ الإخراج يقطع اعتباطًا (قِيس في إسطنبول: «السلطان أحمد» أقرب مسجد) —
+      // فطلب واحد بثلاث دوائر: ١٫٢ كم بلا حدٍّ عمليًّا (المركز مقرّب ~٠٫٧ كم فلا بدّ أن تغطّي الموقع الحقيقي)، ثم ٣ و١٠ كم للمناطق القليلة.
+      val tiers = if (q.isEmpty()) listOf(1200 to 200, 3000 to 120, 10000 to 80) else listOf(15000 to 80)
+      var last: Throwable? = null
+      var items: List<Mosque>? = null
+      for (ep in ENDPOINTS) {
+        val r = runCatching { fetch(ep, lat, lon, tiers, q) }
+        r.onSuccess { items = it }.onFailure { last = it; if (it is java.net.UnknownHostException) throw it }
+        if (items != null) break
       }
-      if (q.isEmpty()) { Store.mosquesCache = Res.json.encodeToString(Cache.serializer(), Cache(cellKey(lat, lon), System.currentTimeMillis(), items)); Store.save() }
-      items
+      val out = items ?: throw (last ?: IllegalStateException("no endpoint"))
+      if (q.isEmpty()) { Store.mosquesCache = Res.json.encodeToString(Cache.serializer(), Cache(cellKey(lat, lon), System.currentTimeMillis(), out)); Store.save() }
+      out
     }
   }
 
-  private fun fetch(lat: Double, lon: Double, radius: Int, q: String): List<Mosque> {
-    run {
-      val rl = Math.round(lat * 100) / 100.0; val ro = Math.round(lon * 100) / 100.0
-      val nameFilter = if (q.isEmpty()) "" else "[\"name\"~\"$q\",i]"
-      val ql = "[out:json][timeout:20];nwr[\"amenity\"=\"place_of_worship\"][\"religion\"=\"muslim\"]$nameFilter(around:$radius,$rl,$ro);out center tags 80;"
-      val c = URL(ENDPOINT).openConnection() as HttpURLConnection
-      c.requestMethod = "POST"; c.connectTimeout = 15_000; c.readTimeout = 25_000; c.doOutput = true
-      c.setRequestProperty("User-Agent", UA); c.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
-      c.outputStream.use { it.write(("data=" + URLEncoder.encode(ql, "UTF-8")).toByteArray()) }
-      if (c.responseCode !in 200..299) error("HTTP ${c.responseCode}")
-      val body = c.inputStream.bufferedReader().readText()
-      val els = Res.json.parseToJsonElement(body).jsonObject["elements"]?.jsonArray ?: JsonArray(emptyList())
-      val items = els.mapNotNull { e ->
-        val o = e.jsonObject; val tags = o["tags"]?.jsonObject ?: JsonObject(emptyMap())
-        val center = o["center"]?.jsonObject
-        val la = (center?.get("lat") ?: o["lat"])?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
-        val lo = (center?.get("lon") ?: o["lon"])?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
-        val name = tags["name:ar"]?.jsonPrimitive?.contentOrNull ?: tags["name"]?.jsonPrimitive?.contentOrNull ?: "مسجد (بلا اسم)"
-        val addr = listOfNotNull(tags["addr:street"]?.jsonPrimitive?.contentOrNull, tags["addr:city"]?.jsonPrimitive?.contentOrNull).joinToString("، ").ifBlank { null }
-        rerank(Mosque("${o["type"]?.jsonPrimitive?.contentOrNull}/${o["id"]?.jsonPrimitive?.contentOrNull}", name, la, lo, addr), lat, lon)
-      }.sortedBy { it.distanceKm }.take(60)
-      return items
-    }
+  private fun fetch(endpoint: String, lat: Double, lon: Double, tiers: List<Pair<Int, Int>>, q: String): List<Mosque> {
+    val rl = Math.round(lat * 100) / 100.0; val ro = Math.round(lon * 100) / 100.0
+    val nameFilter = if (q.isEmpty()) "" else "[\"name\"~\"$q\",i]"
+    val ql = "[out:json][timeout:20];" + tiers.joinToString("") { (radius, limit) -> "nwr[\"amenity\"=\"place_of_worship\"][\"religion\"=\"muslim\"]$nameFilter(around:$radius,$rl,$ro);out center tags $limit;" }
+    val c = URL(endpoint).openConnection() as HttpURLConnection
+    c.requestMethod = "POST"; c.connectTimeout = 12_000; c.readTimeout = 22_000; c.doOutput = true
+    c.setRequestProperty("User-Agent", UA); c.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+    c.outputStream.use { it.write(("data=" + URLEncoder.encode(ql, "UTF-8")).toByteArray()) }
+    if (c.responseCode !in 200..299) error("HTTP ${c.responseCode}")
+    val body = c.inputStream.bufferedReader().readText()
+    val els = Res.json.parseToJsonElement(body).jsonObject["elements"]?.jsonArray ?: JsonArray(emptyList())
+    val seen = HashSet<String>()
+    return els.mapNotNull { e ->
+      val o = e.jsonObject; val tags = o["tags"]?.jsonObject ?: JsonObject(emptyMap())
+      val id = "${o["type"]?.jsonPrimitive?.contentOrNull}/${o["id"]?.jsonPrimitive?.contentOrNull}"
+      if (!seen.add(id)) return@mapNotNull null
+      val center = o["center"]?.jsonObject
+      val la = (center?.get("lat") ?: o["lat"])?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
+      val lo = (center?.get("lon") ?: o["lon"])?.jsonPrimitive?.doubleOrNull ?: return@mapNotNull null
+      val name = tags["name:ar"]?.jsonPrimitive?.contentOrNull ?: tags["name"]?.jsonPrimitive?.contentOrNull ?: "مسجد (بلا اسم)"
+      val addr = listOfNotNull(tags["addr:street"]?.jsonPrimitive?.contentOrNull, tags["addr:city"]?.jsonPrimitive?.contentOrNull).joinToString("، ").ifBlank { null }
+      rerank(Mosque(id, name, la, lo, addr), lat, lon)
+    }.sortedBy { it.distanceKm }.take(60)
   }
 
   private fun rerank(m: Mosque, lat: Double, lon: Double) = m.copy(
     distanceKm = Qibla.distanceSphericalKm(lat, lon, m.latitude, m.longitude),
     bearing = Qibla.vincentyInverse(lat, lon, m.latitude, m.longitude).initialBearing)
 
-  /** الاتجاهات في تطبيق الخرائط المثبّت (Google Maps أو غيره) */
-  fun directionsIntent(m: Mosque) = Intent(Intent.ACTION_VIEW, Uri.parse("geo:${m.latitude},${m.longitude}?q=${m.latitude},${m.longitude}(${Uri.encode(m.name)})"))
+  /** الاتجاهات سيرًا: خرائط غوغل إن كانت مثبّتة (طلب المالك)، وإلا أيّ تطبيق خرائط، وإلا المتصفّح */
+  fun openDirections(ctx: Context, m: Mosque) {
+    val dest = String.format(java.util.Locale.US, "%.6f,%.6f", m.latitude, m.longitude)
+    val web = Uri.parse("https://www.google.com/maps/dir/?api=1&destination=$dest&travelmode=walking")
+    val candidates = listOf(
+      Intent(Intent.ACTION_VIEW, web).setPackage("com.google.android.apps.maps"),
+      Intent(Intent.ACTION_VIEW, Uri.parse("geo:${m.latitude},${m.longitude}?q=$dest(${Uri.encode(m.name)})")),
+      Intent(Intent.ACTION_VIEW, web))
+    for (i in candidates) { try { ctx.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); return } catch (e: ActivityNotFoundException) { /* جرّب التالي */ } catch (e: SecurityException) { /* جرّب التالي */ } }
+  }
   /** بحث «مسجد» حول المستخدم في تطبيق الخرائط — يعمل بلا خادمنا ولا OpenStreetMap */
   fun searchIntent() = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=" + Uri.encode("مسجد")))
 

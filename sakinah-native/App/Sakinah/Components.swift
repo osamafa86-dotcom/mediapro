@@ -97,6 +97,10 @@ extension View {
   }
   /// إخفاء شريط التبويبات النظامي (نستخدم DSTabBar)
   func hiddenSystemTabBar() -> some View { self.toolbar(.hidden, for: .tabBar) }
+  /// محتوى تبويب تحت الشريط العائم: منطقة آمنة سفلية بارتفاع الشريط كي تنتهي القوائم فوقه لا خلفه
+  func tabContent(inset: CGFloat) -> some View {
+    self.safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: inset) }.toolbar(.hidden, for: .tabBar)
+  }
 }
 
 /// حلقات ذهبية شفافة ونجوم صغيرة (تُرسم بإحداثيات مطلقة كي لا تنعكس مع الاتجاه)

@@ -16,17 +16,26 @@ struct MosquesView: View {
         if let c = model.coordinates {
           searchBar(c)
           mapCard(c)
-          if finder.loading {
+          // نتائج آبل تظهر فورًا والقائمة لا تُخفى ريثما تصل OpenStreetMap (قد تتأخّر ٢٠ ث على خادمها العام)
+          if finder.loading, finder.results.isEmpty {
             HStack(spacing: 8) { ProgressView(); Text("جارٍ البحث…").font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary) }.padding(.vertical, DS.Space.s4)
+          } else if finder.loading {
+            HStack(spacing: 8) { ProgressView().controlSize(.small); Text("يجري تدقيق الأقرب من OpenStreetMap…").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary) }
+            ForEach(finder.results) { m in row(m, numerals: n) }
           } else if let e = finder.error {
             hint(e, warn: true)
           } else if finder.results.isEmpty {
             hint("لا مساجد ضمن المدى — جرّب البحث بالاسم", warn: false)
           } else {
+            if let w = finder.osmError { hint("\(w) — النتائج من خرائط آبل وحدها الآن، اسحب «تحديث» بعد قليل", warn: true) }
             ForEach(finder.results) { m in row(m, numerals: n) }
           }
-          Text("النتائج من خرائط آبل. يُرسل موقعك مقرّبًا إلى نحو كيلومتر عند كل بحث، ولا يُحفظ لدينا.")
-            .font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).multilineTextAlignment(.center).padding(.top, DS.Space.s2)
+          if finder.appleCount + finder.osmCount > 0 {
+            Text("المصادر: خرائط آبل \(Fmt.number(finder.appleCount, numerals: n)) · OpenStreetMap \(Fmt.number(finder.osmCount, numerals: n)) — مرتّبة بالبعد الحقيقي عنك")
+              .font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).multilineTextAlignment(.center).padding(.top, DS.Space.s2)
+          }
+          Text("النتائج من خرائط آبل و© مساهمي OpenStreetMap. يُرسل موقعك مقرّبًا إلى نحو كيلومتر عند كل بحث، ولا يُحفظ لدينا.")
+            .font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).multilineTextAlignment(.center)
         } else {
           needLocation
         }

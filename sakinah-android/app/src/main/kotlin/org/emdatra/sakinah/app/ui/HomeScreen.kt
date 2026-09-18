@@ -198,8 +198,13 @@ class CompassReading(val heading: Float?, val accuracy: Int)
   val gold = Color(0xFFE2C77A); val dark = Color(0xFF05221F); val mint = Color(0xFF7BE0CF)
   // عند التوجّه: هالة نعناعية تنبض حول القرص ونقرة لمسية — إشارة تُرى بلا قراءة
   val pulse by rememberInfiniteTransition(label = "pulse").animateFloat(0f, 1f, infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "p")
-  val haptic = LocalHapticFeedback.current
-  LaunchedEffect(aligned) { if (aligned) haptic.performHapticFeedback(HapticFeedbackType.LongPress) }
+  val haptic = LocalHapticFeedback.current; val view = androidx.compose.ui.platform.LocalView.current
+  // نقرة عند التوجّه، ثم نبضة خفيفة مع كل توهّج ما دام متّجهًا (طلب المالك: «نبض اهتزاز مع الإضاءة»)
+  LaunchedEffect(aligned) {
+    if (!aligned) return@LaunchedEffect
+    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+    while (true) { kotlinx.coroutines.delay(900); view.performHapticFeedback(android.view.HapticFeedbackConstants.CLOCK_TICK) }
+  }
   Box(modifier.alpha(if (live) 1f else 0.5f), contentAlignment = Alignment.Center) {
     Canvas(Modifier.fillMaxSize()) {
       val ctr = center; val r = size.minDimension / 2 - 5.dp.toPx()
@@ -297,7 +302,7 @@ class CompassReading(val heading: Float?, val accuracy: Int)
           Text(m.name, style = DSType.headingSm, color = c.textPrimary, maxLines = 1)
           Text("${MosqueFinder.distanceLabel(m.distanceKm)} · ${MosqueFinder.walkLabel(m.distanceKm)} · ${Qibla.compassPointAr(m.bearing)}", style = DSType.labelXs, color = c.textSecondary, maxLines = 1)
         }
-        DSIconButton(Icons.Outlined.Directions, style = IconStyle.Brand, size = 38.dp, iconSize = 16.dp, contentDescription = "الاتجاهات إلى ${m.name}") { runCatching { ctx.startActivity(MosqueFinder.directionsIntent(m)) } }
+        DSIconButton(Icons.Outlined.Directions, style = IconStyle.Brand, size = 38.dp, iconSize = 16.dp, contentDescription = "الاتجاهات إلى ${m.name}") { MosqueFinder.openDirections(ctx, m) }
       }
       loading -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { androidx.compose.material3.CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = c.brandPrimary); Text("جارٍ البحث حولك…", style = DSType.bodySm, color = c.textSecondary) }
       else -> Text(error ?: "لا مساجد ضمن ٣ كم — افتح «المساجد القريبة» للبحث بالاسم", style = DSType.bodySm, color = c.textSecondary)

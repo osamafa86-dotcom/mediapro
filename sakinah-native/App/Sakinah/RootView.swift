@@ -15,15 +15,23 @@ struct RootView: View {
   @State private var tab: AppTab = ScreenshotMode.tab ?? .home
   /// صفحة المصحف التي يُفتح عليها القارئ في وضع اللقطات وحده
   @State private var shotPage: Int? = ScreenshotMode.readerPage
+  /// ارتفاع الشريط العائم يُقاس ويُمرَّر لكل تبويب كمنطقة آمنة سفلية
+  @State private var barHeight: CGFloat = 84
 
   var body: some View {
+    // ⚠️ safeAreaInset على TabView نفسه لا يصل إلى محتوى التبويبات (UITabBarController خلفه): آخر بطاقة
+    // في الرئيسية بقيت مقطوعة خلف الشريط رغم حشوة ٤٠ نقطة (قِيس على جهاز المالك، بناء ٣٩).
+    // فالشريط طبقة فوق الحاوية، والإزاحة تُطبَّق داخل كل تبويب حيث تحترمها ScrollView.
     TabView(selection: $tab) {
-      HomeView().hiddenSystemTabBar().tag(AppTab.home)
-      MushafHomeView().hiddenSystemTabBar().tag(AppTab.mushaf)
-      AdhkarHomeView().hiddenSystemTabBar().tag(AppTab.adhkar)
-      MoreView().hiddenSystemTabBar().tag(AppTab.more)
+      HomeView().tabContent(inset: barHeight).tag(AppTab.home)
+      MushafHomeView().tabContent(inset: barHeight).tag(AppTab.mushaf)
+      AdhkarHomeView().tabContent(inset: barHeight).tag(AppTab.adhkar)
+      MoreView().tabContent(inset: barHeight).tag(AppTab.more)
     }
-    .safeAreaInset(edge: .bottom, spacing: 0) { DSTabBar(selection: $tab) }
+    .overlay(alignment: .bottom) {
+      DSTabBar(selection: $tab)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
+    }
     .environment(\.switchTab, { t in withAnimation(.snappy(duration: 0.2)) { tab = t } })
     .background(DS.C.bgCanvas)
     .fullScreenCover(isPresented: $showOnboarding) { OnboardingView().environment(model) }

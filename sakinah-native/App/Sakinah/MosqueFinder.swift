@@ -1,5 +1,6 @@
 import Foundation
 import MapKit
+import UIKit
 import SakinahCore
 
 /// مسجد قريب مع بعده واتجاهه من موقع المستخدم
@@ -22,9 +23,14 @@ final class MosqueFinder {
   var results: [Mosque] = []
   var loading = false
   var error: String?
+  /// تشخيص المصادر يُعرض في ذيل القائمة: كم جاء من كلٍّ، ولماذا سقط OpenStreetMap إن سقط
+  var appleCount = 0
+  var osmCount = 0
+  var osmError: String?
 
   private struct Cache: Codable { let key: String; let at: Date; let items: [Mosque] }
-  private static let cacheKey = "mosques.cache"
+  /// v2: النسخة الأولى خزّنت نتائج آبل وحدها يومًا كاملًا، فبقي «أقرب مسجد» القديم يظهر بعد التحديث (قِيس في إسطنبول)
+  private static let cacheKey = "mosques.cache.v2"
   private static let nameKeys = ["مسجد", "جامع", "مصلى", "مصلّى", "mosque", "masjid", "jami", "cami", "mescit", "mosquée", "moschee", "mezquita", "мечеть"]
 
   static func cellKey(_ c: Coordinates) -> String { String(format: "%.2f,%.2f", c.latitude, c.longitude) }
@@ -41,10 +47,18 @@ final class MosqueFinder {
   func nearby(around c: Coordinates, query: String? = nil, force: Bool = false) async {
     let q = query?.trimmingCharacters(in: .whitespaces) ?? ""
     if !force, q.isEmpty, let hit = Self.cached(for: c) { results = hit; return }
-    loading = true; error = nil
-    let apple = await Self.appleSearch(around: c, query: q)
-    if !apple.isEmpty { results = Self.merge(apple, [], from: c); loading = false }
-    let osm = (try? await OSMMosques.tiered(around: c, query: q)) ?? []
+    loading = true; error = nil; osmError = nil
+    // المصدران معًا: آبل تصل في ثانية فتُعرض فورًا، وOSM (الأشمل للمساجد الصغيرة) تُدمج حين تصل
+    async let appleTask = Self.appleSearch(around: c, query: q)
+    async let osmTask = Self.osmResult(around: c, query: q)
+    let apple = await appleTask
+    appleCount = apple.count
+    if !apple.isEmpty { results = Self.merge(apple, [], from: c) }
+    let osm: [Mosque]
+    switch await osmTask {
+    case .success(let items): osm = items; osmCount = items.count
+    case .failure(let e): osm = []; osmCount = 0; osmError = Self.describe(e)
+    }
     let merged = Self.merge(apple, osm, from: c)
     loading = false
     if merged.isEmpty { error = apple.isEmpty && osm.isEmpty ? "تعذّر جلب المساجد — تحقّق من الاتصال" : nil }
@@ -52,8 +66,23 @@ final class MosqueFinder {
     if q.isEmpty, !merged.isEmpty { Self.store(merged, for: c) }
   }
 
+  private static func osmResult(around c: Coordinates, query q: String) async -> Result<[Mosque], Error> {
+    do { return .success(try await OSMMosques.tiered(around: c, query: q)) } catch { return .failure(error) }
+  }
+
+  private static func describe(_ e: Error) -> String {
+    if let u = e as? URLError {
+      switch u.code {
+      case .timedOut: return "انتهت مهلة OpenStreetMap"
+      case .notConnectedToInternet, .networkConnectionLost: return "لا اتصال بالإنترنت"
+      default: return "OpenStreetMap: \(u.code.rawValue)"
+      }
+    }
+    return "OpenStreetMap: \(e.localizedDescription)"
+  }
+
   private static func appleSearch(around c: Coordinates, query q: String) async -> [Mosque] {
-    let terms = q.isEmpty ? ["مسجد", "mosque", "masjid", "cami"] : ["مسجد \(q)", q]
+    let terms = q.isEmpty ? ["مسجد", "mosque", "masjid", "cami", "mescit"] : ["مسجد \(q)", q]
     func run(_ term: String, meters: Double) async -> [Mosque] {
       let req = MKLocalSearch.Request()
       req.naturalLanguageQuery = term
@@ -105,8 +134,13 @@ final class MosqueFinder {
     if let d = try? JSONEncoder().encode(Cache(key: cellKey(c), at: Date(), items: items)) { UserDefaults.standard.set(d, forKey: cacheKey) }
   }
 
-  /// الاتجاهات سيرًا في خرائط آبل
-  static func openDirections(to m: Mosque) {
+  /// الاتجاهات سيرًا: خرائط غوغل إن كانت مثبّتة (طلب المالك — أدقّ في المدن الإسلامية)، وإلا خرائط آبل.
+  /// يحتاج `LSApplicationQueriesSchemes: [comgooglemaps]` في Info.plist وإلا رفض `canOpenURL` دائمًا.
+  @MainActor static func openDirections(to m: Mosque) {
+    let dest = String(format: "%.6f,%.6f", m.latitude, m.longitude)
+    if let g = URL(string: "comgooglemaps://?daddr=\(dest)&directionsmode=walking"), UIApplication.shared.canOpenURL(g) {
+      UIApplication.shared.open(g); return
+    }
     let item = MKMapItem(placemark: MKPlacemark(coordinate: m.coordinate)); item.name = m.name
     item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking])
   }
@@ -119,25 +153,30 @@ final class MosqueFinder {
   }
 }
 
-/// OpenStreetMap عبر Overpass — يكمّل خرائط آبل في المساجد الصغيرة. الخادم العام بطيء ويسقط أحيانًا
-/// (قِيس: ١٢ ث و504 مرّةً من ثلاث) فهو مصدر ثانٍ لا أوّل، والمدى يتّسع على مراحل لأن `around`
-/// لا يرتّب بالقرب: مدى واسع بحدٍّ ٨٠ قد يُسقط الأقرب.
+/// OpenStreetMap عبر Overpass — يكمّل خرائط آبل في المساجد الصغيرة (آبل ترتّب بالشهرة وتعيد ≈٢٥ نتيجة،
+/// فتغيب مساجد الحيّ في مدينة كإسطنبول). الخادم العام بطيء ويسقط أحيانًا (قِيس: ١٢ ث و504 مرّةً من ثلاث)
+/// فتُجرَّب مرايا بعده. `around` لا يرتّب بالقرب، وحدّ الإخراج يقطع اعتباطًا: لذا طلب واحد بثلاث دوائر
+/// — ١٫٢ كم (بلا حدٍّ عمليًّا: المركز مقرّب ~٠٫٧ كم فلا بدّ أن تغطّي الدائرة الموقع الحقيقي)، ثم ٣ و١٠ كم للمناطق القليلة.
 enum OSMMosques {
+  static let endpoints = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter", "https://overpass.private.coffee/api/interpreter"]
+
   static func tiered(around c: Coordinates, query: String) async throws -> [Mosque] {
-    if !query.isEmpty { return try await fetch(around: c, radius: 15_000, query: query) }
-    var out: [Mosque] = []
-    for r in [1_500, 4_000, 10_000] {
-      out = try await fetch(around: c, radius: r, query: "")
-      if out.count >= 5 { break }
+    let tiers: [(radius: Int, limit: Int)] = query.isEmpty ? [(1_200, 200), (3_000, 120), (10_000, 80)] : [(15_000, 80)]
+    var last: Error = URLError(.cannotConnectToHost)
+    for ep in endpoints {
+      do { return try await fetch(around: c, tiers: tiers, query: query, endpoint: ep) }
+      catch { last = error; if let u = error as? URLError, u.code == .notConnectedToInternet { throw error } }
     }
-    return out
+    throw last
   }
-  static func fetch(around c: Coordinates, radius: Int, query: String) async throws -> [Mosque] {
+
+  static func fetch(around c: Coordinates, tiers: [(radius: Int, limit: Int)], query: String, endpoint: String) async throws -> [Mosque] {
     let rl = (c.latitude * 100).rounded() / 100, ro = (c.longitude * 100).rounded() / 100
     let name = query.isEmpty ? "" : "[\"name\"~\"\(query.replacingOccurrences(of: "\"", with: "").replacingOccurrences(of: "\\", with: ""))\",i]"
-    let ql = "[out:json][timeout:20];nwr[\"amenity\"=\"place_of_worship\"][\"religion\"=\"muslim\"]\(name)(around:\(radius),\(rl),\(ro));out center tags 80;"
-    var req = URLRequest(url: URL(string: "https://overpass-api.de/api/interpreter")!)
-    req.httpMethod = "POST"; req.timeoutInterval = 25
+    let body = tiers.map { "nwr[\"amenity\"=\"place_of_worship\"][\"religion\"=\"muslim\"]\(name)(around:\($0.radius),\(rl),\(ro));out center tags \($0.limit);" }.joined()
+    let ql = "[out:json][timeout:20];" + body
+    var req = URLRequest(url: URL(string: endpoint)!)
+    req.httpMethod = "POST"; req.timeoutInterval = 22
     req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
     req.setValue("Sakinah/5.1 (+https://github.com/osamafa86-dotcom/mediapro)", forHTTPHeaderField: "User-Agent")
     let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
@@ -149,12 +188,14 @@ enum OSMMosques {
       let elements: [E]
     }
     let r = try JSONDecoder().decode(R.self, from: data)
+    var seen = Set<String>()
     return r.elements.compactMap { e in
-      guard let la = e.center?.lat ?? e.lat, let lo = e.center?.lon ?? e.lon else { return nil }
+      let id = "osm/\(e.type)/\(e.id)"
+      guard seen.insert(id).inserted, let la = e.center?.lat ?? e.lat, let lo = e.center?.lon ?? e.lon else { return nil }
       let t = e.tags ?? [:]
       let name = t["name:ar"] ?? t["name"] ?? "مسجد (بلا اسم)"
       let addr = [t["addr:street"], t["addr:city"]].compactMap { $0 }.joined(separator: "، ")
-      return Mosque(id: "osm/\(e.type)/\(e.id)", name: name, latitude: la, longitude: lo, address: addr.isEmpty ? nil : addr, distanceKm: 0, bearing: 0)
+      return Mosque(id: id, name: name, latitude: la, longitude: lo, address: addr.isEmpty ? nil : addr, distanceKm: 0, bearing: 0)
     }
   }
 }

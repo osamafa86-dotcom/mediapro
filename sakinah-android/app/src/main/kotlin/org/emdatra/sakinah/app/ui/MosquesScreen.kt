@@ -37,7 +37,7 @@ import org.emdatra.sakinah.core.Qibla
     scope.launch {
       if (!force && q.isNullOrBlank()) MosqueFinder.cached(co.latitude, co.longitude)?.let { results = it; return@launch }
       loading = true; error = null
-      MosqueFinder.nearby(co.latitude, co.longitude, q).onSuccess { results = it }.onFailure { error = "تعذّر جلب المساجد — تحقّق من الاتصال، أو افتح تطبيق الخرائط" }
+      MosqueFinder.nearby(co.latitude, co.longitude, q).onSuccess { results = it }.onFailure { error = "تعذّر جلب المساجد (${it.message ?: it.javaClass.simpleName}) — تحقّق من الاتصال، أو افتح تطبيق الخرائط" }
       loading = false
     }
   }
@@ -67,7 +67,7 @@ import org.emdatra.sakinah.core.Qibla
           }
         }
         results.isEmpty() -> item { HintBar(Icons.Outlined.LocationSearching, "لا مساجد ضمن المدى — جرّب البحث بالاسم", false) }
-        else -> items(results, key = { it.id }) { m -> MosqueRow(m) { runCatching { ctx.startActivity(MosqueFinder.directionsIntent(m)) } } }
+        else -> items(results, key = { it.id }) { m -> MosqueRow(m) { MosqueFinder.openDirections(ctx, m) } }
       }
       item { Text("بيانات © مساهمي OpenStreetMap. يُرسل موقعك مقرّبًا إلى نحو كيلومتر عند كل بحث، ولا يُحفظ لدينا.", Modifier.fillMaxWidth().padding(top = 8.dp), style = DSType.labelXs, color = c.textTertiary, textAlign = TextAlign.Center) }
     }

@@ -72,6 +72,8 @@ targets:
         UIRequiresFullScreen: true
         ITSAppUsesNonExemptEncryption: false
         NSLocationWhenInUseUsageDescription: "لحساب مواقيت الصلاة واتجاه القبلة حسب موقعك"
+        # الاتجاهات إلى المسجد تُفتح في خرائط غوغل إن كانت مثبّتة (canOpenURL يرفض المخطّط ما لم يُعلَن هنا)
+        LSApplicationQueriesSchemes: [comgooglemaps]
         NSMotionUsageDescription: "لتشغيل بوصلة القبلة"
         NSMicrophoneUsageDescription: "لسماع تلاوتك في مراجعة الحفظ وكشف الكلمات المطابقة"
         NSSpeechRecognitionUsageDescription: "لتحويل تلاوتك إلى كلمات ومطابقتها مع نص الآيات في مراجعة الحفظ"

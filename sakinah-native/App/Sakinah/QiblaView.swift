@@ -166,6 +166,7 @@ struct CompassDial: View {
   let aligned: Bool
   var live: Bool = true
   @State private var pulse = false
+  @State private var beat = 0
 
   var body: some View {
     GeometryReader { geo in
@@ -237,6 +238,11 @@ struct CompassDial: View {
     }
     .onAppear { pulse = true }
     .sensoryFeedback(trigger: aligned) { _, on in on ? .success : nil }
+    .task(id: aligned) {
+      guard aligned else { return }
+      while !Task.isCancelled { try? await Task.sleep(for: .milliseconds(900)); if !Task.isCancelled { beat += 1 } }
+    }
+    .sensoryFeedback(.impact(weight: .light, intensity: 0.7), trigger: beat)
     .accessibilityLabel(aligned ? "متجه إلى القبلة" : "اتجاه القبلة \(Int(bearing)) درجة")
   }
 }

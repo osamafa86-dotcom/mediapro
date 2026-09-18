@@ -39,8 +39,8 @@ struct HomeView: View {
           locationPrompt
         }
       }
-      // ٤٠ لا ٢٤: آخر بطاقة كانت تختبئ خلف تلاشي الشريط العائم (مقيس على جهاز المالك)
-      .padding(.horizontal, 20).padding(.top, 4).padding(.bottom, 40)
+      // الإزاحة عن الشريط العائم تأتي من RootView (safeAreaInset داخل كل تبويب) — هنا فسحة فقط
+      .padding(.horizontal, 20).padding(.top, 4).padding(.bottom, 24)
     }
   }
 
@@ -235,7 +235,7 @@ struct HomeView: View {
         NavigationLink { MosquesView().environment(model) } label: { DSLinkLabel(title: "المساجد القريبة") }.buttonStyle(.plain)
       }
       if !s.nearbyMosques {
-        Text("يعرض أقرب مسجد إليك من خرائط آبل. يُرسل موقعك مقرّبًا إلى نحو كيلومتر عند البحث، ولا يُحفظ لدينا.")
+        Text("يعرض أقرب مسجد إليك من خرائط آبل وOpenStreetMap. يُرسل موقعك مقرّبًا إلى نحو كيلومتر عند البحث، ولا يُحفظ لدينا.")
           .font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary)
         DSButton(title: "اعرض أقرب مسجد", icon: "building.columns") { s.nearbyMosques = true }
       } else if let m = mosques.results.first {
@@ -243,8 +243,12 @@ struct HomeView: View {
           DSIcon(systemName: "building.columns", style: .soft, size: 42, iconSize: 17)
           VStack(alignment: .leading, spacing: 2) {
             Text(m.name).font(DS.F.headingSm).foregroundStyle(DS.C.textPrimary).lineLimit(1)
-            Text("\(MosqueFinder.distanceLabel(m.distanceKm, numerals: n)) · \(MosqueFinder.walkLabel(m.distanceKm, numerals: n)) · \(Qibla.compassPointAr(m.bearing))")
-              .font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary).lineLimit(1)
+            HStack(spacing: 6) {
+              Text("\(MosqueFinder.distanceLabel(m.distanceKm, numerals: n)) · \(MosqueFinder.walkLabel(m.distanceKm, numerals: n)) · \(Qibla.compassPointAr(m.bearing))")
+                .font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary).lineLimit(1)
+              // نتائج آبل تُعرض فورًا؛ الدوّارة تعني أن OpenStreetMap ما زالت تُدقّق الأقرب
+              if mosques.loading { ProgressView().controlSize(.mini).accessibilityLabel("يجري تدقيق الأقرب") }
+            }
           }
           Spacer(minLength: 4)
           Button { MosqueFinder.openDirections(to: m) } label: { DSIcon(systemName: "arrow.triangle.turn.up.right.diamond", style: .brand, size: 38, iconSize: 16) }
@@ -290,6 +294,8 @@ struct CompassMedallion: View {
   let aligned: Bool
   var live: Bool = true
   @State private var pulse = false
+  /// نبضة لمسية مع كل توهّج ما دام المستخدم متّجهًا (طلب المالك: «نبض اهتزاز مع الإضاءة»)
+  @State private var beat = 0
 
   var body: some View {
     GeometryReader { geo in
@@ -361,6 +367,11 @@ struct CompassMedallion: View {
     }
     .onAppear { pulse = true }
     .sensoryFeedback(trigger: aligned) { _, on in on ? .success : nil }
+    .task(id: aligned) {
+      guard aligned else { return }
+      while !Task.isCancelled { try? await Task.sleep(for: .milliseconds(900)); if !Task.isCancelled { beat += 1 } }
+    }
+    .sensoryFeedback(.impact(weight: .light, intensity: 0.7), trigger: beat)
     .accessibilityLabel(aligned ? "متجه إلى القبلة" : "اتجاه القبلة \(Int(bearing)) درجة")
   }
 }
