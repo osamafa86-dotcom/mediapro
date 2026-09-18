@@ -6,7 +6,7 @@ import SakinahCore
 
 /// الرئيسية (تصميم Figma «٦ · الرئيسية — الحيويّة (v6)» و«٧ · نظام السماء والطقس»):
 /// هيرو سماءٍ يتبدّل مع وقت الصلاة (والطقس إن فُعّل)، يجمع الصلاة القادمة والقبلة وخطّ اليوم؛
-/// ثم بلاطات وصول سريع عائمة على حافته، وشبكة المواقيت، ومتابعة القراءة، وأقرب مسجد، وأذكار الوقت.
+/// ثم شبكة المواقيت، ومتابعة القراءة، وأقرب مسجد، وأذكار الوقت — بلا بلاطات وصول سريع (كانت تكرّر الشريط السفلي).
 struct HomeView: View {
   @Environment(AppModel.self) private var model
   @Environment(\.switchTab) private var switchTab
@@ -62,7 +62,7 @@ struct HomeView: View {
         VStack(spacing: 0) {
           hero(now: now, timeline: t, coords: c, sky: sky, topInset: topInset)
           if let t, let c {
-            quickTiles(t, now: now, coords: c).padding(.horizontal, 20).padding(.top, -30).zIndex(1)
+            // لا صفّ بلاطات: كان يكرّر الشريط السفلي (المصحف/الأذكار) والميدالية (القبلة) وبطاقة أقرب مسجد (طلب المالك)
             VStack(spacing: 16) {
               prayerGridCard(t, now: now)
               continueReadingCard
@@ -109,7 +109,7 @@ struct HomeView: View {
           }
           .padding(.top, 10)
           DayTimelineStrip(t: t, now: now, palette: p, tz: model.timeZone, hour12: model.settings.hour12, numerals: model.settings.numerals)
-            .frame(height: 96).padding(.top, 14)
+            .frame(height: 84).padding(.top, 14)
         } else {
           VStack(alignment: .leading, spacing: 6) {
             Text("حدّد موقعك").font(DS.kufi(40, .bold)).foregroundStyle(p.text)
@@ -118,20 +118,20 @@ struct HomeView: View {
           .padding(.top, 24).padding(.bottom, 40)
         }
       }
-      .padding(.top, topInset + 6).padding(.horizontal, 20).padding(.bottom, 56)
+      .padding(.top, topInset + 6).padding(.horizontal, 20).padding(.bottom, 30)
     }
     .frame(maxWidth: .infinity)
     .clipShape(UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 36, bottomTrailingRadius: 36, topTrailingRadius: 0, style: .continuous))
     .animation(.easeInOut(duration: model.settings.sky.reduceMotion ? 0 : 0.8), value: sky.palette)
   }
 
-  /// التحيّة والمدينة والتاريخ (يمين) وزرّا التنبيهات والتقويم الزجاجيان (يسار)
+  /// المدينة والتاريخ الهجري (يمين) وزرّ التنبيهات الزجاجي (يسار) — بلا تحية ولا تاريخ ميلادي ولا أيقونة تقويم:
+  /// أعلى الرئيسية كان مكتظًّا بالنصوص (طلب المالك)، والجدول الشهري له رابطه في بطاقة المواقيت
   private func topRow(now: Date, palette p: SkyPalette) -> some View {
     let s = model.settings
     let h = model.hijri(now: now)
     return HStack(alignment: .top, spacing: 10) {
       VStack(alignment: .leading, spacing: 6) {
-        Text("السَّلامُ عَلَيْكُمْ وَرَحْمَةُ الله").font(DS.amiri(17)).foregroundStyle(p.isDark ? Color(hex: 0x9FD1CA) : DS.C.brandStrong)
         NavigationLink { CityPickerView().tabBarClearance() } label: {
           HStack(spacing: 6) {
             Image(systemName: "mappin").font(.system(size: 12, weight: .semibold)).foregroundStyle(p.gold)
@@ -142,19 +142,12 @@ struct HomeView: View {
           .background(p.glass, in: Capsule()).overlay(Capsule().stroke(p.glassStroke, lineWidth: 1))
         }
         .buttonStyle(.plain).accessibilityLabel("الموقع")
-        // نصوصٌ منفصلة لا سلسلة واحدة: خلط الأرقام العربية والغربية في سلسلةٍ واحدة قلب ترتيب الكلمات (قِيس)
-        HStack(spacing: 6) {
-          Text("\(h.weekday) \(Fmt.number(h.day, numerals: s.numerals)) \(h.monthName) \(Fmt.number(h.year, numerals: s.numerals))هـ")
-          Text("·")
-          Text(Fmt.shortDate(now, tz: model.timeZone, numerals: s.numerals))
-        }
-        .font(DS.readex(12.5)).foregroundStyle(p.textMuted).lineLimit(1).minimumScaleFactor(0.8)
+        Text("\(h.weekday) \(Fmt.number(h.day, numerals: s.numerals)) \(h.monthName) \(Fmt.number(h.year, numerals: s.numerals))هـ")
+          .font(DS.readex(12.5)).foregroundStyle(p.textMuted).lineLimit(1).minimumScaleFactor(0.8)
       }
       Spacer(minLength: 8)
       NavigationLink { SettingsView().environment(model).tabBarClearance() } label: { glassIcon("bell", palette: p, badge: !s.reminders.prayers.isEmpty) }
         .buttonStyle(.plain).accessibilityLabel("التنبيهات")
-      NavigationLink { MonthTableView().tabBarClearance() } label: { glassIcon("calendar", palette: p) }
-        .buttonStyle(.plain).accessibilityLabel("الجدول الشهري")
     }
   }
   private func glassIcon(_ name: String, palette p: SkyPalette, badge: Bool = false) -> some View {
@@ -165,7 +158,7 @@ struct HomeView: View {
     }
   }
 
-  /// كتلة الصلاة القادمة: عنوان صغير مع حبّة «بعد…»، اسم الصلاة بالكوفي، العدّ التنازلي الكبير، ثم الأذان وطريقة الحساب
+  /// كتلة الصلاة القادمة: عنوان صغير، اسم الصلاة بالكوفي، العدّ التنازلي الكبير، ثم وقت الأذان — بلا حبّة «بعد…» (العدّاد يقولها) ولا شريحة الطريقة (في بطاقة المواقيت)
   private func nextPrayerBlock(_ t: PrayerTimes.DayTimeline, now: Date, palette p: SkyPalette) -> some View {
     let s = model.settings
     let remaining = t.next.time.timeIntervalSince(now)
@@ -173,37 +166,19 @@ struct HomeView: View {
       HStack(spacing: 8) {
         Circle().fill(p.gold).frame(width: 6, height: 6)
         Text("الصلاة القادمة").font(DS.readex(13, .medium)).kerning(0.4).foregroundStyle(p.gold).lineLimit(1)
-        Text(remainingLabel(remaining, numerals: s.numerals)).font(DS.readex(11.5, .medium)).foregroundStyle(p.gold).lineLimit(1).fixedSize()
-          .padding(.vertical, 3).padding(.horizontal, 9)
-          .background(p.gold.opacity(0.16), in: Capsule()).overlay(Capsule().stroke(p.gold.opacity(0.35), lineWidth: 1))
       }
       Text(t.next.isTomorrow ? "فجر الغد" : t.next.key.nameAr).font(DS.kufi(52, .bold)).foregroundStyle(p.text).lineLimit(1).minimumScaleFactor(0.6)
         .padding(.top, 4)
       Text(Fmt.countdown(remaining, numerals: s.numerals)).font(DS.readex(52, .light, fixed: true)).monospacedDigit().foregroundStyle(p.text).lineLimit(1).minimumScaleFactor(0.5)
-      HStack(spacing: 10) {
-        Text("الأذان \(Fmt.time(t.next.time, tz: model.timeZone, hour12: s.hour12, numerals: s.numerals))").font(DS.readex(13, .medium)).foregroundStyle(p.textSoft)
-        Button { showMethods = true } label: {
-          Text(Methods.method(s.methodId).nameAr).font(DS.readex(10.5)).foregroundStyle(p.textMuted).lineLimit(1).minimumScaleFactor(0.7)
-            .padding(.vertical, 3).padding(.horizontal, 8).background(p.glass, in: Capsule())
-        }
-        .buttonStyle(.plain).accessibilityLabel("طريقة الحساب")
-      }
-      .padding(.top, 2)
+      Text("الأذان \(Fmt.time(t.next.time, tz: model.timeZone, hour12: s.hour12, numerals: s.numerals))").font(DS.readex(13, .medium)).foregroundStyle(p.textSoft)
+        .padding(.top, 2)
     }
     // بلا سقف عرض: مع ٢٠٠ نقطة كانت حبّة «بعد ٥ س و٤٩ د» تنكسر سطرين على ٦٫٩″ (قِيس في لقطة المحاكي)
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 
-  private func remainingLabel(_ secs: TimeInterval, numerals n: String) -> String {
-    let m = max(0, Int(secs / 60))
-    if m < 60 { return "بعد \(Fmt.number(max(1, m), numerals: n)) دقيقة" }
-    let h = m / 60, r = m % 60
-    return r == 0 ? "بعد \(Fmt.number(h, numerals: n)) س" : "بعد \(Fmt.number(h, numerals: n)) س و\(Fmt.number(r, numerals: n)) د"
-  }
-
-  /// الميدالية وحبّة التوجّه والاتجاه والبعد
+  /// الميدالية وحبّة التوجّه — بلا سطر الدرجات والبُعد (في شاشة القبلة الكاملة)
   private func medallionColumn(coords c: Coordinates, palette p: SkyPalette) -> some View {
-    let s = model.settings
     let q = Qibla.info(latitude: c.latitude, longitude: c.longitude)
     // المحاكي بلا مغناطيسية: في وضع اللقطات وحده يُفترض اتجاهٌ يطابق القبلة (انظر QiblaView)
     let heading = model.location.heading.map { CompassMath.trueHeading($0, at: c) } ?? (ScreenshotMode.active ? q.bearing : nil)
@@ -213,8 +188,6 @@ struct HomeView: View {
       VStack(spacing: 8) {
         CompassMedallion(bearing: q.bearing, heading: heading ?? 0, aligned: aligned, live: heading != nil).frame(width: 140, height: 140)
         qiblaChip(aligned: aligned, diff: diff, live: heading != nil, palette: p)
-        Text("\(Fmt.degrees(q.bearing, numerals: s.numerals)) \(Qibla.compassPointAr(q.bearing))  ·  \(Fmt.distance(q.distanceKm, numerals: s.numerals))")
-          .font(DS.readex(11)).foregroundStyle(p.textMuted).lineLimit(1).minimumScaleFactor(0.75)
       }
       .frame(width: 150)
     }
@@ -237,33 +210,6 @@ struct HomeView: View {
     .background(aligned ? p.mint.opacity(0.16) : p.glass, in: Capsule())
     .overlay(Capsule().stroke(aligned ? p.mint.opacity(0.45) : p.glassStroke, lineWidth: 1))
     .animation(.snappy(duration: 0.25), value: aligned)
-  }
-
-  // MARK: الوصول السريع
-  private func quickTiles(_ t: PrayerTimes.DayTimeline, now: Date, coords c: Coordinates) -> some View {
-    let s = model.settings; let n = s.numerals
-    let page = s.lastRead?.page ?? 1
-    let period = Adhkar.autoPeriod(now: now, fajr: t.times[.fajr], dhuhr: t.times[.dhuhr], asr: t.times[.asr], tz: model.timeZone)
-    let q = Qibla.info(latitude: c.latitude, longitude: c.longitude)
-    let mosqueSub = mosques.results.first.map { MosqueFinder.distanceLabel($0.distanceKm, numerals: n) } ?? (s.nearbyMosques ? "حولك" : "قريب منك")
-    return HStack(spacing: 10) {
-      Button { switchTab(.mushaf) } label: { tile("book", "المصحف", "ص \(Fmt.number(page, numerals: n))") }.buttonStyle(.plain)
-      Button { switchTab(.adhkar) } label: { tile("sparkles", "الأذكار", period == "morning" ? "الصباح" : "المساء") }.buttonStyle(.plain)
-      Button { showQibla = true } label: { tile("safari", "القبلة", Fmt.degrees(q.bearing, numerals: n)) }.buttonStyle(.plain)
-      NavigationLink { MosquesView().environment(model).tabBarClearance() } label: { tile("building.columns", "المساجد", mosqueSub) }.buttonStyle(.plain)
-    }
-  }
-  private func tile(_ icon: String, _ title: String, _ sub: String) -> some View {
-    VStack(spacing: 8) {
-      RoundedRectangle(cornerRadius: 14, style: .continuous).fill(DS.C.brandSoft.opacity(0.55)).frame(width: 40, height: 40)
-        .overlay(Image(systemName: icon).font(.system(size: 17, weight: .medium)).foregroundStyle(DS.C.brandPrimary))
-      Text(title).font(DS.readex(12.5, .semibold)).foregroundStyle(DS.C.textPrimary).lineLimit(1)
-      Text(sub).font(DS.readex(10.5)).foregroundStyle(DS.C.textTertiary).lineLimit(1).minimumScaleFactor(0.8)
-    }
-    .frame(maxWidth: .infinity).padding(.vertical, 12).padding(.horizontal, 4)
-    .background(DS.C.bgSurface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-    .shadow(color: DS.C.shadowCard, radius: 14, x: 0, y: 8).shadow(color: DS.C.shadowCard.opacity(0.5), radius: 2, x: 0, y: 1)
-    .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
   }
 
   // MARK: مواقيت اليوم — شبكة ٣×٢
@@ -561,12 +507,12 @@ struct DayTimelineStrip: View {
         ForEach(Array(prayers.enumerated()), id: \.offset) { k, p in
           let next = t.next.key == p && !t.next.isTomorrow
           VStack(spacing: 1) {
+            // الأسماء فقط: الأوقات مكرّرة في شبكة المواقيت تحت الهيرو مباشرةً
             Text(p.nameAr).font(DS.readex(11.5, next ? .semibold : .medium)).foregroundStyle(next ? palette.gold : palette.text.opacity(p == .sunrise ? 0.5 : 0.9))
-            Text(Fmt.time(t.times[p], tz: tz, hour12: hour12, numerals: numerals)).font(DS.readex(11, .regular, fixed: true)).monospacedDigit().foregroundStyle(palette.text.opacity(next ? 0.9 : 0.55))
           }
           .lineLimit(1).minimumScaleFactor(0.8)
           .frame(width: step + 4)
-          .position(x: x(Double(k)), y: ty + 30)
+          .position(x: x(Double(k)), y: ty + 24)
         }
         // علامة «الآن»: هلال ليلًا وشمس نهارًا مع وهج ذهبي فوق موضعها على المسار، والعبارة إلى جانبها
         ZStack {

@@ -103,14 +103,12 @@ import kotlin.math.sin
     ic?.isAppearanceLightStatusBars = !sky.palette.isDark
     onDispose { ic?.isAppearanceLightStatusBars = !appDark }
   }
-  val ready = tl != null && coords != null
   Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
     Box(Modifier.fillMaxWidth()) {
-      Hero(sky, prefs.reduceMotion, h, now, tl, coords, compass, onCity = { showCity = true }, onMonth = { showMonth = true }, onBell = { switchTab(AppTab.More) }, onMethod = { showMethod = true }, onQibla = { showQibla = true })
-      if (tl != null && coords != null) QuickTiles(tl, now, coords, Modifier.align(Alignment.BottomCenter).padding(horizontal = 20.dp).offset(y = 74.dp),
-        onMushaf = { switchTab(AppTab.Mushaf) }, onAdhkar = { switchTab(AppTab.Adhkar) }, onQibla = { showQibla = true }, onMosques = { showMosques = true })
+      // لا صفّ بلاطات: كان يكرّر الشريط السفلي (المصحف/الأذكار) والميدالية (القبلة) وبطاقة أقرب مسجد (طلب المالك)
+      Hero(sky, prefs.reduceMotion, h, now, tl, coords, compass, onCity = { showCity = true }, onBell = { switchTab(AppTab.More) }, onQibla = { showQibla = true })
     }
-    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = if (ready) 94.dp else 20.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
       if (tl == null || coords == null) LocationPrompt(onDevice = { permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) }, onCity = { showCity = true })
       else {
         PrayerGridCard(tl, now, onMonth = { showMonth = true }, onMethod = { showMethod = true }, onReminders = { switchTab(AppTab.More) })
@@ -158,20 +156,20 @@ class CompassReading(val heading: Float?, val accuracy: Int)
 
 // MARK: الهيرو
 @Composable private fun Hero(sky: SkyState, reduceMotion: Boolean, h: HijriDate, now: Instant, tl: PrayerTimes.DayTimeline?, coords: Coordinates?, compass: CompassReading,
-                             onCity: () -> Unit, onMonth: () -> Unit, onBell: () -> Unit, onMethod: () -> Unit, onQibla: () -> Unit) {
+                             onCity: () -> Unit, onBell: () -> Unit, onQibla: () -> Unit) {
   val p = sky.palette
   val shape = RoundedCornerShape(bottomStart = 36.dp, bottomEnd = 36.dp)
   Box(Modifier.fillMaxWidth().clip(shape)) {
     SkyBackdrop(sky, reduceMotion, Modifier.matchParentSize())
-    Column(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 60.dp)) {
-      TopRow(p, h, now, onCity, onMonth, onBell)
+    Column(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 30.dp)) {
+      TopRow(p, h, onCity, onBell)
       if (tl != null && coords != null) {
         Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.Top) {
-          NextPrayerBlock(Modifier.weight(1f), tl, now, p, onMethod)
+          NextPrayerBlock(Modifier.weight(1f), tl, now, p)
           Spacer(Modifier.width(8.dp))
           MedallionColumn(coords, compass, p, onQibla)
         }
-        DayTimelineStrip(tl, now, p, Modifier.fillMaxWidth().padding(top = 14.dp).height(96.dp))
+        DayTimelineStrip(tl, now, p, Modifier.fillMaxWidth().padding(top = 14.dp).height(84.dp))
       } else {
         Column(Modifier.padding(top = 24.dp, bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
           Text("حدّد موقعك", style = DSType.displayHero, color = p.text)
@@ -182,21 +180,19 @@ class CompassReading(val heading: Float?, val accuracy: Int)
   }
 }
 
-/** التحيّة والمدينة والتاريخ (يمين) وزرّا التنبيهات والتقويم الزجاجيان (يسار) */
-@Composable private fun TopRow(p: SkyPalette, h: HijriDate, now: Instant, onCity: () -> Unit, onMonth: () -> Unit, onBell: () -> Unit) {
-  val c = DS.c
+/** المدينة والتاريخ الهجري (يمين) وزرّ التنبيهات الزجاجي (يسار) — بلا تحية ولا تاريخ ميلادي ولا أيقونة تقويم:
+ *  أعلى الرئيسية كان مكتظًّا بالنصوص (طلب المالك)، والجدول الشهري له رابطه في بطاقة المواقيت */
+@Composable private fun TopRow(p: SkyPalette, h: HijriDate, onCity: () -> Unit, onBell: () -> Unit) {
   Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-      Text("السَّلامُ عَلَيْكُمْ وَرَحْمَةُ الله", style = DSType.readingSm.copy(fontSize = 17.sp), color = if (p.isDark) Color(0xFF9FD1CA) else c.brandStrong)
       Row(Modifier.clip(CircleShape).background(p.glass).border(1.dp, p.glassStroke, CircleShape).clickable(onClick = onCity).padding(start = 12.dp, end = 10.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Icon(Icons.Filled.Place, null, Modifier.size(14.dp), tint = p.gold)
         Text(Store.locName ?: "حدّد موقعك", style = DSType.labelSm.copy(fontSize = 13.sp), color = p.text, maxLines = 1)
         Icon(Icons.Filled.KeyboardArrowDown, null, Modifier.size(14.dp), tint = p.textMuted)
       }
-      Text("${h.weekday} ${Fmt.number(h.day)} ${h.monthName} ${Fmt.number(h.year)}هـ  ·  ${Fmt.gregorian(now).substringAfter("، ").substringBeforeLast(" ")}", style = DSType.labelSm.copy(fontSize = 12.5.sp, fontWeight = FontWeight.Normal), color = p.textMuted, maxLines = 1)
+      Text("${h.weekday} ${Fmt.number(h.day)} ${h.monthName} ${Fmt.number(h.year)}هـ", style = DSType.labelSm.copy(fontSize = 12.5.sp, fontWeight = FontWeight.Normal), color = p.textMuted, maxLines = 1)
     }
     GlassIcon(Icons.Outlined.Notifications, "التنبيهات", p, badge = Store.reminders.prayers.isNotEmpty(), onClick = onBell)
-    GlassIcon(Icons.Outlined.CalendarMonth, "الجدول الشهري", p, badge = false, onClick = onMonth)
   }
 }
 @Composable private fun GlassIcon(icon: ImageVector, label: String, p: SkyPalette, badge: Boolean, onClick: () -> Unit) {
@@ -206,32 +202,22 @@ class CompassReading(val heading: Float?, val accuracy: Int)
   }
 }
 
-/** كتلة الصلاة القادمة: عنوان صغير مع حبّة «بعد…»، اسم الصلاة بالكوفي، العدّ التنازلي الكبير، ثم الأذان وطريقة الحساب */
-@Composable private fun NextPrayerBlock(modifier: Modifier, tl: PrayerTimes.DayTimeline, now: Instant, p: SkyPalette, onMethod: () -> Unit) {
+/** كتلة الصلاة القادمة: عنوان صغير، اسم الصلاة بالكوفي، العدّ التنازلي الكبير، ثم وقت الأذان — بلا حبّة «بعد…» (العدّاد يقولها) ولا شريحة الطريقة (في بطاقة المواقيت) */
+@Composable private fun NextPrayerBlock(modifier: Modifier, tl: PrayerTimes.DayTimeline, now: Instant, p: SkyPalette) {
   val secs = tl.next.time.epochSecond - now.epochSecond
   val cd = Fmt.countdown(secs)
   Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
       Box(Modifier.size(6.dp).clip(CircleShape).background(p.gold))
       Text("الصلاة القادمة", style = DSType.labelSm.copy(fontSize = 13.sp, letterSpacing = 0.4.sp), color = p.gold)
-      Text(remainingLabel(secs), Modifier.clip(CircleShape).background(p.gold.copy(alpha = 0.16f)).border(1.dp, p.gold.copy(alpha = 0.35f), CircleShape).padding(horizontal = 9.dp, vertical = 3.dp), style = DSType.labelXs.copy(fontSize = 11.5.sp), color = p.gold, maxLines = 1)
     }
     Text(if (tl.next.isTomorrow) "فجر الغد" else tl.next.key.nameAr, Modifier.padding(top = 4.dp), style = DSType.displayHero.copy(fontSize = 52.sp), color = p.text, maxLines = 1)
     Text(cd, style = DSType.numericHero.copy(fontSize = if (cd.length > 5) 44.sp else 52.sp), color = p.text, maxLines = 1, softWrap = false)
-    Row(Modifier.padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-      Text("الأذان ${Fmt.time(tl.next.time)}", style = DSType.labelMd.copy(fontSize = 13.sp), color = p.textSoft, maxLines = 1)
-      Text(Methods.method(Store.methodId).nameAr, Modifier.clip(CircleShape).background(p.glass).clickable(onClick = onMethod).padding(horizontal = 8.dp, vertical = 3.dp), style = DSType.labelXs.copy(fontSize = 10.5.sp, fontWeight = FontWeight.Normal), color = p.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
+    Text("الأذان ${Fmt.time(tl.next.time)}", Modifier.padding(top = 2.dp), style = DSType.labelMd.copy(fontSize = 13.sp), color = p.textSoft, maxLines = 1)
   }
 }
-private fun remainingLabel(secs: Long): String {
-  val m = maxOf(0L, secs / 60)
-  if (m < 60) return "بعد ${Fmt.number(maxOf(1L, m).toInt())} دقيقة"
-  val hh = (m / 60).toInt(); val r = (m % 60).toInt()
-  return if (r == 0) "بعد ${Fmt.number(hh)} س" else "بعد ${Fmt.number(hh)} س و${Fmt.number(r)} د"
-}
 
-/** الميدالية وحبّة التوجّه والاتجاه والبعد */
+/** الميدالية وحبّة التوجّه — بلا سطر الدرجات والبُعد (في شاشة القبلة الكاملة) */
 @Composable private fun MedallionColumn(coords: Coordinates, compass: CompassReading, p: SkyPalette, onQibla: () -> Unit) {
   val qibla = remember(coords) { Qibla.info(coords.latitude, coords.longitude) }
   val decl = remember(coords) { Geomag.declination(coords.latitude, coords.longitude) }
@@ -242,7 +228,6 @@ private fun remainingLabel(secs: Long): String {
   Column(Modifier.width(150.dp).clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onQibla), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
     CompassMedallion(qibla.bearing, trueHeading ?: 0.0, aligned, live = trueHeading != null, Modifier.size(140.dp))
     QiblaChip(aligned, diff, live = trueHeading != null, p)
-    Text("${Fmt.decimal(qibla.bearing, 1)}° ${Qibla.compassPointAr(qibla.bearing)}  ·  ${Fmt.decimal(qibla.distanceKm, 0)} كم", style = DSType.labelXs.copy(fontSize = 11.sp, fontWeight = FontWeight.Normal), color = p.textMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
   }
 }
 
@@ -303,8 +288,8 @@ private fun remainingLabel(secs: Long): String {
       prayers.forEachIndexed { k, pr ->
         val next = tl.next.key == pr && !tl.next.isTomorrow
         Column(Modifier.width(step + 4.dp).offset(x = x(k.toDouble()) - (step + 4.dp) / 2, y = ty + 14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+          // الأسماء فقط: الأوقات مكرّرة في شبكة المواقيت تحت الهيرو مباشرةً
           Text(pr.nameAr, style = DSType.labelXs.copy(fontSize = 11.5.sp, fontWeight = if (next) FontWeight.SemiBold else FontWeight.Medium), color = if (next) gold else txt.copy(alpha = if (pr == Prayer.SUNRISE) 0.5f else 0.9f), maxLines = 1)
-          Text(Fmt.time(tl.times[pr]), style = DSType.labelXs.copy(fontSize = 11.sp, fontWeight = FontWeight.Normal), color = txt.copy(alpha = if (next) 0.9f else 0.55f), maxLines = 1)
         }
       }
       // علامة «الآن»: هلال ليلًا وشمس نهارًا مع وهج ذهبي، والعبارة إلى جانبها
@@ -315,29 +300,6 @@ private fun remainingLabel(secs: Long): String {
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) { Text(elapsedLabel, style = DSType.labelXs.copy(fontSize = 10.5.sp), color = gold, maxLines = 1) }
       }
     }
-  }
-}
-
-// MARK: الوصول السريع
-@Composable private fun QuickTiles(tl: PrayerTimes.DayTimeline, now: Instant, coords: Coordinates, modifier: Modifier, onMushaf: () -> Unit, onAdhkar: () -> Unit, onQibla: () -> Unit, onMosques: () -> Unit) {
-  val page = Store.lastRead?.page ?: 1
-  val period = Adhkar.autoPeriod(now, tl.times[Prayer.FAJR], tl.times[Prayer.DHUHR], tl.times[Prayer.ASR], Store.zone)
-  val q = remember(coords) { Qibla.info(coords.latitude, coords.longitude) }
-  val mosqueSub = if (Store.nearbyMosques) (Loc.mosqueCenter?.let { ctr -> MosqueFinder.cached(ctr.latitude, ctr.longitude)?.firstOrNull()?.let { m -> MosqueFinder.distanceLabel(m.distanceKm) } } ?: "حولك") else "قريب منك"
-  Row(modifier, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-    Tile(Icons.Outlined.MenuBook, "المصحف", "ص ${Fmt.number(page)}", Modifier.weight(1f), onMushaf)
-    Tile(Icons.Outlined.AutoAwesome, "الأذكار", if (period == "morning") "الصباح" else "المساء", Modifier.weight(1f), onAdhkar)
-    Tile(Icons.Outlined.Explore, "القبلة", "${Fmt.decimal(q.bearing, 0)}°", Modifier.weight(1f), onQibla)
-    Tile(Icons.Outlined.Mosque, "المساجد", mosqueSub, Modifier.weight(1f), onMosques)
-  }
-}
-@Composable private fun Tile(icon: ImageVector, title: String, sub: String, modifier: Modifier, onClick: () -> Unit) {
-  val c = DS.c; val shape = RoundedCornerShape(20.dp)
-  Column(modifier.height(106.dp).shadow(14.dp, shape, ambientColor = c.shadow.copy(alpha = 0.10f), spotColor = c.shadow.copy(alpha = 0.14f)).clip(shape).background(c.bgSurface).clickable(onClick = onClick).padding(vertical = 12.dp, horizontal = 4.dp),
-    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    Box(Modifier.size(40.dp).clip(RoundedCornerShape(14.dp)).background(c.brandSoft.copy(alpha = 0.55f)), contentAlignment = Alignment.Center) { Icon(icon, null, Modifier.size(20.dp), tint = c.brandPrimary) }
-    Text(title, style = DSType.labelSm.copy(fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold), color = c.textPrimary, maxLines = 1)
-    Text(sub, style = DSType.labelXs.copy(fontSize = 10.5.sp, fontWeight = FontWeight.Normal), color = c.textTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
   }
 }
 
