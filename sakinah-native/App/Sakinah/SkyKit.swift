@@ -106,12 +106,15 @@ struct SkyBackdrop: View {
       }
       .frame(width: w, height: h)
     }
+    // مواضع القرص والغيوم بإحداثيات صريحة (القرص فوق الميدالية يسارًا)؛ بيئة RTL كانت تعكسها إلى اليمين
+    .environment(\.layoutDirection, .leftToRight)
     .clipped()
     .allowsHitTesting(false)
   }
 }
 
-/// قرص الشمس/القمر بحسب الطور — في الجهة اليسرى فوق الميدالية بعيدًا عن النصّ
+/// قرص الشمس/القمر بحسب الطور — في الشريط بين صفّ الأيقونات الزجاجية وقمّة الميدالية
+/// (قِيس على المحاكي: كان القمر والشمس فوق أيقونتي التقويم والتنبيهات، والشمس المنخفضة خلف حبّة القبلة)
 struct SkyDiscView: View {
   let disc: SkyDisc
   let accent: Color
@@ -124,10 +127,10 @@ struct SkyDiscView: View {
         Circle().fill(Color(hex: 0xF3DFA0)).frame(width: 26, height: 26).shadow(color: Color(hex: 0xF3DFA0).opacity(0.7), radius: 16)
         Circle().fill(Color(hex: 0x0A1E2E)).frame(width: 22, height: 22).offset(x: 9, y: -4)
       }
-      .position(x: size.width * 0.14, y: size.height * 0.16)
-    case .sunHigh: sun(34).position(x: size.width * 0.30, y: size.height * 0.11)
-    case .sun: sun(30).position(x: size.width * 0.27, y: size.height * 0.24)
-    case .sunLow: sun(30).position(x: size.width * 0.30, y: size.height * 0.60)
+      .position(x: size.width * 0.14, y: size.height * 0.22)
+    case .sunHigh: sun(34).position(x: size.width * 0.40, y: size.height * 0.19)
+    case .sun: sun(30).position(x: size.width * 0.32, y: size.height * 0.23)
+    case .sunLow: sun(30).position(x: size.width * 0.44, y: size.height * 0.50)
     }
   }
   private func sun(_ d: CGFloat) -> some View {
@@ -162,7 +165,7 @@ struct SkyWeatherLayer: View {
     switch kind {
     case .clear: EmptyView()
     case .partlyCloudy:
-      clouds([(0.10, 0.10, 100, 0.85), (0.62, 0.26, 78, 0.7)])
+      clouds([(0.02, 0.11, 110, 0.85), (0.50, 0.01, 72, 0.6)])
     case .overcast:
       clouds([(-0.05, 0.02, 150, 0.5), (0.45, -0.02, 170, 0.45), (0.25, 0.20, 120, 0.3)])
     case .rain:
@@ -174,11 +177,13 @@ struct SkyWeatherLayer: View {
     }
   }
 
-  /// (x, y) نسبتان، العرض بالنقاط، والشفافية — الغيوم بيضاء على الداكن وعلى الفاتح معًا
+  /// (x, y) نسبتان، العرض بالنقاط، والشفافية — الغيوم بيضاء؛ فوق النصّ الورقي (السماء الداكنة) تُخفَّف إلى ٠٫٤
+  /// كي يبقى مقروءًا (قِيس: غيمة الظهر غطّت اسم الصلاة وحبّة «بعد…»)
   private func clouds(_ list: [(Double, Double, CGFloat, Double)]) -> some View {
-    ZStack {
+    let k = isDark ? 0.4 : 1.0
+    return ZStack {
       ForEach(Array(list.enumerated()), id: \.offset) { i, c in
-        CloudShape().fill(Color.white.opacity(c.3))
+        CloudShape().fill(Color.white.opacity(c.3 * k))
           .frame(width: c.2, height: c.2 * 0.42)
           .position(x: size.width * c.0 + c.2 / 2, y: size.height * c.1 + c.2 * 0.21)
           .modifier(Drift(distance: reduceMotion ? 0 : (i % 2 == 0 ? 14 : -10), duration: 40 + Double(i) * 12))

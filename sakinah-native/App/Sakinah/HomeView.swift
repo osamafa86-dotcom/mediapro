@@ -170,8 +170,8 @@ struct HomeView: View {
     return VStack(alignment: .leading, spacing: 2) {
       HStack(spacing: 8) {
         Circle().fill(p.gold).frame(width: 6, height: 6)
-        Text("الصلاة القادمة").font(DS.readex(13, .medium)).kerning(0.4).foregroundStyle(p.gold)
-        Text(remainingLabel(remaining, numerals: s.numerals)).font(DS.readex(11.5, .medium)).foregroundStyle(p.gold)
+        Text("الصلاة القادمة").font(DS.readex(13, .medium)).kerning(0.4).foregroundStyle(p.gold).lineLimit(1)
+        Text(remainingLabel(remaining, numerals: s.numerals)).font(DS.readex(11.5, .medium)).foregroundStyle(p.gold).lineLimit(1).fixedSize()
           .padding(.vertical, 3).padding(.horizontal, 9)
           .background(p.gold.opacity(0.16), in: Capsule()).overlay(Capsule().stroke(p.gold.opacity(0.35), lineWidth: 1))
       }
@@ -188,7 +188,8 @@ struct HomeView: View {
       }
       .padding(.top, 2)
     }
-    .frame(maxWidth: 200, alignment: .leading)
+    // بلا سقف عرض: مع ٢٠٠ نقطة كانت حبّة «بعد ٥ س و٤٩ د» تنكسر سطرين على ٦٫٩″ (قِيس في لقطة المحاكي)
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   private func remainingLabel(_ secs: TimeInterval, numerals n: String) -> String {
@@ -533,6 +534,8 @@ struct DayTimelineStrip: View {
       let step = (w - pad * 2) / CGFloat(prayers.count - 1)
       let x: (Double) -> CGFloat = { w - pad - CGFloat($0) * step }
       let nowX = x(nowIndex)
+      // عبارة «مضى…» على الجهة الفارغة من العلامة: يسارها حين تكون العلامة في النصف الأيمن
+      let labelLeft = nowX > w / 2
       ZStack(alignment: .topLeading) {
         Canvas { ctx, _ in
           var track = Path(); track.move(to: CGPoint(x: pad, y: ty)); track.addLine(to: CGPoint(x: w - pad, y: ty))
@@ -563,19 +566,21 @@ struct DayTimelineStrip: View {
           .frame(width: step + 4)
           .position(x: x(Double(k)), y: ty + 30)
         }
-        // علامة «الآن»: هلال ليلًا وشمس نهارًا مع وهج ذهبي، والعبارة إلى جانبها
-        HStack(spacing: 8) {
-          ZStack {
-            Circle().fill(palette.stops[3].color).overlay(Circle().stroke(palette.gold, lineWidth: 1.5)).frame(width: 26, height: 26)
-              .shadow(color: palette.gold.opacity(0.55), radius: 10)
-            Image(systemName: isNight ? "moon.fill" : "sun.max.fill").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color(hex: 0xF3DFA0))
-          }
-          Text(elapsedLabel).font(DS.readex(10.5, .medium)).foregroundStyle(palette.gold).lineLimit(1).minimumScaleFactor(0.7)
+        // علامة «الآن»: هلال ليلًا وشمس نهارًا مع وهج ذهبي فوق موضعها على المسار، والعبارة إلى جانبها
+        ZStack {
+          Circle().fill(palette.stops[3].color).overlay(Circle().stroke(palette.gold, lineWidth: 1.5)).frame(width: 26, height: 26)
+            .shadow(color: palette.gold.opacity(0.55), radius: 10)
+          Image(systemName: isNight ? "moon.fill" : "sun.max.fill").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color(hex: 0xF3DFA0))
         }
-        .position(x: min(w - 70, max(13, nowX)) + 60, y: ty - 26)
+        .position(x: nowX, y: ty - 26)
+        Text(elapsedLabel).font(DS.readex(10.5, .medium)).foregroundStyle(palette.gold).lineLimit(1).minimumScaleFactor(0.7)
+          .frame(width: max(0, labelLeft ? nowX - 20 : w - nowX - 20), height: 26, alignment: labelLeft ? .trailing : .leading)
+          .offset(x: labelLeft ? 0 : nowX + 20, y: ty - 39)
         Rectangle().fill(palette.gold.opacity(0.8)).frame(width: 1.5, height: 8).position(x: nowX, y: ty - 10)
       }
     }
+    // الإحداثيات صريحة (الفجر يمينًا كما في التصميم)؛ بيئة RTL كانت تعكس الشريط كلّه فبدا الفجر يسارًا (قِيس في لقطة المحاكي)
+    .environment(\.layoutDirection, .leftToRight)
     .accessibilityElement(children: .combine)
     .accessibilityLabel("خطّ اليوم: \(elapsedLabel)")
   }

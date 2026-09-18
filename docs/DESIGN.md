@@ -43,11 +43,21 @@
    مفتاح الطقس مع ملاحظة الخصوصية، تقليل الحركة، اختيار طور ثابت من تسعة، أو لون مخصّص من ثمانية
    (يلوّن السماء والشريط والبطاقات المعبّأة؛ الذهب والنعناع ثابتان للإشارات).
 
-   **التنفيذ (5.1.0):** iOS في `App/Sakinah/HomeView.swift` (`HomeView`، `CompassMedallion`،
-   `StarLattice`) وشريط `DSTabBar` العائم في `Components.swift`؛ أندرويد في
-   `ui/HomeScreen.kt` (`HomeScreen`، `rememberCompass`، `CompassMedallion`، `StarLattice`)
-   و`DSTabBar` في `ui/Components.kt`. القبلة الكاملة هي شاشة القبلة السابقة بزرّ إغلاق،
-   ومسار اللقطات `qibla` يفتحها فوق الرئيسية.
+   **التنفيذ (5.1.0 — الصفحتان ٦ و٧):** المنطق المشترك في النواتين: `SakinahCore/Sky.swift`
+   و`core/.../Sky.kt` (`SkyPhase` التسعة من مواقيت اليوم مع مزج ٢٠ دقيقة حول كل حدّ، لوحات الأطوار
+   بأربع درجات + الوهج + القرص + وضع النصّ، طبقات الطقس كتعديلات على اللوحة، `SkyWeather.from(wmo:)`
+   من رموز WMO والغطاء السحابي والغبار، `SkyPrefs` تلقائي/ثابت/مخصّص، واختبارات وحدة متطابقة في
+   `SkyTests.swift` و`SkyTest.kt`). iOS: `App/Sakinah/HomeView.swift` (`HomeView`، `DayTimelineStrip`،
+   `MiniPageThumb`، `MosqueMapStrip` بخرائط آبل، `CompassMedallion`، `StarLattice`)،
+   `SkyKit.swift` (`SkyWeatherService` من Open-Meteo مع كاش ساعة، `SkyBackdrop` بالتدرّج والنجوم
+   والوهج والقرص وطبقات الغيوم/المطر/الثلج/الغبار)، `SkySettingsView.swift` («مظهر السماء»)،
+   والتفضيلات في `Settings.sky`. أندرويد: `ui/HomeScreen.kt` (`HomeScreen`، `Hero`،
+   `DayTimelineStrip`، `QuickTiles`، البطاقات، `CompassMedallion`)، `app/Sky.kt`
+   (`SkyWeatherService`، `SkyBackdrop`)، `ui/SkySettingsScreen.kt`، والتفضيلات في `Store.sky*`.
+   شريط `DSTabBar` العائم في `Components.swift` / `ui/Components.kt`. القبلة الكاملة هي شاشة
+   القبلة السابقة بزرّ إغلاق. مسارات اللقطات: `qibla` يفتحها فوق الرئيسية، و`home-bottom` يمرّر إلى
+   آخر الرئيسية، ووسيطا `-sakinahSky <طور>` و`-sakinahWeather <طقس>` (أندرويد: `--es`) يفرضان
+   حالة سماء بعينها للتحقّق البصري من كل طور وطقس في CI (لقطات ٠٧–١٤).
 
 خلفيّات الشاشات هي صورة صفحة ٢٧٠ الحقيقيّة المرسومة بخطّ QCF v1 (`tools/` في `sakinah/`).
 

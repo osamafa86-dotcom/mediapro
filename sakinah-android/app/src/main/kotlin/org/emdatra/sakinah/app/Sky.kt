@@ -125,7 +125,7 @@ fun SkyPalette.brush(): Brush = Brush.verticalGradient(stops.map { it.toColor() 
       if (starry) drawStars(if (d == SkyPhase.SHAFAQ) 0.45f else 0.8f)
       drawGlow(p)
       drawDisc(p)
-      drawWeather(state.weather, kDrift, kFall, kSnow)
+      drawWeather(state.weather, kDrift, kFall, kSnow, p.isDark)
     }
   }
 }
@@ -147,6 +147,7 @@ private fun DrawScope.drawGlow(p: SkyPalette) {
 }
 
 /** قرص الشمس/القمر بحسب الطور — في الجهة اليسرى فوق الميدالية بعيدًا عن النصّ */
+/** القرص في الشريط بين صفّ الأيقونات الزجاجية وقمّة الميدالية (قِيس على المحاكي: كان القمر والشمس فوق أيقونتي التقويم والتنبيهات) */
 private fun DrawScope.drawDisc(p: SkyPalette) {
   fun sun(d: Float, at: Offset) {
     val halo = d * 1.9f
@@ -156,14 +157,14 @@ private fun DrawScope.drawDisc(p: SkyPalette) {
   when (p.disc) {
     SkyDisc.NONE -> {}
     SkyDisc.MOON -> {
-      val at = Offset(size.width * 0.14f, size.height * 0.16f); val d = 26.dp.toPx()
+      val at = Offset(size.width * 0.14f, size.height * 0.22f); val d = 26.dp.toPx()
       drawCircle(Brush.radialGradient(listOf(Color(0xFFF3DFA0).copy(alpha = 0.5f), Color.Transparent), center = at, radius = d * 1.5f), d * 1.5f, at)
       drawCircle(Color(0xFFF3DFA0), d / 2, at)
       drawCircle(p.stops[1].toColor(), d * 0.42f, at + Offset(9.dp.toPx(), -4.dp.toPx()))
     }
-    SkyDisc.SUN_HIGH -> sun(34.dp.toPx(), Offset(size.width * 0.30f, size.height * 0.11f))
-    SkyDisc.SUN -> sun(30.dp.toPx(), Offset(size.width * 0.27f, size.height * 0.24f))
-    SkyDisc.SUN_LOW -> sun(30.dp.toPx(), Offset(size.width * 0.30f, size.height * 0.60f))
+    SkyDisc.SUN_HIGH -> sun(34.dp.toPx(), Offset(size.width * 0.40f, size.height * 0.19f))
+    SkyDisc.SUN -> sun(30.dp.toPx(), Offset(size.width * 0.32f, size.height * 0.23f))
+    SkyDisc.SUN_LOW -> sun(30.dp.toPx(), Offset(size.width * 0.44f, size.height * 0.50f))
   }
 }
 
@@ -173,14 +174,16 @@ private fun DrawScope.drawCloud(x: Float, y: Float, w: Float, alpha: Float) {
   for (q in parts) drawOval(Color.White.copy(alpha = alpha), Offset(x + w * q[0], y + w * q[1] * 0.9f - w * q[2] * 0.3f), Size(w * q[2], w * q[2] * 0.75f))
 }
 
-private fun DrawScope.drawWeather(kind: SkyWeather, drift: Float, fall: Float, snow: Float) {
+/** الغيوم بيضاء؛ فوق النصّ الورقي (السماء الداكنة) تُخفَّف إلى ٠٫٤ كي يبقى مقروءًا (قِيس: غيمة الظهر غطّت اسم الصلاة وحبّة «بعد…») */
+private fun DrawScope.drawWeather(kind: SkyWeather, drift: Float, fall: Float, snow: Float, dark: Boolean) {
   val w = size.width; val h = size.height; val dx = drift * 12.dp.toPx()
+  val k = if (dark) 0.4f else 1f
   when (kind) {
     SkyWeather.CLEAR -> {}
-    SkyWeather.PARTLY_CLOUDY -> { drawCloud(w * 0.10f + dx, h * 0.10f, 100.dp.toPx(), 0.85f); drawCloud(w * 0.62f - dx, h * 0.26f, 78.dp.toPx(), 0.7f) }
-    SkyWeather.OVERCAST -> { drawCloud(-w * 0.05f + dx, h * 0.02f, 150.dp.toPx(), 0.5f); drawCloud(w * 0.45f - dx, -h * 0.02f, 170.dp.toPx(), 0.45f); drawCloud(w * 0.25f + dx, h * 0.20f, 120.dp.toPx(), 0.3f) }
+    SkyWeather.PARTLY_CLOUDY -> { drawCloud(w * 0.02f + dx, h * 0.11f, 110.dp.toPx(), 0.85f * k); drawCloud(w * 0.50f - dx, h * 0.01f, 72.dp.toPx(), 0.6f * k) }
+    SkyWeather.OVERCAST -> { drawCloud(-w * 0.05f + dx, h * 0.02f, 150.dp.toPx(), 0.5f * k); drawCloud(w * 0.45f - dx, -h * 0.02f, 170.dp.toPx(), 0.45f * k); drawCloud(w * 0.25f + dx, h * 0.20f, 120.dp.toPx(), 0.3f * k) }
     SkyWeather.RAIN -> {
-      drawCloud(dx, -h * 0.02f, 160.dp.toPx(), 0.3f); drawCloud(w * 0.5f - dx, 0f, 150.dp.toPx(), 0.28f)
+      drawCloud(dx, -h * 0.02f, 160.dp.toPx(), 0.3f * k); drawCloud(w * 0.5f - dx, 0f, 150.dp.toPx(), 0.28f * k)
       for (i in 0 until 22) {
         val len = (12 + (i % 3) * 5).dp.toPx()
         val x0 = i * (w / 21) + ((i * 7) % 11).dp.toPx()
@@ -193,7 +196,7 @@ private fun DrawScope.drawWeather(kind: SkyWeather, drift: Float, fall: Float, s
       drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color(0xFFE8DCC8).copy(alpha = 0.45f), Color(0xFFE8DCC8).copy(alpha = 0.45f), Color(0xFFE8DCC8).copy(alpha = 0.25f)), startY = top, endY = h), Offset(0f, top), Size(w, h - top))
     }
     SkyWeather.SNOW -> {
-      drawCloud(dx, -h * 0.02f, 160.dp.toPx(), 0.35f); drawCloud(w * 0.5f - dx, 0f, 150.dp.toPx(), 0.3f)
+      drawCloud(dx, -h * 0.02f, 160.dp.toPx(), 0.35f * k); drawCloud(w * 0.5f - dx, 0f, 150.dp.toPx(), 0.3f * k)
       for (i in 0 until 26) {
         val r = (1.5f + (i % 3) * 0.9f).dp.toPx()
         val x = ((i * 41) % 200) / 200f * w + sin(snow * Math.PI.toFloat() * 2 + i) * 6.dp.toPx()
