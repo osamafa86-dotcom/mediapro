@@ -1,5 +1,11 @@
 package org.emdatra.sakinah.app.ui
 
+import android.Manifest
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -28,10 +34,15 @@ import org.emdatra.sakinah.core.Qibla
 @Composable fun MosquesScreen(onBack: () -> Unit) {
   val ctx = LocalContext.current; val c = DS.c; val scope = rememberCoroutineScope()
   androidx.activity.compose.BackHandler(onBack = onBack)
-  val coords = Store.coords
+  // مركز البحث هو موقع الجهاز الفعلي لا إحداثيات المواقيت (مدينة يدوية = مركزها)
+  val coords = Loc.mosqueCenter
   var query by remember { mutableStateOf("") }
   var results by remember { mutableStateOf<List<Mosque>>(emptyList()) }
   var loading by remember { mutableStateOf(false) }; var error by remember { mutableStateOf<String?>(null) }
+  var denied by remember { mutableStateOf(false) }; var fixFailed by remember { mutableStateOf(false) }
+  val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { g ->
+    if (g.values.any { it }) scope.launch { fixFailed = Loc.refreshDeviceFix(ctx) == null } else denied = true
+  }
   fun search(q: String? = null, force: Boolean = false) {
     val co = coords ?: return
     scope.launch {
@@ -41,13 +52,22 @@ import org.emdatra.sakinah.core.Qibla
       loading = false
     }
   }
+  LaunchedEffect(Unit) { if (Loc.granted(ctx)) fixFailed = Loc.refreshDeviceFix(ctx) == null && Loc.mosqueCenter == null }
   LaunchedEffect(coords) { search() }
   Column(Modifier.fillMaxSize().background(c.bgCanvas)) {
     DSNavBar("المساجد القريبة", onBack = onBack) { DSIconButton(Icons.Outlined.Refresh, contentDescription = "تحديث") { search(force = true) } }
     if (coords == null) {
       Column(Modifier.fillMaxWidth().padding(16.dp, 48.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        DSIconButton(Icons.Outlined.LocationOff, style = IconStyle.Soft, size = 64.dp, iconSize = 26.dp)
-        Text("حدّد موقعك من الرئيسية لعرض المساجد القريبة", style = DSType.headingSm, color = c.textPrimary, textAlign = TextAlign.Center)
+        if (Store.coords == null) {
+          DSIconButton(Icons.Outlined.LocationOff, style = IconStyle.Soft, size = 64.dp, iconSize = 26.dp)
+          Text("حدّد موقعك من الرئيسية لعرض المساجد القريبة", style = DSType.headingSm, color = c.textPrimary, textAlign = TextAlign.Center)
+        } else {
+          DSIconButton(Icons.Outlined.LocationSearching, style = IconStyle.Soft, size = 64.dp, iconSize = 26.dp)
+          DeviceFixPrompt(denied = denied, failed = fixFailed, granted = Loc.granted(ctx)) {
+            if (Loc.granted(ctx)) scope.launch { fixFailed = Loc.refreshDeviceFix(ctx) == null }
+            else permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+          }
+        }
       }
       return
     }
@@ -84,6 +104,33 @@ import org.emdatra.sakinah.core.Qibla
         Text(listOfNotNull(MosqueFinder.distanceLabel(m.distanceKm), MosqueFinder.walkLabel(m.distanceKm), Qibla.compassPointAr(m.bearing), m.address).joinToString(" · "), style = DSType.labelXs, color = c.textSecondary, maxLines = 1)
       }
       DSIconButton(Icons.Outlined.Directions, style = IconStyle.Brand, size = 38.dp, iconSize = 16.dp, contentDescription = "الاتجاهات إلى ${m.name}", onClick = onDirections)
+    }
+  }
+}
+
+/** مدينة يدوية بلا قراءة من الجهاز بعد: اطلب الإذن، أو انتظر القراءة، أو اشرح الرفض — المواقيت لا تُمسّ */
+@Composable fun DeviceFixPrompt(denied: Boolean, failed: Boolean, granted: Boolean, onAllow: () -> Unit) {
+  val c = DS.c; val ctx = LocalContext.current
+  val city = Store.locName ?: "مدينتك"
+  Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    when {
+      denied -> {
+        Text("إذن الموقع مرفوض. مواقيتك على «$city» تبقى كما هي، لكن أقرب مسجد يحتاج موقع جهازك الفعلي لا مركز المدينة.", style = DSType.bodySm, color = c.textSecondary)
+        DSButton("افتح إعدادات التطبيق", Modifier.fillMaxWidth(), kind = ButtonKind.Outline, icon = Icons.Outlined.Settings) {
+          runCatching { ctx.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${ctx.packageName}"))) }
+        }
+      }
+      failed -> {
+        Text("تعذّر تحديد موقع الجهاز — تأكّد من تفعيل الموقع في النظام ثم حاول مجددًا.", style = DSType.bodySm, color = c.textSecondary)
+        DSButton("حاول مجددًا", Modifier.fillMaxWidth(), icon = Icons.Outlined.MyLocation) { onAllow() }
+      }
+      granted -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = c.brandPrimary); Text("نحدّد موقع جهازك…", style = DSType.bodySm, color = c.textSecondary)
+      }
+      else -> {
+        Text("موقعك مضبوط يدويًّا على «$city»، وإحداثيات المدينة هي مركزها لا مكانك. اسمح بموقع الجهاز لعرض أقرب مسجد إليك حقًّا — مواقيتك لا تتغيّر.", style = DSType.bodySm, color = c.textSecondary)
+        DSButton("اسمح بموقع الجهاز", Modifier.fillMaxWidth(), icon = Icons.Outlined.MyLocation) { onAllow() }
+      }
     }
   }
 }

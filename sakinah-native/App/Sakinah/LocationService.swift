@@ -25,6 +25,13 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
   var headingAvailable: Bool { CLLocationManager.headingAvailable() }
   var errorMessage: String?
   var onLocationResolved: (() -> Void)?
+  /// موقع الجهاز الفعلي للمساجد القريبة — مستقلّ عن وضع المواقيت: مدينة مختارة يدويًّا تعني إحداثيات مركزها
+  /// (إسطنبول = ميدان السلطان أحمد) فبدا «أقرب مسجد» آيا صوفيا على ٩٠ م والمالك على نصف ساعة منها (قِيس، ثلاثة بناءات).
+  var deviceFix: CLLocationCoordinate2D?
+  var deviceFixAt: Date?
+  var deviceFixError: String?
+  private var wantsDeviceFix = false
+  private var fixRequestedAt: Date?
 
   override init() {
     mode = Mode(rawValue: defaults.string(forKey: "loc.mode") ?? "") ?? .gps
@@ -64,7 +71,20 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     switch manager.authorizationStatus {
     case .notDetermined: manager.requestWhenInUseAuthorization()
     case .denied, .restricted: errorMessage = "إذن الموقع مرفوض — فعّله من إعدادات النظام للتطبيق، أو اختر مدينتك يدويًا"
-    default: manager.requestLocation()
+    default: fixRequestedAt = Date(); manager.requestLocation()
+    }
+  }
+
+  /// طلب موقع الجهاز مرّةً (لا يغيّر وضع المواقيت ولا المدينة المختارة). مخنوق: قراءة أحدث من دقيقتين تكفي،
+  /// وطلب معلّق أحدث من ١٥ ث لا يُكرَّر (CoreLocation لا يحبّ طلبين متتاليين).
+  func requestDeviceFix() {
+    if deviceFix != nil, let at = deviceFixAt, Date().timeIntervalSince(at) < 120 { return }
+    if let r = fixRequestedAt, Date().timeIntervalSince(r) < 15 { return }
+    deviceFixError = nil
+    switch manager.authorizationStatus {
+    case .notDetermined: wantsDeviceFix = true; manager.requestWhenInUseAuthorization()
+    case .denied, .restricted: deviceFixError = "إذن الموقع مرفوض للتطبيق"
+    default: wantsDeviceFix = true; fixRequestedAt = Date(); manager.requestLocation()
     }
   }
 
@@ -98,11 +118,16 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
   // MARK: - CLLocationManagerDelegate (تصل على الخيط الرئيسي)
   func locationManagerDidChangeAuthorization(_ m: CLLocationManager) {
     authorization = m.authorizationStatus
-    if mode == .gps, authorization == .authorizedWhenInUse || authorization == .authorizedAlways { m.requestLocation() }
+    let granted = authorization == .authorizedWhenInUse || authorization == .authorizedAlways
+    if granted, mode == .gps || wantsDeviceFix { fixRequestedAt = Date(); m.requestLocation() }
+    if wantsDeviceFix, authorization == .denied || authorization == .restricted { wantsDeviceFix = false; deviceFixError = "إذن الموقع مرفوض للتطبيق" }
   }
 
   func locationManager(_ m: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-    guard mode == .gps, let loc = locations.last else { return }
+    guard let loc = locations.last else { return }
+    // قراءة الجهاز تُحفظ دائمًا للمساجد القريبة؛ أما إحداثيات المواقيت فلا تُمسّ في الوضع اليدوي
+    deviceFix = loc.coordinate; deviceFixAt = Date(); deviceFixError = nil; wantsDeviceFix = false; fixRequestedAt = nil
+    guard mode == .gps else { return }
     coordinate = loc.coordinate
     accuracyMeters = loc.horizontalAccuracy
     persist()
@@ -110,6 +135,8 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
   }
 
   func locationManager(_ m: CLLocationManager, didFailWithError error: Error) {
+    fixRequestedAt = nil
+    if wantsDeviceFix { wantsDeviceFix = false; deviceFixError = "تعذّر تحديد موقع الجهاز" }
     if coordinate == nil { errorMessage = "تعذّر تحديد الموقع — حاول مجددًا أو اختر مدينتك يدويًا" }
   }
 

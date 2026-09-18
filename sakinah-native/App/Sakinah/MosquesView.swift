@@ -13,7 +13,7 @@ struct MosquesView: View {
     let n = model.settings.numerals
     ScrollView(showsIndicators: false) {
       VStack(spacing: DS.Space.s3) {
-        if let c = model.coordinates {
+        if let c = model.mosqueCenter {
           searchBar(c)
           mapCard(c)
           // نتائج آبل تظهر فورًا والقائمة لا تُخفى ريثما تصل OpenStreetMap (قد تتأخّر ٢٠ ث على خادمها العام)
@@ -36,8 +36,15 @@ struct MosquesView: View {
           }
           Text("النتائج من خرائط آبل و© مساهمي OpenStreetMap. يُرسل موقعك مقرّبًا إلى نحو كيلومتر عند كل بحث، ولا يُحفظ لدينا.")
             .font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).multilineTextAlignment(.center)
-        } else {
+        } else if model.coordinates == nil {
           needLocation
+        } else {
+          // مدينة يدوية: إحداثياتها مركزها لا مكان المستخدم — نطلب موقع الجهاز (المواقيت لا تتغيّر)
+          VStack(spacing: DS.Space.s4) {
+            DSIcon(systemName: "location.magnifyingglass", style: .soft, size: 64, iconSize: 26)
+            DeviceFixPrompt()
+          }
+          .padding(.top, DS.Space.s6)
         }
       }
       .padding(.horizontal, DS.Space.s4).padding(.top, DS.Space.s2).padding(.bottom, DS.Space.s8)
@@ -46,10 +53,13 @@ struct MosquesView: View {
     .navigationTitle("المساجد القريبة").navigationBarTitleDisplayMode(.inline)
     .toolbar {
       ToolbarItem(placement: .topBarTrailing) {
-        Button { Task { if let c = model.coordinates { await finder.nearby(around: c, force: true) } } } label: { Image(systemName: "arrow.clockwise") }.accessibilityLabel("تحديث")
+        Button { Task { if let c = model.mosqueCenter { await finder.nearby(around: c, force: true) } } } label: { Image(systemName: "arrow.clockwise") }.accessibilityLabel("تحديث")
       }
     }
-    .task { if let c = model.coordinates, finder.results.isEmpty { await finder.nearby(around: c) } }
+    .task(id: model.mosqueCenter.map { String(format: "%.3f,%.3f", $0.latitude, $0.longitude) } ?? "-") {
+      if model.location.authorization == .authorizedWhenInUse || model.location.authorization == .authorizedAlways { model.location.requestDeviceFix() }
+      if let c = model.mosqueCenter, query.isEmpty { await finder.nearby(around: c) }
+    }
   }
 
   private func searchBar(_ c: Coordinates) -> some View {
@@ -119,5 +129,32 @@ struct MosquesView: View {
       DSButton(title: "تحديد الموقع", icon: "location.fill") { model.location.requestLocation() }
     }
     .padding(.top, DS.Space.s8)
+  }
+}
+
+/// مدينة يدوية بلا قراءة من الجهاز بعد: اطلب الإذن، أو انتظر القراءة، أو اشرح الرفض — المواقيت لا تُمسّ
+struct DeviceFixPrompt: View {
+  @Environment(AppModel.self) private var model
+  var body: some View {
+    let loc = model.location
+    let city = loc.placeName ?? "مدينتك"
+    let granted = loc.authorization == .authorizedWhenInUse || loc.authorization == .authorizedAlways
+    VStack(alignment: .leading, spacing: 10) {
+      if let e = loc.deviceFixError {
+        Text("\(e). مواقيتك على «\(city)» تبقى كما هي، لكن أقرب مسجد يحتاج موقع جهازك الفعلي لا مركز المدينة.")
+          .font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary)
+        if loc.authorization == .denied || loc.authorization == .restricted {
+          DSButton(title: "افتح إعدادات الموقع", icon: "gear") { if let u = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(u) } }
+        } else {
+          DSButton(title: "حاول مجددًا", icon: "location.fill") { loc.requestDeviceFix() }
+        }
+      } else if granted {
+        HStack(spacing: 8) { ProgressView(); Text("نحدّد موقع جهازك…").font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary) }
+      } else {
+        Text("موقعك مضبوط يدويًّا على «\(city)»، وإحداثيات المدينة هي مركزها لا مكانك. اسمح بموقع الجهاز لعرض أقرب مسجد إليك حقًّا — مواقيتك لا تتغيّر.")
+          .font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary)
+        DSButton(title: "اسمح بموقع الجهاز", icon: "location.fill") { loc.requestDeviceFix() }
+      }
+    }
   }
 }

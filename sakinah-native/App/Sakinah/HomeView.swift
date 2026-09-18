@@ -226,8 +226,12 @@ struct HomeView: View {
   }
 
   // MARK: أقرب مسجد
+  /// مركز البحث هو موقع الجهاز الفعلي لا إحداثيات المواقيت (`AppModel.mosqueCenter`): مدينة يدوية تعني مركزها،
+  /// فبدا «أقرب مسجد» في إسطنبول آيا صوفيا على ٩٠ م والمالك على نصف ساعة منها (قِيس في ثلاثة بناءات).
   private func nearestMosqueCard(_ c: Coordinates) -> some View {
     let s = model.settings; let n = s.numerals
+    let center = model.mosqueCenter
+    let fixKey = center.map { String(format: "%.3f,%.3f", $0.latitude, $0.longitude) } ?? "-"
     return VStack(alignment: .leading, spacing: 10) {
       HStack {
         Text("أقرب مسجد").font(DS.F.headingMd).foregroundStyle(DS.C.textPrimary)
@@ -238,6 +242,8 @@ struct HomeView: View {
         Text("يعرض أقرب مسجد إليك من خرائط آبل وOpenStreetMap. يُرسل موقعك مقرّبًا إلى نحو كيلومتر عند البحث، ولا يُحفظ لدينا.")
           .font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary)
         DSButton(title: "اعرض أقرب مسجد", icon: "building.columns") { s.nearbyMosques = true }
+      } else if center == nil {
+        DeviceFixPrompt()
       } else if let m = mosques.results.first {
         HStack(spacing: 12) {
           DSIcon(systemName: "building.columns", style: .soft, size: 42, iconSize: 17)
@@ -261,7 +267,12 @@ struct HomeView: View {
       }
     }
     .dsCard(padding: 16)
-    .task(id: "\(s.nearbyMosques)-\(MosqueFinder.cellKey(c))") { if s.nearbyMosques { await mosques.nearby(around: c) } }
+    .task(id: "\(s.nearbyMosques)-\(fixKey)-\(model.location.authorization.rawValue)") {
+      guard s.nearbyMosques else { return }
+      // موقع طازج مع كل ظهور (مخنوق دقيقتين)؛ حين يصل يتغيّر المفتاح فيُعاد البحث حوله
+      if model.location.authorization == .authorizedWhenInUse || model.location.authorization == .authorizedAlways { model.location.requestDeviceFix() }
+      if let center { await mosques.nearby(around: center) }
+    }
   }
 
   // MARK: لا موقع بعد

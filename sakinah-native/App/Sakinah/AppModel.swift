@@ -86,6 +86,12 @@ final class AppModel {
     guard let c = location.coordinate else { return nil }
     return Coordinates(latitude: c.latitude, longitude: c.longitude)
   }
+  /// مركز البحث عن المساجد: موقع الجهاز الفعلي، أو إحداثيات المواقيت إن كانت من الجهاز أصلًا؛ ولا شيء لمدينة يدوية
+  /// (إحداثيات المدينة هي مركزها لا مكان المستخدم — إسطنبول = السلطان أحمد)
+  var mosqueCenter: Coordinates? {
+    if let d = location.deviceFix { return Coordinates(latitude: d.latitude, longitude: d.longitude) }
+    return location.mode == .gps ? coordinates : nil
+  }
   var timeZone: TimeZone { location.timeZone }
 
   /// جدول اليوم للحظة معيّنة؛ يُعاد استخدام آخر حساب ما دامت الصلاة الحالية والقادمة لم تتغيرا

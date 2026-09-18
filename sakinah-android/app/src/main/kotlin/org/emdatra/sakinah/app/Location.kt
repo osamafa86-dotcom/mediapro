@@ -8,17 +8,36 @@ import android.location.Location
 import android.location.LocationManager
 import android.os.Build
 import android.os.CancellationSignal
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.emdatra.sakinah.core.CityDatabase
+import org.emdatra.sakinah.core.Coordinates
 import java.util.Locale
 import java.util.concurrent.Executors
 import kotlin.coroutines.resume
 
 /** موقع الجهاز (LocationManager بلا خدمات Google) مع تسمية المدينة من القاعدة المضمّنة أو Geocoder */
 object Loc {
+  /**
+   * موقع الجهاز الفعلي للمساجد القريبة — مستقلّ عن وضع المواقيت: مدينة مختارة يدويًّا تعني إحداثيات مركزها
+   * (إسطنبول = ميدان السلطان أحمد) فبدا «أقرب مسجد» آيا صوفيا على ٩٠ م والمالك على نصف ساعة منها (قِيس على iOS).
+   */
+  var deviceFix by mutableStateOf<Coordinates?>(null)
+  private var deviceFixAt = 0L
+  suspend fun refreshDeviceFix(ctx: Context): Coordinates? {
+    deviceFix?.let { if (System.currentTimeMillis() - deviceFixAt < 120_000) return it }
+    val l = current(ctx) ?: return deviceFix
+    deviceFix = Coordinates(l.latitude, l.longitude); deviceFixAt = System.currentTimeMillis()
+    return deviceFix
+  }
+  /** مركز البحث عن المساجد: موقع الجهاز، أو إحداثيات المواقيت إن كانت من الجهاز أصلًا؛ ولا شيء لمدينة يدوية */
+  val mosqueCenter: Coordinates? get() = deviceFix ?: if (Store.locMode == "gps") Store.coords else null
+
   fun granted(ctx: Context) = ContextCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(ctx, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
   suspend fun current(ctx: Context): Location? {
     if (!granted(ctx)) return null

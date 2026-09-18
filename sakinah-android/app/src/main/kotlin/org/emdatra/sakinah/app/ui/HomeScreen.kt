@@ -274,16 +274,24 @@ class CompassReading(val heading: Float?, val accuracy: Int)
 }
 
 // MARK: أقرب مسجد
+/** مركز البحث هو موقع الجهاز الفعلي (`Loc.mosqueCenter`) لا إحداثيات المواقيت: مدينة يدوية تعني مركزها لا مكان المستخدم */
 @Composable private fun NearestMosqueCard(coords: Coordinates, onAll: () -> Unit) {
-  val c = DS.c; val ctx = LocalContext.current
+  val c = DS.c; val ctx = LocalContext.current; val scope = rememberCoroutineScope()
   var results by remember { mutableStateOf<List<Mosque>>(emptyList()) }
   var loading by remember { mutableStateOf(false) }; var error by remember { mutableStateOf<String?>(null) }
-  val key = MosqueFinder.cellKey(coords.latitude, coords.longitude)
+  var denied by remember { mutableStateOf(false) }; var fixFailed by remember { mutableStateOf(false) }
+  val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { g ->
+    if (g.values.any { it }) scope.launch { fixFailed = Loc.refreshDeviceFix(ctx) == null } else denied = true
+  }
+  val center = Loc.mosqueCenter
+  val key = center?.let { String.format(java.util.Locale.US, "%.3f,%.3f", it.latitude, it.longitude) }
+  // قراءة طازجة مع كل ظهور (مخنوقة دقيقتين)؛ حين تصل يتغيّر المفتاح فيُعاد البحث حولها
+  LaunchedEffect(Store.nearbyMosques) { if (Store.nearbyMosques && Loc.granted(ctx)) fixFailed = Loc.refreshDeviceFix(ctx) == null && Loc.mosqueCenter == null }
   LaunchedEffect(Store.nearbyMosques, key) {
-    if (!Store.nearbyMosques) return@LaunchedEffect
-    MosqueFinder.cached(coords.latitude, coords.longitude)?.let { results = it; return@LaunchedEffect }
+    if (!Store.nearbyMosques || center == null) return@LaunchedEffect
+    MosqueFinder.cached(center.latitude, center.longitude)?.let { results = it; return@LaunchedEffect }
     loading = true; error = null
-    MosqueFinder.nearby(coords.latitude, coords.longitude).onSuccess { results = it }.onFailure { error = "تعذّر جلب المساجد — تحقّق من الاتصال" }
+    MosqueFinder.nearby(center.latitude, center.longitude).onSuccess { results = it }.onFailure { error = "تعذّر جلب المساجد — تحقّق من الاتصال" }
     loading = false
   }
   DSCard(Modifier.fillMaxWidth(), padding = 16.dp) {
@@ -295,6 +303,10 @@ class CompassReading(val heading: Float?, val accuracy: Int)
         Text("يعرض أقرب مسجد إليك من OpenStreetMap. يُرسل موقعك مقرّبًا إلى نحو كيلومتر عند البحث، ولا يُحفظ لدينا.", style = DSType.bodySm, color = c.textSecondary)
         Spacer(Modifier.height(10.dp))
         DSButton("اعرض أقرب مسجد", Modifier.fillMaxWidth(), icon = Icons.Outlined.Mosque) { Store.nearbyMosques = true; Store.save() }
+      }
+      center == null -> DeviceFixPrompt(denied = denied, failed = fixFailed, granted = Loc.granted(ctx)) {
+        if (Loc.granted(ctx)) scope.launch { fixFailed = Loc.refreshDeviceFix(ctx) == null }
+        else permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
       }
       m != null -> Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         DSIconButton(Icons.Outlined.Mosque, style = IconStyle.Soft, size = 42.dp, iconSize = 17.dp)
