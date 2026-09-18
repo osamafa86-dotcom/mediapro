@@ -38,6 +38,18 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import org.emdatra.sakinah.core.HifzMatcher
 import org.emdatra.sakinah.core.HifzWord
 import org.emdatra.sakinah.core.QuranText
+import org.emdatra.sakinah.core.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material.icons.outlined.Subject
+import androidx.compose.material.icons.outlined.TextFields
+import androidx.compose.material.icons.outlined.WarningAmber
+import androidx.compose.material.icons.filled.Warning
 
 /** جلسة مراجعة حفظ لصفحة: الكلمات المنطوقة من آية البداية، المطابق المتسامح، الكشف بالصوت أو بالنقر، ووضع الإخفاء آيةً آية */
 class HifzSession(val page: Int, val from: Int, val veil: Boolean) {
@@ -180,39 +192,72 @@ class HifzSession(val page: Int, val from: Int, val veil: Boolean) {
   }
 }
 
-/** لوحة مراجعة الحفظ / إخفاء الآيات */
+/** هل يعمل التعرّف على الجهاز؟ (يُعرض للقارئ صراحةً) */
+fun speechOnDevice(ctx: Context): Boolean = android.os.Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(ctx)
+
+/**
+ * لوحة مراجعة الحفظ / الإخفاء: صفّ واحد على سطح الورق يُزيح الصفحة —
+ * ميكروفون بهالة، حالة وسطر إفصاح («على الجهاز» أو عبر خدمة النظام)، ثم «كلمة» و«آية» و«ضعيفة» و✕.
+ * الكلمات المستورة لا تُرسم أصلًا؛ ورؤوس الآي وعلامات الأرباع تبقى ظاهرة.
+ */
 @Composable
-fun HifzPanel(session: HifzSession, onExit: () -> Unit, onNextPage: () -> Unit) {
+fun HifzPanel(session: HifzSession, theme: MushafTheme? = null, onExit: () -> Unit, onNextPage: () -> Unit) {
   val ctx = LocalContext.current; val c = DS.c
   val total = QuranText.shared.pageAyahs(session.page).size
+  val ink = theme?.let { hex(it.ink) } ?: c.textPrimary
+  val brand = theme?.let { if (it.isDark) Color(0xFF2DD4BF) else Color(0xFF0F766E) } ?: c.brandPrimary
+  val onBrand = theme?.let { if (it.isDark) Color(0xFF0C1514) else Color(0xFFF6F1E2) } ?: c.textOnBrand
+  val gold = theme?.let { if (it.isDark) Color(0xFFB8993F) else Color(0xFFA98A3A) } ?: c.accentGold
+  val track = theme?.let { if (it.isDark) Color(0xFF4A3F22) else Color(0xFFE9DCB2) } ?: c.bgSubtle
+  val cur = session.currentWord?.n ?: session.lastRevealed?.n
+  val weak = cur != null && cur in Store.weakAyahs
+  val onDevice = remember { speechOnDevice(ctx) }
   val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> if (ok) session.toggleSpeech(ctx) else session.error = "لم يُمنح إذن الميكروفون" }
-  Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).shadow(if (c.isDark) 0.dp else 14.dp, DS.shapeXl, ambientColor = c.shadow.copy(alpha = 0.16f), spotColor = c.shadow.copy(alpha = 0.2f)).clip(DS.shapeXl).background(c.bgSurface).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-      Text(if (session.veil) "إخفاء الآيات" else "مراجعة الحفظ", style = DSType.headingSm, color = c.textPrimary)
-      Text(if (session.veil) "${Fmt.number(minOf(session.revealedAyahs, total))} / ${Fmt.number(total)} آية" else "${Fmt.number(session.pos)} / ${Fmt.number(session.words.size)} كلمة", style = DSType.labelXs, color = c.textSecondary)
-      Spacer(Modifier.weight(1f))
-      if (session.hints > 0 && !session.veil) Text("${Fmt.number(session.hints)} تلميحات", style = DSType.labelXs, color = c.textTertiary)
-      DSIconButton(Icons.Filled.Close, size = 32.dp, iconSize = 14.dp, contentDescription = "إنهاء", onClick = onExit)
-    }
-    ProgressTrack(session.progress.toFloat(), tint = c.accentGold, track = c.bgSubtle, height = 5.dp)
-    if (!session.veil) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-      Box(Modifier.size(72.dp).clip(CircleShape).background(c.brandPrimary.copy(alpha = if (session.listening) 0.16f else 0.08f)).clickable(enabled = true) { if (session.listening) session.toggleSpeech(ctx) else if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) session.toggleSpeech(ctx) else micLauncher.launch(Manifest.permission.RECORD_AUDIO) }, contentAlignment = Alignment.Center) {
-        Box(Modifier.size(56.dp).clip(CircleShape).background(if (session.listening) c.danger else c.brandPrimary), contentAlignment = Alignment.Center) { Icon(if (session.listening) Icons.Filled.Stop else Icons.Filled.Mic, if (session.listening) "إيقاف التسميع" else "ابدأ التسميع", Modifier.size(24.dp), tint = c.textOnBrand) }
+  val supported = remember { SpeechRecognizer.isRecognitionAvailable(ctx) }
+  val subline = when {
+    session.veil -> "انقر الصفحة لكشف الآية التالية"
+    session.error != null -> session.error!!
+    session.heard.isNotEmpty() -> "سمعتُ: ${session.heard}"
+    !supported -> "التعرّف على الكلام غير متاح على هذا الجهاز"
+    session.hints > 0 -> "${Fmt.number(session.hints)} تلميحات · " + (if (onDevice) "التعرّف على الجهاز" else "التعرّف عبر خدمة النظام")
+    onDevice -> "التعرّف على الصوت يجري على الجهاز ولا يغادر هاتفك"
+    else -> "التعرّف عبر خدمة النظام — يُرسل الصوت أثناء التسميع فقط"
+  }
+  Column(Modifier.fillMaxWidth().background(theme?.let { hex(it.paper) } ?: c.bgSurface)) {
+    Box(Modifier.fillMaxWidth().height(1.dp).background(gold.copy(alpha = 0.55f)))
+    ProgressTrack(session.progress.toFloat(), tint = gold, track = track, height = 3.dp)
+    Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+      if (session.veil) HifzPill(Icons.Filled.Visibility, "آية", brand) { session.revealAyah() }
+      else Box(Modifier.size(48.dp).clickable(enabled = supported, role = Role.Button) { if (session.listening) session.toggleSpeech(ctx) else if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) session.toggleSpeech(ctx) else micLauncher.launch(Manifest.permission.RECORD_AUDIO) }.semantics { contentDescription = if (session.listening) "إيقاف التسميع" else "ابدأ التسميع" }, contentAlignment = Alignment.Center) {
+        if (session.listening) Box(Modifier.size(46.dp).clip(CircleShape).background(brand.copy(alpha = 0.22f)))
+        Box(Modifier.size(40.dp).clip(CircleShape).background(if (session.listening) c.danger else brand), contentAlignment = Alignment.Center) { Icon(if (session.listening) Icons.Filled.Stop else Icons.Filled.Mic, null, Modifier.size(18.dp), tint = if (session.listening) Color.White else onBrand) }
       }
       Column(Modifier.weight(1f)) {
         val last = session.lastRevealed
-        if (session.done) Text("✓ أحسنت، أتممت الصفحة", style = DSType.labelMd, color = c.success)
-        else if (last != null) Row(verticalAlignment = Alignment.CenterVertically) { Text("آخر كلمة: ", style = DSType.labelXs, color = c.textSecondary); Text(last.raw, style = DSType.quranInline.copy(fontSize = 20.sp, lineHeight = 30.sp), color = c.textPrimary) }
-        else Text(if (session.listening) "يستمع… تابع التلاوة" else "اضغط الميكروفون أو انقر الصفحة لكشف كلمة", style = DSType.labelMd, color = if (session.listening) c.brandPrimary else c.textSecondary)
-        Text(session.error ?: (if (session.heard.isEmpty()) "التعرّف على الكلام بالعربية · مطابقة متسامحة مع التشكيل" else "سمعتُ: ${session.heard}"), style = DSType.labelXs, color = if (session.error != null) c.danger else c.textTertiary, maxLines = 1)
+        when {
+          session.done -> Text("✓ أحسنت، أتممت الصفحة", style = DSType.labelSm, color = c.success, maxLines = 1)
+          session.veil -> Text("مخفيّة · ${Fmt.number(minOf(session.revealedAyahs, total))} من ${Fmt.number(total)} آية", style = DSType.labelSm, color = ink, maxLines = 1)
+          session.listening -> Text("يستمع… ${Fmt.number(session.pos)} من ${Fmt.number(session.words.size)} كلمة", style = DSType.labelSm, color = brand, maxLines = 1)
+          last != null -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) { Text("آخر كلمة", style = DSType.labelSm, color = ink.copy(alpha = 0.6f)); Text(last.raw, style = DSType.quranInline.copy(fontSize = 17.sp, lineHeight = 24.sp), color = ink, maxLines = 1) }
+          else -> Text(if (supported) "اضغط الميكروفون أو انقر الصفحة" else "انقر الصفحة لكشف الكلمة التالية", style = DSType.labelSm, color = ink, maxLines = 1)
+        }
+        Text(subline, style = DSType.labelXs, color = if (session.error != null) c.danger else ink.copy(alpha = 0.55f), maxLines = 1, overflow = TextOverflow.Ellipsis)
       }
+      when {
+        session.done -> Row(Modifier.clip(CircleShape).background(brand).clickable(role = Role.Button, onClick = onNextPage).padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) { Text("الصفحة التالية", style = DSType.labelSm, color = onBrand); Icon(Icons.Filled.ChevronLeft, null, Modifier.size(12.dp), tint = onBrand) }
+        session.veil -> HifzPill(Icons.Filled.Visibility, "الكل", brand) { session.revealAll() }
+        else -> {
+          HifzPill(Icons.Outlined.TextFields, "كلمة", brand) { session.hint() }
+          HifzPill(Icons.Outlined.Subject, "آية", brand) { session.revealAyah() }
+          HifzPill(if (weak) Icons.Filled.Warning else Icons.Outlined.WarningAmber, "ضعيفة", if (weak) gold else brand, on = weak, label = if (weak) "إزالة وسم الآية الضعيفة" else "وسم الآية الحالية آيةً ضعيفة للمراجعة") { cur?.let { Store.toggleWeak(it) } }
+        }
+      }
+      Box(Modifier.size(36.dp, 46.dp).clickable(role = Role.Button, onClick = onExit).semantics { contentDescription = "إنهاء المراجعة" }, contentAlignment = Alignment.Center) { Icon(Icons.Filled.Close, null, Modifier.size(14.dp), tint = ink.copy(alpha = 0.7f)) }
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-      if (session.veil) {
-        if (session.done) DSButton("الصفحة التالية", Modifier.weight(1f), icon = Icons.Filled.ChevronLeft, onClick = onNextPage) else DSButton("كشف الآية التالية", Modifier.weight(1f), kind = ButtonKind.Soft, icon = Icons.Filled.Visibility) { session.revealAyah() }
-        DSButton("كشف الكل", Modifier.weight(1f), kind = ButtonKind.Outline) { session.revealAll() }
-      } else if (session.done) DSButton("الصفحة التالية", Modifier.weight(1f), icon = Icons.Filled.ChevronLeft, onClick = onNextPage)
-      else { DSButton("كشف كلمة", Modifier.weight(1f), kind = ButtonKind.Soft) { session.hint() }; DSButton("كشف آية", Modifier.weight(1f), kind = ButtonKind.Soft) { session.revealAyah() }; DSButton("إظهار الكل", Modifier.weight(1f), kind = ButtonKind.Outline) { session.revealAll() } }
-    }
+  }
+}
+@Composable private fun HifzPill(icon: ImageVector, text: String, tint: Color, on: Boolean = false, label: String = text, onClick: () -> Unit) {
+  Column(Modifier.size(46.dp).clip(RoundedCornerShape(10.dp)).background(if (on) tint.copy(alpha = 0.14f) else Color.Transparent).clickable(role = Role.Button, onClick = onClick).semantics { contentDescription = label }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+    Icon(icon, null, Modifier.size(15.dp), tint = tint); Spacer(Modifier.height(3.dp)); Text(text, style = DSType.labelXs.copy(fontSize = 9.5.sp), color = tint, maxLines = 1)
   }
 }

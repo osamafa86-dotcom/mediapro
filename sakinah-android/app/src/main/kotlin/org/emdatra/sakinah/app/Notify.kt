@@ -28,6 +28,7 @@ object Notify {
     if (coords != null) {
       Reminders.upcoming(coords, zone, params, Store.reminders, now, MAX, format = { Fmt.time(it) }, number = { Fmt.number(it) }).forEach { items.add(Item(it.id, it.time, it.kind, it.title, it.body)) }
       Reminders.adhkar(coords, zone, params, Store.extras, now, 7).forEach { items.add(Item(it.id, it.time, it.kind, it.title, it.body)) }
+      Reminders.khatmahAfterPrayer(coords, zone, params, Store.khatmah, now, 7, number = { Fmt.number(it) }).forEach { items.add(Item(it.id, it.time, it.kind, it.title, it.body)) }
     }
     for (d in Reminders.daily(Store.extras, Store.khatmah, number = { Fmt.number(it) })) {
       var t = ZonedDateTime.now(zone).with(LocalTime.of(d.hour, d.minute)); if (!t.toInstant().isAfter(now)) t = t.plusDays(1)

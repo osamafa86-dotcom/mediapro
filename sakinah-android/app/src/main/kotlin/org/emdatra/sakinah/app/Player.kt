@@ -35,6 +35,14 @@ object Recitation {
   var reciter by mutableStateOf(Catalog.shared.defaultReciter)
   var repeatAyah by mutableStateOf(1)
   var repeatRange by mutableStateOf(false)
+  /** تكرار «أ–ب»: فهرسا البداية والنهاية داخل القائمة؛ عند بلوغ ب يعود إلى أ */
+  var rangeA by mutableStateOf<Int?>(null); private set
+  var rangeB by mutableStateOf<Int?>(null); private set
+  val hasRange: Boolean get() = rangeA != null && rangeB != null
+  fun setRange(a: Int?, b: Int?) { if (a != null && b != null) { rangeA = minOf(a, b); rangeB = maxOf(a, b) } else { rangeA = a; rangeB = b } }
+  fun clearRange() { rangeA = null; rangeB = null }
+  /** الانتقال داخل الآية الجارية (بالثواني) */
+  fun seek(seconds: Double) { val t = seconds.coerceIn(0.0, if (duration > 0) duration else seconds); player?.seekTo((t * 1000).toLong()); position = t }
   var words by mutableStateOf(true)
   /** موضع الكلمة الجارية (1..) من توقيتات quran.com */
   var currentWord by mutableStateOf<Int?>(null); private set
@@ -62,7 +70,7 @@ object Recitation {
       })
       player = p
     }
-  fun play(ctx: Context, q: List<Int>, start: Int = 0) { ensure(ctx); queue = q; index = start.coerceIn(0, maxOf(0, q.size - 1)); repeatsLeft = repeatAyah; attempt = 0; load(true) }
+  fun play(ctx: Context, q: List<Int>, start: Int = 0) { ensure(ctx); queue = q; index = start.coerceIn(0, maxOf(0, q.size - 1)); repeatsLeft = repeatAyah; attempt = 0; clearRange(); load(true) }
   private fun load(autoplay: Boolean) {
     val n = current ?: return; val token = ++loadToken; loading = true; error = null
     scope.launch {
@@ -92,7 +100,9 @@ object Recitation {
   private fun onEnded() {
     if (repeatsLeft > 1) { repeatsLeft--; player?.seekTo(0); player?.play(); return }
     repeatsLeft = repeatAyah
-    if (index + 1 < queue.size) { index++; attempt = 0; load(true) }
+    val a = rangeA; val b = rangeB
+    if (a != null && b != null && index >= b && a < queue.size) { index = a; attempt = 0; load(true) }
+    else if (index + 1 < queue.size) { index++; attempt = 0; load(true) }
     else if (repeatRange && queue.isNotEmpty()) { index = 0; attempt = 0; load(true) }
     else isPlaying = false
   }
@@ -100,7 +110,7 @@ object Recitation {
   fun pause() { player?.pause() }
   fun next(ctx: Context) { if (index + 1 < queue.size) { index++; repeatsLeft = repeatAyah; attempt = 0; load(true) } }
   fun prev(ctx: Context) { if (index > 0) { index--; repeatsLeft = repeatAyah; attempt = 0; load(true) } else player?.seekTo(0) }
-  fun stop() { loadToken++; ticker?.cancel(); player?.stop(); queue = emptyList(); index = -1; isPlaying = false; loading = false; segments = null; currentWord = null; sleepAt = null; error = null }
+  fun stop() { clearRange(); loadToken++; ticker?.cancel(); player?.stop(); queue = emptyList(); index = -1; isPlaying = false; loading = false; segments = null; currentWord = null; sleepAt = null; error = null }
   fun setRate(r: Double) { Store.rate = r; Store.save(); player?.playbackParameters = PlaybackParameters(r.toFloat()) }
   fun useReciter(id: String) { val was = isPlaying; reciter = id; attempt = 0; if (current != null) load(was) }
   fun useWordTiming(on: Boolean) { val changed = words != on; words = on; if (changed && current != null) { attempt = 0; load(isPlaying) } }

@@ -47,6 +47,7 @@ import java.time.Instant
     "mosques" -> MosquesScreen { screen = "home" }
     else -> {
       var challenges by remember { mutableStateOf(false) }
+      val switchTab = LocalSwitchTab.current
       var downloads by remember { mutableStateOf(false) }
       LazyColumn(
         Modifier.fillMaxSize().background(c.bgCanvas),
@@ -61,7 +62,7 @@ import java.time.Instant
             DSDivider()
             MoreRow(Icons.Outlined.FormatListNumbered, "الأربعون النووية", null) { screen = "nawawi" }
             DSDivider()
-            MoreRow(Icons.Outlined.LocalFireDepartment, "التحدّيات والختمة", streakLabel(), gold = true) { challenges = true }
+            MoreRow(Icons.Outlined.MenuBook, "الختمة والأوراد المسنونة", commitmentLabel(), gold = true) { challenges = true }
           }
         }
         item {
@@ -85,7 +86,7 @@ import java.time.Instant
           )
         }
       }
-      if (challenges) KhatmahDialog { challenges = false }
+      if (challenges) KhatmahSheet(onDismiss = { challenges = false }, onGo = { p -> challenges = false; Store.pendingReaderPage = p; switchTab(AppTab.Mushaf) })
       if (downloads) DownloadsDialog { downloads = false }
     }
   }
@@ -127,9 +128,11 @@ import java.time.Instant
 
 private fun appVersion(): String = BuildConfig.VERSION_NAME
 
-private fun streakLabel(): String? {
-  val n = Khatmah.streak(Store.readLog, Store.todayKey)
-  return if (n > 0) "سلسلة ${Fmt.number(n)} ${if (n == 1) "يوم" else if (n == 2) "يومان" else if (n <= 10) "أيام" else "يومًا"}" else null
+/** لا سلسلة تنكسر: التزامك بالورد في الأسبوعين الأخيرين إن كانت ثمّة خطة */
+private fun commitmentLabel(): String? {
+  val plan = Store.khatmah ?: return null
+  val c = Wird.commitment(Store.wird, Store.todayKey, plan.dailyPages, 14)
+  return "التزامك ${Fmt.number(c.done)} من ${Fmt.number(c.total)} يومًا"
 }
 private fun downloadsLabel(): String? {
   val n = AudioDownloads.summary(Store.reciter).first

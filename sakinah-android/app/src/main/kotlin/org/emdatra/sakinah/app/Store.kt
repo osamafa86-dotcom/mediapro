@@ -33,6 +33,8 @@ object Store {
   var reciter by mutableStateOf(Catalog.shared.defaultReciter); var repeatAyah by mutableStateOf(1); var rate by mutableStateOf(1.0); var follow by mutableStateOf(true); var wordHighlight by mutableStateOf(true); var repeatRange by mutableStateOf(false); var hifzOnlyCurrent by mutableStateOf(true); var shareTheme by mutableStateOf("green")
   var theme by mutableStateOf("cream"); var themeAuto by mutableStateOf(false); var keepAwake by mutableStateOf(true); var view by mutableStateOf("pages"); var tajweed by mutableStateOf(false); var fontScale by mutableStateOf(1.0); var textFont by mutableStateOf("amiri")
   var khatmah by mutableStateOf<KhatmahPlan?>(null); var readLog by mutableStateOf<Map<String, List<Int>>>(emptyMap()); var challenge by mutableStateOf<ActiveChallenge?>(null)
+  /** سجلّ الورد (تقدّم الموضع داخل الخطة)، آخر المواضع (موضع لكل سورة، أربعة)، الآيات الضعيفة للمراجعة، ووحدة الورد */
+  var wird by mutableStateOf<WirdLog>(emptyMap()); var recent by mutableStateOf<List<LastRead>>(emptyList()); var weakAyahs by mutableStateOf<List<Int>>(emptyList()); var khatmahUnit by mutableStateOf("page")
   var adhkarProgress by mutableStateOf(WebSettings.AdhkarProgress()); var favorites by mutableStateOf<List<String>>(emptyList()); var tasbih by mutableStateOf(TasbihState()); var hisnFavorites by mutableStateOf<List<Int>>(emptyList()); var textScale by mutableStateOf(1.0)
   var adhkarLog by mutableStateOf<AdhkarLog>(emptyMap()); var haptics by mutableStateOf(true); var tasbihSound by mutableStateOf(false)
   var seenChromeHint by mutableStateOf(false)
@@ -58,6 +60,7 @@ object Store {
     reciter = sp.getString("quran.reciter", reciter)!!; repeatAyah = sp.getInt("quran.repeatAyah", 1); rate = sp.getFloat("quran.rate", 1f).toDouble(); follow = sp.getBoolean("quran.follow", true); wordHighlight = sp.getBoolean("quran.wordHighlight", true); repeatRange = sp.getBoolean("quran.repeatRange", false); hifzOnlyCurrent = sp.getBoolean("quran.hifzOnlyCurrent", true); shareTheme = sp.getString("shareTheme", "green")!!
     theme = sp.getString("quran.theme", "cream")!!; themeAuto = sp.getBoolean("quran.themeAuto", false); keepAwake = sp.getBoolean("quran.keepAwake", true); view = sp.getString("quran.view", "pages")!!; tajweed = sp.getBoolean("quran.tajweed", false); fontScale = sp.getFloat("quran.fontScale", 1f).toDouble(); textFont = sp.getString("quran.textFont", "amiri")!!
     khatmah = get("quran.khatmah", KhatmahPlan.serializer()); readLog = get("quran.readLog", MapSerializer(String.serializer(), ListSerializer(Int.serializer()))) ?: emptyMap(); challenge = get("quran.challenge", ActiveChallenge.serializer())
+    wird = get("quran.wird", MapSerializer(String.serializer(), Int.serializer())) ?: emptyMap(); recent = get("quran.recent", ListSerializer(LastRead.serializer())) ?: emptyList(); weakAyahs = get("quran.weakAyahs", ListSerializer(Int.serializer())) ?: emptyList(); khatmahUnit = sp.getString("quran.khatmahUnit", "page")!!
     adhkarProgress = get("adhkarProgress", WebSettings.AdhkarProgress.serializer()) ?: WebSettings.AdhkarProgress(); favorites = get("favorites", ListSerializer(String.serializer())) ?: emptyList(); tasbih = get("tasbih", TasbihState.serializer()) ?: TasbihState(); hisnFavorites = get("hisnFavorites", ListSerializer(Int.serializer())) ?: emptyList(); textScale = sp.getFloat("textScale", 1f).toDouble()
     adhkarLog = get("adhkarLog", MapSerializer(String.serializer(), ListSerializer(String.serializer()))) ?: emptyMap(); haptics = sp.getBoolean("ui.haptics", true); tasbihSound = sp.getBoolean("ui.tasbihSound", false); seenChromeHint = sp.getBoolean("quran.seenChromeHint", false)
   }
@@ -73,6 +76,7 @@ object Store {
     put("notifications.prefs", ReminderPrefs.serializer(), reminders); put("notifications.extras", ExtraReminderPrefs.serializer(), extras)
     put("quran.lastRead", LastRead.serializer(), lastRead); put("quran.bookmarks", ListSerializer(WebSettings.Bookmark.serializer()), bookmarks)
     put("quran.khatmah", KhatmahPlan.serializer(), khatmah); put("quran.readLog", MapSerializer(String.serializer(), ListSerializer(Int.serializer())), readLog); put("quran.challenge", ActiveChallenge.serializer(), challenge)
+    put("quran.wird", MapSerializer(String.serializer(), Int.serializer()), wird); put("quran.recent", ListSerializer(LastRead.serializer()), recent); put("quran.weakAyahs", ListSerializer(Int.serializer()), weakAyahs); sp.edit().putString("quran.khatmahUnit", khatmahUnit).apply()
     put("adhkarProgress", WebSettings.AdhkarProgress.serializer(), adhkarProgress); put("favorites", ListSerializer(String.serializer()), favorites); put("tasbih", TasbihState.serializer(), tasbih); put("hisnFavorites", ListSerializer(Int.serializer()), hisnFavorites); put("adhkarLog", MapSerializer(String.serializer(), ListSerializer(String.serializer())), adhkarLog)
   }
 
@@ -86,7 +90,10 @@ object Store {
   fun applyAutoMethod() { if (methodAuto) methodId = Methods.defaultMethod(locCountry, zone.id) }
   fun isBookmarked(a: Ayah) = bookmarks.any { it.surah == a.surah && it.ayah == a.ayah }
   fun toggleBookmark(a: Ayah, note: String? = null, color: String = "gold") { bookmarks = if (isBookmarked(a)) bookmarks.filter { !(it.surah == a.surah && it.ayah == a.ayah) } else bookmarks + WebSettings.Bookmark(a.surah, a.ayah, a.page, System.currentTimeMillis().toDouble(), note, color); save() }
-  fun remember(a: Ayah) { lastRead = LastRead(a.page, a.surah, a.ayah, System.currentTimeMillis().toDouble()); save() }
+  fun remember(a: Ayah) { lastRead = LastRead(a.page, a.surah, a.ayah, System.currentTimeMillis().toDouble()); pushRecent(a); save() }
+  /** موضع واحد لكل سورة، أربعة على الأكثر، الأحدث أولًا */
+  fun pushRecent(a: Ayah) { recent = (listOf(LastRead(a.page, a.surah, a.ayah, System.currentTimeMillis().toDouble())) + recent.filter { it.surah != a.surah }).take(4) }
+  fun toggleWeak(n: Int) { weakAyahs = if (n in weakAyahs) weakAyahs - n else weakAyahs + n; save() }
   fun effectiveTheme(systemDark: Boolean): MushafTheme = Catalog.shared.theme(if (themeAuto) (if (systemDark) "dark" else theme.takeIf { !Catalog.shared.theme(it).isDark } ?: "cream") else theme)
 }
 
@@ -102,5 +109,7 @@ object Fmt {
     return if (numerals == "arab") s.map { if (it.isDigit()) arabic[it - '0'] else it }.joinToString("") else s
   }
   fun countdown(seconds: Long, numerals: String = Store.numerals): String { val s = maxOf(0, seconds); val h = s / 3600; val m = (s % 3600) / 60; val sec = s % 60; val two = { v: Long -> if (v < 10) "0$v" else "$v" }; val t = if (h > 0) "$h:${two(m)}:${two(sec)}" else "${two(m)}:${two(sec)}"; return if (numerals == "arab") t.map { if (it.isDigit()) arabic[it - '0'] else it }.joinToString("") else t }
+  /** «١٢ أكتوبر» من مفتاح يوم «YYYY-MM-DD» */
+  fun shortDate(key: String): String { val p = DayKey.parse(key) ?: return key; val months = listOf("يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"); return "${number(p.third)} ${months[(p.second - 1).coerceIn(0, 11)]}" }
   fun gregorian(i: Instant, zone: ZoneId = Store.zone): String { val d = i.atZone(zone); val months = listOf("يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"); val wd = Hijri.weekdaysAr[d.dayOfWeek.value % 7]; return "$wd، ${number(d.dayOfMonth)} ${months[d.monthValue - 1]} ${number(d.year)}" }
 }

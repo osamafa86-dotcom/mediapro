@@ -358,7 +358,7 @@ private fun prayerGlyph(p: Prayer): ImageVector = when (p) { Prayer.FAJR -> Icon
 // MARK: متابعة القراءة
 @Composable private fun ContinueReadingCard(onOpen: (Int) -> Unit) {
   val c = DS.c; val last = Store.lastRead; val page = last?.page ?: 1; val today = Store.todayKey
-  val stt = Store.khatmah?.let { Khatmah.status(it, page, Store.readLog, today) }
+  val stt = Store.khatmah?.let { Khatmah.status(it, Store.wird, today) }
   val pct = stt?.let { it.percent / 100f } ?: (page / 604f)
   val pagesToday = Store.readLog[today]?.size ?: 0
   val line = if (stt != null) { if (stt.finished) "تقبّل الله ✦ أتممت الختمة" else "الختمة ${Fmt.number(stt.percent)}٪  ·  ${Fmt.number(stt.todayPages)} صفحات اليوم من ${Fmt.number(stt.todayTarget)}" }

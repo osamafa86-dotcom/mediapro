@@ -43,5 +43,18 @@ object Reminders {
     khatmah?.reminder?.let { r -> parseHM(r)?.let { out.add(DailyReminder("daily:khatmah", it.first, it.second, "ورد اليوم من القرآن", "${number(khatmah.dailyPages)} صفحات تُبقيك على جدول الختمة", ReminderKind.KHATMAH)) } }
     return out
   }
+  /** تذكير الختمة «بعد صلاة»: `after:isha` → الصلاة، وإلا null (الوقت الثابت «HH:MM» يبقى في `daily`) */
+  fun afterPrayer(reminder: String?): Prayer? = reminder?.takeIf { it.startsWith("after:") }?.let { Prayer.of(it.removePrefix("after:")) }
+  /** تذكيرات ورد الختمة بعد صلاةٍ بعينها للأيام القادمة (بعد الأذان بـ offsetMinutes) — وقتها يتبع المواقيت */
+  fun khatmahAfterPrayer(coords: Coordinates, zone: ZoneId, params: PrayerParams, plan: KhatmahPlan?, now: Instant = Instant.now(), days: Int = 7, offsetMinutes: Int = 20, number: (Int) -> String = { it.toString() }): List<Reminder> {
+    if (plan == null) return emptyList()
+    val prayer = afterPrayer(plan.reminder) ?: return emptyList(); if (prayer == Prayer.SUNRISE) return emptyList()
+    val p = params.copy(tz = zone.id); val out = ArrayList<Reminder>(); val start = CivilDate.of(now, zone)
+    for (i in 0 until days) {
+      val d = start.adding(i); val key = "${d.year}-${d.month}-${d.day}"; val t = PrayerTimes.compute(coords, d, p)
+      t[prayer]?.let { out.add(Reminder("$key:khatmah", it.plusSeconds(offsetMinutes * 60L), ReminderKind.KHATMAH, prayer, "ورد اليوم من القرآن", "بعد ${prayer.nameAr}: ${number(plan.dailyPages)} صفحات تُبقيك على جدول الختمة")) }
+    }
+    val floor = now.plusSeconds(15); return out.filter { it.time.isAfter(floor) }.sortedBy { it.time }
+  }
   fun parseHM(s: String): Pair<Int, Int>? { val p = s.split(':').mapNotNull { it.toIntOrNull() }; return if (p.size == 2 && p[0] in 0..23 && p[1] in 0..59) p[0] to p[1] else null }
 }
