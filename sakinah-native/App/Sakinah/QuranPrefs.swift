@@ -50,6 +50,14 @@ final class QuranPrefs {
   var khatmah: KhatmahPlan? { didSet { Store.save(khatmah, "quran.khatmah") } }
   var readLog: ReadLog { didSet { Store.save(readLog, "quran.readLog") } }
   var challenge: ActiveChallenge? { didSet { Store.save(challenge, "quran.challenge") } }
+  /// سجلّ الورد بتقدّم الموضع (يوم → صفحات مقطوعة من بداية الخطة)
+  var wird: WirdLog { didSet { Store.save(wird, "quran.wird") } }
+  /// آخر أربعة مواضع قراءة (الأحدث أولًا، موضع واحد لكل سورة)
+  var recent: [LastRead] { didSet { Store.save(recent, "quran.recent") } }
+  /// آيات وُسمت «ضعيفة» في مراجعة الحفظ (أرقامها المتسلسلة)
+  var weakAyahs: [Int] { didSet { Store.save(weakAyahs, "quran.weakAyahs") } }
+  /// وحدة الورد المعروضة: page | hizb | juz
+  var khatmahUnit: String { didSet { Store.d.set(khatmahUnit, forKey: "quran.khatmahUnit") } }
 
   init() {
     reciter = Store.str("quran.reciter", Catalog.shared.defaultReciter); repeatAyah = Store.int("quran.repeatAyah", 1); repeatRange = Store.bool("quran.repeatRange", false)
@@ -61,7 +69,15 @@ final class QuranPrefs {
     tafsir = Store.str("quran.tafsir", "muyassar"); hintShown = Store.bool("quran.hintShown", false)
     translation = Store.int("quran.translation", QuranAPI.defaultTranslation); wbwLanguage = Store.str("quran.wbwLang", "en")
     bookmarks = Store.load("quran.bookmarks", []); khatmah = Store.load("quran.khatmah", nil); readLog = Store.load("quran.readLog", [:]); challenge = Store.load("quran.challenge", nil)
+    wird = Store.load("quran.wird", [:]); recent = Store.load("quran.recent", []); weakAyahs = Store.load("quran.weakAyahs", []); khatmahUnit = Store.str("quran.khatmahUnit", "page")
   }
+  /// يدفع موضعًا إلى «آخر المواضع»: موضع واحد لكل سورة، أربعة على الأكثر
+  func pushRecent(_ a: Ayah) {
+    var r = recent.filter { $0.surah != a.surah }
+    r.insert(LastRead(page: a.page, surah: a.surah, ayah: a.ayah, at: Date().timeIntervalSince1970 * 1000), at: 0)
+    recent = Array(r.prefix(4))
+  }
+  func toggleWeak(_ n: Int) { if let i = weakAyahs.firstIndex(of: n) { weakAyahs.remove(at: i) } else { weakAyahs.append(n) } }
 
   var isTextMode: Bool { view == "text" }
   func isBookmarked(_ a: Ayah) -> Bool { bookmarks.contains { $0.surah == a.surah && $0.ayah == a.ayah } }

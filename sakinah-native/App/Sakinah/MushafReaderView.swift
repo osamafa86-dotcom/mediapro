@@ -35,9 +35,12 @@ struct MushafReaderView: View {
   @State private var shareItems: ShareItems?
   @State private var shareCard: ShareCardRequest?
 
-  init(startPage: Int, ayah: Int? = nil) {
+  /// يبدأ التلاوة من موضع البداية (بلاطة «الاستماع») أو جلسة الحفظ (بلاطة «مراجعة الحفظ») فور الظهور
+  let autoplay: Bool
+  let hifzOnAppear: Bool
+  init(startPage: Int, ayah: Int? = nil, autoplay: Bool = false, hifz: Bool = false) {
     let p = min(max(startPage, 1), MushafLayout.totalPages)
-    self.startPage = p; startAyah = ayah
+    self.startPage = p; startAyah = ayah; self.autoplay = autoplay; hifzOnAppear = hifz
     _page = State(initialValue: p)
   }
 
@@ -492,6 +495,12 @@ struct MushafReaderView: View {
     remember(page: startPage)
     if let a = startAyah { DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { flash(a) } }
     if !prefs.hintShown { prefs.hintShown = true; show("انقر الصفحة لإظهار الأدوات، وانقر كلمة لقائمة الآية") }
+    if autoplay || hifzOnAppear {
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+        guard let a = startAyah.flatMap({ QuranText.shared.ayah($0) }) ?? QuranText.shared.pageAyahs(startPage).first else { return }
+        if autoplay { playFrom(a.n, scope: .surah) } else { startHifz(from: a.n) }
+      }
+    }
   }
   private func teardown() {
     UIApplication.shared.isIdleTimerDisabled = false

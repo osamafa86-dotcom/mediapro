@@ -1,7 +1,8 @@
 import SwiftUI
 import SakinahCore
 
-/// شاشة المصحف (تصميم Figma 02): بطاقة متابعة القراءة مع حلقة الختمة، بلاطات سريعة، بطاقة الختمة/التحدّيات، وفهرس مقسّم (السور/الأجزاء/العلامات) مع بحث
+/// مكتبة المصحف (تصميم Figma «٨ · المصحف» بعد مراجعة الخبراء): بطاقة حالةٍ واحدة (صورة الصفحة + الورد + الختمة)،
+/// بلاطتان لا تكرّران الشريط السفلي، الفهرس فوق الطيّة ببحث ومقسّم رباعي، ثم «التزامك بالورد» بصفّ ثنائي لأربعة عشر يومًا
 struct MushafHomeView: View {
   @Environment(AppModel.self) private var model
   @State private var target: ReaderTarget?
@@ -12,8 +13,8 @@ struct MushafHomeView: View {
   @State private var editBookmark: Ayah?
   @FocusState private var searchFocused: Bool
 
-  struct ReaderTarget: Identifiable { let page: Int; var ayah: Int? = nil; var id: String { "\(page)-\(ayah ?? 0)" } }
-  enum HomeSheet: Identifiable { case khatmah, challenges, reciter, display, downloads; var id: Int { switch self { case .khatmah: return 1; case .challenges: return 2; case .reciter: return 3; case .display: return 4; case .downloads: return 5 } } }
+  struct ReaderTarget: Identifiable { let page: Int; var ayah: Int? = nil; var autoplay = false; var hifz = false; var id: String { "\(page)-\(ayah ?? 0)-\(autoplay)-\(hifz)" } }
+  enum HomeSheet: Identifiable { case khatmah, reciter; var id: Int { self == .khatmah ? 1 : 2 } }
 
   var body: some View {
     NavigationStack {
@@ -26,11 +27,11 @@ struct MushafHomeView: View {
         } else {
           ScrollView(showsIndicators: false) {
             LazyVStack(spacing: 14) {
-              continueCard
-              quickTiles
-              if let k = khatmahCard { k }
-              readingCard
+              heroCard
+              tilesRow
               indexCard
+              commitmentCard
+              Text("مصحف المدينة · حفص عن عاصم · ٦٠٤ صفحات · يعمل دون اتصال").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).frame(maxWidth: .infinity).padding(.top, 4)
             }
             .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 24)
           }
@@ -38,39 +39,36 @@ struct MushafHomeView: View {
       }
       .background(DS.C.bgCanvas)
       .toolbar(.hidden, for: .navigationBar)
-      .safeAreaInset(edge: .bottom) { if model.player.current != nil { AudioBarView(onPickReciter: { sheet = .reciter }, onGoToPage: { target = ReaderTarget(page: $0) }).padding(.horizontal, 12).padding(.bottom, 6) } }
+      .safeAreaInset(edge: .bottom) { if model.player.current != nil { AudioBarView(onPickReciter: { sheet = .reciter }, onGoToPage: { target = ReaderTarget(page: $0) }) } }
       .tabBarClearance()
-      .fullScreenCover(item: $target) { t in MushafReaderView(startPage: t.page, ayah: t.ayah).environment(model) }
+      .fullScreenCover(item: $target) { t in MushafReaderView(startPage: t.page, ayah: t.ayah, autoplay: t.autoplay, hifz: t.hifz).environment(model) }
       // «تابع القراءة» من الرئيسية: تُفتح الصفحة حين يظهر التبويب (بعد لحظة كي يكون العرض قد استقرّ)
       .onAppear { if let p = model.pendingReaderPage { model.pendingReaderPage = nil; Task { @MainActor in try? await Task.sleep(for: .milliseconds(80)); target = ReaderTarget(page: p) } } }
       .sheet(item: $sheet) { sh in
         switch sh {
         case .khatmah: KhatmahSheet().environment(model)
-        case .challenges: ChallengesSheet().environment(model)
         case .reciter: ReciterPickerSheet().environment(model)
-        case .display: DisplaySheet(onLegend: {}).environment(model)
-        case .downloads: DownloadsView(focusSurah: model.settings.lastRead?.surah).environment(model)
         }
       }
       .sheet(item: $editBookmark) { a in BookmarkSheet(ayah: a, onDone: { _ in }).environment(model).presentationDetents([.medium]) }
     }
   }
 
-  // MARK: رأس الصفحة والبحث
+  // MARK: رأس الصفحة والبحث — زرّ البحث وحده (العرض والخطّ يخصّان القارئ)
   private var header: some View {
     HStack(spacing: 8) {
       Text("المصحف").font(DS.F.displayLg).foregroundStyle(DS.C.textPrimary)
       Spacer()
-      DSIconButton(systemName: "magnifyingglass", label: "بحث") { withAnimation(.snappy(duration: 0.2)) { searching.toggle(); if searching { searchFocused = true } else { query = "" } } }
-      DSIconButton(systemName: "textformat.size", label: "العرض") { sheet = .display }
+      DSIconButton(systemName: searching ? "xmark" : "magnifyingglass", label: searching ? "إغلاق البحث" : "بحث") { toggleSearch() }
     }
     .padding(.horizontal, 20).padding(.top, 6).padding(.bottom, 4)
   }
+  private func toggleSearch() { withAnimation(.snappy(duration: 0.2)) { searching.toggle(); if searching { searchFocused = true } else { query = "" } } }
   private var searchField: some View {
     HStack(spacing: 8) {
       Image(systemName: "magnifyingglass").foregroundStyle(DS.C.textTertiary)
       TextField("سورة، آية، نص، أو رقم صفحة…", text: $query).font(DS.F.bodyMd).focused($searchFocused).submitLabel(.search)
-      if !query.isEmpty { Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(DS.C.textTertiary) }.buttonStyle(.plain) }
+      if !query.isEmpty { Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(DS.C.textTertiary) }.buttonStyle(.plain).accessibilityLabel("مسح") }
     }
     .padding(.horizontal, 14).padding(.vertical, 10)
     .background(DS.C.bgSurface, in: Capsule()).overlay { Capsule().stroke(DS.C.borderSubtle, lineWidth: 1) }
@@ -78,135 +76,246 @@ struct MushafHomeView: View {
     .transition(.move(edge: .top).combined(with: .opacity))
   }
 
-  // MARK: بطاقة المتابعة
+  // MARK: بطاقة الحالة الواحدة
   private var num: (Int) -> String { { Fmt.number($0, numerals: model.settings.numerals) } }
-  private var continueCard: some View {
-    let s = model.settings; let q = model.quran; let last = s.lastRead; let today = model.todayKey
+  /// حالة الختمة من سجلّ الورد (تقدّم الموضع) — لا من آخر صفحة مفتوحة
+  private var khatmahStatus: KhatmahStatus? { model.quran.khatmah.map { Khatmah.status($0, wird: model.quran.wird, today: model.todayKey) } }
+  private var heroCard: some View {
+    let s = model.settings; let last = s.lastRead
     let page = last?.page ?? 1
-    let plan = q.khatmah
-    let stt = plan.map { Khatmah.status($0, currentPage: page, log: q.readLog, today: today) }
-    let pct = stt.map { Double($0.percent) / 100 } ?? Double(page) / 604
-    let khatmahLine: String = {
-      if let stt, let plan { return stt.finished ? "تقبّل الله ✦ أتممت الختمة" : "الختمة: اليوم \(num(min(plan.days, stt.done / max(1, stt.todayTarget) + 1))) من \(num(plan.days)) · \(stt.todayPages >= stt.todayTarget ? "أتممت ورد اليوم ✓" : "بقي \(num(max(0, stt.todayTarget - stt.todayPages))) صفحات لورد اليوم")" }
-      return "ابدأ خطة ختمة لتقسيم المصحف على أيامك"
+    let stt = khatmahStatus
+    let wirdLine: String = {
+      guard let stt, model.quran.khatmah != nil else { return "ابدأ خطة ختمة لتقسيم المصحف على أيامك" }
+      if stt.finished { return "تقبّل الله ✦ أتممت الختمة" }
+      let target = max(1, stt.todayTarget); let state = stt.todayPages >= target ? "أتممت ورد اليوم ✓" : (stt.behind > 0 ? "ما فات يُوزَّع على الأيام الباقية" : "على الجدول ✓")
+      return "ورد اليوم: \(num(min(stt.todayPages, target))) من \(num(target)) صفحة  ·  الختمة \(num(stt.percent))٪  ·  \(state)"
     }()
-    return VStack(alignment: .leading, spacing: 16) {
-      HStack(spacing: 16) {
-        VStack(alignment: .leading, spacing: 4) {
-          Text(last == nil ? "ابدأ القراءة" : "متابعة القراءة").font(DS.F.labelSm).foregroundStyle(DS.C.textOnDarkMuted)
-          Text(last.map { "سورة \(QuranMeta.surah($0.surah).name)" } ?? "سورة الفاتحة").font(DS.F.displayMd).foregroundStyle(DS.C.textOnDark)
-          Text(last.map { "الصفحة \(num($0.page)) · الجزء \(num(QuranMeta.juz(ofPage: $0.page))) · الآية \(num($0.ayah))" } ?? "مصحف المدينة · حفص عن عاصم · ٦٠٤ صفحات").font(DS.F.labelSm).foregroundStyle(DS.C.textOnDarkMuted)
-          Button { sheet = .khatmah } label: { Text(khatmahLine).font(DS.F.labelSm).foregroundStyle(DS.C.accentGold).multilineTextAlignment(.leading).padding(.top, 4) }.buttonStyle(.plain)
+    return HStack(alignment: .top, spacing: 14) {
+      VStack(alignment: .leading, spacing: 5) {
+        Text(last == nil ? "ابدأ القراءة" : "متابعة القراءة").font(DS.F.labelSm).foregroundStyle(DS.C.textOnDarkMuted)
+        Text(last.map { "سورة \(QuranMeta.surah($0.surah).name)" } ?? "سورة الفاتحة").font(DS.amiri(24, bold: true)).foregroundStyle(DS.C.textOnDark).lineLimit(1).minimumScaleFactor(0.8)
+        Text(last.map { "الصفحة \(num($0.page))  ·  الجزء \(num(QuranMeta.juz(ofPage: $0.page)))  ·  الآية \(num($0.ayah))" } ?? "الصفحة ١  ·  الجزء ١").font(DS.F.labelSm).foregroundStyle(DS.C.textOnDarkMuted).lineLimit(1).minimumScaleFactor(0.8)
+        Button { sheet = .khatmah } label: { Text(wirdLine).font(DS.readex(12, .medium)).foregroundStyle(Color(hex: 0xE2C77A)).multilineTextAlignment(.leading).lineLimit(2).minimumScaleFactor(0.85) }.buttonStyle(.plain).accessibilityHint("خطة الختمة")
+        Button { target = ReaderTarget(page: page, ayah: last.flatMap { QuranText.shared.ayah(surah: $0.surah, ayah: $0.ayah)?.n }) } label: {
+          HStack(spacing: 6) { Text(last == nil ? "افتح المصحف" : "تابع القراءة").font(DS.readex(13.5, .semibold)); Image(systemName: "chevron.forward").font(.system(size: 10, weight: .bold)) }
+            .foregroundStyle(Color(hex: 0x16211F)).padding(.vertical, 10).padding(.horizontal, 16).background(DS.C.accentGold, in: Capsule())
         }
-        Spacer(minLength: 0)
-        ZStack {
-          RingProgress(progress: pct, tint: DS.C.accentGold, track: Color.white.opacity(0.25), lineWidth: 7)
-          Text("\(num(Int((pct * 100).rounded())))٪").font(DS.F.numericMd).foregroundStyle(DS.C.textOnDark)
-        }
-        .frame(width: 84, height: 84)
+        .buttonStyle(.plain).padding(.top, 6)
       }
-      DSButton(title: last == nil ? "ابدأ من الفاتحة" : "تابع من حيث توقفت", kind: .gold, icon: "chevron.forward") {
-        target = ReaderTarget(page: page, ayah: last.flatMap { QuranText.shared.ayah(surah: $0.surah, ayah: $0.ayah)?.n })
+      .frame(maxWidth: .infinity, alignment: .leading)
+      ZStack(alignment: .topLeading) {
+        MiniPageThumb(page: page, numerals: s.numerals)
+        if last != nil { RoundedRectangle(cornerRadius: 2).fill(DS.C.accentGold).frame(width: 10, height: 26).offset(x: 6, y: -6) }
       }
     }
     .padding(20)
     .nightCard()
+    .accessibilityElement(children: .combine)
   }
 
-  // MARK: بلاطات سريعة
-  private var quickTiles: some View {
-    let q = model.quran; let streak = Khatmah.streak(q.readLog, today: model.todayKey)
-    return VStack(spacing: 10) {
-      HStack(spacing: 10) {
-        tile("bookmark", "العلامات", "\(num(q.bookmarks.count)) علامة") { withAnimation { tab = 2 } }
-        tile("headphones", "الاستماع", "\(num(Catalog.shared.reciters.count)) قارئًا · تنزيل") { sheet = .downloads }
-      }
-      HStack(spacing: 10) {
-        tile("mic", "مراجعة الحفظ", "من الصفحة الحالية") { target = ReaderTarget(page: model.settings.lastRead?.page ?? 1) }
-        tile("flame", "التحدّيات", streak > 0 ? "سلسلة \(num(streak)) أيام" : "ابدأ تحدّيًا") { sheet = .challenges }
-      }
+  // MARK: بلاطتان — لا تكرّران الشريط السفلي ولا الفهرس
+  private var tilesRow: some View {
+    let s = model.settings; let last = s.lastRead
+    let reciter = Catalog.shared.reciter(model.quran.reciter).name
+    let surahName = last.map { QuranMeta.surah($0.surah).name } ?? "الفاتحة"
+    return HStack(spacing: 10) {
+      tile("play.fill", "الاستماع", "\(reciter) · \(surahName)") { target = ReaderTarget(page: last?.page ?? 1, ayah: last.flatMap { QuranText.shared.ayah(surah: $0.surah, ayah: $0.ayah)?.n }, autoplay: true) }
+      tile("mic", "مراجعة الحفظ", "من صفحتك · على الجهاز") { target = ReaderTarget(page: last?.page ?? 1, hifz: true) }
     }
   }
   private func tile(_ icon: String, _ title: String, _ sub: String, action: @escaping () -> Void) -> some View {
     Button(action: action) {
       HStack(spacing: 10) {
-        DSIcon(systemName: icon, style: .soft, size: 40, iconSize: 17)
-        VStack(alignment: .leading, spacing: 1) { Text(title).font(DS.F.labelMd).foregroundStyle(DS.C.textPrimary); Text(sub).font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary).lineLimit(1) }
+        DSIcon(systemName: icon, style: .soft, size: 38, iconSize: 16)
+        VStack(alignment: .leading, spacing: 2) { Text(title).font(DS.readex(13, .semibold)).foregroundStyle(DS.C.textPrimary); Text(sub).font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).lineLimit(1).minimumScaleFactor(0.8) }
         Spacer(minLength: 0)
       }
-      .dsTile(padding: 12)
+      .padding(.vertical, 12).padding(.horizontal, 12)
+      .background(DS.C.bgSurface, in: RoundedRectangle(cornerRadius: DS.Radius.lg, style: .continuous))
+      .shadow(color: DS.C.shadowCard, radius: 12, x: 0, y: 6)
+      .contentShape(RoundedRectangle(cornerRadius: DS.Radius.lg, style: .continuous))
     }.buttonStyle(.plain)
   }
 
-  // MARK: الختمة
-  private var khatmahCard: AnyView? {
-    let q = model.quran; let s = model.settings; let today = model.todayKey
-    guard let plan = q.khatmah else { return nil }
-    let cur = s.lastRead?.page ?? plan.startPage
-    let stt = Khatmah.status(plan, currentPage: cur, log: q.readLog, today: today)
-    let streak = Khatmah.streak(q.readLog, today: today)
-    return AnyView(VStack(alignment: .leading, spacing: 12) {
-      HStack { Text(stt.finished ? "تقبّل الله ✦ أتممت الختمة" : "خطة الختمة · \(num(plan.days)) يومًا").font(DS.F.headingMd).foregroundStyle(DS.C.textPrimary); Spacer(); Button { sheet = .khatmah } label: { DSLinkLabel(title: "تعديل") }.buttonStyle(.plain) }
-      ProgressTrack(progress: Double(stt.percent) / 100, tint: DS.C.accentGold, track: DS.C.bgSubtle)
-      HStack(spacing: 10) {
-        DSStatTile(value: "\(num(stt.percent))٪", label: "\(num(stt.done)) من \(num(604))")
-        DSStatTile(value: "\(num(stt.todayPages))/\(num(stt.todayTarget))", label: "ورد اليوم")
-        DSStatTile(value: num(streak), label: "سلسلة الأيام")
-      }
-      HStack { Text(stt.behind > 0 ? "متأخّر \(num(stt.behind)) صفحة" : "على الجدول ✓").font(DS.F.labelSm).foregroundStyle(stt.behind > 0 ? DS.C.danger : DS.C.success); Spacer(); Text("الإتمام المتوقع: \(Fmt.shortDate(key: stt.etaKey, numerals: s.numerals))").font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary) }
-    }.dsCard(padding: 16))
-  }
-
-  // MARK: التحدّيات وخريطة القراءة
-  private var readingCard: some View {
-    let q = model.quran; let numerals = model.settings.numerals; let today = model.todayKey
-    let pr = Challenges.progress(q.challenge, log: q.readLog, today: today)
-    let hasLog = !q.readLog.isEmpty
-    return VStack(alignment: .leading, spacing: 12) {
-      if let pr {
-        HStack { Text(pr.finished ? "✓ أتممت: \(pr.name)" : pr.name).font(DS.F.headingMd).foregroundStyle(DS.C.textPrimary); Spacer(); Text(pr.finished ? "" : pr.late ? "انتهت المدة" : "اليوم \(num(pr.dayIndex + 1)) من \(num(Catalog.shared.challenge(pr.id)?.days ?? 1))").font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary) }
-        ProgressTrack(progress: Double(pr.pct) / 100, tint: pr.late ? DS.C.danger : DS.C.brandPrimary, track: DS.C.bgSubtle)
-        HStack(spacing: 8) {
-          Text("\(num(pr.done)) / \(num(pr.total)) صفحة\(pr.finished ? "" : " · يتبقى نحو \(num(pr.minutesLeft)) دقيقة")").font(DS.F.labelSm).foregroundStyle(DS.C.textSecondary)
-          Spacer()
-          if pr.finished { DSButton(title: "تحدٍّ جديد", kind: .soft, fill: false) { sheet = .challenges } }
-          else { DSButton(title: "اقرأ", kind: .primary, icon: "play.fill", fill: false) { var done = Set<Int>(); for (k, pages) in q.readLog where k >= (q.challenge?.startedAt ?? "") { done.formUnion(pages) }; var p = pr.from; while p < pr.to && done.contains(p) { p += 1 }; target = ReaderTarget(page: p) } }
-          DSButton(title: "إنهاء", kind: .outline, fill: false) { q.challenge = nil }
-        }
-      } else {
-        HStack { Text(hasLog ? "قراءتك في ٩٠ يومًا" : "تحدّيات القراءة").font(DS.F.headingMd).foregroundStyle(DS.C.textPrimary); Spacer(); Button { sheet = .challenges } label: { DSLinkLabel(title: "ابدأ تحدّيًا") }.buttonStyle(.plain) }
-        if !hasLog { Text("سورة الكهف يوم الجمعة، جزء عمّ في أسبوع، الملك كل ليلة… بمدة تقديرية وتقدّم يومي.").font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary) }
-      }
-      if hasLog || pr != nil { HeatmapView(days: Challenges.heatmap(q.readLog, today: today, days: 90), numerals: numerals) }
-    }
-    .dsCard(padding: 16)
-  }
-
-  // MARK: الفهرس
+  // MARK: الفهرس فوق الطيّة: بحث، مقسّم رباعي، صفوف كسولة
   private var indexCard: some View {
-    let s = model.settings; let q = model.quran
-    return VStack(spacing: 6) {
-      DSSegmented(items: ["السور", "الأجزاء", "العلامات"], selection: $tab)
-      switch tab {
-      case 0:
-        ForEach(QuranMeta.surahs) { su in
-          Button { target = ReaderTarget(page: su.page, ayah: QuranText.shared.ayah(surah: su.n, ayah: 1)?.n) } label: { SurahRow(surah: su, numerals: s.numerals) }.buttonStyle(.plain)
+    let s = model.settings; let q = model.quran; let n = s.numerals
+    return VStack(spacing: 8) {
+      Button { toggleSearch() } label: {
+        HStack(spacing: 8) {
+          Image(systemName: "magnifyingglass").font(.system(size: 14, weight: .medium)).foregroundStyle(DS.C.textTertiary)
+          Text("سورة، آية، نص، أو رقم صفحة…").font(DS.F.bodySm).foregroundStyle(DS.C.textTertiary)
+          Spacer()
         }
-      case 1:
-        ForEach(QuranMeta.juzStarts, id: \.juz) { j in
-          Button { target = ReaderTarget(page: j.page) } label: { NavRow(num: num(j.juz), title: QuranMeta.juzName(j.juz, vocalized: false), sub: "يبدأ من \(QuranMeta.surah(j.surah).name): \(num(j.ayah))", page: num(j.page)) }.buttonStyle(.plain)
-        }
-      default:
-        if q.bookmarks.isEmpty { Text("لا علامات بعد — انقر كلمة في المصحف ثم «علامة مع ملاحظة»، أو زر العلامة في شريط القارئ").font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary).padding(12) }
-        ForEach(q.bookmarks.reversed(), id: \.self) { b in
-          if let a = QuranText.shared.ayah(surah: b.surah, ayah: b.ayah) {
-            Button { target = ReaderTarget(page: a.page, ayah: a.n) } label: { BookmarkRow(bookmark: b, ayah: a, numerals: s.numerals).padding(.horizontal, 8).padding(.vertical, 8) }.buttonStyle(.plain)
-              .contextMenu { Button { editBookmark = a } label: { Label("تعديل", systemImage: "pencil") }; Button(role: .destructive) { q.removeBookmark(a) } label: { Label("حذف", systemImage: "trash") } }
+        .padding(.horizontal, 14).padding(.vertical, 11)
+        .background(DS.C.bgCanvas, in: Capsule()).overlay { Capsule().stroke(DS.C.borderSubtle, lineWidth: 1) }
+        .contentShape(Capsule())
+      }
+      .buttonStyle(.plain).accessibilityLabel("بحث في المصحف")
+      DSSegmented(items: ["السور", "الأجزاء", "الأحزاب", "العلامات"], selection: $tab)
+      LazyVStack(spacing: 0) {
+        switch tab {
+        case 0:
+          ForEach(QuranMeta.surahs) { su in
+            Button { target = ReaderTarget(page: su.page, ayah: QuranText.shared.ayah(surah: su.n, ayah: 1)?.n) } label: { SurahRow(surah: su, numerals: n) }.buttonStyle(.plain)
+            if su.n < 114 { rowDivider }
+          }
+        case 1:
+          ForEach(QuranMeta.juzStarts, id: \.juz) { j in
+            Button { target = ReaderTarget(page: j.page) } label: { JuzRow(start: j, numerals: n) }.buttonStyle(.plain)
+            if j.juz < 30 { rowDivider }
+          }
+        case 2:
+          ForEach(1...60, id: \.self) { h in
+            HizbRow(hizb: h, numerals: n) { p in target = ReaderTarget(page: p) }
+            if h < 60 { rowDivider }
+          }
+        default:
+          if q.bookmarks.isEmpty { Text("لا علامات بعد — انقر كلمة في المصحف ثم «علامة مع ملاحظة»، أو زر العلامة في شريط القارئ").font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary).padding(12) }
+          ForEach(q.bookmarks.reversed(), id: \.self) { b in
+            if let a = QuranText.shared.ayah(surah: b.surah, ayah: b.ayah) {
+              Button { target = ReaderTarget(page: a.page, ayah: a.n) } label: { BookmarkRow(bookmark: b, ayah: a, numerals: n).padding(.horizontal, 4).padding(.vertical, 8) }.buttonStyle(.plain)
+                .contextMenu { Button { editBookmark = a } label: { Label("تعديل", systemImage: "pencil") }; Button(role: .destructive) { q.removeBookmark(a) } label: { Label("حذف", systemImage: "trash") } }
+            }
           }
         }
       }
     }
     .dsCard(padding: 12)
+  }
+  private var rowDivider: some View { Divider().overlay(DS.C.borderSubtle).padding(.leading, 56) }
+
+  // MARK: التزامك بالورد — صفّ ثنائي لا سلسلة تنكسر
+  private var commitmentCard: some View {
+    let q = model.quran; let today = model.todayKey
+    let target = q.khatmah?.dailyPages ?? 1
+    let c = Wird.commitment(q.wird, today: today, target: target, days: 14)
+    let hasPlan = q.khatmah != nil
+    return VStack(alignment: .leading, spacing: 10) {
+      HStack {
+        Text("التزامك بالورد").font(DS.kufi(16, .semibold)).foregroundStyle(DS.C.textPrimary)
+        Spacer()
+        Button { sheet = .khatmah } label: { DSLinkLabel(title: hasPlan ? "الختمة" : "ابدأ خطة") }.buttonStyle(.plain)
+      }
+      Text(hasPlan ? "\(num(c.done)) من \(num(c.total)) يومًا في الأسبوعين الأخيرين" : "خطة ختمة تحوّل القراءة إلى وردٍ يومي بمقدار تختاره").font(DS.F.labelSm).foregroundStyle(DS.C.textSecondary)
+      HStack(spacing: 4) {
+        ForEach(Array(c.days.enumerated()), id: \.offset) { _, on in
+          RoundedRectangle(cornerRadius: 5, style: .continuous).fill(on ? DS.C.brandPrimary : DS.C.bgSubtle).frame(height: 18)
+        }
+      }
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel("التزامك بالورد: \(c.done) من \(c.total) يومًا")
+    }
+    .dsCard(padding: 16)
+  }
+}
+
+/// نجمة ثمانية (رسم Figma) لأرقام السور والأجزاء
+struct EightPointStar: Shape {
+  var inner: CGFloat = 0.78
+  func path(in r: CGRect) -> Path {
+    let c = CGPoint(x: r.midX, y: r.midY); let R = min(r.width, r.height) / 2
+    var p = Path()
+    for i in 0..<16 {
+      let a = Double(i) * .pi / 8 - .pi / 2 + .pi / 16
+      let rr = i % 2 == 0 ? R : R * inner
+      let pt = CGPoint(x: c.x + rr * cos(a), y: c.y + rr * sin(a))
+      if i == 0 { p.move(to: pt) } else { p.addLine(to: pt) }
+    }
+    p.closeSubpath(); return p
+  }
+}
+
+/// رقم داخل نجمة ثمانية بحدّ ذهبي
+struct StarNumber: View {
+  let text: String; var current = false
+  var body: some View {
+    ZStack {
+      EightPointStar().fill(current ? DS.C.accentGoldSoft : DS.C.paperPage)
+      EightPointStar().stroke(DS.C.accentGold.opacity(current ? 1 : 0.9), lineWidth: current ? 1.6 : 1.2)
+      Text(text).font(DS.kufi(12, .semibold)).foregroundStyle(DS.C.accentGoldStrong)
+    }
+    .frame(width: 38, height: 38)
+    .accessibilityHidden(true)
+  }
+}
+
+/// حبّة رقم الصفحة (يسار الصفّ)
+struct PagePill: View {
+  let text: String
+  var body: some View { Text(text).font(DS.readex(11, .medium)).foregroundStyle(DS.C.brandPrimary).padding(.vertical, 5).padding(.horizontal, 10).background(DS.C.brandSoft.opacity(0.55), in: Capsule()) }
+}
+
+/// صفّ سورة: نجمة برقمها، الاسم بخطّ Amiri ونوعها وعدد آياتها، وحبّة الصفحة
+struct SurahRow: View {
+  let surah: Surah; let numerals: String; var current = false
+  var body: some View {
+    HStack(spacing: 12) {
+      StarNumber(text: Fmt.number(surah.n, numerals: numerals), current: current)
+      VStack(alignment: .leading, spacing: 1) {
+        Text(surah.name).font(DS.amiri(19)).foregroundStyle(DS.C.textPrimary)
+        Text("\(surah.type) · \(Fmt.number(surah.ayahs, numerals: numerals)) آية").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary)
+      }
+      Spacer(minLength: 4)
+      if current { Image(systemName: "bookmark.fill").foregroundStyle(DS.C.accentGold).accessibilityHidden(true) }
+      PagePill(text: "ص \(Fmt.number(surah.page, numerals: numerals))")
+    }
+    .padding(.vertical, 9).padding(.horizontal, 4)
+    .contentShape(Rectangle())
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("سورة \(surah.name)، \(surah.type)، \(surah.ayahs) آية، صفحة \(surah.page)")
+  }
+}
+
+/// صفّ جزء: رقمه في نجمة، اسمه، وأوّله من المتن (مصحف المدينة)
+struct JuzRow: View {
+  let start: JuzStart; let numerals: String
+  var body: some View {
+    HStack(spacing: 12) {
+      StarNumber(text: Fmt.number(start.juz, numerals: numerals))
+      VStack(alignment: .leading, spacing: 1) {
+        Text(QuranMeta.juzName(start.juz, vocalized: false)).font(DS.F.headingSm).foregroundStyle(DS.C.textPrimary)
+        HStack(spacing: 6) {
+          Text(QuranText.shared.juzStartPhrase(start.juz)).font(.custom(MushafFonts.amiriQuranFont, fixedSize: 13)).foregroundStyle(DS.C.textSecondary)
+          Text("· \(QuranMeta.surah(start.surah).name) \(Fmt.number(start.ayah, numerals: numerals))").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary)
+        }
+      }
+      Spacer(minLength: 4)
+      PagePill(text: "ص \(Fmt.number(start.page, numerals: numerals))")
+    }
+    .padding(.vertical, 9).padding(.horizontal, 4)
+    .contentShape(Rectangle())
+  }
+}
+
+/// صفّ حزب: بدايته، وأرباعه الأربعة ۞ كحبّات تنقل إلى موضع كل ربع
+struct HizbRow: View {
+  let hizb: Int; let numerals: String; var onGo: (Int) -> Void
+  var body: some View {
+    let quarters = QuranText.shared.quarters(ofHizb: hizb)
+    let first = quarters.first
+    HStack(spacing: 12) {
+      Button { if let p = first?.page { onGo(p) } } label: {
+        HStack(spacing: 12) {
+          StarNumber(text: Fmt.number(hizb, numerals: numerals))
+          VStack(alignment: .leading, spacing: 1) {
+            Text("الحزب \(Fmt.number(hizb, numerals: numerals))").font(DS.F.headingSm).foregroundStyle(DS.C.textPrimary)
+            Text(first.map { "الجزء \(Fmt.number($0.juz, numerals: numerals)) · \(QuranMeta.surah($0.surah).name) \(Fmt.number($0.ayah, numerals: numerals)) · ص \(Fmt.number($0.page, numerals: numerals))" } ?? "").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary)
+          }
+        }
+        .contentShape(Rectangle())
+      }.buttonStyle(.plain)
+      Spacer(minLength: 4)
+      HStack(spacing: 4) {
+        ForEach(Array(quarters.enumerated()), id: \.offset) { i, a in
+          Button { onGo(a.page) } label: {
+            Text(Fmt.number(i + 1, numerals: numerals)).font(DS.readex(10.5, .medium)).foregroundStyle(DS.C.accentGoldStrong)
+              .frame(width: 26, height: 26).background(DS.C.accentGoldSoft.opacity(0.7), in: Circle())
+          }.buttonStyle(.plain).accessibilityLabel("الربع \(i + 1) من الحزب \(hizb)، صفحة \(a.page)")
+        }
+      }
+    }
+    .padding(.vertical, 9).padding(.horizontal, 4)
   }
 }
 
@@ -230,28 +339,6 @@ struct DSSegmented: View {
   }
 }
 
-/// خريطة حرارة القراءة (90 يومًا): مربعات أسبوعية
-struct HeatmapView: View {
-  let days: [HeatDay]; let numerals: String
-  var body: some View {
-    let mx = max(1, days.map(\.count).max() ?? 1)
-    let total = days.reduce(0) { $0 + $1.count }; let active = days.filter { $0.count > 0 }.count
-    VStack(alignment: .leading, spacing: 6) {
-      Canvas { ctx, size in
-        let cols = Int((Double(days.count) / 7).rounded(.up)); let cell = min(size.width / CGFloat(cols), size.height / 7); let gap: CGFloat = 2
-        for (i, d) in days.enumerated() {
-          let col = i / 7, row = i % 7
-          let x = size.width - CGFloat(col + 1) * cell + gap / 2, y = CGFloat(row) * cell + gap / 2
-          let lvl = d.count == 0 ? 0.0 : d.count >= Int(Double(mx) * 0.75) ? 1.0 : d.count >= Int(Double(mx) * 0.5) ? 0.75 : d.count >= Int(Double(mx) * 0.25) ? 0.5 : 0.3
-          ctx.fill(Path(roundedRect: CGRect(x: x, y: y, width: cell - gap, height: cell - gap), cornerRadius: 2), with: .color(lvl == 0 ? DS.C.bgSubtle : DS.C.brandPrimary.opacity(lvl)))
-        }
-      }
-      .frame(height: 7 * 11)
-      HStack { Text("قبل ٩٠ يومًا").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary); Spacer(); Text("\(Fmt.number(total, numerals: numerals)) صفحة · \(Fmt.number(active, numerals: numerals)) يوم قراءة").font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary); Spacer(); Text("اليوم").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary) }
-    }
-    .accessibilityLabel("خريطة القراءة لآخر 90 يومًا: \(total) صفحة في \(active) يومًا")
-  }
-}
 
 struct BookmarkRow: View {
   let bookmark: WebSettings.Bookmark; let ayah: Ayah; let numerals: String
@@ -350,25 +437,3 @@ struct SurahListView: View {
   }
 }
 
-/// صفّ سورة: شارة معيّنية برقمها، الاسم ونوعها وعدد آياتها، ورقم الصفحة
-struct SurahRow: View {
-  let surah: Surah; let numerals: String; var current = false
-  var body: some View {
-    HStack(spacing: 12) {
-      ZStack {
-        RoundedRectangle(cornerRadius: 6, style: .continuous).fill(current ? DS.C.accentGoldSoft : DS.C.brandSoft).frame(width: 28, height: 28).rotationEffect(.degrees(45))
-        Text(Fmt.number(surah.n, numerals: numerals)).font(DS.F.labelSm).foregroundStyle(current ? DS.C.accentGoldStrong : DS.C.brandPrimary)
-      }
-      .frame(width: 40, height: 40)
-      VStack(alignment: .leading, spacing: 1) {
-        Text(surah.name).font(DS.F.headingSm).foregroundStyle(DS.C.textPrimary)
-        Text("\(surah.type) · \(Fmt.number(surah.ayahs, numerals: numerals)) آية").font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary)
-      }
-      Spacer()
-      if current { Image(systemName: "bookmark.fill").foregroundStyle(DS.C.accentGold) }
-      VStack(spacing: 0) { Text(Fmt.number(surah.page, numerals: numerals)).font(DS.F.numericMd).foregroundStyle(DS.C.textSecondary); Text("صفحة").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary) }
-    }
-    .padding(.vertical, 8).padding(.horizontal, 8)
-    .contentShape(Rectangle())
-  }
-}
