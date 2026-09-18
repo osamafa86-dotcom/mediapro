@@ -30,6 +30,8 @@ final class Settings {
   /// بطاقة «أقرب مسجد» في الرئيسية — اختيارية لأنها تُرسل الموقع (مقرّبًا) إلى خرائط آبل
   var nearbyMosques: Bool { didSet { d.set(nearbyMosques, forKey: "mosques.enabled") } }
   var lastRead: LastRead? { didSet { if let v = lastRead, let data = try? JSONEncoder().encode(v) { d.set(data, forKey: "quran.lastRead") } else { d.removeObject(forKey: "quran.lastRead") } } }
+  /// سماء الرئيسية: تلقائي/ثابت/مخصّص، الطقس (اختياري)، تقليل الحركة — Figma «٧ · نظام السماء والطقس»
+  var sky: SkyPrefs { didSet { if let data = try? JSONEncoder().encode(sky) { d.set(data, forKey: "sky.prefs") } } }
 
   init() {
     methodId = d.string(forKey: "prayer.method") ?? "MuslimWorldLeague"
@@ -47,6 +49,7 @@ final class Settings {
     tasbihSound = d.bool(forKey: "ui.tasbihSound")
     nearbyMosques = d.bool(forKey: "mosques.enabled")
     lastRead = d.data(forKey: "quran.lastRead").flatMap { try? JSONDecoder().decode(LastRead.self, from: $0) }
+    sky = d.data(forKey: "sky.prefs").flatMap { try? JSONDecoder().decode(SkyPrefs.self, from: $0) } ?? .default
   }
 
   func params(tz: TimeZone) -> PrayerParams {
@@ -81,6 +84,10 @@ final class AppModel {
       self.adhan.play(sound: self.settings.reminders.sound)
     }
   }
+
+  /// تنقّل معلّق من بطاقات الرئيسية: صفحة يفتحها المصحف عند ظهوره، وفترة أذكار تفتحها شاشة الأذكار
+  var pendingReaderPage: Int?
+  var pendingAdhkarPeriod: String?
 
   var coordinates: Coordinates? {
     guard let c = location.coordinate else { return nil }

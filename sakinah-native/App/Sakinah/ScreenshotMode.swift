@@ -39,6 +39,9 @@ enum ScreenshotMode {
   /// مسار «home-bottom» (تشخيصي لا للمتجر): يمرّر الرئيسية إلى آخرها كي تُرى آخر بطاقة فوق الشريط العائم
   /// — لقطة أعلى الصفحة لا تكشف تغطية الشريط لآخر بطاقة (قِيس في ثلاثة بناءات على جهاز المالك)
   static var scrollToBottom: Bool { route == "home-bottom" }
+  /// لقطات التحقّق من نظام السماء: فرض طور (`-sakinahSky dhuhr`) وطقس (`-sakinahWeather rain`) — لا أثر لهما في التشغيل العادي
+  static let skyPhase: SkyPhase? = UserDefaults.standard.string(forKey: "sakinahSky").flatMap { SkyPhase(rawValue: $0) }
+  static let skyWeather: SkyWeather? = UserDefaults.standard.string(forKey: "sakinahWeather").flatMap { SkyWeather(rawValue: $0) }
 
   /// موقع ثابت كي تُحسب المواقيت والقبلة بلا إذنٍ ولا شبكة — واللقطات تتكرّر بالنتيجة نفسها
   static func seed(_ model: AppModel) {

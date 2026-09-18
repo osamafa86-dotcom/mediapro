@@ -186,6 +186,10 @@ struct SettingsView: View {
 
   @ViewBuilder private func appearanceGroup(_ settings: Settings) -> some View {
     SettingsGroup("المظهر") {
+      NavigationLink { SkySettingsView().environment(model).tabBarClearance() } label: {
+        SettingsRow(title: "مظهر السماء", subtitle: "تتبدّل مع الوقت والطقس، أو ثابتة، أو بلونك", value: model.settings.sky.mode.nameAr)
+      }.buttonStyle(.plain)
+      SettingsDivider()
       HStack {
         Text("الأرقام").font(DS.F.bodyMd).foregroundStyle(DS.C.textPrimary)
         Spacer()

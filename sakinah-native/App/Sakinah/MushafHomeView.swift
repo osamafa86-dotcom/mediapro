@@ -41,6 +41,8 @@ struct MushafHomeView: View {
       .safeAreaInset(edge: .bottom) { if model.player.current != nil { AudioBarView(onPickReciter: { sheet = .reciter }, onGoToPage: { target = ReaderTarget(page: $0) }).padding(.horizontal, 12).padding(.bottom, 6) } }
       .tabBarClearance()
       .fullScreenCover(item: $target) { t in MushafReaderView(startPage: t.page, ayah: t.ayah).environment(model) }
+      // «تابع القراءة» من الرئيسية: تُفتح الصفحة حين يظهر التبويب (بعد لحظة كي يكون العرض قد استقرّ)
+      .onAppear { if let p = model.pendingReaderPage { model.pendingReaderPage = nil; Task { @MainActor in try? await Task.sleep(for: .milliseconds(80)); target = ReaderTarget(page: p) } } }
       .sheet(item: $sheet) { sh in
         switch sh {
         case .khatmah: KhatmahSheet().environment(model)

@@ -40,6 +40,8 @@ struct AdhkarHomeView: View {
       }
       .navigationDestination(isPresented: $showHisn) { HisnView().environment(model).tabBarClearance() }
       .navigationDestination(isPresented: $showTasbih) { TasbihView().environment(model).tabBarClearance() }
+      // «ابدأ» من بطاقة أذكار الوقت في الرئيسية
+      .onAppear { if let p = model.pendingAdhkarPeriod { model.pendingAdhkarPeriod = nil; period = p; Task { @MainActor in try? await Task.sleep(for: .milliseconds(80)); session = p } } }
       .sheet(isPresented: $showReminders) { AdhkarRemindersSheet().environment(model) }
     }
   }
