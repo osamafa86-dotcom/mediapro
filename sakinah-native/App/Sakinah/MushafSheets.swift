@@ -502,9 +502,9 @@ struct KhatmahSheet: View {
         if reminderMode == 1 { DatePicker("الوقت", selection: $time, displayedComponents: .hourAndMinute).font(DS.F.bodySm) }
         if reminderMode == 2 {
           ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) { ForEach(reminderPrayers, id: \.self) { pr in chip("بعد \(pr.nameAr)", on: afterPrayer == pr) { afterPrayer = pr } } }
+            HStack(spacing: 8) { ForEach(reminderPrayers, id: \.self) { pr in chip(pr.nameAr, on: afterPrayer == pr) { afterPrayer = pr } } }
           }
-          Text("يصلك بعد الأذان بعشرين دقيقة حسب مواقيت موقعك").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary)
+          Text("يصلك بعد أذان \(afterPrayer.nameAr) بعشرين دقيقة حسب مواقيت موقعك").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary)
         }
       }
       HStack(spacing: 10) {
