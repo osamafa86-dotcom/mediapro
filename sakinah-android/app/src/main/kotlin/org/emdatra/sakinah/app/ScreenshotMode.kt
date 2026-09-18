@@ -11,6 +11,9 @@ import org.emdatra.sakinah.core.CityDatabase
 object ScreenshotMode {
   var route: String? = null; private set
   val active: Boolean get() = route != null
+  /** لقطات التحقّق من نظام السماء: فرض طور (`--es sakinahSky dhuhr`) وطقس (`--es sakinahWeather rain`) — لا أثر لهما في التشغيل العادي */
+  var skyPhase: org.emdatra.sakinah.core.SkyPhase? = null; private set
+  var skyWeather: org.emdatra.sakinah.core.SkyWeather? = null; private set
   val tab: AppTab? get() = when (route) {
     "prayer", "qibla", "home" -> AppTab.Home
     "mushaf", "mushaf-page", "mushaf-bar" -> AppTab.Mushaf
@@ -26,9 +29,11 @@ object ScreenshotMode {
   val fullQibla: Boolean get() = route == "qibla"
 
   /** تهيئة حالةٍ ثابتة: بلا مقدّمة، أرقام عربية، مدينة عمّان — فالمحاكي بلا موقع */
-  fun arm(r: String?) {
+  fun arm(r: String?, sky: String? = null, weather: String? = null) {
     route = r?.takeIf { it.isNotEmpty() }
     if (!active) return
+    skyPhase = sky?.let { id -> org.emdatra.sakinah.core.SkyPhase.entries.firstOrNull { it.id == id } }
+    skyWeather = org.emdatra.sakinah.core.SkyWeather.of(weather)
     Store.seenIntro = true; Store.numerals = "arab"; Store.seenChromeHint = true
     CityDatabase.bundled.city("jo-amman")?.let { Store.useCity(it) }
     Store.save()

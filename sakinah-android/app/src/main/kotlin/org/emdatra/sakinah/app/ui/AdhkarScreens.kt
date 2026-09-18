@@ -60,6 +60,8 @@ private fun periodMap(p: WebSettings.AdhkarProgress, period: String): Map<String
   var screen by remember { mutableStateOf("home") }
   var chapter by remember { mutableStateOf<HisnChapter?>(null) }
   var session by remember { mutableStateOf<String?>(null) }
+  // «ابدأ» من بطاقة أذكار الوقت في الرئيسية
+  LaunchedEffect(Store.pendingAdhkarPeriod) { Store.pendingAdhkarPeriod?.let { p -> Store.pendingAdhkarPeriod = null; session = p } }
   BackHandler(screen != "home" || chapter != null || session != null) {
     when { session != null -> session = null; chapter != null -> chapter = null; else -> screen = "home" }
   }

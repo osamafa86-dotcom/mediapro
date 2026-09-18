@@ -8,6 +8,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import org.emdatra.sakinah.app.ScreenshotMode
 import org.emdatra.sakinah.app.Store
 
@@ -22,7 +23,8 @@ val LocalSwitchTab = staticCompositionLocalOf<(AppTab) -> Unit> { {} }
   val tab = AppTab.entries[tabIndex]
   CompositionLocalProvider(LocalSwitchTab provides { t -> tabIndex = t.ordinal }) {
     Scaffold(containerColor = DS.c.bgCanvas, bottomBar = { DSTabBar(tab) { tabIndex = it.ordinal } }) { pad ->
-      Box(Modifier.fillMaxSize().background(DS.c.bgCanvas).padding(pad)) {
+      // الرئيسية تمدّ سماءها تحت شريط الحالة (تحشو الهيرو بنفسه)؛ سائر التبويبات تحت الشريط
+      Box(Modifier.fillMaxSize().background(DS.c.bgCanvas).padding(top = if (tab == AppTab.Home) 0.dp else pad.calculateTopPadding(), bottom = pad.calculateBottomPadding())) {
         when (tab) { AppTab.Home -> HomeScreen(); AppTab.Mushaf -> MushafHome(); AppTab.Adhkar -> AdhkarHome(); AppTab.More -> MoreScreen() }
       }
     }

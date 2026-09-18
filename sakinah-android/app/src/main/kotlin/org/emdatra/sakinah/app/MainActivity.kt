@@ -15,7 +15,7 @@ class MainActivity : ComponentActivity() {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
     Fonts.init(this)
-    ScreenshotMode.arm(intent?.getStringExtra("sakinahShot"))
+    ScreenshotMode.arm(intent?.getStringExtra("sakinahShot"), intent?.getStringExtra("sakinahSky"), intent?.getStringExtra("sakinahWeather"))
     setContent { CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) { SakinahTheme { RootScreen() } } }
   }
   override fun onResume() { super.onResume(); Notify.schedule(this) }

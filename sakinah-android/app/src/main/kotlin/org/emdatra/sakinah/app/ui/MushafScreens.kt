@@ -68,6 +68,8 @@ import org.emdatra.sakinah.core.*
   var reader by remember { mutableStateOf<Pair<Int, Int?>?>(org.emdatra.sakinah.app.ScreenshotMode.readerPage?.let { it to null }) }
   var q by remember { mutableStateOf("") }; var tab by remember { mutableIntStateOf(0) }; var searching by remember { mutableStateOf(false) }
   var sheet by remember { mutableStateOf<String?>(null) }
+  // «تابع القراءة» من الرئيسية
+  LaunchedEffect(Store.pendingReaderPage) { Store.pendingReaderPage?.let { p -> Store.pendingReaderPage = null; reader = p to null } }
   if (reader != null) { MushafReader(startPage = reader!!.first, startAyah = reader!!.second, onClose = { reader = null }); return }
   val last = Store.lastRead
   Column(Modifier.fillMaxSize()) {

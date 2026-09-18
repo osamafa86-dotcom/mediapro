@@ -279,6 +279,8 @@ private fun downloadsLabel(): String? {
 @Composable fun SettingsScreen(onBack: () -> Unit) {
   val ctx = LocalContext.current
   val c = DS.c
+  var sky by remember { mutableStateOf(false) }
+  if (sky) { SkySettingsScreen { sky = false }; return }
   var showCity by remember { mutableStateOf(false) }
   var showMethod by remember { mutableStateOf(false) }
   var showPrayers by remember { mutableStateOf(false) }
@@ -360,6 +362,8 @@ private fun downloadsLabel(): String? {
       }
 
       MoreGroup("المظهر") {
+        DSRow(Icons.Outlined.WbTwilight, "مظهر السماء", "تتبدّل مع الوقت والطقس، أو ثابتة، أو بلونك", onClick = { sky = true }) { Text(Store.skyPrefs.mode.nameAr, style = DSType.labelSm, color = c.textSecondary); Spacer(Modifier.width(4.dp)); DSChevron() }
+        DSDivider()
         Row(Modifier.fillMaxWidth().padding(12.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
           Text("الأرقام", style = DSType.bodyMd, color = c.textPrimary, modifier = Modifier.weight(1f))
           DSSegmented(listOf("١٢٣", "123"), if (Store.numerals == "arab") 0 else 1, Modifier.width(140.dp)) {
