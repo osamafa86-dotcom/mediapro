@@ -9,7 +9,7 @@ struct MushafHomeView: View {
   @State private var query = ""
   @State private var searching = false
   @State private var tab = 0
-  @State private var sheet: HomeSheet?
+  @State private var sheet: HomeSheet? = ScreenshotMode.librarySheet ? .khatmah : nil
   @State private var editBookmark: Ayah?
   @FocusState private var searchFocused: Bool
 

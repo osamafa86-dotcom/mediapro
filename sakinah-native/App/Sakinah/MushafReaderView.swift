@@ -512,6 +512,10 @@ struct MushafReaderView: View {
     scheduleDwell(startPage)
     if let a = startAyah { DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { flash(a) } }
     if !prefs.hintShown { prefs.hintShown = true; show("انقر كلمةً لتحديد آيتها، واضغط مطوّلًا لكل خياراتها") }
+    // لقطات المتجر: آية محدّدة مع رصيفها، أو ورقة مفتوحة، أو جلسة إخفاء
+    if ScreenshotMode.readerSelectsAyah, let a = QuranText.shared.pageAyahs(startPage).first { state.selected = a.n }
+    if let s = ScreenshotMode.readerSheet { DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { sheet = s } }
+    if ScreenshotMode.readerHifz { DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { startVeil() } }
     if autoplay || hifzOnAppear {
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
         guard let a = startAyah.flatMap({ QuranText.shared.ayah($0) }) ?? QuranText.shared.pageAyahs(startPage).first else { return }

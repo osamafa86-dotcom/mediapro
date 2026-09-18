@@ -22,7 +22,7 @@ enum ScreenshotMode {
   static var tab: AppTab? {
     switch route {
     case "prayer", "qibla", "home", "home-bottom", "sky-settings": return .home
-    case "mushaf", "mushaf-page", "mushaf-bar": return .mushaf
+    case "mushaf", "mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-khatmah", "mushaf-display", "mushaf-hifz": return .mushaf
     case "adhkar", "hisn", "tasbih": return .adhkar
     case "hadith", "more": return .more
     default: return nil
@@ -30,10 +30,15 @@ enum ScreenshotMode {
   }
 
   /// الصفحة التي يُفتح عليها قارئ المصحف، إن كان المسار يطلب القارئ
-  static var readerPage: Int? { (route == "mushaf-page" || route == "mushaf-bar") ? 270 : nil }
+  static var readerPage: Int? { ["mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-display", "mushaf-hifz"].contains(route ?? "") ? 270 : nil }
 
   /// يُبقى الشريط ظاهرًا: القارئ يخفيه بعد ثوانٍ، فلا يلتقطه انتظارُ تحميل الخطوط
-  static var keepChrome: Bool { route == "mushaf-bar" }
+  static var keepChrome: Bool { route == "mushaf-bar" || route == "mushaf-ayah" }
+  /// لقطات المصحف v2: آية محدّدة مع رصيفها، ورقة مفتوحة في القارئ، جلسة إخفاء للحفظ، وورقة الختمة في المكتبة
+  static var readerSelectsAyah: Bool { route == "mushaf-ayah" }
+  static var readerSheet: ReaderSheet? { switch route { case "mushaf-nav": return .quickNav; case "mushaf-display": return .display; default: return nil } }
+  static var readerHifz: Bool { route == "mushaf-hifz" }
+  static var librarySheet: Bool { route == "mushaf-khatmah" }
   /// مسار «qibla» يفتح القبلة الكاملة فوق الرئيسية
   static var fullQibla: Bool { route == "qibla" }
   /// مسار «sky-settings» (تشخيصي): يفتح شاشة «مظهر السماء» فوق الرئيسية للتحقّق البصري منها
@@ -57,5 +62,15 @@ enum ScreenshotMode {
     // بطاقة «أقرب مسجد» مفعّلة: سير اللقطات يمنح المحاكي إذن الموقع وموقعًا محاكى (simctl privacy/location)
     // فتبحث البطاقة حول قراءة الجهاز كما عند المستخدم، وبلا ذلك تعرض طلب الإذن — وكلاهما يُتحقّق منه
     model.settings.nearbyMosques = true
+    // ورقة الختمة والمكتبة تحتاجان خطةً وسجلّ ورد كي تُظهرا حالةً حقيقية: خطة ٣٠ يومًا بدأت قبل خمسة أيام وورد ٢١ صفحة في أربعة منها
+    if route == "mushaf-khatmah" || route == "mushaf" {
+      let today = model.todayKey
+      model.quran.khatmah = KhatmahPlan(startPage: 1, startedAt: DayKey.adding(today, days: -5), days: 30, reminder: "after:isha")
+      var log: WirdLog = [:]
+      for (i, d) in [-5, -4, -3, -1, 0].enumerated() { for p in (i * 21 + 1)...((i + 1) * 21) { log = Wird.mark(log, today: DayKey.adding(today, days: d), page: p, startPage: 1) } }
+      model.quran.wird = log
+      model.settings.lastRead = LastRead(page: 106, surah: 5, ayah: 1, at: Date().timeIntervalSince1970 * 1000)
+      model.quran.pushRecent(QuranText.shared.ayah(surah: 5, ayah: 1)!); model.quran.pushRecent(QuranText.shared.ayah(surah: 18, ayah: 10)!)
+    }
   }
 }
