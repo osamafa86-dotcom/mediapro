@@ -89,6 +89,9 @@ final class MosqueFinder {
       let center = CLLocationCoordinate2D(latitude: (c.latitude * 100).rounded() / 100, longitude: (c.longitude * 100).rounded() / 100)
       req.region = MKCoordinateRegion(center: center, latitudinalMeters: meters, longitudinalMeters: meters)
       req.resultTypes = .pointOfInterest
+      // iOS 18: النتائج داخل المنطقة فقط. بدونها ترتّب آبل بالشهرة وتعيد «جامع المركز» لأحياء على ٧ كم
+      // قبل مسجد الحيّ على ٤٥٠ م (قِيس في باشاك شهير مقابل خرائط غوغل) — فالمدى يتّسع على مراحل
+      if #available(iOS 18.0, *) { req.regionPriority = .required }
       guard let resp = try? await MKLocalSearch(request: req).start() else { return [] }
       return resp.mapItems.compactMap { item -> Mosque? in
         guard let name = item.name, !name.isEmpty else { return nil }
@@ -99,15 +102,13 @@ final class MosqueFinder {
       }
     }
     var out: [Mosque] = []
-    await withTaskGroup(of: [Mosque].self) { g in
-      for t in terms { g.addTask { await run(t, meters: q.isEmpty ? 2_500 : 20_000) } }
-      for await r in g { out += r }
-    }
-    if q.isEmpty, out.count < 8 {
+    var ids = Set<String>()
+    for meters in (q.isEmpty ? [3_000.0, 8_000, 20_000] : [20_000]) {
       await withTaskGroup(of: [Mosque].self) { g in
-        for t in terms { g.addTask { await run(t, meters: 8_000) } }
-        for await r in g { out += r }
+        for t in terms { g.addTask { await run(t, meters: meters) } }
+        for await r in g { for m in r where ids.insert(m.id).inserted { out.append(m) } }
       }
+      if out.count >= 8 { break }
     }
     // ترشيح لطيف: ما يُقرأ مسجدًا في اسمه؛ وإن أفرغ القائمة أُبقيت كما جاءت
     let named = out.filter { m in nameKeys.contains { m.name.lowercased().contains($0) } }
@@ -154,29 +155,55 @@ final class MosqueFinder {
 }
 
 /// OpenStreetMap عبر Overpass — يكمّل خرائط آبل في المساجد الصغيرة (آبل ترتّب بالشهرة وتعيد ≈٢٥ نتيجة،
-/// فتغيب مساجد الحيّ في مدينة كإسطنبول). الخادم العام بطيء ويسقط أحيانًا (قِيس: ١٢ ث و504 مرّةً من ثلاث)
-/// فتُجرَّب مرايا بعده. `around` لا يرتّب بالقرب، وحدّ الإخراج يقطع اعتباطًا: لذا طلب واحد بثلاث دوائر
-/// — ١٫٢ كم (بلا حدٍّ عمليًّا: المركز مقرّب ~٠٫٧ كم فلا بدّ أن تغطّي الدائرة الموقع الحقيقي)، ثم ٣ و١٠ كم للمناطق القليلة.
+/// فتغيب مساجد الحيّ في مدينة كإسطنبول). الخادم العام بطيء ويسقط أحيانًا (قِيس: ١٢ ث، و504، وانقطاع)
+/// بينما مرآة OSM France تجيب في ١٫٥ ث (قِيست حول باشاك شهير: ٤٤ مسجدًا مسمًّى ضمن ٣ كم) — فالطلبات
+/// «محوّطة»: العام فورًا، والفرنسية بعد ٤ ث، وmail.ru بعد ٩ ث، وأوّل نجاح يفوز ويُلغي الباقي.
+/// `around` لا يرتّب بالقرب وحدّ الإخراج يقطع اعتباطًا: لذا طلب واحد بدائرتين — ١٫٢ كم بلا حدٍّ عمليًّا
+/// (المركز مقرّب ~٠٫٧ كم فلا بدّ أن تغطّي الدائرة الموقع الحقيقي) ثم ٣ كم — و١٠ كم لاحقًا للمناطق القليلة.
 enum OSMMosques {
-  static let endpoints = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter", "https://overpass.private.coffee/api/interpreter"]
+  static let endpoints: [(url: String, delay: Double)] = [
+    ("https://overpass-api.de/api/interpreter", 0),
+    ("https://overpass.openstreetmap.fr/api/interpreter", 4),
+    ("https://maps.mail.ru/osm/tools/overpass/api/interpreter", 9),
+  ]
 
   static func tiered(around c: Coordinates, query: String) async throws -> [Mosque] {
-    let tiers: [(radius: Int, limit: Int)] = query.isEmpty ? [(1_200, 200), (3_000, 120), (10_000, 80)] : [(15_000, 80)]
-    var last: Error = URLError(.cannotConnectToHost)
-    for ep in endpoints {
-      do { return try await fetch(around: c, tiers: tiers, query: query, endpoint: ep) }
-      catch { last = error; if let u = error as? URLError, u.code == .notConnectedToInternet { throw error } }
+    if !query.isEmpty { return try await hedged(around: c, tiers: [(15_000, 80)], query: query) }
+    var out = try await hedged(around: c, tiers: [(1_200, 200), (3_000, 120)], query: "")
+    if out.count < 5, let far = try? await hedged(around: c, tiers: [(10_000, 80)], query: "") {
+      let ids = Set(out.map(\.id)); out += far.filter { !ids.contains($0.id) }
     }
-    throw last
+    return out
+  }
+
+  /// طلبات متدرّجة التوقيت على عدّة خوادم: أوّل نجاح يفوز، وتُلغى البقية؛ الفشل الكامل يرمي آخر خطأ
+  static func hedged(around c: Coordinates, tiers: [(radius: Int, limit: Int)], query: String) async throws -> [Mosque] {
+    try await withThrowingTaskGroup(of: [Mosque].self) { group in
+      for ep in endpoints {
+        group.addTask {
+          if ep.delay > 0 { try await Task.sleep(for: .seconds(ep.delay)) }
+          return try await fetch(around: c, tiers: tiers, query: query, endpoint: ep.url)
+        }
+      }
+      var last: Error = URLError(.cannotConnectToHost)
+      while let r = await group.nextResult() {
+        switch r {
+        case .success(let items): group.cancelAll(); return items
+        case .failure(let e): if !(e is CancellationError) { last = e }
+        }
+      }
+      throw last
+    }
   }
 
   static func fetch(around c: Coordinates, tiers: [(radius: Int, limit: Int)], query: String, endpoint: String) async throws -> [Mosque] {
     let rl = (c.latitude * 100).rounded() / 100, ro = (c.longitude * 100).rounded() / 100
     let name = query.isEmpty ? "" : "[\"name\"~\"\(query.replacingOccurrences(of: "\"", with: "").replacingOccurrences(of: "\\", with: ""))\",i]"
-    let body = tiers.map { "nwr[\"amenity\"=\"place_of_worship\"][\"religion\"=\"muslim\"]\(name)(around:\($0.radius),\(rl),\(ro));out center tags \($0.limit);" }.joined()
-    let ql = "[out:json][timeout:20];" + body
+    // nw لا nwr: العلاقات نادرة للمساجد وحساب مراكزها أثقل
+    let body = tiers.map { "nw[\"amenity\"=\"place_of_worship\"][\"religion\"=\"muslim\"]\(name)(around:\($0.radius),\(rl),\(ro));out center tags \($0.limit);" }.joined()
+    let ql = "[out:json][timeout:15];" + body
     var req = URLRequest(url: URL(string: endpoint)!)
-    req.httpMethod = "POST"; req.timeoutInterval = 22
+    req.httpMethod = "POST"; req.timeoutInterval = 18
     req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
     req.setValue("Sakinah/5.1 (+https://github.com/osamafa86-dotcom/mediapro)", forHTTPHeaderField: "User-Agent")
     let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))

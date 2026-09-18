@@ -91,9 +91,9 @@ struct MosquesView: View {
     .frame(height: 220)
     .clipShape(RoundedRectangle(cornerRadius: DS.Radius.xl, style: .continuous))
     .onChange(of: finder.results) { _, r in
-      // تأطير الخريطة على أبعد نتيجة من العشر الأولى
-      let far = r.prefix(10).map(\.distanceKm).max() ?? 1
-      let meters = max(1_500, far * 2_300)
+      // تأطير الخريطة على أبعد نتيجة من الستّ الأولى، بسقف: نتائج آبل الأولى قد تبعد ٧ كم فتبتلع الخريطة المدينة
+      let far = r.prefix(6).map(\.distanceKm).max() ?? 1
+      let meters = min(8_000, max(1_500, far * 2_300))
       position = .region(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: c.latitude, longitude: c.longitude), latitudinalMeters: meters, longitudinalMeters: meters))
     }
   }

@@ -4,7 +4,15 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
@@ -30,8 +38,12 @@ import java.net.URLEncoder
  * المركز المرسل مقرّب إلى ~١ كم كي يبقى ما يغادر الجهاز «موقعًا تقريبيًّا»، والمسافات تُحسب هنا من الموقع الدقيق.
  */
 object MosqueFinder {
-  /** الخادم العام أوّلًا ثم مرايا: كلٌّ منها يسقط أحيانًا (504) فيُجرَّب التالي */
-  private val ENDPOINTS = listOf("https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter", "https://overpass.private.coffee/api/interpreter")
+  /**
+   * طلبات «محوّطة» على عدّة خوادم: العام فورًا، ومرآة OSM France بعد ٤ ث (قِيست ١٫٥ ث حيث سقط العام)،
+   * وmail.ru بعد ٩ ث — أوّل نجاح يفوز وتُلغى البقية.
+   */
+  private val ENDPOINTS = listOf("https://overpass-api.de/api/interpreter" to 0L, "https://overpass.openstreetmap.fr/api/interpreter" to 4000L, "https://maps.mail.ru/osm/tools/overpass/api/interpreter" to 9000L)
+  private val net = CoroutineScope(SupervisorJob() + Dispatchers.IO)
   private const val UA = "Sakinah/5.1 (+https://github.com/osamafa86-dotcom/mediapro)"
   @Serializable private data class Cache(val key: String, val at: Long, val items: List<Mosque>)
 
@@ -49,26 +61,36 @@ object MosqueFinder {
       val q = query?.trim().orEmpty().replace("\"", "").replace("\\", "")
       // ⚠️ `around` لا يرتّب بالقرب وحدّ الإخراج يقطع اعتباطًا (قِيس في إسطنبول: «السلطان أحمد» أقرب مسجد) —
       // فطلب واحد بثلاث دوائر: ١٫٢ كم بلا حدٍّ عمليًّا (المركز مقرّب ~٠٫٧ كم فلا بدّ أن تغطّي الموقع الحقيقي)، ثم ٣ و١٠ كم للمناطق القليلة.
-      val tiers = if (q.isEmpty()) listOf(1200 to 200, 3000 to 120, 10000 to 80) else listOf(15000 to 80)
-      var last: Throwable? = null
-      var items: List<Mosque>? = null
-      for (ep in ENDPOINTS) {
-        val r = runCatching { fetch(ep, lat, lon, tiers, q) }
-        r.onSuccess { items = it }.onFailure { last = it; if (it is java.net.UnknownHostException) throw it }
-        if (items != null) break
-      }
-      val out = items ?: throw (last ?: IllegalStateException("no endpoint"))
+      var out = if (q.isEmpty()) hedged(lat, lon, listOf(1200 to 200, 3000 to 120), "") else hedged(lat, lon, listOf(15000 to 80), q)
+      if (q.isEmpty() && out.size < 5) runCatching { hedged(lat, lon, listOf(10000 to 80), "") }.getOrNull()?.let { far -> val ids = out.map { it.id }.toHashSet(); out = out + far.filter { it.id !in ids } }
       if (q.isEmpty()) { Store.mosquesCache = Res.json.encodeToString(Cache.serializer(), Cache(cellKey(lat, lon), System.currentTimeMillis(), out)); Store.save() }
       out
     }
   }
 
-  private fun fetch(endpoint: String, lat: Double, lon: Double, tiers: List<Pair<Int, Int>>, q: String): List<Mosque> {
+  /** أوّل خادم ينجح يفوز؛ الخاسرون يُلغَون (والاتصال المعلّق يُقطع)؛ الفشل الكامل يرمي آخر خطأ */
+  private suspend fun hedged(lat: Double, lon: Double, tiers: List<Pair<Int, Int>>, q: String): List<Mosque> {
+    val winner = CompletableDeferred<List<Mosque>>()
+    val failures = java.util.concurrent.atomic.AtomicInteger(0)
+    var last: Throwable? = null
+    val jobs = ENDPOINTS.map { (ep, wait) ->
+      net.launch {
+        try { if (wait > 0) delay(wait); winner.complete(fetch(ep, lat, lon, tiers, q)) }
+        catch (e: CancellationException) { throw e }
+        catch (e: Throwable) { last = e; if (failures.incrementAndGet() == ENDPOINTS.size) winner.completeExceptionally(e) }
+      }
+    }
+    try { return winner.await() } finally { jobs.forEach { it.cancel() } }
+  }
+
+  private suspend fun fetch(endpoint: String, lat: Double, lon: Double, tiers: List<Pair<Int, Int>>, q: String): List<Mosque> {
     val rl = Math.round(lat * 100) / 100.0; val ro = Math.round(lon * 100) / 100.0
     val nameFilter = if (q.isEmpty()) "" else "[\"name\"~\"$q\",i]"
-    val ql = "[out:json][timeout:20];" + tiers.joinToString("") { (radius, limit) -> "nwr[\"amenity\"=\"place_of_worship\"][\"religion\"=\"muslim\"]$nameFilter(around:$radius,$rl,$ro);out center tags $limit;" }
+    // nw لا nwr: العلاقات نادرة للمساجد وحساب مراكزها أثقل
+    val ql = "[out:json][timeout:15];" + tiers.joinToString("") { (radius, limit) -> "nw[\"amenity\"=\"place_of_worship\"][\"religion\"=\"muslim\"]$nameFilter(around:$radius,$rl,$ro);out center tags $limit;" }
     val c = URL(endpoint).openConnection() as HttpURLConnection
-    c.requestMethod = "POST"; c.connectTimeout = 12_000; c.readTimeout = 22_000; c.doOutput = true
+    currentCoroutineContext()[Job]?.invokeOnCompletion { if (it is CancellationException) runCatching { c.disconnect() } }
+    c.requestMethod = "POST"; c.connectTimeout = 10_000; c.readTimeout = 18_000; c.doOutput = true
     c.setRequestProperty("User-Agent", UA); c.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
     c.outputStream.use { it.write(("data=" + URLEncoder.encode(ql, "UTF-8")).toByteArray()) }
     if (c.responseCode !in 200..299) error("HTTP ${c.responseCode}")
