@@ -55,3 +55,22 @@
 
 لقطات الإطارات الأحد عشر بعد التعديل رُوجعت بصريًا (المكتبة، الصفحة وحدها، الشريط مع الرصيف، التلاوة
 الجارية، ورقة الآية، التنقّل، المشغّل، العرض، الختمة، الحفظ، الدليل).
+
+## التنفيذ (بعد المراجعة)
+
+نُفِّذت النسخة المعدَّلة على iOS وأندرويد في ستّ مراحل مُتحقَّق منها بالتجميع والاختبار (النواة، المكتبة، القارئ،
+الأوراق، أندرويد، اللقطات). مقابلة القرارات بالشيفرة:
+
+| القرار | أين |
+| --- | --- |
+| رصيف سفلي واحد يُزيح الصفحة (حفظ / آية / تلاوة) | `MushafReaderView.persistentSlot` · `MushafScreens.kt` (عمود الرصيف في `MushafReader`) |
+| كلمة = آية، ضغطة مطوّلة = الورقة، هامش = الشريط، بلا أثلاث ولا سحب حافة | `MushafPageView.band` + `MushafReaderState.onLongPressAyah` · `MushafPage/TextPage` بـ`detectTapGestures` |
+| النصّ القرآني من المتن فقط | معاينة العرض تقرأ الفاتحة ٢ من `QuranText`؛ أوائل الأجزاء `juzStartPhrase` |
+| منزلق واحد تحت الشريط وخيط سلبي في الغامر | كما كان (`pageProgress`/`juzHairline`) |
+| «التزامك N من ١٤» بدل السلسلة، «أوراد مسنونة» بدل التحدّيات | `Wird.commitment` · `Awrad` · `KhatmahSheet` · صفّ «المزيد» |
+| الورد بتقدّم الموضع لا بثماني ثوانٍ | `Wird.mark` بعد سكون ٣ ثوانٍ في `scheduleDwell` / `LaunchedEffect(page)` |
+| مشغّل صادق، أ–ب، صندوق الكلمات فقط مع التوقيت | `PlayerSheet` + `RecitationPlayer.rangeA/rangeB/seek` · `Recitation` |
+| حفظ: حجاب معتم، «اكشف آية»، «آية ضعيفة»، إفصاح المعالجة، صفّ واحد | `HifzPanelView` · `HifzPanel` (+`speechOnDevice`) · `prefs.weakAyahs` |
+| ورقة الآية: ستّ بلاطات + «نسخ»، موضع القراءة تلقائي | `AyahOptionsSheet` · `AyahSheet` |
+| الإتاحة: لا إخفاء موقوت، إجراءات مسمّاة، ٣ أعمدة للأجزاء مع التكبير | `scheduleChromeHide` · `MushafPageView.accessibilityAction` · `QuickNavSheet.juzGrid` |
+
