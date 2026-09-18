@@ -28,19 +28,28 @@ struct HomeView: View {
 
   @ViewBuilder
   private func content(now: Date) -> some View {
-    ScrollView(showsIndicators: false) {
-      VStack(spacing: 14) {
-        header(now: now)
-        if let t = model.timeline(now: now), let c = model.coordinates {
-          nowCard(t, now: now, coords: c)
-          todayCard(t, now: now)
-          nearestMosqueCard(c)
-        } else {
-          locationPrompt
+    ScrollViewReader { proxy in
+      ScrollView(showsIndicators: false) {
+        VStack(spacing: 14) {
+          header(now: now)
+          if let t = model.timeline(now: now), let c = model.coordinates {
+            nowCard(t, now: now, coords: c)
+            todayCard(t, now: now)
+            nearestMosqueCard(c)
+          } else {
+            locationPrompt
+          }
         }
+        // الإزاحة عن الشريط العائم تأتي من RootView (safeAreaInset داخل كل تبويب) — هنا فسحة فقط
+        .padding(.horizontal, 20).padding(.top, 4).padding(.bottom, 24)
+        .id("home-content")
       }
-      // الإزاحة عن الشريط العائم تأتي من RootView (safeAreaInset داخل كل تبويب) — هنا فسحة فقط
-      .padding(.horizontal, 20).padding(.top, 4).padding(.bottom, 24)
+      // لقطة تشخيصية وحدها: آخر البطاقات فوق الشريط بعد مهلة يكتمل فيها بحث المسجد
+      .task {
+        guard ScreenshotMode.scrollToBottom else { return }
+        try? await Task.sleep(for: .seconds(5))
+        proxy.scrollTo("home-content", anchor: .bottom)
+      }
     }
   }
 

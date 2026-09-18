@@ -21,7 +21,7 @@ enum ScreenshotMode {
   /// التبويب الذي يُفتح عليه التطبيق
   static var tab: AppTab? {
     switch route {
-    case "prayer", "qibla", "home": return .home
+    case "prayer", "qibla", "home", "home-bottom": return .home
     case "mushaf", "mushaf-page", "mushaf-bar": return .mushaf
     case "adhkar", "hisn", "tasbih": return .adhkar
     case "hadith", "more": return .more
@@ -36,6 +36,9 @@ enum ScreenshotMode {
   static var keepChrome: Bool { route == "mushaf-bar" }
   /// مسار «qibla» يفتح القبلة الكاملة فوق الرئيسية
   static var fullQibla: Bool { route == "qibla" }
+  /// مسار «home-bottom» (تشخيصي لا للمتجر): يمرّر الرئيسية إلى آخرها كي تُرى آخر بطاقة فوق الشريط العائم
+  /// — لقطة أعلى الصفحة لا تكشف تغطية الشريط لآخر بطاقة (قِيس في ثلاثة بناءات على جهاز المالك)
+  static var scrollToBottom: Bool { route == "home-bottom" }
 
   /// موقع ثابت كي تُحسب المواقيت والقبلة بلا إذنٍ ولا شبكة — واللقطات تتكرّر بالنتيجة نفسها
   static func seed(_ model: AppModel) {
@@ -46,5 +49,8 @@ enum ScreenshotMode {
     // يظهر في اللقطة تنافرًا لا داعي له.
     model.settings.numerals = "arab"
     if let c = CityDatabase.bundled.city(id: "jo-amman") { model.location.useCity(c) }
+    // بطاقة «أقرب مسجد» مفعّلة: سير اللقطات يمنح المحاكي إذن الموقع وموقعًا محاكى (simctl privacy/location)
+    // فتبحث البطاقة حول قراءة الجهاز كما عند المستخدم، وبلا ذلك تعرض طلب الإذن — وكلاهما يُتحقّق منه
+    model.settings.nearbyMosques = true
   }
 }
