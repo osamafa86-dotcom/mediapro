@@ -201,6 +201,9 @@ public struct SkyState: Sendable, Equatable {
   public var t: Double
   public var weather: SkyWeather
   public var palette: SkyPalette
+  public init(phase: SkyPhase, blendTo: SkyPhase?, t: Double, weather: SkyWeather, palette: SkyPalette) {
+    self.phase = phase; self.blendTo = blendTo; self.t = t; self.weather = weather; self.palette = palette
+  }
   /// الطور الغالب (بعد منتصف الانتقال يُعدّ التالي هو الغالب)
   public var dominant: SkyPhase { (blendTo != nil && t >= 0.5) ? blendTo! : phase }
 }
