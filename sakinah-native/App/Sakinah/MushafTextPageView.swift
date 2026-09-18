@@ -98,6 +98,7 @@ struct TextWord: View {
       .overlay { if st.current { RoundedRectangle(cornerRadius: size * 0.16).stroke(rs.accents.hideLine, lineWidth: 1) } }
       .contentShape(Rectangle())
       .onTapGesture { rs.onTapAyah?(word.n) }
+      .onLongPressGesture(minimumDuration: 0.4, maximumDistance: 12) { rs.onLongPressAyah?(word.n) }
   }
   private func attributed(_ st: MushafReaderState.WordStyle) -> AttributedString {
     let font = Font.custom(fontName, fixedSize: word.end ? size * 0.95 : (word.spoken ? size : size * 0.75))

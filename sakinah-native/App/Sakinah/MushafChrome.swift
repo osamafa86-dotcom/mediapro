@@ -1,45 +1,121 @@
 import SwiftUI
 import SakinahCore
 
-// MARK: - شريط التلاوة المصغّر (تصميم 03): تقدّم رفيع، زر تشغيل، القارئ والكلمة الجارية، سابق/تالي/إغلاق؛ النقر يفتح المشغّل الكامل
+// MARK: - رصيف الآية المحدّدة: صفّ واحد على سطح الورق يُزيح الصفحة ولا يغطّي سطرًا
+/// نقرة على كلمة تحدّد آيتها وتفتح هذا الرصيف: تفسير · استماع · علامة · مشاركة · المزيد (الورقة الكاملة)، و✕.
+/// ألوانه من سمة الورق لا من سمة النظام كي يبدو جزءًا من الصفحة لا طبقةً فوقها.
+struct AyahDockView: View {
+  let ayah: Ayah
+  let theme: MushafTheme
+  let marked: Bool
+  let numerals: String
+  var onAction: (AyahAction) -> Void
+  var onMore: () -> Void
+  var onClose: () -> Void
+  var body: some View {
+    let ink = Color(hex: theme.ink)
+    let brand = MushafPalette.brand(for: theme)
+    let gold = MushafPalette.gold(for: theme)
+    VStack(spacing: 0) {
+      Rectangle().fill(gold.opacity(0.55)).frame(height: 1)
+      HStack(spacing: 2) {
+        VStack(alignment: .leading, spacing: 1) {
+          Text(QuranMeta.surah(ayah.surah).name).font(DS.F.labelSm).foregroundStyle(ink).lineLimit(1).minimumScaleFactor(0.8)
+          Text("الآية \(Fmt.number(ayah.ayah, numerals: numerals))").font(DS.F.labelXs).foregroundStyle(ink.opacity(0.62)).lineLimit(1)
+        }
+        .frame(width: 74, alignment: .leading)
+        .padding(.leading, 8)
+        .accessibilityElement(children: .combine)
+        dockButton("book", "تفسير", brand) { onAction(.tafsir) }
+        dockButton("headphones", "استماع", brand) { onAction(.listen) }
+        dockButton(marked ? "bookmark.fill" : "bookmark", marked ? "معلَّمة" : "علامة", marked ? gold : brand) { onAction(.bookmark) }
+        dockButton("square.and.arrow.up", "مشاركة", brand) { onAction(.share) }
+        dockButton("ellipsis.circle", "المزيد", brand, action: onMore)
+        Button(action: onClose) {
+          Image(systemName: "xmark").font(.system(size: 13, weight: .semibold)).foregroundStyle(ink.opacity(0.7))
+            .frame(width: 40, height: 46).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain).accessibilityLabel("إلغاء تحديد الآية")
+      }
+      .padding(.horizontal, 4).padding(.vertical, 5)
+    }
+    .background(MushafPalette.background(for: theme))
+    .accessibilityElement(children: .contain)
+  }
+  private func dockButton(_ icon: String, _ label: String, _ tint: Color, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+      VStack(spacing: 3) {
+        Image(systemName: icon).font(.system(size: 17, weight: .medium))
+        Text(label).font(DS.readex(10, .medium))
+      }
+      .foregroundStyle(tint)
+      .frame(maxWidth: .infinity).frame(height: 46)
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(label)
+  }
+}
+
+// MARK: - رصيف التلاوة الجارية: تقدّم صادق، تشغيل، القارئ والكلمة الجارية، سابق/تالي/✕؛ النقر يفتح المشغّل الكامل
 struct AudioBarView: View {
   @Environment(AppModel.self) private var model
   var onPickReciter: () -> Void
   var onGoToPage: ((Int) -> Void)? = nil
   var toast: ((String) -> Void)? = nil
+  /// داخل القارئ: رصيف على سطح الورق بعرض الشاشة يُزيح الصفحة (بسمة الورق)؛ خارجه: بطاقة عائمة بألوان النظام
+  var theme: MushafTheme? = nil
   @State private var expanded = false
   var body: some View {
     let p = model.player; let numerals = model.settings.numerals
     if let a = p.currentAyah {
+      let ink = theme.map { Color(hex: $0.ink) } ?? DS.C.textPrimary
+      let brand = theme.map { MushafPalette.brand(for: $0) } ?? DS.C.brandPrimary
+      let onBrand = theme.map { MushafPalette.onBrand(for: $0) } ?? DS.C.textOnBrand
+      let gold = theme.map { MushafPalette.gold(for: $0) } ?? DS.C.brandPrimary
+      let track = theme.map { MushafPalette.goldTrack(for: $0) } ?? DS.C.borderSubtle
       VStack(spacing: 0) {
-        ProgressTrack(progress: p.duration > 0 ? min(1, p.position / p.duration) : 0, tint: DS.C.brandPrimary, track: DS.C.borderSubtle, height: 3)
-        HStack(spacing: 8) {
-          DSIconButton(systemName: p.isPlaying ? "pause.fill" : "play.fill", style: .brand, size: 44, iconSize: 18, label: p.isPlaying ? "إيقاف مؤقت" : "تشغيل") { p.toggle() }
+        ProgressTrack(progress: p.duration > 0 ? min(1, p.position / p.duration) : 0, tint: gold, track: track, height: 3)
+          .accessibilityHidden(true)
+        HStack(spacing: 6) {
+          iconButton(p.isPlaying ? "pause.fill" : "play.fill", p.isPlaying ? "إيقاف مؤقت" : "تشغيل", onBrand, fill: brand, size: 44, icon: 17) { p.toggle() }
           Button { expanded = true } label: {
             VStack(alignment: .leading, spacing: 2) {
-              Text(p.reciterInfo.name).font(DS.F.labelMd).foregroundStyle(DS.C.textPrimary).lineLimit(1)
-              wordLine(a, p, numerals)
+              Text(p.reciterInfo.name).font(DS.F.labelMd).foregroundStyle(ink).lineLimit(1).minimumScaleFactor(0.85)
+              wordLine(a, p, numerals, ink: ink, brand: brand, onBrand: onBrand)
             }
             .contentShape(Rectangle())
-          }.buttonStyle(.plain).accessibilityLabel("فتح المشغّل")
+          }.buttonStyle(.plain).accessibilityLabel("فتح المشغّل").accessibilityHint("\(p.reciterInfo.name)، \(QuranSearch.refLabel(a))")
           Spacer(minLength: 0)
-          DSIconButton(systemName: "backward.end.fill", style: .plain, size: 36, iconSize: 15, label: "الآية السابقة") { p.prevAyah() }
-          DSIconButton(systemName: "forward.end.fill", style: .plain, size: 36, iconSize: 15, label: "الآية التالية") { p.nextAyah() }
-          DSIconButton(systemName: "xmark", style: .plain, size: 36, iconSize: 14, label: "إغلاق التلاوة") { p.stop() }
+          iconButton("backward.end.fill", "الآية السابقة", ink, fill: nil, size: 38, icon: 15) { p.prevAyah() }
+          iconButton("forward.end.fill", "الآية التالية", ink, fill: nil, size: 38, icon: 15) { p.nextAyah() }
+          iconButton("xmark", "إيقاف التلاوة", ink.opacity(0.7), fill: nil, size: 38, icon: 14) { p.stop() }
         }
-        .padding(.horizontal, 12).padding(.vertical, 10)
+        .padding(.horizontal, 10).padding(.vertical, theme == nil ? 10 : 7)
       }
-      .background(DS.C.bgSurface, in: RoundedRectangle(cornerRadius: DS.Radius.xl, style: .continuous))
-      .shadow(color: DS.C.shadowFloat, radius: 16, y: 8)
+      .background {
+        if let theme { Rectangle().fill(MushafPalette.background(for: theme)) }
+        else { RoundedRectangle(cornerRadius: DS.Radius.xl, style: .continuous).fill(DS.C.bgSurface).shadow(color: DS.C.shadowFloat, radius: 16, y: 8) }
+      }
+      .padding(.horizontal, theme == nil ? 12 : 0).padding(.bottom, theme == nil ? 6 : 0)
       .sheet(isPresented: $expanded) { PlayerSheet(onPickReciter: onPickReciter, onGoToPage: onGoToPage, toast: toast).environment(model) }
     }
   }
-  /// المرجع + الكلمة الجارية مظلّلة إن توفّر التوقيت
-  private func wordLine(_ a: Ayah, _ p: RecitationPlayer, _ numerals: String) -> some View {
+  private func iconButton(_ name: String, _ label: String, _ tint: Color, fill: Color?, size: CGFloat, icon: CGFloat, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+      Image(systemName: name).font(.system(size: icon, weight: .medium)).foregroundStyle(tint)
+        .frame(width: size, height: size)
+        .background { if let fill { Circle().fill(fill) } }
+        .contentShape(Circle())
+    }
+    .buttonStyle(.plain).accessibilityLabel(label)
+  }
+  /// المرجع + الكلمة الجارية مظلّلة إن توفّر التوقيت (ولا صندوق كلمات حين لا توقيت)
+  private func wordLine(_ a: Ayah, _ p: RecitationPlayer, _ numerals: String, ink: Color, brand: Color, onBrand: Color) -> some View {
     HStack(spacing: 4) {
-      Text("\(QuranSearch.refLabel(a)) · \(Fmt.number(p.index + 1, numerals: numerals))/\(Fmt.number(p.queue.count, numerals: numerals))").font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary).lineLimit(1)
-      if p.loading || p.buffering { Text("· جارٍ التحميل…").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary) }
-      else if let w = p.currentWord, p.hasWords { let words = a.text.split(separator: " "); if w >= 1 && w <= words.count { Text(String(words[w - 1])).font(.custom(MushafFonts.amiriQuranFont, fixedSize: 13)).foregroundStyle(DS.C.textOnBrand).padding(.horizontal, 6).padding(.vertical, 1).background(DS.C.brandPrimary, in: RoundedRectangle(cornerRadius: 6)) } }
+      Text("\(QuranSearch.refLabel(a)) · \(Fmt.number(p.index + 1, numerals: numerals))/\(Fmt.number(p.queue.count, numerals: numerals))").font(DS.F.labelXs).foregroundStyle(ink.opacity(0.65)).lineLimit(1)
+      if p.loading || p.buffering { Text("· جارٍ التحميل…").font(DS.F.labelXs).foregroundStyle(ink.opacity(0.5)) }
+      else if let w = p.currentWord, p.hasWords { let words = a.text.split(separator: " "); if w >= 1 && w <= words.count { Text(String(words[w - 1])).font(.custom(MushafFonts.amiriQuranFont, fixedSize: 13)).foregroundStyle(onBrand).padding(.horizontal, 6).padding(.vertical, 1).background(brand, in: RoundedRectangle(cornerRadius: 6)) } }
     }
   }
 }
@@ -172,33 +248,40 @@ struct PlayerSheet: View {
   }
 }
 
-// MARK: - قائمة الآية (تصميم 04): معاينة الآية على ورق، وشبكة إجراءات بأقراص أيقونات
+// MARK: - ورقة الآية (ضغطة مطوّلة أو «المزيد»): نصّ الآية كاملًا من المتن، ستّ بلاطات، وشريحة «نسخ»
+/// ما في الرصيف (تفسير، استماع، علامة، مشاركة) لا يتكرّر هنا إلا التفسير لأنه الأكثر طلبًا؛
+/// وموضع القراءة لم يعد إجراءً: يُحفظ تلقائيًا مع التقليب.
 struct AyahOptionsSheet: View {
   @Environment(AppModel.self) private var model
   let ayah: Ayah
   var onAction: (AyahAction) -> Void
   var body: some View {
-    let marked = model.quran.isBookmarked(ayah); let numerals = model.settings.numerals
+    let numerals = model.settings.numerals
     let l = QuranText.shared.label(ofPage: ayah.page)
+    let marked = model.quran.isBookmarked(ayah)
+    let weak = model.quran.weakAyahs.contains(ayah.n)
     ScrollView(showsIndicators: false) {
       VStack(spacing: 12) {
-        HStack {
+        HStack(alignment: .center) {
           VStack(alignment: .leading, spacing: 0) {
             Text(QuranSearch.refLabel(ayah)).font(DS.F.headingMd).foregroundStyle(DS.C.textPrimary)
-            Text("الصفحة \(Fmt.number(ayah.page, numerals: numerals))\(l.map { " · الجزء \(Fmt.number($0.juz, numerals: numerals))" } ?? "")").font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary)
+            Text("الصفحة \(Fmt.number(ayah.page, numerals: numerals))\(l.map { " · الجزء \(Fmt.number($0.juz, numerals: numerals))" } ?? "")\(marked ? " · معلَّمة" : "")\(weak ? " · آية ضعيفة" : "")").font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary)
           }
           Spacer()
+          Button { onAction(.copy) } label: {
+            HStack(spacing: 6) { Image(systemName: "doc.on.doc").font(.system(size: 12, weight: .semibold)); Text("نسخ").font(DS.F.labelSm) }
+              .foregroundStyle(DS.C.brandPrimary).padding(.vertical, 8).padding(.horizontal, 12).background(DS.C.brandSoft, in: Capsule())
+          }.buttonStyle(.plain).accessibilityLabel("نسخ نصّ الآية مع المرجع")
         }
         Text(ayah.text + " ﴿\(Fmt.number(ayah.ayah, numerals: numerals))﴾").font(.custom(MushafFonts.amiriQuranFont, fixedSize: 20)).lineSpacing(10).multilineTextAlignment(.center).foregroundStyle(DS.C.paperInk)
-          .frame(maxWidth: .infinity).padding(.vertical, 10).padding(.horizontal, 16)
+          .frame(maxWidth: .infinity).padding(.vertical, 12).padding(.horizontal, 16)
           .background(DS.C.paperPage, in: RoundedRectangle(cornerRadius: DS.Radius.lg, style: .continuous))
           .overlay { RoundedRectangle(cornerRadius: DS.Radius.lg, style: .continuous).stroke(DS.C.borderSubtle, lineWidth: 1) }
-        HStack(spacing: 10) { action("book", "التفسير الميسّر", "مضمّن") { onAction(.tafsir) }; action("headphones", "الاستماع", "من هذه الآية") { onAction(.listen) } }
-        HStack(spacing: 10) { action("globe", "الترجمة", "quran.com") { onAction(.translation) }; action("character.book.closed", "معاني الكلمات", "كلمةً كلمة") { onAction(.wordMeanings) } }
-        HStack(spacing: 10) { action(marked ? "bookmark.fill" : "bookmark", marked ? "تعديل العلامة" : "علامة", "مع ملاحظة ولون") { onAction(.bookmark) }; action("photo", "مشاركة صورةً", "٤ سمات") { onAction(.shareImage) } }
-        HStack(spacing: 10) { action("mic", "مراجعة الحفظ", "من هنا", tone: .gold) { onAction(.hifz) }; action("checkmark.circle", "موضع القراءة", "احفظ هنا") { onAction(.lastRead) } }
-        HStack(spacing: 10) { action("repeat", "تكرار الآية ×٣", "للحفظ") { onAction(.repeat3) }; action("doc.on.doc", "نسخ النص", "مع المرجع") { onAction(.copy) } }
-        HStack(spacing: 10) { action("play", "تشغيل من هنا", "إلى آخر السورة") { onAction(.playFrom) }; action("square.and.arrow.up", "مشاركة نصًا", "") { onAction(.share) } }
+          .accessibilityLabel("نصّ الآية")
+        HStack(spacing: 10) { action("book", "التفسير الميسّر", "مضمّن") { onAction(.tafsir) }; action("globe", "الترجمة", "quran.com") { onAction(.translation) } }
+        HStack(spacing: 10) { action("character.book.closed", "معاني الكلمات", "كلمةً كلمة") { onAction(.wordMeanings) }; action("repeat", "تكرار الآية ×٣", "للحفظ") { onAction(.repeat3) } }
+        HStack(spacing: 10) { action("mic", "مراجعة الحفظ", "من هنا", tone: .gold) { onAction(.hifz) }; action("photo", "مشاركة صورةً", "٤ سمات") { onAction(.shareImage) } }
+        Text("موضع القراءة يُحفظ تلقائيًا مع التقليب · العلامة والمشاركة من رصيف الآية").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).multilineTextAlignment(.center).frame(maxWidth: .infinity)
       }
       .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 24)
     }
@@ -214,70 +297,110 @@ struct AyahOptionsSheet: View {
         Spacer(minLength: 0)
       }
       .padding(.vertical, 10).padding(.horizontal, 12)
+      .frame(minHeight: 60)
       .background(DS.C.bgSubtle, in: RoundedRectangle(cornerRadius: DS.Radius.lg, style: .continuous))
       .contentShape(Rectangle())
     }.buttonStyle(.plain)
   }
 }
 
-// MARK: - لوحة مراجعة الحفظ / الإخفاء (تصميم 06): حالة الاستماع، زر ميكروفون بهالة، تقدّم، إجراءات الكشف
+// MARK: - لوحة مراجعة الحفظ / الإخفاء: صفّ واحد على سطح الورق يُزيح الصفحة
+/// ميكروفون بهالة تنبض بالصوت، حالة وسطر إفصاح («على الجهاز» أو عبر الخادم)، ثم «كلمة» و«آية» و«ضعيفة» و✕.
+/// الكلمات المستورة لا تُرسم أصلًا (لا شفافية تسرّبها)؛ ورؤوس الآي وعلامات الأرباع تبقى ظاهرة.
 struct HifzPanelView: View {
   @Environment(AppModel.self) private var model
   let session: HifzSession
+  var theme: MushafTheme? = nil
   var onExit: () -> Void
   var onNextPage: () -> Void
   var body: some View {
     let numerals = model.settings.numerals
     let total = QuranText.shared.pageAyahs(session.page).count
-    VStack(spacing: 12) {
-      HStack(spacing: 10) {
-        Text(session.veil ? "إخفاء الآيات" : "مراجعة الحفظ").font(DS.F.headingSm).foregroundStyle(DS.C.textPrimary)
-        Text(session.veil ? "\(Fmt.number(min(session.revealedAyahs, total), numerals: numerals)) / \(Fmt.number(total, numerals: numerals)) آية" : "\(Fmt.number(session.pos, numerals: numerals)) / \(Fmt.number(session.words.count, numerals: numerals)) كلمة").font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary)
-        Spacer()
-        if session.hints > 0 && !session.veil { Text("\(Fmt.number(session.hints, numerals: numerals)) تلميحات").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary) }
-        DSIconButton(systemName: "xmark", style: .outlined, size: 32, iconSize: 13, label: "إنهاء", action: onExit)
-      }
-      ProgressTrack(progress: session.progress, tint: DS.C.accentGold, track: DS.C.bgSubtle, height: 5)
-      if !session.veil {
-        HStack(spacing: 12) {
+    let ink = theme.map { Color(hex: $0.ink) } ?? DS.C.textPrimary
+    let brand = theme.map { MushafPalette.brand(for: $0) } ?? DS.C.brandPrimary
+    let onBrand = theme.map { MushafPalette.onBrand(for: $0) } ?? DS.C.textOnBrand
+    let gold = theme.map { MushafPalette.gold(for: $0) } ?? DS.C.accentGold
+    let track = theme.map { MushafPalette.goldTrack(for: $0) } ?? DS.C.bgSubtle
+    let cur = session.currentWord?.n ?? session.lastRevealed?.n
+    let weak = cur.map { model.quran.weakAyahs.contains($0) } ?? false
+    VStack(spacing: 0) {
+      ProgressTrack(progress: session.progress, tint: gold, track: track, height: 3)
+        .accessibilityLabel("تقدّم المراجعة").accessibilityValue("\(Int(session.progress * 100))٪")
+      HStack(spacing: 6) {
+        if session.veil {
+          pill("eye", "آية", brand) { session.revealAyah() }
+        } else {
           Button { session.toggleSpeech() } label: {
             ZStack {
-              Circle().fill(DS.C.brandPrimary.opacity(session.listening ? 0.16 : 0.08)).frame(width: 72, height: 72)
-              // هالة تنبض بمستوى الصوت الداخل: دليل حيّ على أن الأذن تعمل
               if session.listening {
-                Circle().fill(DS.C.brandPrimary.opacity(0.22))
-                  .frame(width: 56 + CGFloat(session.level) * 26, height: 56 + CGFloat(session.level) * 26)
+                Circle().fill(brand.opacity(0.22))
+                  .frame(width: 40 + CGFloat(session.level) * 18, height: 40 + CGFloat(session.level) * 18)
                   .animation(.easeOut(duration: 0.12), value: session.level)
               }
-              Circle().fill(session.listening ? DS.C.danger : DS.C.brandPrimary).frame(width: 56, height: 56).shadow(color: DS.C.shadowFloat, radius: 10, y: 4)
-              Image(systemName: session.listening ? "stop.fill" : "mic.fill").font(.system(size: 22, weight: .semibold)).foregroundStyle(DS.C.textOnBrand)
+              Circle().fill(session.listening ? DS.C.danger : brand).frame(width: 40, height: 40)
+              Image(systemName: session.listening ? "stop.fill" : "mic.fill").font(.system(size: 16, weight: .semibold)).foregroundStyle(session.listening ? .white : onBrand)
             }
+            .frame(width: 48, height: 48).contentShape(Circle())
           }.buttonStyle(.plain).disabled(!session.speechSupported).accessibilityLabel(session.listening ? "إيقاف التسميع" : "ابدأ التسميع")
-          VStack(alignment: .leading, spacing: 3) {
-            if session.done { Text("✓ أحسنت، أتممت الصفحة").font(DS.F.labelMd).foregroundStyle(DS.C.success) }
-            else if let w = session.lastRevealed { HStack(spacing: 6) { Text("آخر كلمة:").font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary); Text(w.raw).font(.custom(MushafFonts.amiriQuranFont, fixedSize: 20)).foregroundStyle(DS.C.textPrimary) } }
-            else { Text(session.listening ? "يستمع… تابع التلاوة" : "اضغط الميكروفون أو انقر الصفحة لكشف كلمة").font(DS.F.labelMd).foregroundStyle(session.listening ? DS.C.brandPrimary : DS.C.textSecondary) }
-            Text(session.heard.isEmpty ? "التعرّف على الكلام بالعربية · مطابقة متسامحة مع التشكيل" : "سمعتُ: \(session.heard)").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).lineLimit(1)
+        }
+        VStack(alignment: .leading, spacing: 2) {
+          Group {
+            if session.done { Text("✓ أحسنت، أتممت الصفحة").foregroundStyle(DS.C.success) }
+            else if session.veil { Text("مخفيّة · \(Fmt.number(min(session.revealedAyahs, total), numerals: numerals)) من \(Fmt.number(total, numerals: numerals)) آية").foregroundStyle(ink) }
+            else if session.listening { Text("يستمع… \(Fmt.number(session.pos, numerals: numerals)) من \(Fmt.number(session.words.count, numerals: numerals)) كلمة").foregroundStyle(brand) }
+            else if let w = session.lastRevealed { HStack(spacing: 5) { Text("آخر كلمة").foregroundStyle(ink.opacity(0.6)); Text(w.raw).font(.custom(MushafFonts.amiriQuranFont, fixedSize: 17)).foregroundStyle(ink) } }
+            else { Text(session.speechSupported ? "اضغط الميكروفون أو انقر الصفحة" : "انقر الصفحة لكشف الكلمة التالية").foregroundStyle(ink) }
           }
-          Spacer(minLength: 0)
+          .font(DS.F.labelSm).lineLimit(1).minimumScaleFactor(0.85)
+          Text(subline).font(DS.F.labelXs).foregroundStyle(ink.opacity(0.55)).lineLimit(1).minimumScaleFactor(0.8)
         }
-      }
-      HStack(spacing: 8) {
-        if session.veil {
-          if session.done { DSButton(title: "الصفحة التالية", icon: "chevron.forward", action: onNextPage) } else { DSButton(title: "كشف الآية التالية", kind: .soft, icon: "eye") { session.revealAyah() } }
-          DSButton(title: "كشف الكل", kind: .outline) { session.revealAll() }
-        } else if session.done {
-          DSButton(title: "الصفحة التالية", icon: "chevron.forward", action: onNextPage)
+        Spacer(minLength: 0)
+        if session.done {
+          Button(action: onNextPage) {
+            HStack(spacing: 6) { Text("الصفحة التالية").font(DS.F.labelSm); Image(systemName: "chevron.forward").font(.system(size: 11, weight: .bold)) }
+              .foregroundStyle(onBrand).padding(.vertical, 10).padding(.horizontal, 14).background(brand, in: Capsule())
+          }.buttonStyle(.plain)
+        } else if session.veil {
+          pill("eye.fill", "الكل", brand) { session.revealAll() }
         } else {
-          DSButton(title: "كشف كلمة", kind: .soft) { session.hint() }
-          DSButton(title: "كشف آية", kind: .soft) { session.revealAyah() }
-          DSButton(title: "إظهار الكل", kind: .outline) { session.revealAll() }
+          pill("character.cursor.ibeam", "كلمة", brand) { session.hint() }
+          pill("text.line.first.and.arrowtriangle.forward", "آية", brand) { session.revealAyah() }
+          pill(weak ? "exclamationmark.triangle.fill" : "exclamationmark.triangle", "ضعيفة", weak ? gold : brand, on: weak) { if let n = cur { model.quran.toggleWeak(n) } }
+            .accessibilityLabel(weak ? "إزالة وسم الآية الضعيفة" : "وسم الآية الحالية آيةً ضعيفة للمراجعة")
         }
+        Button(action: onExit) {
+          Image(systemName: "xmark").font(.system(size: 13, weight: .semibold)).foregroundStyle(ink.opacity(0.7)).frame(width: 36, height: 46).contentShape(Rectangle())
+        }.buttonStyle(.plain).accessibilityLabel("إنهاء المراجعة")
       }
+      .padding(.horizontal, 6).padding(.vertical, 5)
     }
-    .padding(16)
-    .background(DS.C.bgSurface, in: RoundedRectangle(cornerRadius: DS.Radius.xl, style: .continuous))
-    .shadow(color: DS.C.shadowFloat, radius: 16, y: 8)
-    .padding(.horizontal, 12).padding(.bottom, 6)
+    .background {
+      if let theme { Rectangle().fill(MushafPalette.background(for: theme)) }
+      else { Rectangle().fill(DS.C.bgSurface) }
+    }
+    .overlay(alignment: .top) { Rectangle().fill(gold.opacity(0.55)).frame(height: 1) }
+    .accessibilityElement(children: .contain)
+  }
+  /// السطر الثاني: ما سُمع، أو الإفصاح عن مكان معالجة الصوت، أو عدد التلميحات
+  private var subline: String {
+    if session.veil { return "انقر الصفحة لكشف الآية التالية" }
+    if !session.heard.isEmpty { return "سمعتُ: \(session.heard)" }
+    if !session.speechSupported { return "التعرّف على الكلام غير متاح على هذا الجهاز" }
+    if session.hints > 0 { return "\(session.hints) تلميحات · " + (SpeechListener.onDeviceAvailable ? "التعرّف على الجهاز" : "التعرّف عبر خادم آبل") }
+    return SpeechListener.onDeviceAvailable ? "التعرّف على الصوت يجري على الجهاز ولا يغادر هاتفك" : "التعرّف عبر خادم آبل — يُرسل الصوت أثناء التسميع فقط"
+  }
+  private func pill(_ icon: String, _ label: String, _ tint: Color, on: Bool = false, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+      VStack(spacing: 3) {
+        Image(systemName: icon).font(.system(size: 15, weight: .medium))
+        Text(label).font(DS.readex(9.5, .medium))
+      }
+      .foregroundStyle(tint)
+      .frame(width: 46, height: 46)
+      .background { if on { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(tint.opacity(0.14)) } }
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(label)
   }
 }

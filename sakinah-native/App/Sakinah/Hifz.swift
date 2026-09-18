@@ -51,6 +51,8 @@ final class SpeechListener {
   private var usingOnDevice: Bool { onDevice && !Self.onDeviceFailed }
 
   static var isSupported: Bool { SFSpeechRecognizer(locale: Locale(identifier: "ar-SA")) != nil }
+  /// هل يجري التعرّف على الجهاز؟ (يُعرض للقارئ صراحةً في لوحة الحفظ — الصوت لا يغادر الهاتف إلا حين يكون هذا خطأ)
+  static var onDeviceAvailable: Bool { (SFSpeechRecognizer(locale: Locale(identifier: "ar-SA"))?.supportsOnDeviceRecognition ?? false) && !onDeviceFailed }
   static func requestAuthorization() async -> Bool {
     let speech = await withCheckedContinuation { c in SFSpeechRecognizer.requestAuthorization { c.resume(returning: $0 == .authorized) } }
     guard speech else { return false }

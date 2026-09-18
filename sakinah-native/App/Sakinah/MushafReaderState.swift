@@ -22,7 +22,11 @@ final class MushafReaderState {
   var fitText: Bool { prefs?.fitText ?? true }
   var tajweed: Bool { prefs?.tajweed ?? false }
   var wordHighlight: Bool { prefs?.wordHighlight ?? true }
+  /// وميض مؤقّت عند الوصول إلى آية بقصد (بحث، علامة، تلاوة) — يُظلّلها دون أن يفتح رصيف الآية
+  var flash: Int?
   @ObservationIgnored var onTapAyah: ((Int) -> Void)?
+  /// ضغطة مطوّلة على كلمة: كل خيارات الآية في ورقة
+  @ObservationIgnored var onLongPressAyah: ((Int) -> Void)?
 
   init(theme: MushafTheme) { self.theme = theme; palette = MushafPalette(theme: theme); accents = MushafPalette.accents(for: theme) }
   func apply(theme t: MushafTheme) { theme = t; palette = MushafPalette(theme: t); accents = MushafPalette.accents(for: t) }
@@ -39,7 +43,7 @@ final class MushafReaderState {
       s.bg = accents.highlight
       if wordHighlight, let w = playingWord, w - 1 == k { s.bg = accents.wordLine }
     }
-    if selected == n { s.bg = accents.selection }
+    if selected == n || flash == n { s.bg = accents.selection }
     return s
   }
 }

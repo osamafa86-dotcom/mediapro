@@ -156,7 +156,25 @@ struct MushafPageView: View {
     .environment(\.layoutDirection, .rightToLeft)
     .accessibilityElement(children: .ignore)
     .accessibilityLabel("صفحة \(page)")
-    .accessibilityValue(QuranText.shared.pageAyahs(page).map { "\($0.text) (\($0.ayah))" }.joined(separator: " "))
+    .accessibilityValue(accessibilityText)
+    // القارئ بالمساعدات لا يصيب شريط الكلمة: الآيات تُحدَّد بإجراءات مسمّاة وتُفتح خياراتها بإجراء
+    .accessibilityAction(named: "تحديد الآية التالية") { stepSelection(1) }
+    .accessibilityAction(named: "تحديد الآية السابقة") { stepSelection(-1) }
+    .accessibilityAction(named: "خيارات الآية المحدّدة") { if let s = rs.selected { rs.onLongPressAyah?(s) } }
+  }
+
+  private var accessibilityText: String {
+    let ay = QuranText.shared.pageAyahs(page)
+    let sel = rs.selected.flatMap { s in ay.first { $0.n == s } }.map { "الآية المحدّدة \($0.ayah). " } ?? ""
+    return sel + ay.map { "\($0.text) (\($0.ayah))" }.joined(separator: " ")
+  }
+  /// ينقل التحديد آيةً إلى الأمام أو الخلف داخل الصفحة (ولا يلغيه عند الطرف)
+  private func stepSelection(_ d: Int) {
+    let ay = QuranText.shared.pageAyahs(page); guard !ay.isEmpty else { return }
+    let i = rs.selected.flatMap { s in ay.firstIndex { $0.n == s } }
+    let j = i.map { min(max($0 + d, 0), ay.count - 1) } ?? (d > 0 ? 0 : ay.count - 1)
+    guard ay[j].n != rs.selected else { return }
+    rs.onTapAyah?(ay[j].n)
   }
 
   @ViewBuilder
@@ -254,6 +272,7 @@ struct MushafLineView: View {
           }
           .contentShape(Rectangle())
           .onTapGesture { if marksLayer { rs.onTapAyah?(w.n) } }
+          .onLongPressGesture(minimumDuration: 0.4, maximumDistance: 12) { if marksLayer { rs.onLongPressAyah?(w.n) } }
       }
     }
   }

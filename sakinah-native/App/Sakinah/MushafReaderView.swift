@@ -157,12 +157,22 @@ struct MushafReaderView: View {
     if chrome { unifiedBar(rs).transition(.move(edge: .top).combined(with: .opacity)) }
   }
 
-  /// ما يبقى معروضًا: لوحة مراجعة الحفظ والمشغّل — هذان يُزيحان الصفحة عمدًا كي لا يحجبا سطورها
+  /// الرصيف السفلي الواحد على سطح الورق: لوحة الحفظ، أو إجراءات الآية المحدّدة، أو التلاوة الجارية —
+  /// واحدٌ منها في كل لحظة، يُزيح الصفحة عمدًا فلا يحجب سطرًا (بترتيب الأولوية)
   @ViewBuilder private func persistentSlot(_ rs: MushafReaderState) -> some View {
     VStack(spacing: 0) {
-      if let h = rs.hifz { HifzPanelView(session: h, onExit: exitHifz, onNextPage: { nextHifzPage(veil: h.veil) }).transition(.move(edge: .bottom)) }
-      if model.player.current != nil { AudioBarView(onPickReciter: { sheet = .reciter }, onGoToPage: { go(to: $0) }, toast: show).padding(.horizontal, 12).padding(.bottom, 6).transition(.move(edge: .bottom)) }
+      if let h = rs.hifz {
+        HifzPanelView(session: h, theme: rs.theme, onExit: exitHifz, onNextPage: { nextHifzPage(veil: h.veil) }).transition(.move(edge: .bottom))
+      } else if let n = rs.selected, let a = QuranText.shared.ayah(n) {
+        AyahDockView(ayah: a, theme: rs.theme, marked: prefs.isBookmarked(a), numerals: model.settings.numerals,
+                     onAction: { handle($0, a) }, onMore: { chromeTask?.cancel(); sheet = .ayah(n) }, onClose: { deselect() })
+          .transition(.move(edge: .bottom))
+      } else if model.player.current != nil {
+        AudioBarView(onPickReciter: { sheet = .reciter }, onGoToPage: { go(to: $0) }, toast: show, theme: rs.theme).transition(.move(edge: .bottom))
+      }
     }
+    .animation(.spring(response: 0.3, dampingFraction: 0.9), value: rs.selected == nil)
+    .animation(.spring(response: 0.3, dampingFraction: 0.9), value: rs.hifz == nil)
   }
 
   @ViewBuilder private var toastOverlay: some View {
@@ -236,6 +246,8 @@ struct MushafReaderView: View {
   private func scheduleChromeHide() {
     // لقطات المتجر: الشريط هو موضوع اللقطة، فلا يُخفى تحت أعين الكاميرا
     if ScreenshotMode.keepChrome { return }
+    // مع VoiceOver أو التحكّم بالمفاتيح لا شيء يختفي بمؤقّت: القارئ يخفي الشريط بنفسه
+    if UIAccessibility.isVoiceOverRunning || UIAccessibility.isSwitchControlRunning { return }
     chromeTask?.cancel()
     chromeTask = Task { @MainActor in
       try? await Task.sleep(nanoseconds: Self.chromeDwell)
@@ -465,7 +477,7 @@ struct MushafReaderView: View {
     case .tafsir: sheet = .tafsir(a.n)
     case .translation: sheet = .translation(a.n)
     case .wordMeanings: sheet = .words(a.n)
-    case .listen: sheet = .reciter; playFrom(a.n, scope: .surah)
+    case .listen: playFrom(a.n, scope: .surah); rs?.selected = nil
     case .playFrom: playFrom(a.n, scope: .surah)
     case .repeat3: prefs.repeatAyah = 3; model.player.repeatAyah = 3; playFrom(a.n, scope: .single)
     case .bookmark: sheet = .bookmark(a.n)
@@ -480,7 +492,13 @@ struct MushafReaderView: View {
   // MARK: - الحياة والتزامن
   private func setup() {
     let state = MushafReaderState(prefs: prefs, theme: prefs.effectiveTheme(systemDark: scheme == .dark))
-    state.onTapAyah = { n in if state.hifz != nil { hifzTap() } else { state.selected = n; sheet = .ayah(n) } }
+    state.onTapAyah = { n in if state.hifz != nil { hifzTap() } else { selectAyah(n) } }
+    state.onLongPressAyah = { n in
+      guard state.hifz == nil else { return }
+      state.selected = n; chromeTask?.cancel()
+      UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+      sheet = .ayah(n)
+    }
     rs = state
     UIApplication.shared.isIdleTimerDisabled = prefs.keepAwake
     MushafFonts.shared.prefetch(around: startPage)
@@ -493,8 +511,9 @@ struct MushafReaderView: View {
     syncPlaying()
     scheduleChromeHide()
     remember(page: startPage)
+    scheduleDwell(startPage)
     if let a = startAyah { DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { flash(a) } }
-    if !prefs.hintShown { prefs.hintShown = true; show("انقر الصفحة لإظهار الأدوات، وانقر كلمة لقائمة الآية") }
+    if !prefs.hintShown { prefs.hintShown = true; show("انقر كلمةً لتحديد آيتها، واضغط مطوّلًا لكل خياراتها") }
     if autoplay || hifzOnAppear {
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
         guard let a = startAyah.flatMap({ QuranText.shared.ayah($0) }) ?? QuranText.shared.pageAyahs(startPage).first else { return }
@@ -516,9 +535,23 @@ struct MushafReaderView: View {
     else if chrome, sheet == nil { hideChrome() }
     if let h = rs?.hifz, h.page != p { exitHifz(); show("انتهت مراجعة الحفظ بتغيير الصفحة") }
     if let s = rs?.selected, QuranText.shared.ayah(s)?.page != p { rs?.selected = nil }
+    if let f = rs?.flash, QuranText.shared.ayah(f)?.page != p { rs?.flash = nil }
     saveTask?.cancel(); saveTask = Task { try? await Task.sleep(nanoseconds: 900_000_000); if !Task.isCancelled { remember(page: p) } }
-    dwellTask?.cancel(); dwellTask = Task { try? await Task.sleep(nanoseconds: 8_000_000_000); if !Task.isCancelled, page == p { prefs.readLog = Khatmah.log(prefs.readLog, today: model.todayKey, page: p) } }
+    scheduleDwell(p)
     UIImpactFeedbackGenerator(style: .soft).impactOccurred(intensity: 0.4)
+  }
+  /// الورد يُحتسب بتقدّم الموضع داخل الخطة (متّصلًا، لا بالقفز) بعد سكون قصير يستبعد التقليب السريع؛
+  /// وسجلّ القراءة للإحصاء يبقى على مهلته الأطول
+  private func scheduleDwell(_ p: Int) {
+    dwellTask?.cancel()
+    dwellTask = Task { @MainActor in
+      try? await Task.sleep(nanoseconds: 3_000_000_000)
+      guard !Task.isCancelled, page == p else { return }
+      if let plan = prefs.khatmah { prefs.wird = Wird.mark(prefs.wird, today: model.todayKey, page: p, startPage: plan.startPage) }
+      try? await Task.sleep(nanoseconds: 5_000_000_000)
+      guard !Task.isCancelled, page == p else { return }
+      prefs.readLog = Khatmah.log(prefs.readLog, today: model.todayKey, page: p)
+    }
   }
   private func go(to p: Int) {
     let t = min(max(p, 1), MushafLayout.totalPages); guard t != page else { return }
@@ -526,13 +559,22 @@ struct MushafReaderView: View {
     if spread { let k = (t + 1) / 2; page = t; if pair != k { pair = k }; return }
     if abs(t - current) <= 2 { withAnimation(.easeInOut(duration: 0.25)) { page = t } } else { page = t }
   }
-  private func flash(_ n: Int) { rs?.selected = n; DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { if rs?.selected == n { rs?.selected = nil } } }
+  private func flash(_ n: Int) { rs?.flash = n; DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { if rs?.flash == n { rs?.flash = nil } } }
+  /// نقرة على كلمة: تحديد آيتها وفتح الرصيف؛ نقرة ثانية على الآية نفسها تلغي التحديد
+  private func selectAyah(_ n: Int) {
+    guard let rs else { return }
+    if rs.selected == n { deselect(); return }
+    rs.selected = n
+    UISelectionFeedbackGenerator().selectionChanged()
+    if let a = QuranText.shared.ayah(n) { UIAccessibility.post(notification: .announcement, argument: "حُدّدت \(QuranSearch.refLabel(a))") }
+  }
+  private func deselect() { rs?.selected = nil }
   private func show(_ msg: String) {
     toastTask?.cancel(); withAnimation { toast = msg }
     toastTask = Task { try? await Task.sleep(nanoseconds: 3_200_000_000); if !Task.isCancelled { withAnimation { toast = nil } } }
   }
   private func remember(page p: Int) { if let a = QuranText.shared.pageAyahs(p).first { remember(a) } }
-  private func remember(_ a: Ayah) { model.settings.lastRead = LastRead(page: a.page, surah: a.surah, ayah: a.ayah, at: Date().timeIntervalSince1970 * 1000) }
+  private func remember(_ a: Ayah) { model.settings.lastRead = LastRead(page: a.page, surah: a.surah, ayah: a.ayah, at: Date().timeIntervalSince1970 * 1000); prefs.pushRecent(a) }
   private func toggleBookmark() {
     let a = (rs?.selected).flatMap { QuranText.shared.ayah($0) } ?? QuranText.shared.pageAyahs(current).first
     guard let a else { return }
