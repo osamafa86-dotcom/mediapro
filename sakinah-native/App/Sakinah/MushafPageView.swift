@@ -280,7 +280,7 @@ struct MushafLineView: View {
 /// إيماءتا الكلمة (نقر يحدّد الآية، ضغطة مطوّلة تفتح خياراتها) على طبقة العلامات وحدها — لا على طبقة الخلفية تحت النصّ
 private struct WordGestures: ViewModifier {
   let enabled: Bool; let n: Int; let rs: MushafReaderState
-  func body(content: Content) -> some View {
+  @ViewBuilder func body(content: Content) -> some View {
     if enabled {
       content
         .onTapGesture { rs.onTapAyah?(n) }
