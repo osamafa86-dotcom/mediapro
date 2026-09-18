@@ -19,15 +19,16 @@ struct RootView: View {
   @State private var barHeight: CGFloat = 84
 
   var body: some View {
-    // ⚠️ safeAreaInset على TabView نفسه لا يصل إلى محتوى التبويبات (UITabBarController خلفه): آخر بطاقة
-    // في الرئيسية بقيت مقطوعة خلف الشريط رغم حشوة ٤٠ نقطة (قِيس على جهاز المالك، بناء ٣٩).
-    // فالشريط طبقة فوق الحاوية، والإزاحة تُطبَّق داخل كل تبويب حيث تحترمها ScrollView.
+    // ⚠️ safeAreaInset على TabView (بناء ٣٩) أو على كل تبويب خارج NavigationStack (بناء ٤٠–٤٢) لم يصل إلى
+    // ScrollView: كلاهما UIKit خلف الستار. فالشريط طبقة فوق الحاوية، وارتفاعه يُمرَّر بالبيئة، وكل شاشة
+    // داخل التبويب (الجذر ووجهات الدفع) تطبّق `.tabBarClearance()` على محتواها مباشرة.
     TabView(selection: $tab) {
-      HomeView().tabContent(inset: barHeight).tag(AppTab.home)
-      MushafHomeView().tabContent(inset: barHeight).tag(AppTab.mushaf)
-      AdhkarHomeView().tabContent(inset: barHeight).tag(AppTab.adhkar)
-      MoreView().tabContent(inset: barHeight).tag(AppTab.more)
+      HomeView().hiddenSystemTabBar().tag(AppTab.home)
+      MushafHomeView().hiddenSystemTabBar().tag(AppTab.mushaf)
+      AdhkarHomeView().hiddenSystemTabBar().tag(AppTab.adhkar)
+      MoreView().hiddenSystemTabBar().tag(AppTab.more)
     }
+    .environment(\.tabBarInset, barHeight)
     .overlay(alignment: .bottom) {
       DSTabBar(selection: $tab)
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }

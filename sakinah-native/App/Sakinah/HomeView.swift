@@ -15,8 +15,10 @@ struct HomeView: View {
     NavigationStack {
       TimelineView(.periodic(from: .now, by: 1)) { ctx in content(now: ctx.date) }
         .background(DS.C.bgCanvas)
+        .tabBarClearance()
         .toolbar(.hidden, for: .navigationBar)
-        .sheet(isPresented: $showMethods) { MethodPicker() }
+        // الورقة لا شريط تحتها: صفر إزاحة
+        .sheet(isPresented: $showMethods) { MethodPicker().environment(\.tabBarInset, 0) }
         .fullScreenCover(isPresented: $showQibla) { QiblaView(presented: true).environment(model) }
     }
     .onAppear { model.location.startHeading() }
@@ -39,12 +41,14 @@ struct HomeView: View {
           } else {
             locationPrompt
           }
+          if ScreenshotMode.scrollToBottom { Text("▲ نهاية المحتوى").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary) }
         }
-        // الإزاحة عن الشريط العائم تأتي من RootView (safeAreaInset داخل كل تبويب) — هنا فسحة فقط
+        // الإزاحة عن الشريط العائم من `.tabBarClearance()` على الجذر — هنا فسحة فقط
         .padding(.horizontal, 20).padding(.top, 4).padding(.bottom, 24)
         .id("home-content")
       }
-      // لقطة تشخيصية وحدها: آخر البطاقات فوق الشريط بعد مهلة يكتمل فيها بحث المسجد
+      // لقطة تشخيصية وحدها: تبدأ من الآخر (وتُمرَّر إليه بعد مهلة يكتمل فيها بحث المسجد) — علامة النهاية فوق الشريط أم خلفه؟
+      .defaultScrollAnchor(ScreenshotMode.scrollToBottom ? UnitPoint.bottom : nil)
       .task {
         guard ScreenshotMode.scrollToBottom else { return }
         try? await Task.sleep(for: .seconds(5))
@@ -73,8 +77,8 @@ struct HomeView: View {
         .font(DS.F.labelSm).foregroundStyle(DS.C.textTertiary).lineLimit(1).minimumScaleFactor(0.8)
       }
       Spacer(minLength: 8)
-      NavigationLink { MonthTableView() } label: { headerIcon("calendar") }.buttonStyle(.plain).accessibilityLabel("الجدول الشهري")
-      NavigationLink { CityPickerView() } label: { headerIcon(model.location.mode == .gps ? "location" : "mappin.and.ellipse") }.buttonStyle(.plain).accessibilityLabel("الموقع")
+      NavigationLink { MonthTableView().tabBarClearance() } label: { headerIcon("calendar") }.buttonStyle(.plain).accessibilityLabel("الجدول الشهري")
+      NavigationLink { CityPickerView().tabBarClearance() } label: { headerIcon(model.location.mode == .gps ? "location" : "mappin.and.ellipse") }.buttonStyle(.plain).accessibilityLabel("الموقع")
     }
   }
   private func headerIcon(_ name: String) -> some View {
@@ -173,7 +177,7 @@ struct HomeView: View {
       HStack {
         Text("مواقيت اليوم").font(DS.F.displaySm).foregroundStyle(DS.C.textPrimary)
         Spacer()
-        NavigationLink { MonthTableView() } label: { DSLinkLabel(title: "الجدول الشهري") }.buttonStyle(.plain)
+        NavigationLink { MonthTableView().tabBarClearance() } label: { DSLinkLabel(title: "الجدول الشهري") }.buttonStyle(.plain)
       }
       .padding(.horizontal, 8).padding(.top, 2).padding(.bottom, 10)
       ForEach(Array(prayers.enumerated()), id: \.offset) { i, p in
@@ -245,7 +249,7 @@ struct HomeView: View {
       HStack {
         Text("أقرب مسجد").font(DS.F.headingMd).foregroundStyle(DS.C.textPrimary)
         Spacer()
-        NavigationLink { MosquesView().environment(model) } label: { DSLinkLabel(title: "المساجد القريبة") }.buttonStyle(.plain)
+        NavigationLink { MosquesView().environment(model).tabBarClearance() } label: { DSLinkLabel(title: "المساجد القريبة") }.buttonStyle(.plain)
       }
       if !s.nearbyMosques {
         Text("يعرض أقرب مسجد إليك من خرائط آبل وOpenStreetMap. يُرسل موقعك مقرّبًا إلى نحو كيلومتر عند البحث، ولا يُحفظ لدينا.")
@@ -292,7 +296,7 @@ struct HomeView: View {
       Text("يُستخدم الموقع على جهازك فقط لحساب المواقيت واتجاه القبلة، ولا يُرسل إلى أي خادم.").font(DS.F.bodyMd).foregroundStyle(DS.C.textSecondary).multilineTextAlignment(.center)
       if let e = model.location.errorMessage { Text(e).font(DS.F.bodySm).foregroundStyle(DS.C.danger).multilineTextAlignment(.center) }
       DSButton(title: "استخدام موقع الجهاز", icon: "location.fill") { model.location.requestLocation() }
-      NavigationLink { CityPickerView() } label: { DSButtonLabel(title: "اختيار مدينة يدويًا · ٦٤٩ مدينة", kind: .outline, icon: "magnifyingglass") }.buttonStyle(.plain)
+      NavigationLink { CityPickerView().tabBarClearance() } label: { DSButtonLabel(title: "اختيار مدينة يدويًا · ٦٤٩ مدينة", kind: .outline, icon: "magnifyingglass") }.buttonStyle(.plain)
     }
     .frame(maxWidth: .infinity)
     .dsCard(padding: 24)

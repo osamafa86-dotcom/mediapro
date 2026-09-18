@@ -228,15 +228,15 @@ struct MoreView: View {
         VStack(spacing: DS.Space.s4) {
           brandCard
           group("المحتوى") {
-            NavigationLink { HadithView(embedded: true).environment(model) } label: {
+            NavigationLink { HadithView(embedded: true).environment(model).tabBarClearance() } label: {
               DSRow(icon: "text.book.closed", title: "الحديث", subtitle: "مختارات الصحيحين · حديث اليوم") { DSChevron() }
             }.buttonStyle(.plain)
             Divider().overlay(DS.C.borderSubtle)
-            NavigationLink { HadithView(initialBook: "nawawi", embedded: true).environment(model) } label: {
+            NavigationLink { HadithView(initialBook: "nawawi", embedded: true).environment(model).tabBarClearance() } label: {
               DSRow(icon: "list.bullet.rectangle", title: "الأربعون النووية", subtitle: nil) { DSChevron() }
             }.buttonStyle(.plain)
             Divider().overlay(DS.C.borderSubtle)
-            NavigationLink { HisnView().environment(model) } label: {
+            NavigationLink { HisnView().environment(model).tabBarClearance() } label: {
               DSRow(icon: "book.closed", title: "حصن المسلم", subtitle: "\(Fmt.number(Hisn.chapters.count, numerals: model.settings.numerals)) بابًا") { DSChevron() }
             }.buttonStyle(.plain)
             Divider().overlay(DS.C.borderSubtle)
@@ -245,15 +245,15 @@ struct MoreView: View {
             }.buttonStyle(.plain)
           }
           group("الأدوات") {
-            NavigationLink { WidgetsHelpView().environment(model) } label: {
+            NavigationLink { WidgetsHelpView().environment(model).tabBarClearance() } label: {
               DSRow(icon: "bolt", title: "الودجت والنشاط المباشر", subtitle: "شاشة القفل والجزيرة الديناميكية") { DSChevron() }
             }.buttonStyle(.plain)
             Divider().overlay(DS.C.borderSubtle)
-            NavigationLink { MosquesView().environment(model) } label: {
+            NavigationLink { MosquesView().environment(model).tabBarClearance() } label: {
               DSRow(icon: "building.columns", title: "المساجد القريبة", subtitle: "أقرب مسجد والاتجاهات إليه") { DSChevron() }
             }.buttonStyle(.plain)
             Divider().overlay(DS.C.borderSubtle)
-            NavigationLink { MonthTableView().environment(model) } label: {
+            NavigationLink { MonthTableView().environment(model).tabBarClearance() } label: {
               DSRow(icon: "calendar", title: "الجدول الشهري", subtitle: "تصدير ICS") { DSChevron() }
             }.buttonStyle(.plain)
             Divider().overlay(DS.C.borderSubtle)
@@ -261,16 +261,16 @@ struct MoreView: View {
               DSRow(icon: "arrow.down.circle", title: "التنزيلات دون اتصال", subtitle: downloadsLabel) { DSChevron() }
             }.buttonStyle(.plain)
             Divider().overlay(DS.C.borderSubtle)
-            NavigationLink { BackupView().environment(model) } label: {
+            NavigationLink { BackupView().environment(model).tabBarClearance() } label: {
               DSRow(icon: "icloud", title: "النسخ الاحتياطي", subtitle: "تصدير واستيراد إعداداتك") { DSChevron() }
             }.buttonStyle(.plain)
           }
           group("التطبيق") {
-            NavigationLink { SettingsView().environment(model) } label: {
+            NavigationLink { SettingsView().environment(model).tabBarClearance() } label: {
               DSRow(icon: "gearshape", title: "الإعدادات", subtitle: "الموقع والحساب والتنبيهات والمظهر") { DSChevron() }
             }.buttonStyle(.plain)
             Divider().overlay(DS.C.borderSubtle)
-            NavigationLink { TasbihView().environment(model) } label: {
+            NavigationLink { TasbihView().environment(model).tabBarClearance() } label: {
               DSRow(icon: "circle.hexagongrid", title: "المسبحة", subtitle: "عدّاد التسبيح والإحصاء") { DSChevron() }
             }.buttonStyle(.plain)
           }
@@ -280,6 +280,7 @@ struct MoreView: View {
         .padding(.horizontal, DS.Space.s4).padding(.top, DS.Space.s2).padding(.bottom, DS.Space.s8)
       }
       .background(DS.C.bgCanvas)
+      .tabBarClearance()
       .safeAreaInset(edge: .top, spacing: 0) {
         HStack { Spacer(); Text("المزيد").font(DS.F.displaySm).foregroundStyle(DS.C.textPrimary) }
           .padding(.horizontal, DS.Space.s4).padding(.vertical, DS.Space.s3).background(DS.C.bgCanvas)

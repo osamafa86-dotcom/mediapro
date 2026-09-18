@@ -79,7 +79,7 @@ struct PlayerSheet: View {
       .padding(.horizontal, 20).padding(.top, 12)
     }
     .presentationDragIndicator(.hidden)
-    .sheet(isPresented: $showDownloads) { DownloadsView(focusSurah: p.currentAyah?.surah).environment(model) }
+    .sheet(isPresented: $showDownloads) { DownloadsView(focusSurah: p.currentAyah?.surah).environment(model).environment(\.tabBarInset, 0) }
     .sheet(isPresented: $showReciters) { ReciterPickerSheet().environment(model) }
   }
 

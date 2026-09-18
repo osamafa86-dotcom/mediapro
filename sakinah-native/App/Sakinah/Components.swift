@@ -97,9 +97,18 @@ extension View {
   }
   /// إخفاء شريط التبويبات النظامي (نستخدم DSTabBar)
   func hiddenSystemTabBar() -> some View { self.toolbar(.hidden, for: .tabBar) }
-  /// محتوى تبويب تحت الشريط العائم: منطقة آمنة سفلية بارتفاع الشريط كي تنتهي القوائم فوقه لا خلفه
-  func tabContent(inset: CGFloat) -> some View {
-    self.safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: inset) }.toolbar(.hidden, for: .tabBar)
+  /// إزاحة الشريط العائم — تُطبَّق على محتوى الشاشة نفسه داخل NavigationStack (الجذر وكل وجهة تُدفع):
+  /// وضعها على TabView أو خارج NavigationStack لم يصل إلى ScrollView (كلاهما UIKit خلف الستار؛ قِيس في
+  /// ثلاثة بناءات ولقطة محاكٍ ممرَّرة إلى الآخر). الارتفاع من البيئة، يقيسه RootView.
+  func tabBarClearance() -> some View { modifier(TabBarClearance()) }
+}
+
+struct TabBarInsetKey: EnvironmentKey { static let defaultValue: CGFloat = 0 }
+extension EnvironmentValues { var tabBarInset: CGFloat { get { self[TabBarInsetKey.self] } set { self[TabBarInsetKey.self] = newValue } } }
+struct TabBarClearance: ViewModifier {
+  @Environment(\.tabBarInset) private var inset
+  func body(content: Content) -> some View {
+    content.safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: inset) }
   }
 }
 

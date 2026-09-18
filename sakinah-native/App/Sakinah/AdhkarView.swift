@@ -31,14 +31,15 @@ struct AdhkarHomeView: View {
         .padding(.horizontal, DS.Space.s4).padding(.top, DS.Space.s2).padding(.bottom, DS.Space.s8)
       }
       .background(DS.C.bgCanvas)
+      .tabBarClearance()
       .safeAreaInset(edge: .top, spacing: 0) { navBar }
       .navigationBarHidden(true)
       .onAppear { if period.isEmpty { period = autoPeriod() } }
       .fullScreenCover(item: Binding(get: { session.map { SessionID(id: $0) } }, set: { session = $0?.id })) { s in
         DhikrSessionView(period: s.id).environment(model)
       }
-      .navigationDestination(isPresented: $showHisn) { HisnView().environment(model) }
-      .navigationDestination(isPresented: $showTasbih) { TasbihView().environment(model) }
+      .navigationDestination(isPresented: $showHisn) { HisnView().environment(model).tabBarClearance() }
+      .navigationDestination(isPresented: $showTasbih) { TasbihView().environment(model).tabBarClearance() }
       .sheet(isPresented: $showReminders) { AdhkarRemindersSheet().environment(model) }
     }
   }
@@ -80,13 +81,13 @@ struct AdhkarHomeView: View {
     } else {
       VStack(spacing: DS.Space.s2) {
         ForEach(res.chapters) { c in
-          NavigationLink { HisnChapterView(chapter: c).environment(model) } label: {
+          NavigationLink { HisnChapterView(chapter: c).environment(model).tabBarClearance() } label: {
             DSRow(icon: "book.closed", title: c.title, subtitle: HisnView.countLabel(c.items.count, numerals: numerals)) { DSChevron() }
           }
           .buttonStyle(.plain)
         }
         ForEach(res.items, id: \.item.id) { r in
-          NavigationLink { HisnChapterView(chapter: r.chapter).environment(model) } label: {
+          NavigationLink { HisnChapterView(chapter: r.chapter).environment(model).tabBarClearance() } label: {
             VStack(alignment: .trailing, spacing: 4) {
               Text(r.item.text.count > 110 ? String(r.item.text.prefix(110)) + "…" : r.item.text).font(DS.F.readingSm).foregroundStyle(DS.C.textPrimary).lineLimit(2)
               Text(r.chapter.title).font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary)
@@ -198,7 +199,7 @@ struct AdhkarHomeView: View {
       VStack(spacing: 0) {
         ForEach(Array(picks.enumerated()), id: \.element.id) { i, c in
           if i > 0 { Divider().overlay(DS.C.borderSubtle) }
-          NavigationLink { HisnChapterView(chapter: c).environment(model) } label: {
+          NavigationLink { HisnChapterView(chapter: c).environment(model).tabBarClearance() } label: {
             DSRow(icon: chapterIcon(c.id), title: c.title, subtitle: chapterHint(c.id)) {
               HStack(spacing: 6) { Text(Fmt.number(c.items.count, numerals: numerals)).font(DS.F.labelSm).foregroundStyle(DS.C.textTertiary); DSChevron() }
             }
@@ -485,7 +486,7 @@ struct HisnView: View {
     List {
       if searching {
         if !res.chapters.isEmpty { Section("أبواب (\(Fmt.number(res.chapters.count, numerals: numerals)))") { ForEach(res.chapters) { c in chapterRow(c, fav: favs.contains(c.id), numerals: numerals) } } }
-        if !res.items.isEmpty { Section("أذكار (\(Fmt.number(res.items.count, numerals: numerals))\(res.items.count >= 60 ? "+" : ""))") { ForEach(res.items, id: \.item.id) { r in NavigationLink { HisnChapterView(chapter: r.chapter) } label: { VStack(alignment: .trailing, spacing: 3) { Text(r.item.text.count > 110 ? String(r.item.text.prefix(110)) + "…" : r.item.text).font(DS.F.readingSm).lineLimit(2); Text(r.chapter.title).font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary) } } } } }
+        if !res.items.isEmpty { Section("أذكار (\(Fmt.number(res.items.count, numerals: numerals))\(res.items.count >= 60 ? "+" : ""))") { ForEach(res.items, id: \.item.id) { r in NavigationLink { HisnChapterView(chapter: r.chapter).tabBarClearance() } label: { VStack(alignment: .trailing, spacing: 3) { Text(r.item.text.count > 110 ? String(r.item.text.prefix(110)) + "…" : r.item.text).font(DS.F.readingSm).lineLimit(2); Text(r.chapter.title).font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary) } } } } }
         if res.chapters.isEmpty && res.items.isEmpty { Text("لا نتائج — جرّب كلمة أخرى").foregroundStyle(DS.C.textSecondary) }
       } else {
         if !favs.isEmpty { Section("♥ المفضلة") { ForEach(favs.compactMap { Hisn.chapter($0) }) { c in chapterRow(c, fav: true, numerals: numerals) } } }
@@ -498,7 +499,7 @@ struct HisnView: View {
     .navigationTitle("حصن المسلم").navigationBarTitleDisplayMode(.inline)
   }
   private func chapterRow(_ c: HisnChapter, fav: Bool, numerals: String) -> some View {
-    NavigationLink { HisnChapterView(chapter: c) } label: {
+    NavigationLink { HisnChapterView(chapter: c).tabBarClearance() } label: {
       HStack(spacing: DS.Space.s3) {
         Text(Fmt.number(c.id, numerals: numerals)).font(DS.F.labelSm).foregroundStyle(DS.C.brandPrimary)
           .frame(width: 34, height: 34).background(DS.C.brandSoft, in: Circle())
@@ -538,9 +539,9 @@ struct HisnChapterView: View {
                     onShareImage: { shareCard = ShareCardRequest(title: "حصن المسلم · \(chapter.title)", text: it.text, footer: it.repeatCount > 1 ? "يُقال \(DhikrCard.repeatLabel(it.repeatCount, numerals: numerals))" : "", quran: false, shareText: "\(it.text)\n\n— حصن المسلم: \(chapter.title)", filename: "hisn-\(it.id).png") })
         }
         HStack {
-          if let p = prev { NavigationLink { HisnChapterView(chapter: p) } label: { DSButtonLabel(title: p.title, kind: .outline, icon: "chevron.forward", fill: false) }.buttonStyle(.plain) }
+          if let p = prev { NavigationLink { HisnChapterView(chapter: p).tabBarClearance() } label: { DSButtonLabel(title: p.title, kind: .outline, icon: "chevron.forward", fill: false) }.buttonStyle(.plain) }
           Spacer()
-          if let n = next { NavigationLink { HisnChapterView(chapter: n) } label: { DSButtonLabel(title: n.title, kind: .outline, icon: "chevron.backward", fill: false) }.buttonStyle(.plain) }
+          if let n = next { NavigationLink { HisnChapterView(chapter: n).tabBarClearance() } label: { DSButtonLabel(title: n.title, kind: .outline, icon: "chevron.backward", fill: false) }.buttonStyle(.plain) }
         }
         Text("حصن المسلم من أذكار الكتاب والسنة — الشيخ سعيد بن علي بن وهف القحطاني. التلاوة الصوتية تُجلب من موقع الكتاب عند الطلب فقط.").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).multilineTextAlignment(.center)
       }

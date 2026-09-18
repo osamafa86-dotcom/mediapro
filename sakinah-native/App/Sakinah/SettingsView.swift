@@ -46,7 +46,7 @@ struct SettingsView: View {
   @ViewBuilder private func locationGroup(_ settings: Settings) -> some View {
     let s = model.settings
     SettingsGroup("الموقع والحساب") {
-      NavigationLink { CityPickerView().environment(model) } label: {
+      NavigationLink { CityPickerView().environment(model).tabBarClearance() } label: {
         SettingsRow(title: "الموقع", subtitle: model.location.placeName ?? "غير محدد", value: model.location.mode == .gps ? "تلقائي" : "تغيير")
       }.buttonStyle(.plain)
       SettingsDivider()
@@ -74,7 +74,7 @@ struct SettingsView: View {
       }
       .padding(.vertical, DS.Space.s2).padding(.horizontal, DS.Space.s3)
       SettingsDivider()
-      NavigationLink { MonthTableView().environment(model) } label: {
+      NavigationLink { MonthTableView().environment(model).tabBarClearance() } label: {
         SettingsRow(title: "الجدول الشهري", subtitle: "تصدير إلى التقويم (ICS)", value: nil)
       }.buttonStyle(.plain)
     }
@@ -111,7 +111,7 @@ struct SettingsView: View {
           SettingsRow(title: "تنبيه قبل الصلاة", subtitle: nil, value: prefs.wrappedValue.preMinutes == 0 ? "لا" : "\(Fmt.number(prefs.wrappedValue.preMinutes, numerals: model.settings.numerals)) د")
         }.buttonStyle(.plain)
         SettingsDivider()
-        NavigationLink { PrayerTogglesView().environment(model) } label: {
+        NavigationLink { PrayerTogglesView().environment(model).tabBarClearance() } label: {
           SettingsRow(title: "الصلوات المُنبَّه لها", subtitle: nil, value: "\(Fmt.number(prefs.wrappedValue.prayers.count, numerals: model.settings.numerals)) من \(Fmt.number(Prayer.allCases.count, numerals: model.settings.numerals))")
         }.buttonStyle(.plain)
         SettingsDivider()
@@ -237,7 +237,7 @@ struct SettingsView: View {
 
   private var dataGroup: some View {
     SettingsGroup("البيانات") {
-      NavigationLink { BackupView().environment(model) } label: {
+      NavigationLink { BackupView().environment(model).tabBarClearance() } label: {
         SettingsRow(title: "النسخ الاحتياطي", subtitle: "تصدير واستيراد إعداداتك وعلاماتك", value: nil)
       }.buttonStyle(.plain)
       SettingsDivider()

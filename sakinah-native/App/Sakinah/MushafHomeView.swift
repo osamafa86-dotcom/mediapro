@@ -39,6 +39,7 @@ struct MushafHomeView: View {
       .background(DS.C.bgCanvas)
       .toolbar(.hidden, for: .navigationBar)
       .safeAreaInset(edge: .bottom) { if model.player.current != nil { AudioBarView(onPickReciter: { sheet = .reciter }, onGoToPage: { target = ReaderTarget(page: $0) }).padding(.horizontal, 12).padding(.bottom, 6) } }
+      .tabBarClearance()
       .fullScreenCover(item: $target) { t in MushafReaderView(startPage: t.page, ayah: t.ayah).environment(model) }
       .sheet(item: $sheet) { sh in
         switch sh {

@@ -31,6 +31,7 @@ struct MethodPicker: View {
         }
       }
       .scrollContentBackground(.hidden).background(DS.C.bgCanvas)
+      .tabBarClearance()
       .navigationTitle("طريقة الحساب").navigationBarTitleDisplayMode(.inline)
       .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("تم") { dismiss() }.font(DS.F.labelMd) } }
     }
