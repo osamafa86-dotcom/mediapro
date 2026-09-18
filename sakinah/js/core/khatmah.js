@@ -25,11 +25,13 @@ export function planStatus(plan, currentPage, readLog, todayKey) {
   const expected = Math.min(TOTAL, (dayIndex + 1) * plan.dailyPages);
   const todayPages = (readLog && readLog[todayKey] ? readLog[todayKey].length : 0);
   const remaining = TOTAL - done;
-  const behind = Math.max(0, expected - done);
+  // الفائت = ما كان مستحقًّا قبل اليوم ناقص ما قُرئ قبل اليوم؛ فورد اليوم لا يُعدّ «فائتًا» قبل أن ينقضي اليوم
+  const before = done - todayPages;
+  const behind = Math.max(0, Math.min(TOTAL, dayIndex * plan.dailyPages) - before);
   const daysLeft = Math.max(0, plan.days - dayIndex);
   const neededPerDay = daysLeft > 0 ? Math.ceil(remaining / daysLeft) : remaining;
   const etaKey = addDaysKey(todayKey, Math.max(0, Math.ceil(remaining / Math.max(1, plan.dailyPages)) - (todayPages >= plan.dailyPages ? 0 : 0)));
-  return { done, remaining, percent: Math.round((done / TOTAL) * 100), dayIndex, expected, behind, todayPages, todayTarget: Math.min(plan.dailyPages + behind, remaining), daysLeft, neededPerDay, etaKey, finished: done >= TOTAL - 1 && currentPage === TOTAL };
+  return { done, remaining, percent: Math.round((done / TOTAL) * 100), dayIndex, expected, behind, todayPages, todayTarget: Math.min(plan.dailyPages + behind, TOTAL - before), daysLeft, neededPerDay, etaKey, finished: done >= TOTAL - 1 && currentPage === TOTAL };
 }
 /** سلسلة الأيام المتتالية (حتى اليوم أو الأمس) التي قُرئت فيها صفحة على الأقل */
 export function streak(readLog, todayKey) {

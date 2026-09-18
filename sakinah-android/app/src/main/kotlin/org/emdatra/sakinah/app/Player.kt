@@ -42,7 +42,7 @@ object Recitation {
   fun setRange(a: Int?, b: Int?) { if (a != null && b != null) { rangeA = minOf(a, b); rangeB = maxOf(a, b) } else { rangeA = a; rangeB = b } }
   fun clearRange() { rangeA = null; rangeB = null }
   /** الانتقال داخل الآية الجارية (بالثواني) */
-  fun seek(seconds: Double) { val t = seconds.coerceIn(0.0, if (duration > 0) duration else seconds); player?.seekTo((t * 1000).toLong()); position = t }
+  fun seek(seconds: Double) { val t = seconds.coerceAtLeast(0.0).let { if (duration > 0) minOf(it, duration) else it }; player?.seekTo((t * 1000).toLong()); position = t }
   var words by mutableStateOf(true)
   /** موضع الكلمة الجارية (1..) من توقيتات quran.com */
   var currentWord by mutableStateOf<Int?>(null); private set

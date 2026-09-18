@@ -29,7 +29,14 @@ class WirdTest {
     for (p in 1..42) log = Wird.mark(log, if (p <= 21) "2026-09-17" else "2026-09-18", p, 1)
     val plan = KhatmahPlan.make(1, "2026-09-17", 30)
     val s = Khatmah.status(plan, log, "2026-09-18")
-    assertEquals(42, s.done); assertEquals(21, s.todayPages); assertEquals(0, s.behind); assertEquals(7, s.percent)
+    assertEquals(42, s.done); assertEquals(21, s.todayPages); assertEquals(0, s.behind); assertEquals(7, s.percent); assertEquals(21, s.todayTarget)
+    // يوم البدء بلا قراءة: لا شيء «فائت» والهدف ورد يوم واحد؛ وبعد يوم مفقود يُضاف ورده إلى هدف اليوم
+    val fresh = Khatmah.status(KhatmahPlan.make(1, "2026-09-18", 30), emptyMap(), "2026-09-18")
+    assertEquals(0, fresh.behind); assertEquals(21, fresh.todayTarget)
+    val missed = Khatmah.status(KhatmahPlan.make(1, "2026-09-17", 30), emptyMap(), "2026-09-18")
+    assertEquals(21, missed.behind); assertEquals(42, missed.todayTarget)
+    // مفاتيح الأيام بأرقام لاتينية مهما كانت لغة الجهاز
+    assertEquals("2026-09-08", DayKey.key(2026, 9, 8))
     assertEquals(60, Khatmah.days("hizb")); assertEquals(30, Khatmah.days("juz"))
   }
   @Test fun kahfWindow() {

@@ -69,7 +69,7 @@ public enum Khatmah {
     let expected = min(total, (dayIndex + 1) * plan.dailyPages)
     let todayPages = log[today]?.count ?? 0
     let remaining = total - done
-    let behind = max(0, expected - done)
+    let behind = max(0, min(total, dayIndex * plan.dailyPages) - (done - todayPages))
     let daysLeft = max(0, plan.days - dayIndex)
     let neededPerDay = daysLeft > 0 ? Int((Double(remaining) / Double(daysLeft)).rounded(.up)) : remaining
     let etaKey = DayKey.adding(today, days: max(0, Int((Double(remaining) / Double(max(1, plan.dailyPages))).rounded(.up))))

@@ -90,7 +90,7 @@ object Store {
   fun applyAutoMethod() { if (methodAuto) methodId = Methods.defaultMethod(locCountry, zone.id) }
   fun isBookmarked(a: Ayah) = bookmarks.any { it.surah == a.surah && it.ayah == a.ayah }
   fun toggleBookmark(a: Ayah, note: String? = null, color: String = "gold") { bookmarks = if (isBookmarked(a)) bookmarks.filter { !(it.surah == a.surah && it.ayah == a.ayah) } else bookmarks + WebSettings.Bookmark(a.surah, a.ayah, a.page, System.currentTimeMillis().toDouble(), note, color); save() }
-  fun remember(a: Ayah) { lastRead = LastRead(a.page, a.surah, a.ayah, System.currentTimeMillis().toDouble()); pushRecent(a); save() }
+  fun remember(a: Ayah) { lastRead = LastRead(a.page, a.surah, a.ayah, System.currentTimeMillis().toDouble()); save() }
   /** موضع واحد لكل سورة، أربعة على الأكثر، الأحدث أولًا */
   fun pushRecent(a: Ayah) { recent = (listOf(LastRead(a.page, a.surah, a.ayah, System.currentTimeMillis().toDouble())) + recent.filter { it.surah != a.surah }).take(4) }
   fun toggleWeak(n: Int) { weakAyahs = if (n in weakAyahs) weakAyahs - n else weakAyahs + n; save() }
@@ -105,7 +105,7 @@ object Fmt {
   fun time(i: Instant?, zone: ZoneId = Store.zone, hour12: Boolean = Store.hour12, numerals: String = Store.numerals): String {
     if (i == null) return "—"
     val t = i.atZone(zone); val h = t.hour; val m = t.minute
-    val s = if (hour12) { val hh = if (h % 12 == 0) 12 else h % 12; "$hh:${"%02d".format(m)} ${if (h < 12) "ص" else "م"}" } else "%02d:%02d".format(h, m)
+    val s = if (hour12) { val hh = if (h % 12 == 0) 12 else h % 12; "$hh:${"%02d".format(java.util.Locale.US, m)} ${if (h < 12) "ص" else "م"}" } else "%02d:%02d".format(java.util.Locale.US, h, m)
     return if (numerals == "arab") s.map { if (it.isDigit()) arabic[it - '0'] else it }.joinToString("") else s
   }
   fun countdown(seconds: Long, numerals: String = Store.numerals): String { val s = maxOf(0, seconds); val h = s / 3600; val m = (s % 3600) / 60; val sec = s % 60; val two = { v: Long -> if (v < 10) "0$v" else "$v" }; val t = if (h > 0) "$h:${two(m)}:${two(sec)}" else "${two(m)}:${two(sec)}"; return if (numerals == "arab") t.map { if (it.isDigit()) arabic[it - '0'] else it }.joinToString("") else t }

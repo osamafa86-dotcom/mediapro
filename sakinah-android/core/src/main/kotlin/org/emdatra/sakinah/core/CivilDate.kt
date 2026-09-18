@@ -24,7 +24,7 @@ data class CivilDate(val year: Int, val month: Int, val day: Int) : Comparable<C
     val h = floor(hours); val min = floor((hours - h) * 60); val sec = floor((hours - (h + min / 60)) * 3600)
     return utcMidnight.plusSecondsD(h * 3600 + min * 60 + sec)
   }
-  val key: String get() = "%04d-%02d-%02d".format(year, month, day)
+  val key: String get() = "%04d-%02d-%02d".format(java.util.Locale.US, year, month, day)
   override fun compareTo(other: CivilDate) = local.compareTo(other.local)
   override fun toString() = "$year-$month-$day"
 }

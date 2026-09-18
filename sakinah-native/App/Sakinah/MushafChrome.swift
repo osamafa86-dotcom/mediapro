@@ -33,7 +33,7 @@ struct AyahDockView: View {
         dockButton("ellipsis.circle", "المزيد", brand, action: onMore)
         Button(action: onClose) {
           Image(systemName: "xmark").font(.system(size: 13, weight: .semibold)).foregroundStyle(ink.opacity(0.7))
-            .frame(width: 40, height: 46).contentShape(Rectangle())
+            .frame(width: 44, height: 46).contentShape(Rectangle())
         }
         .buttonStyle(.plain).accessibilityLabel("إلغاء تحديد الآية")
       }
@@ -87,9 +87,9 @@ struct AudioBarView: View {
             .contentShape(Rectangle())
           }.buttonStyle(.plain).accessibilityLabel("فتح المشغّل").accessibilityHint("\(p.reciterInfo.name)، \(QuranSearch.refLabel(a))")
           Spacer(minLength: 0)
-          iconButton("backward.end.fill", "الآية السابقة", ink, fill: nil, size: 38, icon: 15) { p.prevAyah() }
-          iconButton("forward.end.fill", "الآية التالية", ink, fill: nil, size: 38, icon: 15) { p.nextAyah() }
-          iconButton("xmark", "إيقاف التلاوة", ink.opacity(0.7), fill: nil, size: 38, icon: 14) { p.stop() }
+          iconButton("backward.end.fill", "الآية السابقة", ink, fill: nil, size: 44, icon: 15) { p.prevAyah() }
+          iconButton("forward.end.fill", "الآية التالية", ink, fill: nil, size: 44, icon: 15) { p.nextAyah() }
+          iconButton("xmark", "إيقاف التلاوة", ink.opacity(0.7), fill: nil, size: 44, icon: 14) { p.stop() }
         }
         .padding(.horizontal, 10).padding(.vertical, theme == nil ? 10 : 7)
       }
@@ -196,6 +196,7 @@ struct PlayerSheet: View {
           }
           Text("﴿\(Fmt.number(a.ayah, numerals: numerals))﴾").font(.custom(MushafFonts.amiriQuranFont, fixedSize: 21)).foregroundStyle(DS.C.accentGold).padding(.horizontal, 5)
         }
+        .environment(\.layoutDirection, .leftToRight)
         .frame(maxWidth: .infinity)
         .padding(14)
         .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: DS.Radius.xl, style: .continuous))
@@ -406,7 +407,7 @@ struct HifzPanelView: View {
             .accessibilityLabel(weak ? "إزالة وسم الآية الضعيفة" : "وسم الآية الحالية آيةً ضعيفة للمراجعة")
         }
         Button(action: onExit) {
-          Image(systemName: "xmark").font(.system(size: 13, weight: .semibold)).foregroundStyle(ink.opacity(0.7)).frame(width: 36, height: 46).contentShape(Rectangle())
+          Image(systemName: "xmark").font(.system(size: 13, weight: .semibold)).foregroundStyle(ink.opacity(0.7)).frame(width: 44, height: 46).contentShape(Rectangle())
         }.buttonStyle(.plain).accessibilityLabel("إنهاء المراجعة")
       }
       .padding(.horizontal, 6).padding(.vertical, 5)

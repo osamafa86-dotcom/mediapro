@@ -155,7 +155,7 @@ struct MushafPageView: View {
     }
     .environment(\.layoutDirection, .rightToLeft)
     .accessibilityElement(children: .ignore)
-    .accessibilityLabel("صفحة \(page)")
+    .accessibilityLabel("صفحة \(QuranMeta.arabicDigits(page))")
     .accessibilityValue(accessibilityText)
     // القارئ بالمساعدات لا يصيب شريط الكلمة: الآيات تُحدَّد بإجراءات مسمّاة وتُفتح خياراتها بإجراء
     .accessibilityAction(named: "تحديد الآية التالية") { stepSelection(1) }
@@ -271,10 +271,21 @@ struct MushafLineView: View {
             if marksLayer && st.current { RoundedRectangle(cornerRadius: size * 0.16).stroke(rs.accents.hideLine, lineWidth: 1) }
           }
           .contentShape(Rectangle())
-          .onTapGesture { if marksLayer { rs.onTapAyah?(w.n) } }
-          .onLongPressGesture(minimumDuration: 0.4, maximumDistance: 12) { if marksLayer { rs.onLongPressAyah?(w.n) } }
+          .modifier(WordGestures(enabled: marksLayer, n: w.n, rs: rs))
       }
     }
+  }
+}
+
+/// إيماءتا الكلمة (نقر يحدّد الآية، ضغطة مطوّلة تفتح خياراتها) على طبقة العلامات وحدها — لا على طبقة الخلفية تحت النصّ
+private struct WordGestures: ViewModifier {
+  let enabled: Bool; let n: Int; let rs: MushafReaderState
+  func body(content: Content) -> some View {
+    if enabled {
+      content
+        .onTapGesture { rs.onTapAyah?(n) }
+        .onLongPressGesture(minimumDuration: 0.4, maximumDistance: 12) { rs.onLongPressAyah?(n) }
+    } else { content }
   }
 }
 

@@ -20,10 +20,13 @@ test('خطة الختمة: الصفحات اليومية، التقدّم مع �
   const plan = makePlan({ startPage: 300, startedAt: '2026-09-01', days: 30 });
   assert.equal(plan.dailyPages, 21);
   assert.equal(makePlan({ startPage: 1, startedAt: '2026-09-01', days: 604 }).dailyPages, 1);
-  // اليوم الثالث، وصل الصفحة 340 (40 صفحة)، المتوقع 63 → متأخر 23
+  // اليوم الثالث، وصل الصفحة 340 (40 صفحة، 3 منها اليوم): المستحقّ قبل اليوم 42 وقُرئ قبله 37 → متأخر 5، وهدف اليوم 21+5
   let log = {}; for (const p of [301, 302, 303]) log = logPage(log, '2026-09-03', p);
   const st = planStatus(plan, 340, log, '2026-09-03');
-  assert.equal(st.done, 40); assert.equal(st.dayIndex, 2); assert.equal(st.expected, 63); assert.equal(st.behind, 23); assert.equal(st.todayPages, 3); assert.equal(st.todayTarget, 44);
+  assert.equal(st.done, 40); assert.equal(st.dayIndex, 2); assert.equal(st.expected, 63); assert.equal(st.behind, 5); assert.equal(st.todayPages, 3); assert.equal(st.todayTarget, 26);
+  // يوم البدء بلا قراءة: لا شيء فائت والهدف ورد يوم واحد
+  const fresh = planStatus(makePlan({ startPage: 1, startedAt: '2026-09-03', days: 30 }), 1, {}, '2026-09-03');
+  assert.equal(fresh.behind, 0); assert.equal(fresh.todayTarget, 21);
   // الالتفاف: بدأ من 600 ووصل الصفحة 10 → 14 صفحة
   assert.equal(planStatus(makePlan({ startPage: 600, startedAt: '2026-09-01', days: 30 }), 10, {}, '2026-09-01').done, 14);
   // السلسلة: قرأ أمس وقبله ولم يقرأ اليوم بعد → 2

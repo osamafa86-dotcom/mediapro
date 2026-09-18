@@ -66,6 +66,10 @@ class ReminderReceiver : BroadcastReceiver() {
     val kind = intent.getStringExtra("kind") ?: return
     val enabledPrayers = Store.reminders.enabled
     if ((kind == "adhan" || kind == "pre" || kind == "sunrise") && !enabledPrayers) return
+    // منبّهات قديمة قد تبقى بعد قتل العملية: لا يُعرض تذكير ختمة بلا خطة أو بلا تذكير، ولا أذكار/حديث أُطفئت
+    if (kind == "khatmah" && Store.khatmah?.reminder == null) return
+    if (kind == "adhkar" && !(Store.extras.adhkarMorning || Store.extras.adhkarEvening)) return
+    if (kind == "hadith" && !Store.extras.hadithDaily) return
     Notify.show(ctx, kind, intent.getStringExtra("title") ?: "سكينة", intent.getStringExtra("body") ?: "", intent.getIntExtra("id", 1))
     Notify.schedule(ctx)
   }

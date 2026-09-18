@@ -30,10 +30,13 @@ object Wird {
 
 fun Khatmah.status(plan: KhatmahPlan, wird: WirdLog, today: String): KhatmahStatus {
   val done = minOf(TOTAL, Wird.done(wird)); val dayIndex = maxOf(0, DayKey.daysBetween(plan.startedAt, today)); val expected = minOf(TOTAL, (dayIndex + 1) * plan.dailyPages)
-  val todayPages = Wird.pages(wird, today); val remaining = TOTAL - done; val behind = maxOf(0, expected - done); val daysLeft = maxOf(0, plan.days - dayIndex)
+  val todayPages = Wird.pages(wird, today); val remaining = TOTAL - done; val daysLeft = maxOf(0, plan.days - dayIndex)
+  // الفائت = ما كان مستحقًّا قبل اليوم ناقص ما قُرئ قبل اليوم؛ فورد اليوم لا يُعدّ «فائتًا» قبل أن ينقضي اليوم
+  val before = done - todayPages
+  val behind = maxOf(0, minOf(TOTAL, dayIndex * plan.dailyPages) - before)
   val neededPerDay = if (daysLeft > 0) ceil(remaining.toDouble() / daysLeft).toInt() else remaining
   val etaKey = DayKey.adding(today, maxOf(0, ceil(remaining.toDouble() / maxOf(1, plan.dailyPages)).toInt()))
-  return KhatmahStatus(done, remaining, (done.toDouble() / TOTAL * 100).roundToInt(), dayIndex, expected, behind, todayPages, minOf(plan.dailyPages + behind, remaining), daysLeft, neededPerDay, etaKey, done >= TOTAL)
+  return KhatmahStatus(done, remaining, (done.toDouble() / TOTAL * 100).roundToInt(), dayIndex, expected, behind, todayPages, minOf(plan.dailyPages + behind, TOTAL - before), daysLeft, neededPerDay, etaKey, done >= TOTAL)
 }
 fun Khatmah.days(unit: String, fallback: Int = 30) = when (unit) { "hizb" -> 60; "juz" -> 30; else -> fallback }
 
@@ -69,7 +72,8 @@ fun QuranText.juzStartPhrase(j: Int, words: Int = 2): String {
   val a = ayah(s.surah, s.ayah) ?: return ""
   return a.text.split(' ').filter { it != "۞" }.take(words).joinToString(" ")
 }
-fun QuranText.quarterStart(q: Int): Ayah? = ayahs.firstOrNull { it.hizbQuarter == q }
+private val quarterStarts: Map<Int, Ayah> by lazy { val m = HashMap<Int, Ayah>(); for (a in QuranText.shared.ayahs) m.putIfAbsent(a.hizbQuarter, a); m }
+fun QuranText.quarterStart(q: Int): Ayah? = quarterStarts[q]
 fun QuranText.quarters(hizb: Int): List<Ayah> = (1..4).mapNotNull { quarterStart((hizb - 1) * 4 + it) }
 
 /** أيام حتى آخر يوم في رمضان القادم (أو الجاري) */

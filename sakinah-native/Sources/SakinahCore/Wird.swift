@@ -47,12 +47,14 @@ public extension Khatmah {
     let expected = min(total, (dayIndex + 1) * plan.dailyPages)
     let todayPages = Wird.pages(wird, day: today)
     let remaining = total - done
-    let behind = max(0, expected - done)
+    // الفائت = ما كان مستحقًّا قبل اليوم ناقص ما قُرئ قبل اليوم؛ فورد اليوم لا يُعدّ «فائتًا» قبل أن ينقضي اليوم
+    let before = done - todayPages
+    let behind = max(0, min(total, dayIndex * plan.dailyPages) - before)
     let daysLeft = max(0, plan.days - dayIndex)
     let neededPerDay = daysLeft > 0 ? Int((Double(remaining) / Double(daysLeft)).rounded(.up)) : remaining
     let etaKey = DayKey.adding(today, days: max(0, Int((Double(remaining) / Double(max(1, plan.dailyPages))).rounded(.up))))
     return KhatmahStatus(done: done, remaining: remaining, percent: Int((Double(done) / Double(total) * 100).rounded()), dayIndex: dayIndex, expected: expected, behind: behind,
-                         todayPages: todayPages, todayTarget: min(plan.dailyPages + behind, remaining), daysLeft: daysLeft, neededPerDay: neededPerDay, etaKey: etaKey, finished: done >= total)
+                         todayPages: todayPages, todayTarget: min(plan.dailyPages + behind, total - before), daysLeft: daysLeft, neededPerDay: neededPerDay, etaKey: etaKey, finished: done >= total)
   }
   /// أيام الخطة لوحدة الورد: صفحة (٣٠ يومًا افتراضيًا تبقى كما هي)، حزب = ٦٠ يومًا، جزء = ٣٠ يومًا
   static func days(forUnit unit: String, fallback: Int = 30) -> Int { switch unit { case "hizb": return 60; case "juz": return 30; default: return fallback } }
@@ -107,7 +109,8 @@ public extension QuranText {
     return ws.prefix(n).joined(separator: " ")
   }
   /// صفحة بداية الربع (١…٢٤٠) وموضعه
-  func quarterStart(_ q: Int) -> Ayah? { ayahs.first { $0.hizbQuarter == q } }
+  func quarterStart(_ q: Int) -> Ayah? { QuranText.quarterStarts[q] }
+  private static let quarterStarts: [Int: Ayah] = { var m: [Int: Ayah] = [:]; for a in QuranText.shared.ayahs where m[a.hizbQuarter] == nil { m[a.hizbQuarter] = a }; return m }()
   /// أرباع حزبٍ (٤ أرباع) بآياتها الأولى
   func quarters(ofHizb h: Int) -> [Ayah] { (1...4).compactMap { quarterStart((h - 1) * 4 + $0) } }
 }

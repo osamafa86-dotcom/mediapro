@@ -92,7 +92,7 @@ struct MushafReaderView: View {
   private var hifzError: String? { rs?.hifz?.error }
   private func shareSheet(_ s: ShareItems) -> some View { ShareSheet(items: s.items) }
   private func shareCardSheet(_ req: ShareCardRequest) -> some View { ShareCardSheet(request: req).environment(model) }
-  private func pageDidChange(_ p: Int?) { guard let p else { return }; if spread, pair != (p + 1) / 2 { pair = (p + 1) / 2 }; onPageChanged(p) }
+  private func pageDidChange(_ p: Int?) { guard let p else { return }; let k = (p + 1) / 2; if pair != k { pair = k }; onPageChanged(p) }
   private func wordDidChange(_ w: Int?) { rs?.playingWord = w }
   private func keepAwakeChanged() { UIApplication.shared.isIdleTimerDisabled = prefs.keepAwake }
   private func playerErrorChanged() {
@@ -119,6 +119,7 @@ struct MushafReaderView: View {
         .scrollIndicators(.hidden)
         .onAppear { if spread { pair = (startPage + 1) / 2; proxy.scrollTo((startPage + 1) / 2, anchor: .center) } else { proxy.scrollTo(startPage, anchor: .center) } }
         .onChange(of: prefs.scroll) { DispatchQueue.main.async { proxy.scrollTo(spread ? (current + 1) / 2 : current, anchor: .center) } }
+        .onChange(of: spread) { DispatchQueue.main.async { proxy.scrollTo(spread ? (current + 1) / 2 : current, anchor: .center) } }
         .onChange(of: pair) { _, k in guard spread, let k else { return }; let p = 2 * k - 1; if page != p && page != p + 1 { page = p } }
       }
     }
@@ -148,6 +149,8 @@ struct MushafReaderView: View {
     }
     .contentShape(Rectangle())
     .onTapGesture { if rs.hifz != nil { hifzTap() } else { toggleChrome() } }
+    // سحبة رأسية على الصفحة تُظهر الشريط؛ التقليب الأفقي يبقى للمقلّب (إيماءة متزامنة لا تصادره)
+    .simultaneousGesture(DragGesture(minimumDistance: 24).onEnded { v in if abs(v.translation.height) > 40, abs(v.translation.height) > abs(v.translation.width) { showChrome() } })
   }
 
   // MARK: - الشريط الموحّد: حافّة لا تغطّي النصّ
@@ -182,36 +185,22 @@ struct MushafReaderView: View {
     }
   }
 
-  /// في الوضع الغامر: حافّتان تستقبلان النقر والسحب (بعيدًا عن الكلمات)، وخيط ذهبي يدلّ على الموضع في الجزء
+  /// في الوضع الغامر: خيط ذهبي يدلّ على الموضع في الجزء — لا يستقبل لمسًا (النقر على الهامش والسحبة الرأسية على الصفحة يُظهران الشريط)
   @ViewBuilder private func edgeHandles(_ rs: MushafReaderState) -> some View {
     if !chrome && rs.hifz == nil {
       let ink = Color(hex: rs.theme.ink)
-      VStack(spacing: 0) {
-        Color.clear.frame(height: 30).contentShape(Rectangle())
-          .onTapGesture { showChrome() }
-          .gesture(DragGesture(minimumDistance: 10).onEnded { v in if v.translation.height > 8 { showChrome() } })
-          .accessibilityLabel("إظهار شريط المصحف")
-          .accessibilityAddTraits(.isButton)
-        Spacer(minLength: 0)
-        VStack(spacing: 0) {
-          juzHairline(ink)
-          Color.clear.frame(height: 18)
-        }
-        .contentShape(Rectangle())
-        .onTapGesture { showChrome() }
-        .gesture(DragGesture(minimumDistance: 10).onEnded { v in if v.translation.height < -8 { showChrome() } })
-        .accessibilityLabel("إظهار شريط المصحف")
-        .accessibilityAddTraits(.isButton)
-      }
-      .ignoresSafeArea()
-      .transition(.opacity)
+      VStack(spacing: 0) { Spacer(minLength: 0); juzHairline(ink); Color.clear.frame(height: 18) }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .transition(.opacity)
     }
   }
 
   /// خيط ذهبي رفيع: موضع الصفحة داخل الجزء الحالي (يملأ من اليمين كاتجاه القراءة)
   private func juzHairline(_ ink: Color) -> some View {
     let w: CGFloat = 132
-    return ZStack(alignment: .trailing) {
+    return ZStack(alignment: .leading) {
       Capsule().fill(ink.opacity(0.12)).frame(width: w, height: 3)
       Capsule().fill(DS.C.accentGold.opacity(0.8)).frame(width: max(3, w * juzProgress), height: 3)
     }
@@ -328,7 +317,7 @@ struct MushafReaderView: View {
       capsuleButton("list.bullet", "الفهرس", ink, fill: nil, size: 15) { sheet = .index }
       moreMenu(ink)
     }
-    .padding(4)
+    .padding(3)
     .background {
       Capsule().fill(ink.opacity(0.05))
         .overlay { Capsule().strokeBorder(ink.opacity(0.12), lineWidth: 1) }
@@ -353,8 +342,8 @@ struct MushafReaderView: View {
     } label: {
       Image(systemName: "ellipsis").font(.system(size: 15, weight: .medium))
         .foregroundStyle(ink)
-        .frame(width: 32, height: 32)
-        .contentShape(Circle())
+        .frame(width: 40, height: 38)
+        .contentShape(Rectangle())
     }
     // القائمة ليست نافذة فلا يراها حارس الإخفاء التلقائي: نوقف المؤقّت عند فتحها
     // ونعيد جدولته مع أول اختيار، فلا ينزلق الشريط من تحت قائمة مفتوحة
@@ -371,7 +360,8 @@ struct MushafReaderView: View {
         .foregroundStyle(tint)
         .frame(width: 32, height: 32)
         .background { if let fill { Circle().fill(fill) } }
-        .contentShape(Circle())
+        .frame(width: 40, height: 38)
+        .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
     .accessibilityLabel(label)
@@ -444,7 +434,7 @@ struct MushafReaderView: View {
   }
 
   private func barButton(_ icon: String, _ label: String, _ ink: Color, action: @escaping () -> Void) -> some View {
-    Button(action: { scheduleChromeHide(); action() }) { Image(systemName: icon).font(.system(size: 16, weight: .medium)).foregroundStyle(ink).frame(width: 36, height: 36).contentShape(Rectangle()) }.buttonStyle(.plain).accessibilityLabel(label)
+    Button(action: { scheduleChromeHide(); action() }) { Image(systemName: icon).font(.system(size: 16, weight: .medium)).foregroundStyle(ink).frame(width: 44, height: 44).contentShape(Rectangle()) }.buttonStyle(.plain).accessibilityLabel(label)
   }
   private func num(_ n: Int) -> String { Fmt.number(n, numerals: model.settings.numerals) }
 
@@ -476,13 +466,13 @@ struct MushafReaderView: View {
     case .translation: sheet = .translation(a.n)
     case .wordMeanings: sheet = .words(a.n)
     case .listen: playFrom(a.n, scope: .surah); rs?.selected = nil
-    case .playFrom: playFrom(a.n, scope: .surah)
-    case .repeat3: prefs.repeatAyah = 3; model.player.repeatAyah = 3; playFrom(a.n, scope: .single)
+    case .playFrom: playFrom(a.n, scope: .surah); rs?.selected = nil
+    case .repeat3: playFrom(a.n, scope: .single, repeat: 3); rs?.selected = nil
     case .bookmark: sheet = .bookmark(a.n)
     case .lastRead: remember(a); show("حُفظ موضع القراءة عند \(QuranSearch.refLabel(a))")
     case .hifz: startHifz(from: a.n)
     case .share: shareItems = ShareItems(items: [txt])
-    case .shareImage: shareCard = ShareCardRequest(title: "القرآن الكريم · \(QuranSearch.refLabel(a))", text: "\(a.text) ﴿\(a.ayah)﴾", footer: QuranSearch.refLabel(a), quran: true, shareText: txt, filename: "ayah-\(a.surah)-\(a.ayah).png")
+    case .shareImage: DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { shareCard = ShareCardRequest(title: "القرآن الكريم · \(QuranSearch.refLabel(a))", text: "\(a.text) ﴿\(a.ayah)﴾", footer: QuranSearch.refLabel(a), quran: true, shareText: txt, filename: "ayah-\(a.surah)-\(a.ayah).png") }
     case .copy: UIPasteboard.general.string = txt; show("نُسخت الآية")
     }
   }
@@ -524,6 +514,7 @@ struct MushafReaderView: View {
     }
   }
   private func teardown() {
+    saveTask?.cancel(); remember(page: current)
     UIApplication.shared.isIdleTimerDisabled = false
     rs?.hifz?.stopSpeech(); rs?.hifz = nil
     model.player.onAyah = nil
@@ -549,7 +540,11 @@ struct MushafReaderView: View {
     dwellTask = Task { @MainActor in
       try? await Task.sleep(nanoseconds: 3_000_000_000)
       guard !Task.isCancelled, page == p else { return }
-      if let plan = prefs.khatmah { prefs.wird = Wird.mark(prefs.wird, today: model.todayKey, page: p, startPage: plan.startPage) }
+      if let a = QuranText.shared.pageAyahs(p).first { prefs.pushRecent(a) }
+      if let plan = prefs.khatmah {
+        prefs.wird = Wird.mark(prefs.wird, today: model.todayKey, page: p, startPage: plan.startPage)
+        if spread, p + 1 <= MushafLayout.totalPages { prefs.wird = Wird.mark(prefs.wird, today: model.todayKey, page: p + 1, startPage: plan.startPage) }
+      }
       try? await Task.sleep(nanoseconds: 5_000_000_000)
       guard !Task.isCancelled, page == p else { return }
       prefs.readLog = Khatmah.log(prefs.readLog, today: model.todayKey, page: p)
@@ -576,21 +571,22 @@ struct MushafReaderView: View {
     toastTask = Task { try? await Task.sleep(nanoseconds: 3_200_000_000); if !Task.isCancelled { withAnimation { toast = nil } } }
   }
   private func remember(page p: Int) { if let a = QuranText.shared.pageAyahs(p).first { remember(a) } }
-  private func remember(_ a: Ayah) { model.settings.lastRead = LastRead(page: a.page, surah: a.surah, ayah: a.ayah, at: Date().timeIntervalSince1970 * 1000); prefs.pushRecent(a) }
+  private func remember(_ a: Ayah) { model.settings.lastRead = LastRead(page: a.page, surah: a.surah, ayah: a.ayah, at: Date().timeIntervalSince1970 * 1000) }
   private func toggleBookmark() {
-    let a = (rs?.selected).flatMap { QuranText.shared.ayah($0) } ?? QuranText.shared.pageAyahs(current).first
+    let existing = prefs.bookmarks.first { $0.page == current }.flatMap { QuranText.shared.ayah(surah: $0.surah, ayah: $0.ayah) }
+    let a = (rs?.selected).flatMap { QuranText.shared.ayah($0) } ?? existing ?? QuranText.shared.pageAyahs(current).first
     guard let a else { return }
     if prefs.isBookmarked(a) { prefs.removeBookmark(a); show("أُزيلت العلامة") } else { prefs.setBookmark(a, note: nil, color: "gold"); show("أُضيفت علامة عند \(QuranSearch.refLabel(a))"); UIImpactFeedbackGenerator(style: .light).impactOccurred() }
   }
 
   // MARK: - التلاوة
   enum PlayScope { case single, page, surah }
-  private func playFrom(_ n: Int, scope: PlayScope) {
+  private func playFrom(_ n: Int, scope: PlayScope, repeat: Int? = nil) {
     guard let a = QuranText.shared.ayah(n) else { return }
     let q: [Int]
     switch scope { case .single: q = [n]; case .page: q = QuranText.shared.pageAyahs(a.page).map(\.n); case .surah: q = QuranText.shared.surahAyahs(a.surah).filter { $0.n >= n }.map(\.n) }
     let p = model.player
-    p.reciter = prefs.reciter; p.repeatAyah = prefs.repeatAyah; p.repeatRange = prefs.repeatRange; p.setRate(prefs.rate); p.words = prefs.wordHighlight
+    p.reciter = prefs.reciter; p.repeatAyah = `repeat` ?? prefs.repeatAyah; p.repeatRange = prefs.repeatRange; p.setRate(prefs.rate); p.words = prefs.wordHighlight
     exitHifz()
     p.play(queue: q)
   }
@@ -611,6 +607,7 @@ struct MushafReaderView: View {
   private func hifzTap() { guard let h = rs?.hifz else { return }; if h.veil { h.revealAyah() } else { h.hint() } }
   private func nextHifzPage(veil: Bool) {
     guard current < MushafLayout.totalPages else { return }
+    exitHifz()
     let p = current + 1; go(to: p)
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { if let a = QuranText.shared.pageAyahs(p).first { startHifz(from: a.n, veil: veil) } }
   }

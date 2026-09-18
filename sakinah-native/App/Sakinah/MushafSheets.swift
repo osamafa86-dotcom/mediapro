@@ -382,6 +382,8 @@ struct KhatmahSheet: View {
   @State private var reminderMode = 0
   @State private var time = Date()
   @State private var afterPrayer: Prayer = .isha
+  /// الأيام المتبقية عند فتح الورقة: إن لم تتغيّر بقيت الخطة كما هي، وإلا بدأ العدّ من الموضع الحالي بالمدة الجديدة
+  @State private var remainingAtLoad = 0
   private let reminderPrayers: [Prayer] = [.fajr, .dhuhr, .asr, .maghrib, .isha]
 
   var body: some View {
@@ -467,13 +469,16 @@ struct KhatmahSheet: View {
     let perDay = Int((Double(Khatmah.total) / Double(max(1, days))).rounded(.up))
     return VStack(alignment: .leading, spacing: 12) {
       Text(plan == nil ? "خطة ختمة جديدة" : "تعديل الخطة").font(DS.kufi(16, .semibold)).foregroundStyle(DS.C.textPrimary)
+      if let plan, days != remainingAtLoad {
+        Text("تغيير المدة يبدأ العدّ من موضعك الحالي (ص \(Fmt.number(((plan.startPage - 1 + Wird.done(model.quran.wird)) % Khatmah.total) + 1, numerals: numerals))) بالمدة الجديدة").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary)
+      }
       VStack(alignment: .leading, spacing: 6) {
         Text("وحدة الورد").font(DS.F.labelSm).foregroundStyle(DS.C.textSecondary)
         DSSegmented(items: ["صفحات", "حزب يوميًا", "جزء يوميًا"], selection: Binding(get: { unit == "hizb" ? 1 : unit == "juz" ? 2 : 0 }, set: { i in unit = i == 1 ? "hizb" : i == 2 ? "juz" : "page"; days = Khatmah.days(forUnit: unit, fallback: days) }))
       }
       if unit == "page" {
         VStack(alignment: .leading, spacing: 8) {
-          Text("المدة").font(DS.F.labelSm).foregroundStyle(DS.C.textSecondary)
+          Text(plan == nil ? "المدة" : "المدة المتبقية").font(DS.F.labelSm).foregroundStyle(DS.C.textSecondary)
           ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
               ForEach([30, 60, 90, 120], id: \.self) { d in chip("\(Fmt.number(d, numerals: numerals)) يومًا", on: days == d) { days = d } }
@@ -483,7 +488,7 @@ struct KhatmahSheet: View {
           Stepper(value: $days, in: 1...604) { Text("\(Fmt.number(days, numerals: numerals)) يومًا ≈ \(Fmt.number(perDay, numerals: numerals)) صفحات يوميًا").font(DS.F.bodySm).foregroundStyle(DS.C.textPrimary) }
         }
       } else {
-        Text(unit == "hizb" ? "حزب كل يوم: ٦٠ يومًا ≈ ١٠ صفحات يوميًا (التحزيب التقليدي)" : "جزء كل يوم: ٣٠ يومًا ≈ ٢٠ صفحة يوميًا").font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary)
+        Text("\(unit == "hizb" ? "حزب كل يوم (التحزيب التقليدي)" : "جزء كل يوم"): \(Fmt.number(Khatmah.days(forUnit: unit), numerals: numerals)) يومًا ≈ \(Fmt.number(Int((Double(Khatmah.total) / Double(Khatmah.days(forUnit: unit))).rounded(.up)), numerals: numerals)) صفحة يوميًا").font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary)
       }
       if plan == nil {
         VStack(alignment: .leading, spacing: 6) {
@@ -504,7 +509,7 @@ struct KhatmahSheet: View {
       }
       HStack(spacing: 10) {
         DSButton(title: plan == nil ? "ابدأ الخطة" : "حفظ التعديلات", kind: .primary, action: save)
-        if plan != nil { DSButton(title: "إنهاء", kind: .outline, fill: false) { model.quran.khatmah = nil; model.quran.wird = [:]; model.rescheduleNotifications() } }
+        if plan != nil { DSButton(title: "إنهاء", kind: .outline, fill: false) { model.quran.khatmah = nil; model.quran.wird = [:]; model.rescheduleNotifications(); dismiss() } }
       }
     }
     .dsCard(padding: 16)
@@ -551,7 +556,8 @@ struct KhatmahSheet: View {
   // MARK: تحميل وحفظ
   private func load() {
     guard let p = model.quran.khatmah else { unit = model.quran.khatmahUnit; days = Khatmah.days(forUnit: unit, fallback: 30); return }
-    unit = model.quran.khatmahUnit; days = p.days
+    unit = model.quran.khatmahUnit
+    days = max(1, p.days - max(0, DayKey.daysBetween(p.startedAt, model.todayKey))); remainingAtLoad = days
     if let pr = Reminders.afterPrayer(p.reminder) { reminderMode = 2; afterPrayer = pr }
     else if let r = p.reminder, let hm = parse(r) { reminderMode = 1; time = Calendar.current.date(bySettingHour: hm.0, minute: hm.1, second: 0, of: Date()) ?? Date() }
     else { reminderMode = 0 }
@@ -562,9 +568,13 @@ struct KhatmahSheet: View {
     let reminder: String? = reminderMode == 1 ? String(format: "%02d:%02d", c.hour ?? 9, c.minute ?? 0) : (reminderMode == 2 ? "after:\(afterPrayer.rawValue)" : nil)
     let q = model.quran
     q.khatmahUnit = unit
-    if let p = q.khatmah {
-      // تعديل: تبقى البداية وتاريخ البدء (والتقدّم) وتتغيّر المدة والتذكير
-      q.khatmah = KhatmahPlan(startPage: p.startPage, startedAt: p.startedAt, days: days, reminder: reminder)
+    if let p = q.khatmah, days == remainingAtLoad {
+      // التذكير وحده تغيّر: تبقى البداية وتاريخ البدء والتقدّم
+      q.khatmah = KhatmahPlan(startPage: p.startPage, startedAt: p.startedAt, days: p.days, reminder: reminder)
+    } else if let p = q.khatmah {
+      // مدة جديدة: خطة تبدأ اليوم من الموضع الحالي (ما قُرئ يبقى مقروءًا، والعدّ يبدأ منه)
+      let done = Wird.done(q.wird); q.wird = [:]
+      q.khatmah = KhatmahPlan(startPage: ((p.startPage - 1 + done) % Khatmah.total) + 1, startedAt: model.todayKey, days: days, reminder: reminder)
     } else {
       let start = fromCurrent ? (model.settings.lastRead?.page ?? 1) : 1
       q.wird = [:]

@@ -43,7 +43,12 @@ final class WirdTests: XCTestCase {
     for p in 1...42 { log = Wird.mark(log, today: p <= 21 ? "2026-09-17" : "2026-09-18", page: p, startPage: 1) }
     let plan = KhatmahPlan(startPage: 1, startedAt: "2026-09-17", days: 30)
     let s = Khatmah.status(plan, wird: log, today: "2026-09-18")
-    XCTAssertEqual(s.done, 42); XCTAssertEqual(s.todayPages, 21); XCTAssertEqual(s.behind, 0); XCTAssertEqual(s.percent, 7)
+    XCTAssertEqual(s.done, 42); XCTAssertEqual(s.todayPages, 21); XCTAssertEqual(s.behind, 0); XCTAssertEqual(s.percent, 7); XCTAssertEqual(s.todayTarget, 21)
+    // يوم البدء بلا قراءة: لا شيء «فائت» والهدف ورد يوم واحد؛ وبعد يوم مفقود يُضاف ورده إلى هدف اليوم
+    let fresh = Khatmah.status(KhatmahPlan(startPage: 1, startedAt: "2026-09-18", days: 30), wird: [:], today: "2026-09-18")
+    XCTAssertEqual(fresh.behind, 0); XCTAssertEqual(fresh.todayTarget, 21)
+    let missed = Khatmah.status(KhatmahPlan(startPage: 1, startedAt: "2026-09-17", days: 30), wird: [:], today: "2026-09-18")
+    XCTAssertEqual(missed.behind, 21); XCTAssertEqual(missed.todayTarget, 42)
     XCTAssertEqual(Khatmah.days(forUnit: "hizb"), 60); XCTAssertEqual(Khatmah.days(forUnit: "juz"), 30)
   }
   func testKahfWindow() {

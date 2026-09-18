@@ -112,7 +112,8 @@ class HifzSession(val page: Int, val from: Int, val veil: Boolean) {
     gen++
     val myGen = gen
     runCatching { recognizer?.destroy() }
-    val r = SpeechRecognizer.createSpeechRecognizer(ctx); recognizer = r
+    // على الجهاز حين يتوفّر (أندرويد ١٢+): يحفظ وعد «الصوت لا يغادر هاتفك» الذي تعرضه اللوحة
+    val r = if (android.os.Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(ctx)) SpeechRecognizer.createOnDeviceSpeechRecognizer(ctx) else SpeechRecognizer.createSpeechRecognizer(ctx); recognizer = r
     r.setRecognitionListener(object : RecognitionListener {
       private fun stale() = myGen != gen || !listening
       override fun onReadyForSpeech(params: Bundle?) { if (!stale()) listening = true }

@@ -11,7 +11,7 @@ object DayKey {
   fun daysFromCivil(y0: Int, m: Int, d: Int): Int { val y = if (m <= 2) y0 - 1 else y0; val era = (if (y >= 0) y else y - 399) / 400; val yoe = y - era * 400; val doy = (153 * (m + (if (m > 2) -3 else 9)) + 2) / 5 + d - 1; val doe = yoe * 365 + yoe / 4 - yoe / 100 + doy; return era * 146097 + doe - 719468 }
   fun civilFromDays(z0: Int): Triple<Int, Int, Int> { val z = z0 + 719468; val era = (if (z >= 0) z else z - 146096) / 146097; val doe = z - era * 146097; val yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365; val y = yoe + era * 400; val doy = doe - (365 * yoe + yoe / 4 - yoe / 100); val mp = (5 * doy + 2) / 153; val d = doy - (153 * mp + 2) / 5 + 1; val m = mp + (if (mp < 10) 3 else -9); return Triple(if (m <= 2) y + 1 else y, m, d) }
   fun parse(key: String): Triple<Int, Int, Int>? { val p = key.split('-').mapNotNull { it.toIntOrNull() }; return if (p.size == 3) Triple(p[0], p[1], p[2]) else null }
-  fun key(y: Int, m: Int, d: Int) = "%04d-%02d-%02d".format(y, m, d)
+  fun key(y: Int, m: Int, d: Int) = "%04d-%02d-%02d".format(java.util.Locale.US, y, m, d)
   fun key(instant: Instant, zone: ZoneId) = CivilDate.of(instant, zone).key
   fun daysBetween(a: String, b: String): Int { val x = parse(a) ?: return 0; val y = parse(b) ?: return 0; return daysFromCivil(y.first, y.second, y.third) - daysFromCivil(x.first, x.second, x.third) }
   fun adding(key: String, days: Int): String { val p = parse(key) ?: return key; val c = civilFromDays(daysFromCivil(p.first, p.second, p.third) + days); return key(c.first, c.second, c.third) }
@@ -28,7 +28,7 @@ object Khatmah {
   fun pagesDone(plan: KhatmahPlan, currentPage: Int) = if (currentPage <= 0) 0 else ((currentPage - plan.startPage) % TOTAL + TOTAL) % TOTAL
   fun status(plan: KhatmahPlan, currentPage: Int, log: ReadLog, today: String): KhatmahStatus {
     val done = pagesDone(plan, currentPage); val dayIndex = maxOf(0, DayKey.daysBetween(plan.startedAt, today)); val expected = minOf(TOTAL, (dayIndex + 1) * plan.dailyPages)
-    val todayPages = log[today]?.size ?: 0; val remaining = TOTAL - done; val behind = maxOf(0, expected - done); val daysLeft = maxOf(0, plan.days - dayIndex)
+    val todayPages = log[today]?.size ?: 0; val remaining = TOTAL - done; val behind = maxOf(0, minOf(TOTAL, dayIndex * plan.dailyPages) - (done - todayPages)); val daysLeft = maxOf(0, plan.days - dayIndex)
     val neededPerDay = if (daysLeft > 0) ceil(remaining.toDouble() / daysLeft).toInt() else remaining
     val etaKey = DayKey.adding(today, maxOf(0, ceil(remaining.toDouble() / maxOf(1, plan.dailyPages)).toInt()))
     return KhatmahStatus(done, remaining, (done.toDouble() / TOTAL * 100).roundToInt(), dayIndex, expected, behind, todayPages, minOf(plan.dailyPages + behind, remaining), daysLeft, neededPerDay, etaKey, done >= TOTAL - 1 && currentPage == TOTAL)

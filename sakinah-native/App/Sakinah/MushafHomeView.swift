@@ -39,7 +39,7 @@ struct MushafHomeView: View {
       }
       .background(DS.C.bgCanvas)
       .toolbar(.hidden, for: .navigationBar)
-      .safeAreaInset(edge: .bottom) { if model.player.current != nil { AudioBarView(onPickReciter: { sheet = .reciter }, onGoToPage: { target = ReaderTarget(page: $0) }) } }
+      .safeAreaInset(edge: .bottom) { if model.player.current != nil { AudioBarView(onPickReciter: { sheet = .reciter }, onGoToPage: { p in DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { target = ReaderTarget(page: p) } }) } }
       .tabBarClearance()
       .fullScreenCover(item: $target) { t in MushafReaderView(startPage: t.page, ayah: t.ayah, autoplay: t.autoplay, hifz: t.hifz).environment(model) }
       // «تابع القراءة» من الرئيسية: تُفتح الصفحة حين يظهر التبويب (بعد لحظة كي يكون العرض قد استقرّ)
@@ -300,7 +300,7 @@ struct HizbRow: View {
           StarNumber(text: Fmt.number(hizb, numerals: numerals))
           VStack(alignment: .leading, spacing: 1) {
             Text("الحزب \(Fmt.number(hizb, numerals: numerals))").font(DS.F.headingSm).foregroundStyle(DS.C.textPrimary)
-            Text(first.map { "الجزء \(Fmt.number($0.juz, numerals: numerals)) · \(QuranMeta.surah($0.surah).name) \(Fmt.number($0.ayah, numerals: numerals)) · ص \(Fmt.number($0.page, numerals: numerals))" } ?? "").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary)
+            Text(first.map { "الجزء \(Fmt.number($0.juz, numerals: numerals)) · \(QuranMeta.surah($0.surah).name) \(Fmt.number($0.ayah, numerals: numerals)) · ص \(Fmt.number($0.page, numerals: numerals))" } ?? "").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).lineLimit(1).minimumScaleFactor(0.8)
           }
         }
         .contentShape(Rectangle())
@@ -311,6 +311,7 @@ struct HizbRow: View {
           Button { onGo(a.page) } label: {
             Text(Fmt.number(i + 1, numerals: numerals)).font(DS.readex(10.5, .medium)).foregroundStyle(DS.C.accentGoldStrong)
               .frame(width: 26, height: 26).background(DS.C.accentGoldSoft.opacity(0.7), in: Circle())
+              .frame(width: 32, height: 44).contentShape(Rectangle())
           }.buttonStyle(.plain).accessibilityLabel("الربع \(i + 1) من الحزب \(hizb)، صفحة \(a.page)")
         }
       }
@@ -332,7 +333,7 @@ struct DSSegmented: View {
             .frame(maxWidth: .infinity).padding(.vertical, 8)
             .background(on ? DS.C.bgSurface : .clear, in: RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))
             .shadow(color: on ? DS.C.shadowCard : .clear, radius: 6, y: 2)
-        }.buttonStyle(.plain)
+        }.buttonStyle(.plain).accessibilityAddTraits(on ? .isSelected : [])
       }
     }
     .padding(4).background(DS.C.bgSubtle, in: RoundedRectangle(cornerRadius: DS.Radius.lg, style: .continuous))
