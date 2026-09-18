@@ -36,7 +36,8 @@ import java.time.Instant
 /** المزيد (تصميم Figma 12): بطاقة هوية التطبيق، ثم مجموعات المحتوى والأدوات والتطبيق */
 @Composable fun MoreScreen() {
   val c = DS.c
-  var screen by remember { mutableStateOf("home") }
+  // مسار اللقطات «sky-settings» يفتح الإعدادات ثم «مظهر السماء» مباشرةً للتحقّق البصري
+  var screen by remember { mutableStateOf(if (org.emdatra.sakinah.app.ScreenshotMode.route == "sky-settings") "settings" else "home") }
   BackHandler(screen != "home") { screen = "home" }
   when (screen) {
     "hadith" -> HadithScreen("sahih") { screen = "home" }
@@ -279,7 +280,7 @@ private fun downloadsLabel(): String? {
 @Composable fun SettingsScreen(onBack: () -> Unit) {
   val ctx = LocalContext.current
   val c = DS.c
-  var sky by remember { mutableStateOf(false) }
+  var sky by remember { mutableStateOf(org.emdatra.sakinah.app.ScreenshotMode.route == "sky-settings") }
   if (sky) { SkySettingsScreen { sky = false }; return }
   var showCity by remember { mutableStateOf(false) }
   var showMethod by remember { mutableStateOf(false) }

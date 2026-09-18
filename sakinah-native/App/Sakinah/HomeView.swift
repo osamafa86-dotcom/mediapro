@@ -12,6 +12,7 @@ struct HomeView: View {
   @Environment(\.switchTab) private var switchTab
   @State private var showMethods = false
   @State private var showQibla = ScreenshotMode.fullQibla
+  @State private var showSkySettings = ScreenshotMode.skySettings
   @State private var mosques = MosqueFinder()
   @State private var weather = SkyWeatherService()
 
@@ -27,6 +28,7 @@ struct HomeView: View {
       // الورقة لا شريط تحتها: صفر إزاحة
       .sheet(isPresented: $showMethods) { MethodPicker().environment(\.tabBarInset, 0) }
       .fullScreenCover(isPresented: $showQibla) { QiblaView(presented: true).environment(model) }
+      .fullScreenCover(isPresented: $showSkySettings) { NavigationStack { SkySettingsView().environment(model) } }
     }
     .onAppear { model.location.startHeading() }
     .onDisappear { model.location.stopHeading() }

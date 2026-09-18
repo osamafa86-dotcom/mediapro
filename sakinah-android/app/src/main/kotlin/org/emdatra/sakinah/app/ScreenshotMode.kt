@@ -18,7 +18,7 @@ object ScreenshotMode {
     "prayer", "qibla", "home" -> AppTab.Home
     "mushaf", "mushaf-page", "mushaf-bar" -> AppTab.Mushaf
     "adhkar", "hisn", "tasbih" -> AppTab.Adhkar
-    "hadith", "more" -> AppTab.More
+    "hadith", "more", "sky-settings" -> AppTab.More
     else -> null
   }
   /** صفحة المصحف التي يُفتح عليها القارئ مباشرةً (سورة الشعراء — صفحة كثيفة الرسم) */

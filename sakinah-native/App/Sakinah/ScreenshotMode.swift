@@ -21,7 +21,7 @@ enum ScreenshotMode {
   /// التبويب الذي يُفتح عليه التطبيق
   static var tab: AppTab? {
     switch route {
-    case "prayer", "qibla", "home", "home-bottom": return .home
+    case "prayer", "qibla", "home", "home-bottom", "sky-settings": return .home
     case "mushaf", "mushaf-page", "mushaf-bar": return .mushaf
     case "adhkar", "hisn", "tasbih": return .adhkar
     case "hadith", "more": return .more
@@ -36,6 +36,8 @@ enum ScreenshotMode {
   static var keepChrome: Bool { route == "mushaf-bar" }
   /// مسار «qibla» يفتح القبلة الكاملة فوق الرئيسية
   static var fullQibla: Bool { route == "qibla" }
+  /// مسار «sky-settings» (تشخيصي): يفتح شاشة «مظهر السماء» فوق الرئيسية للتحقّق البصري منها
+  static var skySettings: Bool { route == "sky-settings" }
   /// مسار «home-bottom» (تشخيصي لا للمتجر): يمرّر الرئيسية إلى آخرها كي تُرى آخر بطاقة فوق الشريط العائم
   /// — لقطة أعلى الصفحة لا تكشف تغطية الشريط لآخر بطاقة (قِيس في ثلاثة بناءات على جهاز المالك)
   static var scrollToBottom: Bool { route == "home-bottom" }
