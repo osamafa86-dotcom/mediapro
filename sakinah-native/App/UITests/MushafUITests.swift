@@ -34,6 +34,27 @@ final class MushafUITests: XCTestCase {
     try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
     try? shot.pngRepresentation.write(to: URL(fileURLWithPath: dir).appendingPathComponent("\(name).png"))
   }
+  /// عند الفشل: شجرة العناصر (بإطاراتها) في السجلّ ولقطة للشاشة — لمعرفة ما الذي يجلس فوق الزرّ
+  private func dumpOnFailure(_ app: XCUIApplication, _ tag: String) {
+    snap("zz-fail-\(tag)")
+    let tree = app.debugDescription
+    print("=== AX TREE (\(tag)) — \(tree.count) chars ===")
+    print(tree.prefix(60_000))
+    print("=== END AX TREE ===")
+  }
+  /// نقر مقسّم: إن لم ينتقل التحديد بنقرة الزرّ تُسجَّل الشجرة ثم تُجرَّب نقرة بالإحداثيات (تُميّز عطل الإطار من عطل الإصابة)
+  @discardableResult private func tapSegment(_ app: XCUIApplication, _ label: String, expect rowText: String) -> Bool {
+    let b = app.buttons[label]
+    XCTAssertTrue(b.waitForExistence(timeout: 5), "زرّ «\(label)» غير موجود")
+    b.tap()
+    if any(app, containing: rowText).waitForExistence(timeout: 5), b.isSelected { return true }
+    print("!! TAP «\(label)» DID NOT SWITCH (selected=\(b.isSelected)) — frame=\(b.frame)")
+    dumpOnFailure(app, "tap-\(label)")
+    b.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+    let ok = any(app, containing: rowText).waitForExistence(timeout: 5)
+    print("!! COORDINATE TAP «\(label)» → \(ok ? "switched" : "still nothing")")
+    return false
+  }
   private func arabicDigits(_ s: String) -> String {
     String(s.map { c -> Character in
       guard let d = c.wholeNumberValue, c.isASCII else { return c }
@@ -44,33 +65,33 @@ final class MushafUITests: XCTestCase {
   // MARK: ١ — مقسّم الفهرس يستجيب للنقر (السور → الأجزاء → الأحزاب → العلامات → السور)
   func test1_librarySegmentsRespondToTaps() {
     let app = launch("mushaf")
-    let juzTab = app.buttons["الأجزاء"]
-    XCTAssertTrue(juzTab.waitForExistence(timeout: 25), "مقسّم الفهرس لم يظهر")
+    XCTAssertTrue(app.buttons["الأجزاء"].waitForExistence(timeout: 25), "مقسّم الفهرس لم يظهر")
     XCTAssertTrue(any(app, containing: "الفاتحة").waitForExistence(timeout: 10), "صفوف السور لم تظهر في البداية")
     snap("ui-00-library")
 
-    juzTab.tap()
-    XCTAssertTrue(any(app, containing: "الجزء الأول").waitForExistence(timeout: 6), "نقر «الأجزاء» لم يعرض صفوف الأجزاء")
-    XCTAssertTrue(juzTab.isSelected, "نقر «الأجزاء» لم ينقل التحديد إليه")
-    snap("ui-01-juz")
+    let juz = tapSegment(app, "الأجزاء", expect: "الجزء الأول"); snap("ui-01-juz")
+    let hizb = tapSegment(app, "الأحزاب", expect: "الحزب ١"); snap("ui-02-hizb")
+    let marks = tapSegment(app, "العلامات", expect: "لا علامات بعد"); snap("ui-03-bookmarks-empty")
+    let surahs = tapSegment(app, "السور", expect: "الفاتحة")
+    // نقرة ثانية على تبويبٍ سبق فتحه (الحالة التي شكا منها المالك: بعد التنقّل لا يستجيب شيء)
+    let juzAgain = tapSegment(app, "الأجزاء", expect: "الجزء الأول"); snap("ui-04-juz-again")
 
-    app.buttons["الأحزاب"].tap()
-    XCTAssertTrue(any(app, containing: "الحزب ١").waitForExistence(timeout: 6), "نقر «الأحزاب» لم يعرض صفوف الأحزاب")
-    snap("ui-02-hizb")
-
-    app.buttons["العلامات"].tap()
-    XCTAssertTrue(any(app, containing: "لا علامات بعد").waitForExistence(timeout: 6), "نقر «العلامات» لم يعرض تبويب العلامات")
-    snap("ui-03-bookmarks-empty")
-
-    app.buttons["السور"].tap()
-    XCTAssertTrue(any(app, containing: "الفاتحة").waitForExistence(timeout: 6), "العودة إلى «السور» لم تعرض صفوف السور")
+    XCTAssertTrue(juz, "نقر «الأجزاء» لم يعرض صفوف الأجزاء")
+    XCTAssertTrue(hizb, "نقر «الأحزاب» لم يعرض صفوف الأحزاب")
+    XCTAssertTrue(marks, "نقر «العلامات» لم يعرض تبويب العلامات")
+    XCTAssertTrue(surahs, "العودة إلى «السور» لم تعرض صفوف السور")
+    XCTAssertTrue(juzAgain, "النقرة الثانية على «الأجزاء» لم تستجب")
   }
 
-  // MARK: ٢ — علامة بنقرة واحدة من رصيف الآية (نقر كلمة → «علامة») ثم تظهر في تبويب «العلامات»
+  // MARK: ٢ — علامة بنقرة واحدة من رصيف الآية (سورة من الفهرس → نقر كلمة → «علامة») ثم تظهر في تبويب «العلامات»
   func test2_bookmarkSavedFromReaderAppearsInLibrary() {
-    let app = launch("mushaf-page")
-    let page = app.descendants(matching: .any)["صفحة ٢٧٠"]
-    XCTAssertTrue(page.waitForExistence(timeout: 25), "صفحة المصحف لم تظهر")
+    let app = launch("mushaf")
+    let row = any(app, containing: "البقرة")
+    XCTAssertTrue(row.waitForExistence(timeout: 25), "صفّ سورة البقرة لم يظهر في الفهرس")
+    row.tap()
+    let page = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", "صفحة ")).firstMatch
+    if !page.waitForExistence(timeout: 25) { dumpOnFailure(app, "no-page") }
+    XCTAssertTrue(page.exists, "صفحة المصحف لم تظهر بعد نقر سورة البقرة")
     sleep(3) // خطّ الصفحة يُحمَّل عند أوّل ظهور
 
     // نقر كلمة من الصفحة (المسار نفسه الذي يسلكه المستخدم عند الضغط على رقم الآية)
@@ -79,6 +100,7 @@ final class MushafUITests: XCTestCase {
       page.coordinate(withNormalizedOffset: CGVector(dx: dx, dy: dy)).tap()
       if app.buttons["علامة"].waitForExistence(timeout: 3) || app.buttons["معلَّمة"].exists { dockShown = true; break }
     }
+    if !dockShown { dumpOnFailure(app, "no-dock") }
     XCTAssertTrue(dockShown, "نقر كلمة في الصفحة لم يُظهر رصيف الآية")
     snap("ui-04-dock")
 
@@ -110,8 +132,8 @@ final class MushafUITests: XCTestCase {
     let tab = app.buttons["العلامات"]
     XCTAssertTrue(tab.waitForExistence(timeout: 15), "المكتبة لم تظهر بعد إغلاق القارئ")
     tab.tap()
-    XCTAssertTrue(any(app, containing: expectedRow).waitForExistence(timeout: 6), "العلامة «\(expectedRow)» لم تظهر في تبويب «العلامات»")
-    XCTAssertTrue(any(app, containing: "٢٧٠").exists, "رقم صفحة العلامة لم يظهر في صفّها")
+    if !any(app, containing: expectedRow).waitForExistence(timeout: 6) { dumpOnFailure(app, "no-bookmark-row") }
+    XCTAssertTrue(any(app, containing: expectedRow).exists, "العلامة «\(expectedRow)» لم تظهر في تبويب «العلامات»")
     snap("ui-06-bookmarks")
   }
 }

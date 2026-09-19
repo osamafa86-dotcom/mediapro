@@ -14,7 +14,7 @@ struct RootView: View {
   @State private var showOnboarding = false
   @State private var tab: AppTab = ScreenshotMode.tab ?? .home
   /// صفحة المصحف التي يُفتح عليها القارئ في وضع اللقطات وحده
-  @State private var shotPage: Int? = ScreenshotMode.readerPage
+  @State private var shotPage: Int?
   /// ارتفاع الشريط العائم يُقاس ويُمرَّر لكل تبويب كمنطقة آمنة سفلية
   @State private var barHeight: CGFloat = 84
 
@@ -42,6 +42,8 @@ struct RootView: View {
     }
     .onAppear {
       ScreenshotMode.seed(model)
+      // القارئ في وضع اللقطات يُقدَّم بعد استقرار النافذة (تقديمه من أوّل إطار سقط صامتًا عند إقلاعٍ بطيء)
+      if let p = ScreenshotMode.readerPage { DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { shotPage = p } }
       if !model.settings.seenIntro && model.location.coordinate == nil { showOnboarding = true }
       Task.detached(priority: .utility) { _ = QuranText.shared; _ = MushafLayout.shared; _ = QuranSearch.shared; MushafFonts.shared.ensureAmiri(); MushafFonts.shared.ensureSurahNames() }
       model.location.onLocationResolved = { model.applyAutomaticMethodIfNeeded(); model.rescheduleNotifications() }

@@ -30,8 +30,8 @@ struct MushafHomeView: View {
             LazyVStack(spacing: 0) {
               heroCard.padding(.bottom, 14)
               tilesRow.padding(.bottom, 14)
-              indexHead
-              indexRows
+              indexHead.zIndex(1)
+              indexRows.transaction { $0.animation = nil }
               commitmentCard.padding(.top, 14)
               Text("مصحف المدينة · حفص عن عاصم · ٦٠٤ صفحات · يعمل دون اتصال").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).frame(maxWidth: .infinity).padding(.top, 18)
             }
@@ -48,7 +48,7 @@ struct MushafHomeView: View {
       .onAppear {
         if let p = model.pendingReaderPage { model.pendingReaderPage = nil; Task { @MainActor in try? await Task.sleep(for: .milliseconds(80)); target = ReaderTarget(page: p) } }
         // لقطة تحقّق: تبديل التبويب بعد الظهور بالمسار نفسه الذي يسلكه النقر على المقسّم
-        if ScreenshotMode.switchLibraryTab { DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { withAnimation(.snappy(duration: 0.2)) { tab = 1 } } }
+        if ScreenshotMode.switchLibraryTab { DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { tab = 1 } }
       }
       .sheet(item: $sheet) { sh in
         switch sh {
@@ -356,17 +356,21 @@ struct DSSegmented: View {
   let items: [String]
   @Binding var selection: Int
   var body: some View {
+    // التبديل بلا withAnimation: تحريك تبديل مئات الصفوف الكسولة ترك المقسّم بلا استجابة بعد أوّل نقرة
+    // (اختبار واجهة حقيقي: نقرة «الأجزاء» تعمل ثم «الأحزاب» لا تصل) — يتحرّك التظليل وحده هنا
     HStack(spacing: 4) {
       ForEach(Array(items.enumerated()), id: \.offset) { i, label in
         let on = selection == i
-        Button { withAnimation(.snappy(duration: 0.2)) { selection = i } } label: {
+        Button { selection = i } label: {
           Text(label).font(DS.F.labelSm).foregroundStyle(on ? DS.C.textPrimary : DS.C.textSecondary)
             .frame(maxWidth: .infinity).padding(.vertical, 8)
             .background(on ? DS.C.bgSurface : .clear, in: RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))
             .shadow(color: on ? DS.C.shadowCard : .clear, radius: 6, y: 2)
+            .contentShape(Rectangle())
         }.buttonStyle(.plain).accessibilityAddTraits(on ? .isSelected : [])
       }
     }
+    .animation(.snappy(duration: 0.2), value: selection)
     .padding(4).background(DS.C.bgSubtle, in: RoundedRectangle(cornerRadius: DS.Radius.lg, style: .continuous))
   }
 }
