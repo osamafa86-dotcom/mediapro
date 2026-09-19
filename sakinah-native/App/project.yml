@@ -118,12 +118,32 @@ targets:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
         NSWidgetWantsLocation: true
         NSLocationWhenInUseUsageDescription: "لحساب مواقيت الصلاة في الودجت حسب موقعك"
+  # اختبار واجهة حقيقي (XCUITest): ينقر مقسّم فهرس المصحف ويحفظ علامةً من رصيف الآية بنقراتٍ فعلية على المحاكي
+  # — يُشغَّل في سير لقطات wilt بعد بناء المحاكي؛ لا يدخل في الأرشفة (يُبنى للاختبار وحده)
+  SakinahUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: Sakinah
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.emdatra.sakinah.native.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Sakinah
+        SWIFT_STRICT_CONCURRENCY: minimal
 schemes:
   Sakinah:
     build:
       targets:
         Sakinah: all
+        SakinahUITests: [test]
     run:
       config: Debug
+    test:
+      config: Release
+      targets:
+        - SakinahUITests
     archive:
       config: Release
