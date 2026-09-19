@@ -251,6 +251,30 @@ struct MushafLineView: View {
         }
       }
     }
+    // الكلمات المستورة: أشكالها مطموسة خلف ضباب — يبقى إيقاع السطر وطول الكلمة عونًا للذاكرة دون أن تُقرأ
+    guard styles.contains(where: { $0.hidden }) else { return }
+    ctx.drawLayer { layer in
+      layer.addFilter(.blur(radius: size * 0.2))
+      layer.opacity = 0.42
+      layer.withCGContext { cg in
+        cg.textMatrix = .identity
+        cg.translateBy(x: 0, y: ascent)
+        cg.scaleBy(x: 1, y: -1)
+        cg.setFillColor(UIColor(rs.palette.ink).cgColor)
+        var x = width
+        for i in words.indices {
+          let run = runs[i]
+          let st = styles[i]
+          for gi in run.ids.indices {
+            x -= run.advances[gi]
+            guard st.hidden else { continue }
+            var g = run.ids[gi]
+            var pt = CGPoint(x: x, y: 0)
+            CTFontDrawGlyphs(font, &g, &pt, 1, cg)
+          }
+        }
+      }
+    }
   }
 
   /// شريط بعرض كل كلمة: تحت النصّ خلفياتُ التظليل والستر، وفوقه النقرُ والعلامات
@@ -261,14 +285,18 @@ struct MushafLineView: View {
         Color.clear
           .frame(width: max(1, runs[i].width))
           .overlay {
-            if !marksLayer, let bg = st.bg { RoundedRectangle(cornerRadius: size * 0.16).fill(bg) }
+            // وسادة الكلمة (ستر / تظليل / ومضة الكشف) — لونها ينتقل بنعومة فيبدو الكشف انبثاقًا لا قفزة
+            if !marksLayer {
+              RoundedRectangle(cornerRadius: size * 0.16).fill(st.bg ?? .clear)
+                .padding(.horizontal, st.hidden || st.recent ? size * 0.04 : 0)
+                .animation(.easeInOut(duration: 0.45), value: st.bg)
+            }
           }
           .overlay(alignment: .bottom) {
-            // خطّ سفليّ صريح: القارئ يعرف أن الكلمة مستورة عمدًا، لا ساقطة من المصحف
-            if marksLayer && st.hidden { Capsule().fill(rs.accents.hideLine).frame(height: max(1, size * 0.045)).padding(.horizontal, size * 0.08) }
-          }
-          .overlay {
-            if marksLayer && st.current { RoundedRectangle(cornerRadius: size * 0.16).stroke(rs.accents.hideLine, lineWidth: 1) }
+            // مؤشّر الكلمة المطلوبة الآن: شرطة بلون العلامة تحتها — لا إطار ولا خطّ تحت كل كلمة مستورة
+            if marksLayer && st.current {
+              Capsule().fill(rs.accents.cursor).frame(height: max(1.5, size * 0.07)).padding(.horizontal, size * 0.1).offset(y: size * 0.02)
+            }
           }
           .contentShape(Rectangle())
           .modifier(WordGestures(enabled: marksLayer, n: w.n, rs: rs))

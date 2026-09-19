@@ -44,8 +44,14 @@ final class SpeechListener {
   private var everTranscribed = false
   private var spokeAt: Date?
 
-  /// الخادم يقطع بعد نحو دقيقة؛ ندوّر قبلها بأمان. التعرّف على الجهاز بلا حدّ فنطيل الدورة
-  private var rotateAfter: TimeInterval { usingOnDevice ? 240 : 45 }
+  /// الخادم يقطع بعد نحو دقيقة؛ ندوّر قبلها بأمان. وعلى الجهاز أيضًا تموت الدورة صامتةً بعد نحو دقيقة
+  /// (شكوى المالك: «يعمل آيتين أو ثلاثًا ثم يتوقّف») — فالتدوير قبلها، والحارس أدناه يلتقط ما يفلت
+  private var rotateAfter: TimeInterval { usingOnDevice ? 55 : 45 }
+  /// آخر نصّ وصل من المُعرِّف — يقيس به الحارس دورةً ماتت وهي «تعمل»
+  private var lastResultAt = Date()
+  private var watchdog: DispatchSourceTimer?
+  private var audioObservers: [NSObjectProtocol] = []
+  private var lastEngineRestart = Date.distantPast
   private var onDevice: Bool { recognizer?.supportsOnDeviceRecognition ?? false }
   /// ما نستعمله فعلًا الآن — بعد التراجع نعود إلى إيقاع الخادم وإلا قطعَنا قبل أن ندوّر
   private var usingOnDevice: Bool { onDevice && !Self.onDeviceFailed }
@@ -75,12 +81,7 @@ final class SpeechListener {
       throw NSError(domain: "speech", code: 2, userInfo: [NSLocalizedDescriptionKey: "no-input"])
     }
     input.removeTap(onBus: 0)
-    // المِجَسّ يقرأ request في كل نبضة، فتنتقل الدورة الجديدة تلقائيًا بلا انقطاع
-    input.installTap(onBus: 0, bufferSize: 2048, format: fmt) { [weak self] buf, _ in
-      guard let self else { return }
-      self.request?.append(buf)
-      self.publishLevel(buf)
-    }
+    installTap(input, fmt)
     engine.prepare()
     try engine.start()
 
@@ -90,8 +91,65 @@ final class SpeechListener {
     cycling = false
     everTranscribed = false
     spokeAt = nil
+    lastResultAt = Date()
     onState?(true)
     beginTask()
+    startWatchdog()
+    observeAudioChanges()
+  }
+  /// المِجَسّ يقرأ request في كل نبضة، فتنتقل الدورة الجديدة تلقائيًا بلا انقطاع
+  private func installTap(_ input: AVAudioInputNode, _ fmt: AVAudioFormat) {
+    input.installTap(onBus: 0, bufferSize: 2048, format: fmt) { [weak self] buf, _ in
+      guard let self else { return }
+      self.request?.append(buf)
+      self.publishLevel(buf)
+    }
+  }
+  /// حارس التعثّر (كل ثانية): صوتٌ يصل ولا نصّ منه عشر ثوانٍ ← دورة التعرّف ماتت صامتةً فتُستبدل دون لمس الأذن؛
+  /// ومحرّك صوتٍ متوقّف (تغيّر مسار لم يُبلَّغ) يُعاد تشغيله
+  private func startWatchdog() {
+    watchdog?.cancel()
+    let t = DispatchSource.makeTimerSource(queue: .main)
+    t.schedule(deadline: .now() + 1, repeating: 1)
+    t.setEventHandler { [weak self] in
+      guard let self, self.active else { return }
+      if !self.engine.isRunning { self.restartEngine(); return }
+      if let spoke = self.spokeAt, spoke > self.lastResultAt, Date().timeIntervalSince(self.lastResultAt) > 10 {
+        self.lastResultAt = Date()
+        self.cycle(immediate: true)
+      }
+    }
+    t.resume()
+    watchdog = t
+  }
+  /// تغيّر مسار الصوت (سمّاعة وُصلت أو فُصلت) أو انقطاع (مكالمة): كلاهما يوقف المحرّك بصمت
+  private func observeAudioChanges() {
+    let nc = NotificationCenter.default
+    for o in audioObservers { nc.removeObserver(o) }
+    audioObservers = [
+      nc.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { [weak self] _ in self?.restartEngine() },
+      nc.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] n in
+        guard let self, let raw = n.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+              AVAudioSession.InterruptionType(rawValue: raw) == .ended else { return }
+        self.restartEngine()
+      },
+    ]
+  }
+  /// مِجَسّ جديد بصيغة المدخل الجديدة ودورة تعرّف جديدة — الجلسة نفسها تستمرّ من موضعها
+  private func restartEngine() {
+    guard active, Date().timeIntervalSince(lastEngineRestart) > 1 else { return }
+    lastEngineRestart = Date()
+    if engine.isRunning { engine.stop() }
+    engine.inputNode.removeTap(onBus: 0)
+    try? AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
+    let input = engine.inputNode
+    let fmt = input.outputFormat(forBus: 0)
+    guard fmt.sampleRate > 0, fmt.channelCount > 0 else { return }
+    installTap(input, fmt)
+    engine.prepare()
+    do { try engine.start() } catch { onError?("تعذّرت متابعة الاستماع بعد تغيّر مصدر الصوت"); stop(); return }
+    lastResultAt = Date()
+    cycle(immediate: true)
   }
 
   func stop(silent: Bool = false) {
@@ -100,6 +158,8 @@ final class SpeechListener {
     generation &+= 1
     cycling = false
     rotate?.cancel(); rotate = nil
+    watchdog?.cancel(); watchdog = nil
+    for o in audioObservers { NotificationCenter.default.removeObserver(o) }; audioObservers = []
     task?.cancel(); task = nil
     request?.endAudio(); request = nil
     consumed = 0
@@ -208,7 +268,7 @@ final class SpeechListener {
   /// يمرّر الذيل الجديد فقط؛ لا يعيد ما استُهلك ولو تراجع النصّ
   private func emit(_ transcript: String, alternatives: [String]) {
     let ws = transcript.split(separator: " ").map(String.init)
-    if !transcript.isEmpty { everTranscribed = true }
+    if !transcript.isEmpty { everTranscribed = true; lastResultAt = Date() }
     onTranscript?(transcript)
     guard ws.count > consumed else { return }
     let tail = ws[consumed...].joined(separator: " ")
@@ -242,6 +302,8 @@ final class HifzSession {
   /// مستوى الصوت الداخل (0…1) — هالة الميكروفون تنبض به فيرى القارئ أن الأذن تعمل
   var level: Double = 0
   @ObservationIgnored private var speech: SpeechListener?
+  /// الكلمات التي كُشفت في آخر خطوة — تتوهّج تحتها ومضة حتى الخطوة التالية
+  @ObservationIgnored private var recent: Set<Int> = []
 
   init(page: Int, from: Int, veil: Bool = false) {
     self.page = page; self.from = from; self.veil = veil
@@ -263,10 +325,12 @@ final class HifzSession {
     return false
   }
   func isCurrent(n: Int, k: Int) -> Bool { _ = version; guard !matcher.done, let i = indexOf[n * 1000 + k] else { return false }; return i == matcher.pos }
+  func isRecent(n: Int, k: Int) -> Bool { _ = version; guard let i = indexOf[n * 1000 + k] else { return false }; return recent.contains(i) }
   /// عدد آيات الصفحة المكشوفة كاملةً (وضع الإخفاء)
   var revealedAyahs: Int { _ = version; var shown = Set<Int>(); for i in 0..<matcher.pos { shown.insert(words[i].n) }; if let c = currentWord { shown.remove(c.n) }; return shown.count }
   func reveal(_ idx: [Int]) {
     guard !idx.isEmpty else { return }
+    recent = Set(idx)
     version += 1
     lastProgressAt = Date()
     UIImpactFeedbackGenerator(style: .light).impactOccurred()

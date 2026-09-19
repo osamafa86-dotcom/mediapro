@@ -80,8 +80,11 @@ class HifzSession(val page: Int, val from: Int, val veil: Boolean) {
     return false
   }
   fun isCurrent(n: Int, k: Int): Boolean { version; if (matcher.pos >= words.size) return false; return indexOf[n * 1000L + k] == matcher.pos }
+  /** الكلمات التي كُشفت في آخر خطوة — تتوهّج تحتها ومضة حتى الخطوة التالية */
+  private var recent: Set<Int> = emptySet()
+  fun isRecent(n: Int, k: Int): Boolean { version; val i = indexOf[n * 1000L + k] ?: return false; return i in recent }
   val revealedAyahs: Int get() { version; val shown = HashSet<Int>(); for (i in 0 until matcher.pos) shown.add(words[i].n); currentWord?.let { shown.remove(it.n) }; return shown.size }
-  private fun reveal(idx: List<Int>) { if (idx.isEmpty()) return; version++; if (matcher.pos >= words.size) { finished = true; stopSpeech() } }
+  private fun reveal(idx: List<Int>) { if (idx.isEmpty()) return; recent = idx.toSet(); version++; if (matcher.pos >= words.size) { finished = true; stopSpeech() } }
   private fun hintIndex(): Int? { if (matcher.pos >= words.size) return null; val i = matcher.pos; matcher.feed(words[i].norm); if (matcher.pos == i) return null; return i }
   fun hint() { hintIndex()?.let { hints++; reveal(listOf(it)) } }
   fun revealAyah() {

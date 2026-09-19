@@ -3,6 +3,8 @@ package org.emdatra.sakinah.app.ui
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.blur
+import android.os.Build
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -260,10 +262,14 @@ data class ReaderTarget(val page: Int, val ayah: Int? = null, val autoplay: Bool
   }
 }
 /** الكلمة المستورة في مراجعة الحفظ: خطّ سفليّ صريح كي تُقرأ «مخفيّة» لا «ناقصة» (مطابقةً لنسخة الويب) */
-private fun Modifier.hiddenWordRule(on: Boolean, color: Color) = if (!on) this else this.drawBehind {
-  val h = maxOf(1f, size.height * 0.045f)
-  drawLine(color, Offset(size.width * 0.08f, size.height - h / 2), Offset(size.width * 0.92f, size.height - h / 2), strokeWidth = h)
+/** مؤشّر الكلمة المطلوبة الآن في المراجعة: شرطة بلون العلامة تحتها (لا إطار ولا خطّ تحت كل كلمة مستورة) */
+private fun Modifier.hifzCursor(on: Boolean, color: Color) = if (!on) this else this.drawBehind {
+  val h = maxOf(2f, size.height * 0.07f)
+  drawLine(color, Offset(size.width * 0.1f, size.height - h / 2), Offset(size.width * 0.9f, size.height - h / 2), strokeWidth = h, cap = androidx.compose.ui.graphics.StrokeCap.Round)
 }
+/** الكلمة المستورة تُرسم مطموسةً خلف ضباب (RenderEffect من API 31) — وقبله شفّافة كما كانت */
+private val canBlur = Build.VERSION.SDK_INT >= 31
+private fun Modifier.frosted(on: Boolean) = if (on && canBlur) this.blur(5.dp) else this
 
 @OptIn(ExperimentalMaterial3Api::class)
 /** القارئ: تقليب أفقي من اليمين، شريط علوي ينزلق، ورصيف سفلي واحد على سطح الورق (الحفظ / الآية المحدّدة / التلاوة) يُزيح الصفحة ولا يغطّيها */
@@ -616,10 +622,11 @@ private fun Modifier.hiddenWordRule(on: Boolean, color: Color) = if (!on) this e
                     val hidden = hifz != null && w.k >= 0 && hifz.isHidden(w.n, w.k, Store.hifzOnlyCurrent)
                     val cur = hifz != null && w.k >= 0 && hifz.isCurrent(w.n, w.k)
                     val playingWord = Recitation.current == w.n && Store.wordHighlight && Recitation.currentWord == w.k + 1
-                    val col = if (hidden) Color.Transparent else if (w.end) Gold else ink
-                    val bg = if (hidden) ink.copy(alpha = 0.13f) else if (playingWord) Gold.copy(alpha = 0.38f) else if (selected == w.n) Gold.copy(alpha = 0.15f) else if (Recitation.current == w.n) Teal.copy(alpha = 0.16f) else Color.Transparent
+                    val recent = hifz != null && w.k >= 0 && hifz.isRecent(w.n, w.k)
+                    val col = if (hidden) (if (canBlur) ink.copy(alpha = 0.42f) else Color.Transparent) else if (w.end) Gold else ink
+                    val bg = if (hidden) ink.copy(alpha = 0.055f) else if (recent) Gold.copy(alpha = 0.26f) else if (playingWord) Gold.copy(alpha = 0.38f) else if (selected == w.n) Gold.copy(alpha = 0.15f) else if (Recitation.current == w.n) Teal.copy(alpha = 0.16f) else Color.Transparent
                     Text(w.glyph, fontFamily = family, fontSize = fontSize, color = col, maxLines = 1, softWrap = false,
-                      modifier = Modifier.background(bg, RoundedCornerShape(3.dp)).hiddenWordRule(hidden, ink.copy(alpha = 0.35f)).then(if (cur) Modifier.border(1.dp, ink.copy(alpha = 0.3f), RoundedCornerShape(3.dp)) else Modifier).then(if (a != null && hifz == null) Modifier.pointerInput(a) { detectTapGestures(onTap = { onTap(a) }, onLongPress = { onLongPress(a) }) } else Modifier))
+                      modifier = Modifier.background(bg, RoundedCornerShape(3.dp)).hifzCursor(cur, Teal).frosted(hidden).then(if (a != null && hifz == null) Modifier.pointerInput(a) { detectTapGestures(onTap = { onTap(a) }, onLongPress = { onLongPress(a) }) } else Modifier))
                   }
                 }
               }
@@ -660,9 +667,10 @@ private fun Modifier.hiddenWordRule(on: Boolean, color: Color) = if (!on) this e
             val cur = hifz != null && kk >= 0 && hifz.isCurrent(a.n, kk)
             val playingWord = Recitation.current == a.n && Store.wordHighlight && kk >= 0 && Recitation.currentWord == kk + 1
             val styled = buildAnnotatedString { if (spans.isEmpty() || !t.spoken) append(t.raw) else for ((seg, code) in Tajweed.segments(t.raw, start, spans)) { val c = code?.let { tajweedColor(it, dark) }; if (c != null) withStyle(SpanStyle(color = c)) { append(seg) } else append(seg) } }
-            val bg = if (hidden) ink.copy(alpha = 0.13f) else if (playingWord) Gold.copy(alpha = 0.38f) else if (selected == a.n) Gold.copy(alpha = 0.15f) else if (Recitation.current == a.n) Teal.copy(alpha = 0.16f) else Color.Transparent
-            Text(styled, fontFamily = family, fontSize = if (t.spoken) size else size * 0.75, lineHeight = size * 2.05, color = if (hidden) Color.Transparent else if (t.spoken) ink else Gold,
-              modifier = Modifier.background(bg, RoundedCornerShape(3.dp)).hiddenWordRule(hidden, ink.copy(alpha = 0.35f)).then(if (cur) Modifier.border(1.dp, ink.copy(alpha = 0.3f), RoundedCornerShape(3.dp)) else Modifier).then(if (hifz == null) Modifier.pointerInput(a) { detectTapGestures(onTap = { onTap(a) }, onLongPress = { onLongPress(a) }) } else Modifier))
+            val recent = hifz != null && kk >= 0 && hifz.isRecent(a.n, kk)
+            val bg = if (hidden) ink.copy(alpha = 0.055f) else if (recent) Gold.copy(alpha = 0.26f) else if (playingWord) Gold.copy(alpha = 0.38f) else if (selected == a.n) Gold.copy(alpha = 0.15f) else if (Recitation.current == a.n) Teal.copy(alpha = 0.16f) else Color.Transparent
+            Text(styled, fontFamily = family, fontSize = if (t.spoken) size else size * 0.75, lineHeight = size * 2.05, color = if (hidden) (if (canBlur) ink.copy(alpha = 0.42f) else Color.Transparent) else if (t.spoken) ink else Gold,
+              modifier = Modifier.background(bg, RoundedCornerShape(3.dp)).hifzCursor(cur, Teal).frosted(hidden).then(if (hifz == null) Modifier.pointerInput(a) { detectTapGestures(onTap = { onTap(a) }, onLongPress = { onLongPress(a) }) } else Modifier))
           }
           Text(if (hafs) QuranMeta.arabicDigits(a.ayah) else "۝" + QuranMeta.arabicDigits(a.ayah), fontFamily = family, fontSize = size * 0.95, lineHeight = size * 2.05, color = Gold)
         }

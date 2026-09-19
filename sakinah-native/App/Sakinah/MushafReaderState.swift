@@ -32,12 +32,14 @@ final class MushafReaderState {
   func apply(theme t: MushafTheme) { theme = t; palette = MushafPalette(theme: t); accents = MushafPalette.accents(for: t) }
   var isDark: Bool { theme.isDark }
 
-  struct WordStyle { var fg: Color; var bg: Color?; var current = false; var hidden = false }
+  struct WordStyle { var fg: Color; var bg: Color?; var current = false; var hidden = false; var recent = false }
   /// لون الكلمة وخلفيتها بحسب الحالة: مخفية في المراجعة، جارية في التلاوة، أو داخل آية محدّدة/مشغَّلة
   func style(n: Int, k: Int, base: Color? = nil) -> WordStyle {
     var s = WordStyle(fg: base ?? palette.ink, bg: nil)
     if let h = hifz, h.page == QuranText.shared.ayah(n)?.page, k >= 0 {
       if h.isHidden(n: n, k: k, onlyCurrent: hifzOnlyCurrent) { s.fg = .clear; s.bg = accents.hide; s.hidden = true; s.current = h.isCurrent(n: n, k: k); return s }
+      // كُشفت للتوّ: ومضة ذهبية تحتها حتى الخطوة التالية — يرى القارئ ما أصابه لا فراغًا انطفأ
+      if h.isRecent(n: n, k: k) { s.bg = accents.reveal; s.recent = true }
     }
     if playingAyah == n {
       s.bg = accents.highlight

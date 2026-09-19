@@ -93,9 +93,12 @@ struct TextWord: View {
     let st = rs.style(n: word.n, k: word.k, base: base)
     Text(attributed(st))
       .lineLimit(1).fixedSize()
-      .background(st.bg.map { RoundedRectangle(cornerRadius: size * 0.16).fill($0) })
-      .overlay(alignment: .bottom) { if st.hidden { Capsule().fill(rs.accents.hideLine).frame(height: max(1, size * 0.045)).padding(.horizontal, size * 0.08) } }
-      .overlay { if st.current { RoundedRectangle(cornerRadius: size * 0.16).stroke(rs.accents.hideLine, lineWidth: 1) } }
+      // الكلمة المستورة مطموسة خلف ضباب لا شفّافة: يظلّ شكلها عونًا للذاكرة، وتنجلي بنعومة حين تُكشف
+      .blur(radius: st.hidden ? size * 0.2 : 0)
+      .opacity(st.hidden ? 0.42 : 1)
+      .animation(.easeOut(duration: 0.4), value: st.hidden)
+      .background(RoundedRectangle(cornerRadius: size * 0.16).fill(st.bg ?? .clear).animation(.easeInOut(duration: 0.45), value: st.bg))
+      .overlay(alignment: .bottom) { if st.current { Capsule().fill(rs.accents.cursor).frame(height: max(1.5, size * 0.07)).padding(.horizontal, size * 0.1).offset(y: size * 0.02) } }
       .contentShape(Rectangle())
       .onTapGesture { rs.onTapAyah?(word.n) }
       .onLongPressGesture(minimumDuration: 0.4, maximumDistance: 12) { rs.onLongPressAyah?(word.n) }
@@ -103,7 +106,7 @@ struct TextWord: View {
   private func attributed(_ st: MushafReaderState.WordStyle) -> AttributedString {
     let font = Font.custom(fontName, fixedSize: word.end ? size * 0.95 : (word.spoken ? size : size * 0.75))
     func piece(_ s: String, _ c: Color) -> AttributedString { var a = AttributedString(s); a.font = font; a.foregroundColor = c; return a }
-    if st.hidden { return piece(word.raw, .clear) }
+    if st.hidden { return piece(word.raw, rs.palette.ink) }
     guard rs.tajweed, word.spoken, word.start >= 0 else { return piece(word.raw, st.fg) }
     let spans = Tajweed.shared.spans(word.n); guard !spans.isEmpty else { return piece(word.raw, st.fg) }
     var out = AttributedString()
