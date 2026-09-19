@@ -73,4 +73,7 @@
 | حفظ: حجاب معتم، «اكشف آية»، «آية ضعيفة»، إفصاح المعالجة، صفّ واحد | `HifzPanelView` · `HifzPanel` (+`speechOnDevice`) · `prefs.weakAyahs` |
 | ورقة الآية: ستّ بلاطات + «نسخ»، موضع القراءة تلقائي | `AyahOptionsSheet` · `AyahSheet` |
 | الإتاحة: لا إخفاء موقوت، إجراءات مسمّاة، ٣ أعمدة للأجزاء مع التكبير | `scheduleChromeHide` · `MushafPageView.accessibilityAction` · `QuickNavSheet.juzGrid` |
+| «علامة» في الرصيف تحفظ بنقرة واحدة (نقرة على «معلَّمة» تزيلها)؛ الملاحظة واللون من «ملاحظة» في ورقة الآية أو «تعديل» في المكتبة (ملاحظة المالك على البناء ٤٩) | `MushafReaderView.handle(.bookmark)` → `toggleBookmark(_:)` · `AyahAction.bookmarkNote` · `Store.toggleBookmark` |
+| تلاوة متواصلة بلا سكتة بين الآيات: الآية التالية تُحلّ وتُدرَج خلف الجارية أثناء تشغيلها فيحمّلها المشغّل مسبقًا وينتقل إليها بنفسه (ملاحظة المالك على البناء ٤٩) | `RecitationPlayer` (AVQueuePlayer: `prepareNext`/`adopt`) · `Recitation` (قائمة ExoPlayer: `prepareNext`/`onMediaItemTransition`) |
+| اختبار واجهة حقيقي في CI: نقر مقسّم الفهرس وحفظ علامة من الرصيف وظهورها في «العلامات» | `App/UITests/MushafUITests.swift` (يُشغَّل في سير لقطات wilt قبل الالتقاط) |
 
