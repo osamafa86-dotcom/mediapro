@@ -239,34 +239,27 @@ struct QuickNavSheet: View {
             LazyVStack(alignment: .leading, spacing: 0) {
               if !q.recent.isEmpty { recentRow(q.recent, numerals).padding(.bottom, 12) }
               DSSegmented(items: ["السور", "الأجزاء", "الأحزاب", "العلامات"], selection: $tab).padding(.bottom, 12)
-              switch tab {
-              case 0:
-                ForEach(QuranMeta.surahs) { su in
-                  IndexRow(first: su.n == 1, last: su.n == 114, top: su.n == 1) {
+              let items = navItems
+              ForEach(Array(items.enumerated()), id: \.element.id) { i, item in
+                switch item {
+                case .surah(let su):
+                  IndexRow(first: i == 0, last: i == items.count - 1, top: i == 0) {
                     Button { onGo(su.page, QuranText.shared.ayah(surah: su.n, ayah: 1)?.n) } label: { SurahRow(surah: su, numerals: numerals, current: currentPage >= su.page && currentPage < (su.n < 114 ? QuranMeta.surah(su.n + 1).page : 605)) }.buttonStyle(.plain)
                   }
-                }
-              case 1:
-                let cols = dts.isAccessibilitySize ? 3 : 5
-                ForEach(Array(stride(from: 0, to: QuranMeta.juzStarts.count, by: cols)), id: \.self) { start in
+                case .juzRow(let row, let cols):
                   HStack(spacing: 8) {
-                    ForEach(QuranMeta.juzStarts[start..<min(start + cols, QuranMeta.juzStarts.count)], id: \.juz) { j in juzCell(j, current: cur?.juz == j.juz, numerals) }
-                    ForEach(0..<max(0, cols - min(cols, QuranMeta.juzStarts.count - start)), id: \.self) { _ in Color.clear.frame(maxWidth: .infinity).frame(height: 58) }
+                    ForEach(row, id: \.juz) { j in juzCell(j, current: cur?.juz == j.juz, numerals) }
+                    ForEach(0..<max(0, cols - row.count), id: \.self) { _ in Color.clear.frame(maxWidth: .infinity).frame(height: 58) }
                   }
                   .padding(.bottom, 8)
-                }
-              case 2:
-                ForEach(1...60, id: \.self) { h in
-                  IndexRow(first: h == 1, last: h == 60, top: h == 1) { HizbRow(hizb: h, numerals: numerals) { onGo($0, nil) } }
-                }
-              default:
-                IndexRow(first: true, last: true, top: true) {
-                  if q.bookmarks.isEmpty { Text("لا علامات بعد — انقر كلمة ثم «علامة» في رصيف الآية").font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary).frame(maxWidth: .infinity, alignment: .leading).padding(12) }
-                  ForEach(q.bookmarks.reversed(), id: \.self) { b in
-                    if let a = QuranText.shared.ayah(surah: b.surah, ayah: b.ayah) {
-                      Button { onGo(a.page, a.n) } label: { BookmarkRow(bookmark: b, ayah: a, numerals: numerals).padding(.horizontal, 4).padding(.vertical, 8) }.buttonStyle(.plain)
-                    }
+                case .hizb(let h):
+                  IndexRow(first: i == 0, last: i == items.count - 1, top: i == 0) { HizbRow(hizb: h, numerals: numerals) { onGo($0, nil) } }
+                case .bookmark(let b, let a):
+                  IndexRow(first: i == 0, last: i == items.count - 1, top: i == 0) {
+                    Button { onGo(a.page, a.n) } label: { BookmarkRow(bookmark: b, ayah: a, numerals: numerals).padding(.horizontal, 4).padding(.vertical, 8) }.buttonStyle(.plain)
                   }
+                case .empty:
+                  IndexRow(first: true, last: true, top: true) { Text("لا علامات بعد — انقر كلمة ثم «علامة» في رصيف الآية").font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary).frame(maxWidth: .infinity, alignment: .leading).padding(12) }
                 }
               }
             }
@@ -308,6 +301,23 @@ struct QuickNavSheet: View {
           }
         }
       }
+    }
+  }
+  /// عناصر الورقة نموذجًا واحدًا: ForEach واحد تتبدّل بياناته مع التبويب
+  private enum NavItem: Identifiable {
+    case surah(Surah), juzRow([JuzStart], Int), hizb(Int), bookmark(WebSettings.Bookmark, Ayah), empty
+    var id: String { switch self { case .surah(let s): return "s\(s.n)"; case .juzRow(let r, _): return "jr\(r.first?.juz ?? 0)"; case .hizb(let h): return "h\(h)"; case .bookmark(_, let a): return "b\(a.n)"; case .empty: return "empty" } }
+  }
+  private var navItems: [NavItem] {
+    switch tab {
+    case 0: return QuranMeta.surahs.map { .surah($0) }
+    case 1:
+      let cols = dts.isAccessibilitySize ? 3 : 5; let all = QuranMeta.juzStarts
+      return stride(from: 0, to: all.count, by: cols).map { .juzRow(Array(all[$0..<min($0 + cols, all.count)]), cols) }
+    case 2: return (1...60).map { .hizb($0) }
+    default:
+      let items: [NavItem] = model.quran.bookmarks.reversed().compactMap { b in QuranText.shared.ayah(surah: b.surah, ayah: b.ayah).map { .bookmark(b, $0) } }
+      return items.isEmpty ? [.empty] : items
     }
   }
   /// خليّة جزء في الشبكة: رقمه وأوّله من المتن، والجزء الحالي معبّأ

@@ -505,6 +505,7 @@ struct MushafReaderView: View {
     // لقطات المتجر: آية محدّدة مع رصيفها، أو ورقة مفتوحة، أو جلسة إخفاء
     if ScreenshotMode.readerSelectsAyah, let a = QuranText.shared.pageAyahs(startPage).first { state.selected = a.n }
     if let s = ScreenshotMode.readerSheet { DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { sheet = s } }
+    if ScreenshotMode.readerBookmarkSheet, let a = QuranText.shared.pageAyahs(startPage).first { DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { handle(.bookmark, a) } }
     if ScreenshotMode.readerHifz { DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { startVeil() } }
     if autoplay || hifzOnAppear {
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {

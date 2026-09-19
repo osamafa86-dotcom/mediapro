@@ -22,7 +22,7 @@ enum ScreenshotMode {
   static var tab: AppTab? {
     switch route {
     case "prayer", "qibla", "home", "home-bottom", "sky-settings": return .home
-    case "mushaf", "mushaf-juz", "mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-khatmah", "mushaf-display", "mushaf-hifz": return .mushaf
+    case "mushaf", "mushaf-juz", "mushaf-switch", "mushaf-bookmarks", "mushaf-ayah-bookmark", "mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-khatmah", "mushaf-display", "mushaf-hifz": return .mushaf
     case "adhkar", "hisn", "tasbih": return .adhkar
     case "hadith", "more": return .more
     default: return nil
@@ -30,17 +30,21 @@ enum ScreenshotMode {
   }
 
   /// الصفحة التي يُفتح عليها قارئ المصحف، إن كان المسار يطلب القارئ
-  static var readerPage: Int? { ["mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-display", "mushaf-hifz"].contains(route ?? "") ? 270 : nil }
+  static var readerPage: Int? { ["mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-ayah-bookmark", "mushaf-nav", "mushaf-display", "mushaf-hifz"].contains(route ?? "") ? 270 : nil }
 
   /// يُبقى الشريط ظاهرًا: القارئ يخفيه بعد ثوانٍ، فلا يلتقطه انتظارُ تحميل الخطوط
-  static var keepChrome: Bool { route == "mushaf-bar" || route == "mushaf-ayah" }
+  static var keepChrome: Bool { route == "mushaf-bar" || route == "mushaf-ayah" || route == "mushaf-ayah-bookmark" }
   /// لقطات المصحف v2: آية محدّدة مع رصيفها، ورقة مفتوحة في القارئ، جلسة إخفاء للحفظ، وورقة الختمة في المكتبة
-  static var readerSelectsAyah: Bool { route == "mushaf-ayah" }
+  static var readerSelectsAyah: Bool { route == "mushaf-ayah" || route == "mushaf-ayah-bookmark" }
+  /// لقطة تحقّق: من الرصيف تُفتح ورقة العلامة (المسار نفسه الذي يسلكه زرّ «علامة»)
+  static var readerBookmarkSheet: Bool { route == "mushaf-ayah-bookmark" }
+  /// لقطة تحقّق: تبديل تبويب الفهرس بعد الظهور (السور → الأجزاء) بالمسار نفسه الذي يسلكه النقر
+  static var switchLibraryTab: Bool { route == "mushaf-switch" }
   static var readerSheet: ReaderSheet? { switch route { case "mushaf-nav": return .quickNav; case "mushaf-display": return .display; default: return nil } }
   static var readerHifz: Bool { route == "mushaf-hifz" }
   static var librarySheet: Bool { route == "mushaf-khatmah" }
   /// تبويب الفهرس الذي تُفتح عليه المكتبة (الأجزاء في لقطة التحقّق من تبديل التبويبات)
-  static var libraryTab: Int { route == "mushaf-juz" ? 1 : 0 }
+  static var libraryTab: Int { route == "mushaf-juz" ? 1 : (route == "mushaf-bookmarks" ? 3 : 0) }
   /// مسار «qibla» يفتح القبلة الكاملة فوق الرئيسية
   static var fullQibla: Bool { route == "qibla" }
   /// مسار «sky-settings» (تشخيصي): يفتح شاشة «مظهر السماء» فوق الرئيسية للتحقّق البصري منها
@@ -65,6 +69,10 @@ enum ScreenshotMode {
     // فتبحث البطاقة حول قراءة الجهاز كما عند المستخدم، وبلا ذلك تعرض طلب الإذن — وكلاهما يُتحقّق منه
     model.settings.nearbyMosques = true
     // ورقة الختمة والمكتبة تحتاجان خطةً وسجلّ ورد كي تُظهرا حالةً حقيقية: خطة ٣٠ يومًا بدأت قبل خمسة أيام وورد ٢١ صفحة في أربعة منها
+    // لقطة تحقّق العلامات: علامتان تُحفظان بالمسار نفسه الذي تسلكه ورقة العلامة
+    if route == "mushaf-bookmarks", let a1 = QuranText.shared.ayah(surah: 2, ayah: 255), let a2 = QuranText.shared.ayah(surah: 16, ayah: 27) {
+      model.quran.setBookmark(a1, note: "آية الكرسي", color: "gold"); model.quran.setBookmark(a2, note: nil, color: "green")
+    }
     if route == "mushaf-khatmah" || route == "mushaf" {
       let today = model.todayKey
       model.quran.khatmah = KhatmahPlan(startPage: 1, startedAt: DayKey.adding(today, days: -5), days: 30, reminder: "after:isha")

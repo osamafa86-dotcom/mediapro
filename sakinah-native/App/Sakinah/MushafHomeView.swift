@@ -45,7 +45,11 @@ struct MushafHomeView: View {
       .tabBarClearance()
       .fullScreenCover(item: $target) { t in MushafReaderView(startPage: t.page, ayah: t.ayah, autoplay: t.autoplay, hifz: t.hifz).environment(model) }
       // «تابع القراءة» من الرئيسية: تُفتح الصفحة حين يظهر التبويب (بعد لحظة كي يكون العرض قد استقرّ)
-      .onAppear { if let p = model.pendingReaderPage { model.pendingReaderPage = nil; Task { @MainActor in try? await Task.sleep(for: .milliseconds(80)); target = ReaderTarget(page: p) } } }
+      .onAppear {
+        if let p = model.pendingReaderPage { model.pendingReaderPage = nil; Task { @MainActor in try? await Task.sleep(for: .milliseconds(80)); target = ReaderTarget(page: p) } }
+        // لقطة تحقّق: تبديل التبويب بعد الظهور بالمسار نفسه الذي يسلكه النقر على المقسّم
+        if ScreenshotMode.switchLibraryTab { DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { withAnimation(.snappy(duration: 0.2)) { tab = 1 } } }
+      }
       .sheet(item: $sheet) { sh in
         switch sh {
         case .khatmah: KhatmahSheet(onGo: { p in sheet = nil; DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { target = ReaderTarget(page: p) } }).environment(model)
@@ -159,63 +163,41 @@ struct MushafHomeView: View {
     .background(DS.C.bgSurface)
     .clipShape(UnevenRoundedRectangle(topLeadingRadius: DS.Radius.xl, bottomLeadingRadius: 0, bottomTrailingRadius: 0, topTrailingRadius: DS.Radius.xl, style: .continuous))
   }
-  @ViewBuilder private var indexRows: some View {
-    let q = model.quran; let n = model.settings.numerals
+  /// صفوف الفهرس نموذجًا واحدًا: ForEach واحد تتبدّل بياناته مع التبويب (لا تبديل بين ForEach مختلفة الأنواع داخل العمود الكسول)
+  private enum IndexItem: Identifiable {
+    case surah(Surah), juz(JuzStart), hizb(Int), bookmark(WebSettings.Bookmark, Ayah), empty
+    var id: String { switch self { case .surah(let s): return "s\(s.n)"; case .juz(let j): return "j\(j.juz)"; case .hizb(let h): return "h\(h)"; case .bookmark(_, let a): return "b\(a.n)"; case .empty: return "empty" } }
+  }
+  private var indexItems: [IndexItem] {
     switch tab {
-    case 0:
-      ForEach(QuranMeta.surahs) { su in
-        IndexRow(first: su.n == 1, last: su.n == 114) {
-          Button { target = ReaderTarget(page: su.page, ayah: QuranText.shared.ayah(surah: su.n, ayah: 1)?.n) } label: { SurahRow(surah: su, numerals: n) }.buttonStyle(.plain)
-        }
-      }
-    case 1:
-      ForEach(QuranMeta.juzStarts, id: \.juz) { j in
-        IndexRow(first: j.juz == 1, last: j.juz == 30) {
-          Button { target = ReaderTarget(page: j.page) } label: { JuzRow(start: j, numerals: n) }.buttonStyle(.plain)
-        }
-      }
-    case 2:
-      ForEach(1...60, id: \.self) { h in
-        IndexRow(first: h == 1, last: h == 60) { HizbRow(hizb: h, numerals: n) { p in target = ReaderTarget(page: p) } }
-      }
+    case 0: return QuranMeta.surahs.map { .surah($0) }
+    case 1: return QuranMeta.juzStarts.map { .juz($0) }
+    case 2: return (1...60).map { .hizb($0) }
     default:
-      IndexRow(first: true, last: true) {
-        if q.bookmarks.isEmpty { Text("لا علامات بعد — انقر كلمة في المصحف ثم «علامة» في رصيف الآية").font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary).frame(maxWidth: .infinity, alignment: .leading).padding(12) }
-        ForEach(q.bookmarks.reversed(), id: \.self) { b in
-          if let a = QuranText.shared.ayah(surah: b.surah, ayah: b.ayah) {
-            Button { target = ReaderTarget(page: a.page, ayah: a.n) } label: { BookmarkRow(bookmark: b, ayah: a, numerals: n).padding(.horizontal, 4).padding(.vertical, 8) }.buttonStyle(.plain)
-              .contextMenu { Button { editBookmark = a } label: { Label("تعديل", systemImage: "pencil") }; Button(role: .destructive) { q.removeBookmark(a) } label: { Label("حذف", systemImage: "trash") } }
-          }
+      let items: [IndexItem] = model.quran.bookmarks.reversed().compactMap { b in QuranText.shared.ayah(surah: b.surah, ayah: b.ayah).map { .bookmark(b, $0) } }
+      return items.isEmpty ? [.empty] : items
+    }
+  }
+  private var indexRows: some View {
+    let items = indexItems; let n = model.settings.numerals; let q = model.quran
+    return ForEach(Array(items.enumerated()), id: \.element.id) { i, item in
+      IndexRow(first: i == 0, last: i == items.count - 1) {
+        switch item {
+        case .surah(let su):
+          Button { target = ReaderTarget(page: su.page, ayah: QuranText.shared.ayah(surah: su.n, ayah: 1)?.n) } label: { SurahRow(surah: su, numerals: n) }.buttonStyle(.plain)
+        case .juz(let j):
+          Button { target = ReaderTarget(page: j.page) } label: { JuzRow(start: j, numerals: n) }.buttonStyle(.plain)
+        case .hizb(let h):
+          HizbRow(hizb: h, numerals: n) { p in target = ReaderTarget(page: p) }
+        case .bookmark(let b, let a):
+          Button { target = ReaderTarget(page: a.page, ayah: a.n) } label: { BookmarkRow(bookmark: b, ayah: a, numerals: n).padding(.horizontal, 4).padding(.vertical, 8) }.buttonStyle(.plain)
+            .contextMenu { Button { editBookmark = a } label: { Label("تعديل", systemImage: "pencil") }; Button(role: .destructive) { q.removeBookmark(a) } label: { Label("حذف", systemImage: "trash") } }
+        case .empty:
+          Text("لا علامات بعد — انقر كلمة في المصحف ثم «علامة» في رصيف الآية").font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary).frame(maxWidth: .infinity, alignment: .leading).padding(12)
         }
       }
     }
   }
-
-  // MARK: التزامك بالورد — صفّ ثنائي لا سلسلة تنكسر
-  private var commitmentCard: some View {
-    let q = model.quran; let today = model.todayKey
-    let target = q.khatmah?.dailyPages ?? 1
-    let c = Wird.commitment(q.wird, today: today, target: target, days: 14)
-    let hasPlan = q.khatmah != nil
-    return VStack(alignment: .leading, spacing: 10) {
-      HStack {
-        Text("التزامك بالورد").font(DS.kufi(16, .semibold)).foregroundStyle(DS.C.textPrimary)
-        Spacer()
-        Button { sheet = .khatmah } label: { DSLinkLabel(title: hasPlan ? "الختمة" : "ابدأ خطة") }.buttonStyle(.plain)
-      }
-      Text(hasPlan ? "\(num(c.done)) من \(num(c.total)) يومًا في الأسبوعين الأخيرين" : "خطة ختمة تحوّل القراءة إلى وردٍ يومي بمقدار تختاره").font(DS.F.labelSm).foregroundStyle(DS.C.textSecondary)
-      HStack(spacing: 4) {
-        ForEach(Array(c.days.enumerated()), id: \.offset) { _, on in
-          RoundedRectangle(cornerRadius: 5, style: .continuous).fill(on ? DS.C.brandPrimary : DS.C.bgSubtle).frame(height: 18)
-        }
-      }
-      .accessibilityElement(children: .ignore)
-      .accessibilityLabel("التزامك بالورد: \(c.done) من \(c.total) يومًا")
-    }
-    .dsCard(padding: 16)
-  }
-}
-
 /// صفّ من صفوف الفهرس على سطح البطاقة: يلي الرأس مباشرةً، وبين الصفوف فاصل، والأخير يُغلق الزوايا؛
 /// `top` حين لا رأس فوقه (ورقة التنقّل)
 struct IndexRow<Content: View>: View {
