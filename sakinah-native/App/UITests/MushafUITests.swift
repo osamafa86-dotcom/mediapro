@@ -23,9 +23,26 @@ final class MushafUITests: XCTestCase {
     app.launch()
     return app
   }
-  /// أيّ عنصر تحتوي تسميته النصّ (الصفوف قد تُدمَج عناصرها في زرّ واحد فلا تبقى staticText مستقلة)
+  /// أيّ عنصر تحتوي تسميته النصّ (الصفوف قد تُدمَج عناصرها في زرّ واحد فلا تبقى staticText مستقلة).
+  /// تسميات SwiftUI تحشو الأرقام بمحارف عزل الاتجاه غير المرئية (U+2066…U+2069، U+200E/F): «الحزب ⁨١⁩» —
+  /// فالمطابقة بتعبيرٍ يتسامح معها بين كل حرفين، وإلا فشل CONTAINS وإن كان النصّ ظاهرًا على الشاشة
   private func any(_ app: XCUIApplication, containing text: String) -> XCUIElement {
-    app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", text)).firstMatch
+    app.descendants(matching: .any).matching(NSPredicate(format: "label MATCHES %@", loose(text))).firstMatch
+  }
+  private func loose(_ text: String) -> String {
+    let iso = "[\\u2066-\\u2069\\u200E\\u200F]*"
+    let body = clean(text).map { c -> String in c == " " ? "\\s+" : NSRegularExpression.escapedPattern(for: String(c)) }.joined(separator: iso)
+    return "(?s).*" + iso + body + iso + ".*"
+  }
+  /// إزالة محارف عزل الاتجاه من نصٍّ قُرئ من تسمية عنصر
+  private func clean(_ s: String) -> String {
+    String(s.unicodeScalars.filter { !(0x2066...0x2069).contains($0.value) && $0.value != 0x200E && $0.value != 0x200F })
+  }
+  /// صفحة المصحف الظاهرة على الشاشة (المتصفّح يحمّل الجارتين خارجها أيضًا، وأوّل مطابقة قد تكون جارةً غير مرئية)
+  private func visiblePage(_ app: XCUIApplication) -> XCUIElement? {
+    let w = app.frame.width
+    let pages = app.descendants(matching: .other).matching(NSPredicate(format: "label BEGINSWITH %@", "صفحة ")).allElementsBoundByIndex
+    return pages.first { let f = $0.frame; return f.width > 0 && f.midX > 0 && f.midX < w } ?? pages.first
   }
   private func snap(_ name: String) {
     let shot = XCUIScreen.main.screenshot()
@@ -89,10 +106,12 @@ final class MushafUITests: XCTestCase {
     let row = any(app, containing: "البقرة")
     XCTAssertTrue(row.waitForExistence(timeout: 25), "صفّ سورة البقرة لم يظهر في الفهرس")
     row.tap()
-    let page = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", "صفحة ")).firstMatch
-    if !page.waitForExistence(timeout: 25) { dumpOnFailure(app, "no-page") }
-    XCTAssertTrue(page.exists, "صفحة المصحف لم تظهر بعد نقر سورة البقرة")
+    let anyPage = app.descendants(matching: .other).matching(NSPredicate(format: "label BEGINSWITH %@", "صفحة ")).firstMatch
+    if !anyPage.waitForExistence(timeout: 25) { dumpOnFailure(app, "no-page") }
+    XCTAssertTrue(anyPage.exists, "صفحة المصحف لم تظهر بعد نقر سورة البقرة")
     sleep(3) // خطّ الصفحة يُحمَّل عند أوّل ظهور
+    guard let page = visiblePage(app) else { XCTFail("لا صفحة ظاهرة على الشاشة"); return }
+    print("!! visible page: \(page.label) frame=\(page.frame)")
 
     // نقر كلمة من الصفحة (المسار نفسه الذي يسلكه المستخدم عند الضغط على رقم الآية)
     var dockShown = false
@@ -107,7 +126,7 @@ final class MushafUITests: XCTestCase {
     // مرجع الآية المحدّدة من رأس الرصيف («النحل، الآية ٢٧») → صفّ المكتبة «النحل: ٢٧»
     let head = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@ AND NOT label BEGINSWITH %@", "الآية ", "صفحة")).firstMatch
     XCTAssertTrue(head.waitForExistence(timeout: 4), "رأس الرصيف (السورة والآية) لم يظهر")
-    let parts = head.label.replacingOccurrences(of: "،", with: ",").split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+    let parts = clean(head.label).replacingOccurrences(of: "،", with: ",").split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
     let surahName = parts.first ?? ""
     let ayahDigits = parts.dropFirst().first(where: { $0.hasPrefix("الآية ") }).map { String($0.dropFirst("الآية ".count)) } ?? ""
     XCTAssertFalse(surahName.isEmpty || ayahDigits.isEmpty, "تعذّر قراءة مرجع الآية من الرصيف: \(head.label)")
