@@ -16,7 +16,7 @@ object ScreenshotMode {
   var skyWeather: org.emdatra.sakinah.core.SkyWeather? = null; private set
   val tab: AppTab? get() = when (route) {
     "prayer", "qibla", "home" -> AppTab.Home
-    "mushaf", "mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-khatmah", "mushaf-display", "mushaf-hifz" -> AppTab.Mushaf
+    "mushaf", "mushaf-juz", "mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-khatmah", "mushaf-display", "mushaf-hifz" -> AppTab.Mushaf
     "adhkar", "hisn", "tasbih" -> AppTab.Adhkar
     "hadith", "more", "sky-settings" -> AppTab.More
     else -> null
@@ -30,6 +30,8 @@ object ScreenshotMode {
   val readerSheet: String? get() = when (route) { "mushaf-nav" -> "nav"; "mushaf-display" -> "display"; else -> null }
   val readerHifz: Boolean get() = route == "mushaf-hifz"
   val librarySheet: String? get() = if (route == "mushaf-khatmah") "khatmah" else null
+  /** تبويب الفهرس الذي تُفتح عليه المكتبة (الأجزاء في لقطة التحقّق من تبديل التبويبات) */
+  val libraryTab: Int get() = if (route == "mushaf-juz") 1 else 0
   /** مسار «qibla» يفتح القبلة الكاملة فوق الرئيسية */
   val fullQibla: Boolean get() = route == "qibla"
 

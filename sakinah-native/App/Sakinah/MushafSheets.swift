@@ -235,14 +235,39 @@ struct QuickNavSheet: View {
           List { QuranSearchRows(query: query, onGo: onGo) }.listStyle(.insetGrouped).scrollContentBackground(.hidden)
         } else {
           ScrollView(showsIndicators: false) {
-            LazyVStack(alignment: .leading, spacing: 12) {
-              if !q.recent.isEmpty { recentRow(q.recent, numerals) }
-              DSSegmented(items: ["السور", "الأجزاء", "الأحزاب", "العلامات"], selection: $tab)
+            // عمود كسول واحد وصفوفه عناصره مباشرةً (لا عمود كسول داخل آخر)
+            LazyVStack(alignment: .leading, spacing: 0) {
+              if !q.recent.isEmpty { recentRow(q.recent, numerals).padding(.bottom, 12) }
+              DSSegmented(items: ["السور", "الأجزاء", "الأحزاب", "العلامات"], selection: $tab).padding(.bottom, 12)
               switch tab {
-              case 0: surahList(numerals)
-              case 1: juzGrid(cur?.juz, numerals)
-              case 2: hizbList(numerals)
-              default: bookmarks(q, numerals)
+              case 0:
+                ForEach(QuranMeta.surahs) { su in
+                  IndexRow(first: su.n == 1, last: su.n == 114, top: su.n == 1) {
+                    Button { onGo(su.page, QuranText.shared.ayah(surah: su.n, ayah: 1)?.n) } label: { SurahRow(surah: su, numerals: numerals, current: currentPage >= su.page && currentPage < (su.n < 114 ? QuranMeta.surah(su.n + 1).page : 605)) }.buttonStyle(.plain)
+                  }
+                }
+              case 1:
+                let cols = dts.isAccessibilitySize ? 3 : 5
+                ForEach(Array(stride(from: 0, to: QuranMeta.juzStarts.count, by: cols)), id: \.self) { start in
+                  HStack(spacing: 8) {
+                    ForEach(QuranMeta.juzStarts[start..<min(start + cols, QuranMeta.juzStarts.count)], id: \.juz) { j in juzCell(j, current: cur?.juz == j.juz, numerals) }
+                    ForEach(0..<max(0, cols - min(cols, QuranMeta.juzStarts.count - start)), id: \.self) { _ in Color.clear.frame(maxWidth: .infinity).frame(height: 58) }
+                  }
+                  .padding(.bottom, 8)
+                }
+              case 2:
+                ForEach(1...60, id: \.self) { h in
+                  IndexRow(first: h == 1, last: h == 60, top: h == 1) { HizbRow(hizb: h, numerals: numerals) { onGo($0, nil) } }
+                }
+              default:
+                IndexRow(first: true, last: true, top: true) {
+                  if q.bookmarks.isEmpty { Text("لا علامات بعد — انقر كلمة ثم «علامة» في رصيف الآية").font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary).frame(maxWidth: .infinity, alignment: .leading).padding(12) }
+                  ForEach(q.bookmarks.reversed(), id: \.self) { b in
+                    if let a = QuranText.shared.ayah(surah: b.surah, ayah: b.ayah) {
+                      Button { onGo(a.page, a.n) } label: { BookmarkRow(bookmark: b, ayah: a, numerals: numerals).padding(.horizontal, 4).padding(.vertical, 8) }.buttonStyle(.plain)
+                    }
+                  }
+                }
               }
             }
             .padding(.horizontal, 16).padding(.bottom, 24)
@@ -285,58 +310,21 @@ struct QuickNavSheet: View {
       }
     }
   }
-  private var divider: some View { Divider().overlay(DS.C.borderSubtle).padding(.leading, 56) }
-  private func surahList(_ numerals: String) -> some View {
-    LazyVStack(spacing: 0) {
-      ForEach(QuranMeta.surahs) { su in
-        let cur = currentPage >= su.page && currentPage < (su.n < 114 ? QuranMeta.surah(su.n + 1).page : 605)
-        Button { onGo(su.page, QuranText.shared.ayah(surah: su.n, ayah: 1)?.n) } label: { SurahRow(surah: su, numerals: numerals, current: cur) }.buttonStyle(.plain)
-        if su.n < 114 { divider }
+  /// خليّة جزء في الشبكة: رقمه وأوّله من المتن، والجزء الحالي معبّأ
+  private func juzCell(_ j: JuzStart, current on: Bool, _ numerals: String) -> some View {
+    let phrase = QuranText.shared.juzStartPhrase(j.juz)
+    return Button { onGo(j.page, nil) } label: {
+      VStack(spacing: 3) {
+        Text(Fmt.number(j.juz, numerals: numerals)).font(DS.kufi(15, .semibold)).foregroundStyle(on ? DS.C.textOnBrand : DS.C.textPrimary)
+        Text(phrase).font(.custom(MushafFonts.amiriQuranFont, fixedSize: 11)).foregroundStyle(on ? DS.C.textOnBrand.opacity(0.85) : DS.C.textSecondary).lineLimit(1).minimumScaleFactor(0.6)
       }
+      .frame(maxWidth: .infinity).frame(height: 58)
+      .background(on ? DS.C.brandPrimary : DS.C.bgSurface, in: RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))
+      .overlay { RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous).stroke(on ? Color.clear : DS.C.borderSubtle, lineWidth: 1) }
+      .contentShape(Rectangle())
     }
-    .dsCard(padding: 8)
-  }
-  /// شبكة الأجزاء ٥×٦ (٣ أعمدة مع تكبير الخطّ الكبير): رقم الجزء وأوّله من المتن، والجزء الحالي معبّأ
-  private func juzGrid(_ current: Int?, _ numerals: String) -> some View {
-    let cols = dts.isAccessibilitySize ? 3 : 5
-    return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: cols), spacing: 8) {
-      ForEach(QuranMeta.juzStarts, id: \.juz) { j in
-        let on = current == j.juz
-        let phrase = QuranText.shared.juzStartPhrase(j.juz)
-        Button { onGo(j.page, nil) } label: {
-          VStack(spacing: 3) {
-            Text(Fmt.number(j.juz, numerals: numerals)).font(DS.kufi(15, .semibold)).foregroundStyle(on ? DS.C.textOnBrand : DS.C.textPrimary)
-            Text(phrase).font(.custom(MushafFonts.amiriQuranFont, fixedSize: 11)).foregroundStyle(on ? DS.C.textOnBrand.opacity(0.85) : DS.C.textSecondary).lineLimit(1).minimumScaleFactor(0.6)
-          }
-          .frame(maxWidth: .infinity).frame(height: 58)
-          .background(on ? DS.C.brandPrimary : DS.C.bgSurface, in: RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))
-          .overlay { RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous).stroke(on ? Color.clear : DS.C.borderSubtle, lineWidth: 1) }
-          .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("الجزء \(j.juz)، \(phrase)، صفحة \(j.page)").accessibilityAddTraits(on ? .isSelected : [])
-      }
-    }
-  }
-  private func hizbList(_ numerals: String) -> some View {
-    LazyVStack(spacing: 0) {
-      ForEach(1...60, id: \.self) { h in
-        HizbRow(hizb: h, numerals: numerals) { onGo($0, nil) }
-        if h < 60 { divider }
-      }
-    }
-    .dsCard(padding: 8)
-  }
-  private func bookmarks(_ q: QuranPrefs, _ numerals: String) -> some View {
-    LazyVStack(spacing: 0) {
-      if q.bookmarks.isEmpty { Text("لا علامات بعد — انقر كلمة ثم «علامة» في رصيف الآية").font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary).padding(12) }
-      ForEach(q.bookmarks.reversed(), id: \.self) { b in
-        if let a = QuranText.shared.ayah(surah: b.surah, ayah: b.ayah) {
-          Button { onGo(a.page, a.n) } label: { BookmarkRow(bookmark: b, ayah: a, numerals: numerals).padding(.horizontal, 4).padding(.vertical, 8) }.buttonStyle(.plain)
-        }
-      }
-    }
-    .dsCard(padding: 8)
+    .buttonStyle(.plain)
+    .accessibilityLabel("الجزء \(j.juz)، \(phrase)، صفحة \(j.page)").accessibilityAddTraits(on ? .isSelected : [])
   }
 }
 struct NavRow: View {

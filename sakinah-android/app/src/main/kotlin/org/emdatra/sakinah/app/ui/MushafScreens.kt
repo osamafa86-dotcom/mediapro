@@ -78,7 +78,7 @@ data class ReaderTarget(val page: Int, val ayah: Int? = null, val autoplay: Bool
 @Composable fun MushafHome() {
   val c = DS.c
   var reader by remember { mutableStateOf<ReaderTarget?>(org.emdatra.sakinah.app.ScreenshotMode.readerPage?.let { ReaderTarget(it) }) }
-  var q by remember { mutableStateOf("") }; var tab by remember { mutableIntStateOf(0) }; var searching by remember { mutableStateOf(false) }
+  var q by remember { mutableStateOf("") }; var tab by remember { mutableIntStateOf(org.emdatra.sakinah.app.ScreenshotMode.libraryTab) }; var searching by remember { mutableStateOf(false) }
   var sheet by remember { mutableStateOf<String?>(org.emdatra.sakinah.app.ScreenshotMode.librarySheet) }
   LaunchedEffect(Store.pendingReaderPage) { Store.pendingReaderPage?.let { p -> Store.pendingReaderPage = null; reader = ReaderTarget(p) } }
   reader?.let { t -> MushafReader(startPage = t.page, startAyah = t.ayah, autoplay = t.autoplay, hifz = t.hifz, onClose = { reader = null }); return }

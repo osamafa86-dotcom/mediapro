@@ -22,7 +22,7 @@ enum ScreenshotMode {
   static var tab: AppTab? {
     switch route {
     case "prayer", "qibla", "home", "home-bottom", "sky-settings": return .home
-    case "mushaf", "mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-khatmah", "mushaf-display", "mushaf-hifz": return .mushaf
+    case "mushaf", "mushaf-juz", "mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-khatmah", "mushaf-display", "mushaf-hifz": return .mushaf
     case "adhkar", "hisn", "tasbih": return .adhkar
     case "hadith", "more": return .more
     default: return nil
@@ -39,6 +39,8 @@ enum ScreenshotMode {
   static var readerSheet: ReaderSheet? { switch route { case "mushaf-nav": return .quickNav; case "mushaf-display": return .display; default: return nil } }
   static var readerHifz: Bool { route == "mushaf-hifz" }
   static var librarySheet: Bool { route == "mushaf-khatmah" }
+  /// تبويب الفهرس الذي تُفتح عليه المكتبة (الأجزاء في لقطة التحقّق من تبديل التبويبات)
+  static var libraryTab: Int { route == "mushaf-juz" ? 1 : 0 }
   /// مسار «qibla» يفتح القبلة الكاملة فوق الرئيسية
   static var fullQibla: Bool { route == "qibla" }
   /// مسار «sky-settings» (تشخيصي): يفتح شاشة «مظهر السماء» فوق الرئيسية للتحقّق البصري منها

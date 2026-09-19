@@ -8,7 +8,7 @@ struct MushafHomeView: View {
   @State private var target: ReaderTarget?
   @State private var query = ""
   @State private var searching = false
-  @State private var tab = 0
+  @State private var tab = ScreenshotMode.libraryTab
   @State private var sheet: HomeSheet? = ScreenshotMode.librarySheet ? .khatmah : nil
   @State private var editBookmark: Ayah?
   @FocusState private var searchFocused: Bool
@@ -26,12 +26,14 @@ struct MushafHomeView: View {
             .listStyle(.insetGrouped).scrollContentBackground(.hidden).background(DS.C.bgCanvas)
         } else {
           ScrollView(showsIndicators: false) {
-            LazyVStack(spacing: 14) {
-              heroCard
-              tilesRow
-              indexCard
-              commitmentCard
-              Text("مصحف المدينة · حفص عن عاصم · ٦٠٤ صفحات · يعمل دون اتصال").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).frame(maxWidth: .infinity).padding(.top, 4)
+            // عمود كسول واحد: صفوف الفهرس عناصره مباشرةً (عمود كسول داخل عمود كسول لا يُعاد رسمه عند تبديل التبويب)
+            LazyVStack(spacing: 0) {
+              heroCard.padding(.bottom, 14)
+              tilesRow.padding(.bottom, 14)
+              indexHead
+              indexRows
+              commitmentCard.padding(.top, 14)
+              Text("مصحف المدينة · حفص عن عاصم · ٦٠٤ صفحات · يعمل دون اتصال").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).frame(maxWidth: .infinity).padding(.top, 18)
             }
             .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 24)
           }
@@ -137,10 +139,9 @@ struct MushafHomeView: View {
     }.buttonStyle(.plain)
   }
 
-  // MARK: الفهرس فوق الطيّة: بحث، مقسّم رباعي، صفوف كسولة
-  private var indexCard: some View {
-    let s = model.settings; let q = model.quran; let n = s.numerals
-    return VStack(spacing: 8) {
+  // MARK: الفهرس فوق الطيّة: رأس (بحث ومقسّم رباعي) ثم صفوف هي عناصر العمود الكسول نفسه
+  private var indexHead: some View {
+    VStack(spacing: 8) {
       Button { toggleSearch() } label: {
         HStack(spacing: 8) {
           Image(systemName: "magnifyingglass").font(.system(size: 14, weight: .medium)).foregroundStyle(DS.C.textTertiary)
@@ -153,37 +154,42 @@ struct MushafHomeView: View {
       }
       .buttonStyle(.plain).accessibilityLabel("بحث في المصحف")
       DSSegmented(items: ["السور", "الأجزاء", "الأحزاب", "العلامات"], selection: $tab)
-      LazyVStack(spacing: 0) {
-        switch tab {
-        case 0:
-          ForEach(QuranMeta.surahs) { su in
-            Button { target = ReaderTarget(page: su.page, ayah: QuranText.shared.ayah(surah: su.n, ayah: 1)?.n) } label: { SurahRow(surah: su, numerals: n) }.buttonStyle(.plain)
-            if su.n < 114 { rowDivider }
-          }
-        case 1:
-          ForEach(QuranMeta.juzStarts, id: \.juz) { j in
-            Button { target = ReaderTarget(page: j.page) } label: { JuzRow(start: j, numerals: n) }.buttonStyle(.plain)
-            if j.juz < 30 { rowDivider }
-          }
-        case 2:
-          ForEach(1...60, id: \.self) { h in
-            HizbRow(hizb: h, numerals: n) { p in target = ReaderTarget(page: p) }
-            if h < 60 { rowDivider }
-          }
-        default:
-          if q.bookmarks.isEmpty { Text("لا علامات بعد — انقر كلمة في المصحف ثم «علامة مع ملاحظة»، أو زر العلامة في شريط القارئ").font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary).padding(12) }
-          ForEach(q.bookmarks.reversed(), id: \.self) { b in
-            if let a = QuranText.shared.ayah(surah: b.surah, ayah: b.ayah) {
-              Button { target = ReaderTarget(page: a.page, ayah: a.n) } label: { BookmarkRow(bookmark: b, ayah: a, numerals: n).padding(.horizontal, 4).padding(.vertical, 8) }.buttonStyle(.plain)
-                .contextMenu { Button { editBookmark = a } label: { Label("تعديل", systemImage: "pencil") }; Button(role: .destructive) { q.removeBookmark(a) } label: { Label("حذف", systemImage: "trash") } }
-            }
+    }
+    .padding(12)
+    .background(DS.C.bgSurface)
+    .clipShape(UnevenRoundedRectangle(topLeadingRadius: DS.Radius.xl, bottomLeadingRadius: 0, bottomTrailingRadius: 0, topTrailingRadius: DS.Radius.xl, style: .continuous))
+  }
+  @ViewBuilder private var indexRows: some View {
+    let q = model.quran; let n = model.settings.numerals
+    switch tab {
+    case 0:
+      ForEach(QuranMeta.surahs) { su in
+        IndexRow(first: su.n == 1, last: su.n == 114) {
+          Button { target = ReaderTarget(page: su.page, ayah: QuranText.shared.ayah(surah: su.n, ayah: 1)?.n) } label: { SurahRow(surah: su, numerals: n) }.buttonStyle(.plain)
+        }
+      }
+    case 1:
+      ForEach(QuranMeta.juzStarts, id: \.juz) { j in
+        IndexRow(first: j.juz == 1, last: j.juz == 30) {
+          Button { target = ReaderTarget(page: j.page) } label: { JuzRow(start: j, numerals: n) }.buttonStyle(.plain)
+        }
+      }
+    case 2:
+      ForEach(1...60, id: \.self) { h in
+        IndexRow(first: h == 1, last: h == 60) { HizbRow(hizb: h, numerals: n) { p in target = ReaderTarget(page: p) } }
+      }
+    default:
+      IndexRow(first: true, last: true) {
+        if q.bookmarks.isEmpty { Text("لا علامات بعد — انقر كلمة في المصحف ثم «علامة» في رصيف الآية").font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary).frame(maxWidth: .infinity, alignment: .leading).padding(12) }
+        ForEach(q.bookmarks.reversed(), id: \.self) { b in
+          if let a = QuranText.shared.ayah(surah: b.surah, ayah: b.ayah) {
+            Button { target = ReaderTarget(page: a.page, ayah: a.n) } label: { BookmarkRow(bookmark: b, ayah: a, numerals: n).padding(.horizontal, 4).padding(.vertical, 8) }.buttonStyle(.plain)
+              .contextMenu { Button { editBookmark = a } label: { Label("تعديل", systemImage: "pencil") }; Button(role: .destructive) { q.removeBookmark(a) } label: { Label("حذف", systemImage: "trash") } }
           }
         }
       }
     }
-    .dsCard(padding: 12)
   }
-  private var rowDivider: some View { Divider().overlay(DS.C.borderSubtle).padding(.leading, 56) }
 
   // MARK: التزامك بالورد — صفّ ثنائي لا سلسلة تنكسر
   private var commitmentCard: some View {
@@ -207,6 +213,23 @@ struct MushafHomeView: View {
       .accessibilityLabel("التزامك بالورد: \(c.done) من \(c.total) يومًا")
     }
     .dsCard(padding: 16)
+  }
+}
+
+/// صفّ من صفوف الفهرس على سطح البطاقة: يلي الرأس مباشرةً، وبين الصفوف فاصل، والأخير يُغلق الزوايا؛
+/// `top` حين لا رأس فوقه (ورقة التنقّل)
+struct IndexRow<Content: View>: View {
+  var first = false; var last = false; var top = false
+  @ViewBuilder var content: Content
+  var body: some View {
+    VStack(spacing: 0) {
+      content
+      if !last { Divider().overlay(DS.C.borderSubtle).padding(.leading, 56) }
+    }
+    .padding(.horizontal, 12).padding(.top, first ? 4 : 0).padding(.bottom, last ? 12 : 0)
+    .frame(maxWidth: .infinity)
+    .background(DS.C.bgSurface)
+    .clipShape(UnevenRoundedRectangle(topLeadingRadius: top ? DS.Radius.xl : 0, bottomLeadingRadius: last ? DS.Radius.xl : 0, bottomTrailingRadius: last ? DS.Radius.xl : 0, topTrailingRadius: top ? DS.Radius.xl : 0, style: .continuous))
   }
 }
 
