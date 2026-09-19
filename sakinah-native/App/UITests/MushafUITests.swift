@@ -83,7 +83,7 @@ final class MushafUITests: XCTestCase {
     snap("ui-04-dock")
 
     (app.buttons["علامة"].exists ? app.buttons["علامة"] : app.buttons["معلَّمة"]).tap()
-    let save = app.buttons["حفظ العلامة"].exists ? app.buttons["حفظ العلامة"] : app.buttons["تحديث العلامة"]
+    let save = app.buttons.matching(NSPredicate(format: "label IN %@", ["حفظ العلامة", "تحديث العلامة"])).firstMatch
     XCTAssertTrue(save.waitForExistence(timeout: 6), "ورقة العلامة لم تُفتح من الرصيف")
     // عنوان الورقة «علامة — النحل: 27» → صفّ المكتبة «النحل: ٢٧»
     let titleEl = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", "علامة — ")).firstMatch
