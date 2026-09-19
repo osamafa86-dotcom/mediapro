@@ -198,6 +198,30 @@ struct MushafHomeView: View {
       }
     }
   }
+
+  // MARK: التزامك بالورد — صفّ ثنائي لا سلسلة تنكسر
+  private var commitmentCard: some View {
+    let q = model.quran; let today = model.todayKey
+    let target = q.khatmah?.dailyPages ?? 1
+    let c = Wird.commitment(q.wird, today: today, target: target, days: 14)
+    let hasPlan = q.khatmah != nil
+    return VStack(alignment: .leading, spacing: 10) {
+      HStack {
+        Text("التزامك بالورد").font(DS.kufi(16, .semibold)).foregroundStyle(DS.C.textPrimary)
+        Spacer()
+        Button { sheet = .khatmah } label: { DSLinkLabel(title: hasPlan ? "الختمة" : "ابدأ خطة") }.buttonStyle(.plain)
+      }
+      Text(hasPlan ? "\(num(c.done)) من \(num(c.total)) يومًا في الأسبوعين الأخيرين" : "خطة ختمة تحوّل القراءة إلى وردٍ يومي بمقدار تختاره").font(DS.F.labelSm).foregroundStyle(DS.C.textSecondary)
+      HStack(spacing: 4) {
+        ForEach(Array(c.days.enumerated()), id: \.offset) { _, on in
+          RoundedRectangle(cornerRadius: 5, style: .continuous).fill(on ? DS.C.brandPrimary : DS.C.bgSubtle).frame(height: 18)
+        }
+      }
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel("التزامك بالورد: \(c.done) من \(c.total) يومًا")
+    }
+    .dsCard(padding: 16)
+  }
 }
 
 /// صفّ من صفوف الفهرس على سطح البطاقة: يلي الرأس مباشرةً، وبين الصفوف فاصل، والأخير يُغلق الزوايا؛
