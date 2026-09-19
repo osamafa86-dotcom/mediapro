@@ -468,7 +468,9 @@ struct MushafReaderView: View {
     case .listen: playFrom(a.n, scope: .surah); rs?.selected = nil
     case .playFrom: playFrom(a.n, scope: .surah); rs?.selected = nil
     case .repeat3: playFrom(a.n, scope: .single, repeat: 3); rs?.selected = nil
-    case .bookmark: sheet = .bookmark(a.n)
+    // «علامة» تحفظ بنقرة واحدة (ونقرة أخرى على «معلَّمة» تزيلها) — الملاحظة واللون في ورقةٍ مستقلة
+    case .bookmark: toggleBookmark(a)
+    case .bookmarkNote: sheet = .bookmark(a.n)
     case .lastRead: remember(a); show("حُفظ موضع القراءة عند \(QuranSearch.refLabel(a))")
     case .hifz: startHifz(from: a.n)
     case .share: shareItems = ShareItems(items: [txt])
@@ -505,7 +507,7 @@ struct MushafReaderView: View {
     // لقطات المتجر: آية محدّدة مع رصيفها، أو ورقة مفتوحة، أو جلسة إخفاء
     if ScreenshotMode.readerSelectsAyah, let a = QuranText.shared.pageAyahs(startPage).first { state.selected = a.n }
     if let s = ScreenshotMode.readerSheet { DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { sheet = s } }
-    if ScreenshotMode.readerBookmarkSheet, let a = QuranText.shared.pageAyahs(startPage).first { DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { handle(.bookmark, a) } }
+    if ScreenshotMode.readerBookmarkSheet, let a = QuranText.shared.pageAyahs(startPage).first { DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { handle(.bookmarkNote, a) } }
     if ScreenshotMode.readerHifz { DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { startVeil() } }
     if autoplay || hifzOnAppear {
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
@@ -577,6 +579,9 @@ struct MushafReaderView: View {
     let existing = prefs.bookmarks.first { $0.page == current }.flatMap { QuranText.shared.ayah(surah: $0.surah, ayah: $0.ayah) }
     let a = (rs?.selected).flatMap { QuranText.shared.ayah($0) } ?? existing ?? QuranText.shared.pageAyahs(current).first
     guard let a else { return }
+    toggleBookmark(a)
+  }
+  private func toggleBookmark(_ a: Ayah) {
     if prefs.isBookmarked(a) { prefs.removeBookmark(a); show("أُزيلت العلامة") } else { prefs.setBookmark(a, note: nil, color: "gold"); show("أُضيفت علامة عند \(QuranSearch.refLabel(a))"); UIImpactFeedbackGenerator(style: .light).impactOccurred() }
   }
 

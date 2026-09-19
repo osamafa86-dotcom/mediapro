@@ -66,7 +66,7 @@ final class MushafUITests: XCTestCase {
     XCTAssertTrue(any(app, containing: "الفاتحة").waitForExistence(timeout: 6), "العودة إلى «السور» لم تعرض صفوف السور")
   }
 
-  // MARK: ٢ — علامة من رصيف الآية (نقر كلمة → «علامة» → «حفظ العلامة») ثم تظهر في تبويب «العلامات»
+  // MARK: ٢ — علامة بنقرة واحدة من رصيف الآية (نقر كلمة → «علامة») ثم تظهر في تبويب «العلامات»
   func test2_bookmarkSavedFromReaderAppearsInLibrary() {
     let app = launch("mushaf-page")
     let page = app.descendants(matching: .any)["صفحة ٢٧٠"]
@@ -82,19 +82,21 @@ final class MushafUITests: XCTestCase {
     XCTAssertTrue(dockShown, "نقر كلمة في الصفحة لم يُظهر رصيف الآية")
     snap("ui-04-dock")
 
-    (app.buttons["علامة"].exists ? app.buttons["علامة"] : app.buttons["معلَّمة"]).tap()
-    let save = app.buttons.matching(NSPredicate(format: "label IN %@", ["حفظ العلامة", "تحديث العلامة"])).firstMatch
-    XCTAssertTrue(save.waitForExistence(timeout: 6), "ورقة العلامة لم تُفتح من الرصيف")
-    // عنوان الورقة «علامة — النحل: 27» → صفّ المكتبة «النحل: ٢٧»
-    let titleEl = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", "علامة — ")).firstMatch
-    XCTAssertTrue(titleEl.waitForExistence(timeout: 4), "عنوان ورقة العلامة لم يظهر")
-    let title = titleEl.label
-    let ref = String(title.dropFirst("علامة — ".count))
-    let expectedRow = arabicDigits(ref)
-    snap("ui-05-bookmark-sheet")
-    save.tap()
-    XCTAssertTrue(app.buttons["معلَّمة"].waitForExistence(timeout: 6), "الرصيف لم يعكس حفظ العلامة")
-    snap("ui-06-saved")
+    // مرجع الآية المحدّدة من رأس الرصيف («النحل، الآية ٢٧») → صفّ المكتبة «النحل: ٢٧»
+    let head = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@ AND NOT label BEGINSWITH %@", "الآية ", "صفحة")).firstMatch
+    XCTAssertTrue(head.waitForExistence(timeout: 4), "رأس الرصيف (السورة والآية) لم يظهر")
+    let parts = head.label.replacingOccurrences(of: "،", with: ",").split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+    let surahName = parts.first ?? ""
+    let ayahDigits = parts.dropFirst().first(where: { $0.hasPrefix("الآية ") }).map { String($0.dropFirst("الآية ".count)) } ?? ""
+    XCTAssertFalse(surahName.isEmpty || ayahDigits.isEmpty, "تعذّر قراءة مرجع الآية من الرصيف: \(head.label)")
+    let expectedRow = "\(surahName): \(arabicDigits(ayahDigits))"
+
+    // «علامة» تحفظ بنقرة واحدة: الرصيف يتحوّل إلى «معلَّمة» بلا ورقة ولا زرّ حفظ
+    if app.buttons["معلَّمة"].exists { app.buttons["معلَّمة"].tap(); XCTAssertTrue(app.buttons["علامة"].waitForExistence(timeout: 4), "إزالة علامة قديمة لم تنعكس") }
+    app.buttons["علامة"].tap()
+    XCTAssertTrue(app.buttons["معلَّمة"].waitForExistence(timeout: 6), "نقر «علامة» لم يحفظ العلامة فورًا (الرصيف لم يتحوّل إلى «معلَّمة»)")
+    XCTAssertFalse(app.buttons["حفظ العلامة"].exists, "ظهرت ورقة حفظ — المطلوب حفظ بنقرة واحدة")
+    snap("ui-05-saved")
 
     // إغلاق القارئ (الشريط قد يكون اختفى بعد السكون: نقرة على هامش الصفحة تُظهره)
     let close = app.buttons["إغلاق المصحف"]
@@ -110,6 +112,6 @@ final class MushafUITests: XCTestCase {
     tab.tap()
     XCTAssertTrue(any(app, containing: expectedRow).waitForExistence(timeout: 6), "العلامة «\(expectedRow)» لم تظهر في تبويب «العلامات»")
     XCTAssertTrue(any(app, containing: "٢٧٠").exists, "رقم صفحة العلامة لم يظهر في صفّها")
-    snap("ui-07-bookmarks")
+    snap("ui-06-bookmarks")
   }
 }

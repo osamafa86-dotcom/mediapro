@@ -268,7 +268,7 @@ struct PlayerSheet: View {
           else { p.setRange(a: p.index, b: nil); toast?("حُدّدت البداية (أ) — انتقل إلى آية النهاية ثم اضغط مرة أخرى") }
         }
         glassChip("السرعة \(Fmt.decimal(p.rate, digits: 2, numerals: numerals))×", "speedometer", on: p.rate != 1) { let o = [0.75, 1, 1.25, 1.5]; let nx = o[((o.firstIndex(of: p.rate) ?? 1) + 1) % o.count]; p.setRate(nx); q.rate = nx }
-        glassChip("تكرار القائمة", "repeat", on: p.repeatRange) { p.repeatRange.toggle(); q.repeatRange = p.repeatRange }
+        glassChip("تكرار القائمة", "repeat", on: p.repeatRange) { p.setRepeatRange(!p.repeatRange); q.repeatRange = p.repeatRange }
         glassChip(p.sleepMinutesLeft.map { "نوم \(Fmt.number($0, numerals: numerals)) د" } ?? "مؤقت النوم", "moon", on: p.sleepAt != nil) { let o = [0, 15, 30, 45, 60]; let cur = p.sleepMinutesLeft ?? 0; let nx = o[((o.firstIndex { $0 >= cur } ?? 0) + 1) % o.count]; p.setSleep(minutes: nx) }
         glassChip("القارئ", "mic", on: false) { showReciters = true }
         glassChip("تنزيل السورة", "arrow.down.circle", on: false) { showDownloads = true }
@@ -306,6 +306,11 @@ struct AyahOptionsSheet: View {
             Text("الصفحة \(Fmt.number(ayah.page, numerals: numerals))\(l.map { " · الجزء \(Fmt.number($0.juz, numerals: numerals))" } ?? "")\(marked ? " · معلَّمة" : "")\(weak ? " · آية ضعيفة" : "")").font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary)
           }
           Spacer()
+          // زرّ «علامة» في الرصيف يحفظ بنقرة واحدة؛ الملاحظة واللون من هنا (أو من «تعديل» في المكتبة)
+          Button { onAction(.bookmarkNote) } label: {
+            HStack(spacing: 6) { Image(systemName: marked ? "bookmark.fill" : "bookmark").font(.system(size: 12, weight: .semibold)); Text("ملاحظة").font(DS.F.labelSm) }
+              .foregroundStyle(marked ? DS.C.accentGoldStrong : DS.C.brandPrimary).padding(.vertical, 8).padding(.horizontal, 12).background(marked ? DS.C.accentGold.opacity(0.18) : DS.C.brandSoft, in: Capsule())
+          }.buttonStyle(.plain).accessibilityLabel(marked ? "ملاحظة العلامة ولونها" : "علامة بملاحظة ولون")
           Button { onAction(.copy) } label: {
             HStack(spacing: 6) { Image(systemName: "doc.on.doc").font(.system(size: 12, weight: .semibold)); Text("نسخ").font(DS.F.labelSm) }
               .foregroundStyle(DS.C.brandPrimary).padding(.vertical, 8).padding(.horizontal, 12).background(DS.C.brandSoft, in: Capsule())

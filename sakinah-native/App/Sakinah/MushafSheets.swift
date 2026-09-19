@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 import SakinahCore
 
-enum AyahAction { case tafsir, translation, wordMeanings, listen, playFrom, repeat3, bookmark, lastRead, hifz, share, shareImage, copy }
+enum AyahAction { case tafsir, translation, wordMeanings, listen, playFrom, repeat3, bookmark, bookmarkNote, lastRead, hifz, share, shareImage, copy }
 
 /// التفسير الميسّر للآية مع التنقل بين آيات السورة
 struct TafsirSheet: View {

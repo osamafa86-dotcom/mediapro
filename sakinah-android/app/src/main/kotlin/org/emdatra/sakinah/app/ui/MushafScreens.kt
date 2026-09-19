@@ -290,7 +290,7 @@ private fun Modifier.hiddenWordRule(on: Boolean, color: Color) = if (!on) this e
   }
   fun playFrom(n: Int, wholeSurah: Boolean) {
     val a = QuranText.shared.ayah(n) ?: return
-    Recitation.reciter = Store.reciter; Recitation.repeatAyah = Store.repeatAyah; Recitation.repeatRange = Store.repeatRange; Recitation.words = Store.wordHighlight
+    Recitation.reciter = Store.reciter; Recitation.repeatAyah = Store.repeatAyah; Recitation.useRepeatRange(Store.repeatRange); Recitation.words = Store.wordHighlight
     hifzSession?.stopSpeech(); hifzSession = null
     Recitation.play(ctx, if (wholeSurah) QuranText.shared.surahAyahs(a.surah).filter { it.n >= n }.map { it.n } else QuranText.shared.pageAyahs(a.page).map { it.n })
   }
@@ -579,7 +579,7 @@ private fun Modifier.hiddenWordRule(on: Boolean, color: Color) = if (!on) this e
   Column(Modifier.padding(horizontal = 16.dp)) {
     RowSwitch("متابعة التلاوة بقلب الصفحات", Store.follow) { Store.follow = it; Store.save() }
     RowSwitch("تظليل الكلمة أثناء التلاوة (قرّاء quran.com)", Store.wordHighlight) { Store.wordHighlight = it; Store.save(); Recitation.useWordTiming(it) }
-    RowSwitch("تكرار المقطع", Store.repeatRange) { Store.repeatRange = it; Store.save(); Recitation.repeatRange = it }
+    RowSwitch("تكرار المقطع", Store.repeatRange) { Store.repeatRange = it; Store.save(); Recitation.useRepeatRange(it) }
     RowSwitch("في المراجعة: إظهار الكلمة الحالية فقط", Store.hifzOnlyCurrent) { Store.hifzOnlyCurrent = it; Store.save() }
   }
 }
@@ -796,7 +796,7 @@ fun tajweedColor(code: String, dark: Boolean): Color? { val g = Tajweed.group(co
         val ab = if (Recitation.hasRange) "أ–ب ✓" else if (Recitation.rangeA != null) "أ ✓ — اختر ب" else "تكرار أ–ب"
         GlassChip(ab, Icons.Outlined.RepeatOne, on = Recitation.rangeA != null) { if (Recitation.hasRange) Recitation.clearRange() else if (Recitation.rangeA != null) Recitation.setRange(Recitation.rangeA, Recitation.index) else Recitation.setRange(Recitation.index, null) }
         GlassChip("السرعة ${Fmt.decimal(Store.rate, 2)}×", Icons.Outlined.Speed, on = Store.rate != 1.0) { val o = listOf(0.75, 1.0, 1.25, 1.5); Recitation.setRate(o[((o.indexOf(Store.rate).coerceAtLeast(0)) + 1) % o.size]) }
-        GlassChip("تكرار القائمة", Icons.Outlined.Repeat, on = Recitation.repeatRange) { Recitation.repeatRange = !Recitation.repeatRange; Store.repeatRange = Recitation.repeatRange; Store.save() }
+        GlassChip("تكرار القائمة", Icons.Outlined.Repeat, on = Recitation.repeatRange) { Recitation.useRepeatRange(!Recitation.repeatRange); Store.repeatRange = Recitation.repeatRange; Store.save() }
         GlassChip(Recitation.sleepMinutesLeft?.let { "نوم ${Fmt.number(it)} د" } ?: "مؤقت النوم", Icons.Outlined.Bedtime, on = Recitation.sleepAt != null) { val o = listOf(0, 15, 30, 45, 60); val cur = Recitation.sleepMinutesLeft ?: 0; Recitation.setSleep(o[((o.indexOfFirst { it >= cur }.coerceAtLeast(0)) + 1) % o.size]) }
         GlassChip("القارئ", Icons.Outlined.Mic) { reciters = true }
         GlassChip("تنزيل السورة", Icons.Outlined.Download) { downloads = true }

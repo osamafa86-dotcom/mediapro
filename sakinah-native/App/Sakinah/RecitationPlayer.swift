@@ -59,7 +59,9 @@ enum AudioSources {
   }
 }
 
-/// مشغّل التلاوة آية بآية (AVPlayer): قائمة آيات، تكرار الآية والمدى، السرعة، مؤقت النوم، تظليل الكلمة بتوقيتات quran.com، أزرار شاشة القفل، والبدائل عند فشل مصدر
+/// مشغّل التلاوة آية بآية بلا سكتة (AVQueuePlayer): الآية التالية تُحلّ مصادرها وتُدرَج خلف الجارية أثناء تشغيلها
+/// فيبدأ تحميلها مسبقًا وينتقل إليها المشغّل بنفسه لحظة انتهاء الجارية — لا انتظار شبكةٍ بين الآيتين.
+/// قائمة آيات، تكرار الآية والمدى، السرعة، مؤقت النوم، تظليل الكلمة بتوقيتات quran.com، أزرار شاشة القفل، والبدائل عند فشل مصدر
 @Observable
 final class RecitationPlayer: NSObject {
   var queue: [Int] = []
@@ -73,6 +75,7 @@ final class RecitationPlayer: NSObject {
   var duration: Double = 0
   var reciter: String = Catalog.shared.defaultReciter
   var repeatAyah = 1
+  /// تكرار القائمة كلها من أوّلها عند انتهائها (يُغيَّر أثناء التشغيل بـ setRepeatRange كي تُعاد تهيئة «التالية»)
   var repeatRange = false
   /// تكرار «أ–ب»: فهرسا البداية والنهاية داخل القائمة؛ عند بلوغ ب يعود إلى أ
   var rangeA: Int?
@@ -86,15 +89,22 @@ final class RecitationPlayer: NSObject {
   @ObservationIgnored var onAyah: ((Int) -> Void)?
   @ObservationIgnored var onSleep: (() -> Void)?
 
-  @ObservationIgnored private var player: AVPlayer?
+  /// الآية التالية المجهّزة خلف الجارية في قائمة المشغّل
+  private struct Prepared { let index: Int; let n: Int; let item: AVPlayerItem; let segments: [[Int]]?; let sourceCount: Int }
+
+  @ObservationIgnored private var player: AVQueuePlayer?
+  @ObservationIgnored private var currentItem: AVPlayerItem?
+  @ObservationIgnored private var prepared: Prepared?
   @ObservationIgnored private var timeObserver: Any?
   @ObservationIgnored private var itemObservers: [NSObjectProtocol] = []
   @ObservationIgnored private var statusObserver: NSKeyValueObservation?
+  @ObservationIgnored private var currentItemObserver: NSKeyValueObservation?
   @ObservationIgnored private var segments: [[Int]]?
   @ObservationIgnored private var attempt = 0
   @ObservationIgnored private var sourceCount = 0
   @ObservationIgnored private var repeatsLeft = 1
   @ObservationIgnored private var loadToken = 0
+  @ObservationIgnored private var prepareToken = 0
   @ObservationIgnored private var wantPlay = false
   @ObservationIgnored private var commandsReady = false
 
@@ -103,8 +113,12 @@ final class RecitationPlayer: NSObject {
   var reciterInfo: Reciter { Catalog.shared.reciter(reciter) }
   var hasWords: Bool { segments != nil }
   var hasRange: Bool { rangeA != nil && rangeB != nil }
-  func setRange(a: Int?, b: Int?) { if let a, let b { rangeA = min(a, b); rangeB = max(a, b) } else { rangeA = a; rangeB = b } }
-  func clearRange() { rangeA = nil; rangeB = nil }
+  func setRange(a: Int?, b: Int?) {
+    if let a, let b { rangeA = min(a, b); rangeB = max(a, b) } else { rangeA = a; rangeB = b }
+    if currentItem != nil { prepareNext() }
+  }
+  func clearRange() { let had = hasRange; rangeA = nil; rangeB = nil; if had, currentItem != nil { prepareNext() } }
+  func setRepeatRange(_ on: Bool) { let changed = repeatRange != on; repeatRange = on; if changed, currentItem != nil { prepareNext() } }
   /// الانتقال داخل الآية الجارية (بالثواني)
   func seek(to seconds: Double) {
     let t = max(0, min(seconds, duration > 0 ? duration : seconds))
@@ -114,7 +128,7 @@ final class RecitationPlayer: NSObject {
 
   /// تشغيل قائمة آيات (أرقام عامة) بدءًا من فهرس
   func play(queue q: [Int], startIndex: Int = 0) {
-    queue = q; index = min(max(0, startIndex), max(0, q.count - 1)); repeatsLeft = repeatAyah; attempt = 0; clearRange()
+    queue = q; index = min(max(0, startIndex), max(0, q.count - 1)); repeatsLeft = repeatAyah; attempt = 0; rangeA = nil; rangeB = nil
     guard let n = current else { return }
     activateSession(); setupRemoteCommands()
     load(n, autoplay: true)
@@ -123,8 +137,16 @@ final class RecitationPlayer: NSObject {
     let s = AVAudioSession.sharedInstance()
     try? s.setCategory(.playback, mode: .spokenAudio, options: []); try? s.setActive(true)
   }
+  /// الفهرس الذي يلي الجاري في القائمة (مع «أ–ب» وتكرار القائمة)، أو nil عند نهايتها
+  private func followingIndex() -> Int? {
+    if let a = rangeA, let b = rangeB, index >= b, a < queue.count { return a }
+    if index + 1 < queue.count { return index + 1 }
+    if repeatRange, !queue.isEmpty { return 0 }
+    return nil
+  }
   private func load(_ n: Int, autoplay: Bool) {
     loadToken += 1; let token = loadToken; loading = true; wantPlay = autoplay
+    discardPrepared()
     Task { @MainActor [weak self] in
       guard let self else { return }
       let srcs = await AudioSources.sources(reciter: self.reciter, n: n, words: self.words, local: self.downloads)
@@ -135,33 +157,89 @@ final class RecitationPlayer: NSObject {
       self.attach(url: src.url, ayah: n, autoplay: autoplay)
     }
   }
-  private func attach(url: URL, ayah n: Int, autoplay: Bool) {
-    teardownItem()
+  private func makeItem(_ url: URL) -> AVPlayerItem {
     let item = AVPlayerItem(url: url)
     item.preferredForwardBufferDuration = 4
-    let p = player ?? AVPlayer(); player = p
+    return item
+  }
+  private func makePlayer() -> AVQueuePlayer {
+    let p = AVQueuePlayer()
     p.automaticallyWaitsToMinimizeStalling = true
-    p.replaceCurrentItem(with: item)
-    statusObserver = item.observe(\.status, options: [.new]) { [weak self] it, _ in
-      DispatchQueue.main.async { guard let self else { return }; if it.status == .failed { self.onItemFailed() } else if it.status == .readyToPlay { self.duration = it.duration.seconds.isFinite ? it.duration.seconds : 0; self.buffering = false; self.syncNowPlaying() } }
+    timeObserver = p.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.08, preferredTimescale: 600), queue: .main) { [weak self] t in self?.tick(t.seconds) }
+    // انتقال المشغّل بنفسه إلى الآية المجهّزة: تُعتمد حالتُها (الفهرس والتوقيتات) لحظة صيرورتها الجارية
+    currentItemObserver = p.observe(\.currentItem, options: [.new]) { [weak self] _, _ in
+      DispatchQueue.main.async { guard let self, let pr = self.prepared, self.player?.currentItem === pr.item else { return }; self.adopt(pr) }
     }
-    let nc = NotificationCenter.default
-    itemObservers = [
-      nc.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main) { [weak self] _ in self?.onEnded() },
-      nc.addObserver(forName: .AVPlayerItemFailedToPlayToEndTime, object: item, queue: .main) { [weak self] _ in self?.onItemFailed() },
-      nc.addObserver(forName: .AVPlayerItemPlaybackStalled, object: item, queue: .main) { [weak self] _ in self?.buffering = true },
-    ]
-    if timeObserver == nil {
-      timeObserver = p.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.08, preferredTimescale: 600), queue: .main) { [weak self] t in self?.tick(t.seconds) }
-    }
+    return p
+  }
+  private func attach(url: URL, ayah n: Int, autoplay: Bool) {
+    teardownItem(); discardPrepared()
+    let item = makeItem(url)
+    let p = player ?? makePlayer(); player = p
+    p.removeAllItems(); p.insert(item, after: nil)
+    currentItem = item
+    observe(item)
+    p.actionAtItemEnd = repeatsLeft > 1 ? .pause : .advance
     onAyah?(n)
     updateNowPlaying(n)
     if autoplay { p.rate = Float(rate); isPlaying = true } else { isPlaying = false }
     syncNowPlaying()
+    if repeatsLeft <= 1 { prepareNext() }
+  }
+  /// مراقبة العنصر الجاري: الجاهزية والفشل والانتهاء والتوقّف للتخزين
+  private func observe(_ item: AVPlayerItem) {
+    statusObserver = item.observe(\.status, options: [.initial, .new]) { [weak self] it, _ in
+      DispatchQueue.main.async {
+        guard let self, it === self.currentItem else { return }
+        if it.status == .failed { self.onItemFailed() }
+        else if it.status == .readyToPlay { self.duration = it.duration.seconds.isFinite ? it.duration.seconds : 0; self.buffering = false; self.syncNowPlaying() }
+      }
+    }
+    let nc = NotificationCenter.default
+    itemObservers = [
+      nc.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main) { [weak self, weak item] _ in if let item { self?.onEnded(item) } },
+      nc.addObserver(forName: .AVPlayerItemFailedToPlayToEndTime, object: item, queue: .main) { [weak self, weak item] _ in if let self, let item, item === self.currentItem { self.onItemFailed() } },
+      nc.addObserver(forName: .AVPlayerItemPlaybackStalled, object: item, queue: .main) { [weak self] _ in self?.buffering = true },
+    ]
   }
   private func teardownItem() {
     statusObserver = nil
     for o in itemObservers { NotificationCenter.default.removeObserver(o) }; itemObservers = []
+  }
+  private func discardPrepared() {
+    prepareToken += 1
+    if let it = prepared?.item, let p = player, p.items().contains(where: { $0 === it }) { p.remove(it) }
+    prepared = nil
+  }
+  /// تجهيز الآية التالية خلف الجارية كي يحمّلها المشغّل أثناء التلاوة وينتقل إليها بلا فجوة
+  private func prepareNext() {
+    discardPrepared()
+    guard let cur = currentItem, repeatsLeft <= 1, let i = followingIndex(), i < queue.count else { return }
+    let n = queue[i]; let token = prepareToken
+    Task { @MainActor [weak self] in
+      guard let self else { return }
+      let srcs = await AudioSources.sources(reciter: self.reciter, n: n, words: self.words, local: self.downloads)
+      guard token == self.prepareToken, let src = srcs.first, let p = self.player, self.currentItem === cur else { return }
+      let item = self.makeItem(src.url)
+      guard p.items().contains(where: { $0 === cur }), p.canInsert(item, after: cur) else { return }
+      p.insert(item, after: cur)
+      self.prepared = Prepared(index: i, n: n, item: item, segments: src.segments, sourceCount: srcs.count)
+    }
+  }
+  /// اعتماد الآية المجهّزة بعد انتقال المشغّل إليها بنفسه
+  private func adopt(_ pr: Prepared) {
+    prepared = nil
+    teardownItem()
+    currentItem = pr.item
+    index = pr.index; attempt = 0; repeatsLeft = repeatAyah
+    segments = pr.segments; sourceCount = pr.sourceCount
+    currentWord = nil; position = 0
+    duration = pr.item.duration.seconds.isFinite ? pr.item.duration.seconds : 0
+    observe(pr.item)
+    player?.actionAtItemEnd = repeatsLeft > 1 ? .pause : .advance
+    isPlaying = (player?.rate ?? 0) > 0 || wantPlay
+    onAyah?(pr.n); updateNowPlaying(pr.n); syncNowPlaying()
+    if repeatsLeft <= 1 { prepareNext() }
   }
   private func tick(_ t: Double) {
     position = t
@@ -177,21 +255,34 @@ final class RecitationPlayer: NSObject {
     isPlaying = false; fail("network")
   }
   private func fail(_ kind: String) { lastError = kind; errorVersion += 1 }
-  private func onEnded() {
-    if repeatsLeft > 1 { repeatsLeft -= 1; player?.seek(to: .zero); player?.rate = Float(rate); return }
+  private func onEnded(_ item: AVPlayerItem) {
+    guard item === currentItem else { return }
+    if repeatsLeft > 1 {
+      repeatsLeft -= 1
+      player?.actionAtItemEnd = repeatsLeft > 1 ? .pause : .advance
+      if repeatsLeft == 1 { prepareNext() }
+      player?.seek(to: .zero); player?.rate = Float(rate)
+      return
+    }
+    // آخر مرّة لهذه الآية: إن كانت التالية مجهّزة فالمشغّل ينتقل إليها بنفسه (تُعتمد عند تغيّر العنصر الجاري)
+    if let pr = prepared, let p = player, p.currentItem === pr.item || p.items().contains(where: { $0 === pr.item }) { return }
     repeatsLeft = repeatAyah
-    if let a = rangeA, let b = rangeB, index >= b, a < queue.count { index = a; attempt = 0; load(queue[a], autoplay: true) }
-    else if index + 1 < queue.count { index += 1; attempt = 0; load(queue[index], autoplay: true) }
-    else if repeatRange, !queue.isEmpty { index = 0; attempt = 0; load(queue[0], autoplay: true) }
+    if let i = followingIndex() { index = i; attempt = 0; load(queue[i], autoplay: true) }
     else { isPlaying = false; syncNowPlaying() }
   }
   func pause() { player?.pause(); isPlaying = false; syncNowPlaying() }
-  func resume() { guard current != nil else { return }; activateSession(); player?.rate = Float(rate); isPlaying = true; syncNowPlaying() }
+  func resume() {
+    guard let n = current else { return }
+    activateSession()
+    // انتهت القائمة (لا عنصر جارٍ): تُعاد الآية الأخيرة من أوّلها
+    if player?.currentItem == nil { repeatsLeft = repeatAyah; attempt = 0; load(n, autoplay: true); return }
+    player?.rate = Float(rate); isPlaying = true; syncNowPlaying()
+  }
   func toggle() { isPlaying ? pause() : resume() }
   func stop() {
-    loadToken += 1; loading = false; teardownItem()
-    player?.pause(); player?.replaceCurrentItem(with: nil)
-    isPlaying = false; index = -1; queue = []; segments = nil; currentWord = nil; sleepAt = nil; position = 0; duration = 0; clearRange()
+    loadToken += 1; loading = false; teardownItem(); discardPrepared()
+    player?.pause(); player?.removeAllItems(); currentItem = nil
+    isPlaying = false; index = -1; queue = []; segments = nil; currentWord = nil; sleepAt = nil; position = 0; duration = 0; rangeA = nil; rangeB = nil
     MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
   }
   func nextAyah() { guard index + 1 < queue.count else { return }; index += 1; repeatsLeft = repeatAyah; attempt = 0; load(queue[index], autoplay: true) }

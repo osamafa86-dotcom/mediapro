@@ -36,7 +36,7 @@ enum ScreenshotMode {
   static var keepChrome: Bool { route == "mushaf-bar" || route == "mushaf-ayah" || route == "mushaf-ayah-bookmark" }
   /// لقطات المصحف v2: آية محدّدة مع رصيفها، ورقة مفتوحة في القارئ، جلسة إخفاء للحفظ، وورقة الختمة في المكتبة
   static var readerSelectsAyah: Bool { route == "mushaf-ayah" || route == "mushaf-ayah-bookmark" }
-  /// لقطة تحقّق: من الرصيف تُفتح ورقة العلامة (المسار نفسه الذي يسلكه زرّ «علامة»)
+  /// لقطة تحقّق: ورقة ملاحظة العلامة ولونها (زرّ «علامة» في الرصيف يحفظ بنقرة واحدة؛ الورقة من «ملاحظة» في خيارات الآية)
   static var readerBookmarkSheet: Bool { route == "mushaf-ayah-bookmark" }
   /// لقطة تحقّق: تبديل تبويب الفهرس بعد الظهور (السور → الأجزاء) بالمسار نفسه الذي يسلكه النقر
   static var switchLibraryTab: Bool { route == "mushaf-switch" }
@@ -69,7 +69,7 @@ enum ScreenshotMode {
     // فتبحث البطاقة حول قراءة الجهاز كما عند المستخدم، وبلا ذلك تعرض طلب الإذن — وكلاهما يُتحقّق منه
     model.settings.nearbyMosques = true
     // ورقة الختمة والمكتبة تحتاجان خطةً وسجلّ ورد كي تُظهرا حالةً حقيقية: خطة ٣٠ يومًا بدأت قبل خمسة أيام وورد ٢١ صفحة في أربعة منها
-    // لقطة تحقّق العلامات: علامتان تُحفظان بالمسار نفسه الذي تسلكه ورقة العلامة
+    // لقطة تحقّق العلامات: علامتان تُحفظان بالمسار نفسه الذي يسلكه زرّ «علامة» وورقة الملاحظة
     if route == "mushaf-bookmarks", let a1 = QuranText.shared.ayah(surah: 2, ayah: 255), let a2 = QuranText.shared.ayah(surah: 16, ayah: 27) {
       model.quran.setBookmark(a1, note: "آية الكرسي", color: "gold"); model.quran.setBookmark(a2, note: nil, color: "green")
     }
