@@ -367,7 +367,11 @@ struct DSSegmented: View {
             .background(on ? DS.C.bgSurface : .clear, in: RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))
             .shadow(color: on ? DS.C.shadowCard : .clear, radius: 6, y: 2)
             .contentShape(Rectangle())
-        }.buttonStyle(.plain).accessibilityAddTraits(on ? .isSelected : [])
+        }
+        .buttonStyle(.plain)
+        // نقرة متزامنة احتياطًا: اختبار الواجهة رصد ضياع نقرةٍ أولى على الزرّ داخل عمود التمرير (تصل بعدها نقرة الإحداثيات نفسها)
+        .simultaneousGesture(TapGesture().onEnded { selection = i })
+        .accessibilityAddTraits(on ? .isSelected : [])
       }
     }
     .animation(.snappy(duration: 0.2), value: selection)

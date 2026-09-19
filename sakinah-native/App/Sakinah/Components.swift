@@ -258,6 +258,7 @@ struct DSTabBar: View {
     .background {
       LinearGradient(colors: [DS.C.bgCanvas.opacity(0), DS.C.bgCanvas, DS.C.bgCanvas], startPoint: .top, endPoint: .bottom)
         .ignoresSafeArea(edges: .bottom)
+        .allowsHitTesting(false)
     }
   }
 }

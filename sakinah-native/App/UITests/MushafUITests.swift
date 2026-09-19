@@ -59,17 +59,23 @@ final class MushafUITests: XCTestCase {
     print(tree.prefix(60_000))
     print("=== END AX TREE ===")
   }
-  /// نقر مقسّم: إن لم ينتقل التحديد بنقرة الزرّ تُسجَّل الشجرة ثم تُجرَّب نقرة بالإحداثيات (تُميّز عطل الإطار من عطل الإصابة)
+  /// نقرات ضاعت (الزرّ لم يستجب لنقرة الاختبار الأولى) — تُحصى ويفشل الاختبار بها في آخره
+  private var lostTaps: [String] = []
+  /// نقر مقسّم: نقرة الزرّ، فإن لم ينتقل التحديد فنقرة ثانية، ثم نقرة بالإحداثيات (تُميّز عطل الإطار من عطل الإصابة) — وكل ضياع يُسجَّل
   @discardableResult private func tapSegment(_ app: XCUIApplication, _ label: String, expect rowText: String) -> Bool {
     let b = app.buttons[label]
     XCTAssertTrue(b.waitForExistence(timeout: 5), "زرّ «\(label)» غير موجود")
+    func switched() -> Bool { any(app, containing: rowText).waitForExistence(timeout: 5) && b.isSelected }
     b.tap()
-    if any(app, containing: rowText).waitForExistence(timeout: 5), b.isSelected { return true }
-    print("!! TAP «\(label)» DID NOT SWITCH (selected=\(b.isSelected)) — frame=\(b.frame)")
+    if switched() { return true }
+    lostTaps.append(label)
+    print("!! LOST TAP «\(label)» (selected=\(b.isSelected)) frame=\(b.frame) — retrying")
+    b.tap()
+    if switched() { print("!! RETRY TAP «\(label)» → switched"); return false }
+    print("!! RETRY TAP «\(label)» → still nothing")
     dumpOnFailure(app, "tap-\(label)")
     b.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-    let ok = any(app, containing: rowText).waitForExistence(timeout: 5)
-    print("!! COORDINATE TAP «\(label)» → \(ok ? "switched" : "still nothing")")
+    print("!! COORDINATE TAP «\(label)» → \(switched() ? "switched" : "still nothing")")
     return false
   }
   private func arabicDigits(_ s: String) -> String {
@@ -98,6 +104,7 @@ final class MushafUITests: XCTestCase {
     XCTAssertTrue(marks, "نقر «العلامات» لم يعرض تبويب العلامات")
     XCTAssertTrue(surahs, "العودة إلى «السور» لم تعرض صفوف السور")
     XCTAssertTrue(juzAgain, "النقرة الثانية على «الأجزاء» لم تستجب")
+    XCTAssertTrue(lostTaps.isEmpty, "نقرات ضاعت على المقسّم: \(lostTaps.joined(separator: "، "))")
   }
 
   // MARK: ٢ — علامة بنقرة واحدة من رصيف الآية (سورة من الفهرس → نقر كلمة → «علامة») ثم تظهر في تبويب «العلامات»
