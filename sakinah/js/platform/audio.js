@@ -7,7 +7,6 @@
  */
 // bitrates: معدلات البت المتاحة فعلًا على cdn.islamic.network لكل قارئ (HEAD، سبتمبر 2026)؛ qdc: معرّف التلاوة في quran.com (توقيتات الكلمات)
 export const RECITERS = [
-  { id: 'ar.alafasy', name: 'مشاري راشد العفاسي', bitrates: [128, 64], qdc: 7 },
   { id: 'ar.husary', name: 'محمود خليل الحصري (مرتّل)', bitrates: [128, 64], qdc: 6 },
   { id: 'ar.husarymujawwad', name: 'محمود خليل الحصري (مجوّد)', bitrates: [128, 64] },
   { id: 'qdc.husarymuallim', name: 'محمود خليل الحصري (المعلّم)', bitrates: [], qdc: 12 },
@@ -29,7 +28,7 @@ export const RECITERS = [
   { id: 'ar.ibrahimakhbar', name: 'إبراهيم الأخضر', bitrates: [32] },
   { id: 'ar.hanirifai', name: 'هاني الرفاعي', bitrates: [64, 192], qdc: 5 },
 ];
-export const DEFAULT_RECITER = 'ar.alafasy';
+export const DEFAULT_RECITER = 'ar.husary';
 export const QDC_BASE = 'https://verses.quran.com/';
 const QDC_API = 'https://api.quran.com/api/v4/recitations/';
 const META_CACHE = 'sakinah-audio-meta';

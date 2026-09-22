@@ -48,6 +48,10 @@ object AudioDownloads {
     root = File(ctx.filesDir, "audio").apply { mkdirs() }
     sp = ctx.getSharedPreferences("sakinah", Context.MODE_PRIVATE)
     state = sp?.getString("quran.downloads", null)?.let { runCatching { json.decodeFromString(ser, it) }.getOrNull() } ?: emptyMap()
+    // قارئ أُزيل من القائمة: تنزيلاته لا تظهر في أيّ شاشة، فتُحذف مع سجلّها بدل أن تبقى تشغل الذاكرة
+    val listed = Catalog.shared.reciters.map { it.id }.toSet()
+    val orphans = state.keys.filter { it !in listed }
+    if (orphans.isNotEmpty()) { for (r in orphans) File(root, r).deleteRecursively(); state = state.filterKeys { it in listed }; persist() }
   }
   private fun persist() { sp?.edit()?.putString("quran.downloads", json.encodeToString(ser, state))?.apply() }
   private fun file(reciter: String, n: Int, ext: String = "mp3"): File = File(File(root, reciter), "$n.$ext")

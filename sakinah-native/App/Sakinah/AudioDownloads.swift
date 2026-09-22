@@ -16,7 +16,15 @@ final class AudioDownloads {
     let d = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("audio", isDirectory: true)
     try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true); return d
   }
-  init() { state = Store.load("quran.downloads", [:]) }
+  init() {
+    state = Store.load("quran.downloads", [:])
+    // قارئ أُزيل من القائمة: تنزيلاته لا تظهر في أيّ شاشة، فتُحذف مع سجلّها بدل أن تبقى تشغل الذاكرة
+    let listed = Set(Catalog.shared.reciters.map(\.id))
+    for r in state.keys where !listed.contains(r) {
+      try? FileManager.default.removeItem(at: Self.root.appendingPathComponent(r, isDirectory: true))
+      state.removeValue(forKey: r)
+    }
+  }
 
   private static func file(_ reciter: String, _ n: Int, ext: String = "mp3") -> URL { root.appendingPathComponent(reciter, isDirectory: true).appendingPathComponent("\(n).\(ext)") }
   /// ملف محلي للآية إن وُجد (مع توقيتات الكلمات إن حُفظت)

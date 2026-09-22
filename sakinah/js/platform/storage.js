@@ -32,7 +32,7 @@ export const DEFAULT_SETTINGS = {
   quran: {
     lastRead: null,          // { page, surah, ayah, at }
     bookmarks: [],           // [{ surah, ayah, page, at }]
-    reciter: 'ar.alafasy', repeatAyah: 1, repeatRange: false, rate: 1, follow: true,
+    reciter: 'ar.husary', repeatAyah: 1, repeatRange: false, rate: 1, follow: true,
     fontScale: 1, hifzOnlyCurrent: true, night: false, paper: 'cream', fontsOffline: false, hintShown: false,
     theme: 'cream', themeLight: 'cream', themeDark: 'dark', themeAuto: false, // سمة الصفحة (core/mushaf-themes.js)؛ night/paper للترقية فقط
     dim: 0, keepAwake: true, lineHeight: 2.15, // تعتيم الصفحة (0–0.6)، إبقاء الشاشة مضاءة، تباعد الأسطر في وضع النص
@@ -81,6 +81,8 @@ function loadStored() {
 }
 let state = deepMerge(clone(DEFAULT_SETTINGS), loadStored());
 state.schema = SCHEMA;
+// قارئ أُزيل من القائمة (العفاسي) يعود إلى الافتراضي بدل بقائه مختارًا خفيًا
+if (state.quran && state.quran.reciter === 'ar.alafasy') state.quran.reciter = DEFAULT_SETTINGS.quran.reciter;
 /** آخر خطأ حفظ (امتلاء التخزين مثلًا) ومستمعوه، كي تُخبر الواجهة المستخدم بدل الصمت */
 export let lastPersistError = null;
 const persistListeners = new Set();

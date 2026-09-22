@@ -182,7 +182,7 @@ final class Phase3Tests: XCTestCase {
     XCTAssertEqual(Tafsir.runs("أ<b>ب</b>ج<br>د&nbsp;"), [Tafsir.Run(text: "أ", bold: false), Tafsir.Run(text: "ب", bold: true), Tafsir.Run(text: "ج\nد ", bold: false)])
 
     let c = Catalog.shared
-    XCTAssertEqual(c.reciters.count, 21); XCTAssertEqual(c.defaultReciter, "ar.alafasy"); XCTAssertTrue(c.reciter("ar.alafasy").hasWordTiming); XCTAssertEqual(c.reciter("nope").id, "ar.alafasy")
+    XCTAssertEqual(c.reciters.count, 20); XCTAssertEqual(c.defaultReciter, "ar.husary"); XCTAssertTrue(c.reciter("ar.husary").hasWordTiming); XCTAssertEqual(c.reciter("nope").id, "ar.husary"); XCTAssertNil(c.reciters.first { $0.id == "ar.alafasy" })
     XCTAssertEqual(c.themes.count, 16); XCTAssertEqual(c.theme("dusk").isDark, true); XCTAssertEqual(c.migrateTheme(theme: nil, night: true, paper: nil), "dark"); XCTAssertEqual(c.migrateTheme(theme: "sky", night: true, paper: nil), "sky")
     for t in c.themes { XCTAssertGreaterThanOrEqual(HexColor.contrast(HexColor(t.paper)!, HexColor(t.ink)!), 7, t.id) }
     XCTAssertEqual(c.tajweed.legend.count, 9); XCTAssertEqual(c.tajweed.light["madd6"], "#b3001b"); XCTAssertEqual(c.tafsirSources.first?.id, "muyassar")

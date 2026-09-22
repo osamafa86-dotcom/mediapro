@@ -449,7 +449,7 @@ await showTools();
 await page.locator('.mr-btn[aria-label="خيارات"]').click();
 await page.getByRole('button', { name: /تشغيل/ }).click();
 await page.locator('#audio-bar').waitFor({ timeout: 5000 });
-check(/العفاسي/.test(await page.locator('#audio-bar .who').textContent()), 'شريط التلاوة يعرض القارئ الافتراضي');
+check(/الحصري/.test(await page.locator('#audio-bar .who').textContent()), 'شريط التلاوة يعرض القارئ الافتراضي');
 await page.locator('#audio-bar').getByRole('button', { name: 'إغلاق' }).click();
 check((await page.locator('#audio-bar').count()) === 0, 'إغلاق شريط التلاوة');
 // العودة للفهرس: بطاقة المتابعة تعرض آخر موضع، والعلامة في قائمة العلامات

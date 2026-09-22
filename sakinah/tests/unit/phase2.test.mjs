@@ -8,13 +8,14 @@ test('توقيتات الكلمات: البحث الثنائي يعيد موضع
   assert.equal(wordAt(seg, 0.0), null); assert.equal(wordAt(seg, 0.1), 1); assert.equal(wordAt(seg, 0.615), 1); assert.equal(wordAt(seg, 1.0), 2); assert.equal(wordAt(seg, 3.0), 4); assert.equal(wordAt(seg, 9), 4);
   assert.equal(wordAt(null, 1), null); assert.equal(wordAt([], 1), null);
 });
-test('القرّاء: 21 قارئًا، 12 منهم بتوقيتات كلمات، والقرّاء الحصريون لـ quran.com بلا معدلات Islamic Network', () => {
-  assert.equal(RECITERS.length, 21);
-  assert.equal(RECITERS.filter((r) => r.qdc).length, 12);
+test('القرّاء: 20 قارئًا (بلا العفاسي بطلب المالك)، 11 منهم بتوقيتات كلمات، والقرّاء الحصريون لـ quran.com بلا معدلات Islamic Network', () => {
+  assert.equal(RECITERS.length, 20);
+  assert.equal(RECITERS.filter((r) => r.qdc).length, 11);
+  assert.ok(!RECITERS.some((r) => r.id === 'ar.alafasy'));
   for (const r of RECITERS.filter((r) => r.id.startsWith('qdc.'))) { assert.ok(r.qdc && r.bitrates.length === 0, r.id); assert.equal(reciterBitrate(r.id), null); }
-  assert.ok(hasWordTiming('ar.alafasy') && !hasWordTiming('ar.mahermuaiqly'));
+  assert.ok(hasWordTiming('ar.husary') && !hasWordTiming('ar.mahermuaiqly'));
   assert.equal(ayahAudioUrl('ar.abdurrahmaansudais', 5), 'https://cdn.islamic.network/quran/audio/64/ar.abdurrahmaansudais/5.mp3');
-  assert.ok(new Set(RECITERS.map((r) => r.id)).size === RECITERS.length && new Set(RECITERS.filter((r) => r.qdc).map((r) => r.qdc)).size === 12);
+  assert.ok(new Set(RECITERS.map((r) => r.id)).size === RECITERS.length && new Set(RECITERS.filter((r) => r.qdc).map((r) => r.qdc)).size === 11);
 });
 test('خطة الختمة: الصفحات اليومية، التقدّم مع الالتفاف، التأخّر، السلسلة، وسجل الصفحات', () => {
   const plan = makePlan({ startPage: 300, startedAt: '2026-09-01', days: 30 });

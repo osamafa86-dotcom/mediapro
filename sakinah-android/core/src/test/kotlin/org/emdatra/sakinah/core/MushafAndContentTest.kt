@@ -147,7 +147,7 @@ class MushafAndContentTest {
     assertEquals(12, Hisn.sections.size); assertEquals(132, Hisn.chapters.size); assertEquals(267, Hisn.itemCount); assertTrue(Hisn.search("الاستيقاظ").first.isNotEmpty())
     assertEquals(7, Tafsir.surah(1).size); assertEquals(286, Tafsir.surah(2).size); assertTrue(Tafsir.runs(Tafsir.text(1, 1)!!).any { it.bold && it.text.contains("اللهِ") })
     assertEquals(listOf(Tafsir.Run("أ", false), Tafsir.Run("ب", true), Tafsir.Run("ج\nد ", false)), Tafsir.runs("أ<b>ب</b>ج<br>د&nbsp;"))
-    val cat = Catalog.shared; assertEquals(21, cat.reciters.size); assertEquals(16, cat.themes.size); assertTrue(cat.reciter("ar.alafasy").hasWordTiming); assertEquals("dark", cat.migrateTheme(null, true, null)); assertEquals(9, cat.tajweed.legend.size)
+    val cat = Catalog.shared; assertEquals(20, cat.reciters.size); assertEquals(16, cat.themes.size); assertTrue(cat.reciter("ar.husary").hasWordTiming); assertEquals("ar.husary", cat.defaultReciter); assertTrue(cat.reciters.none { it.id == "ar.alafasy" }); assertEquals("dark", cat.migrateTheme(null, true, null)); assertEquals(9, cat.tajweed.legend.size)
   }
 
   @Test fun remindersAndBackup() {
