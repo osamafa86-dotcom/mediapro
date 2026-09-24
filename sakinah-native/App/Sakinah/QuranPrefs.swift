@@ -60,10 +60,10 @@ final class QuranPrefs {
   var khatmahUnit: String { didSet { Store.d.set(khatmahUnit, forKey: "quran.khatmahUnit") } }
 
   init() {
-    reciter = Store.str("quran.reciter", Catalog.shared.defaultReciter); repeatAyah = Store.int("quran.repeatAyah", 1); repeatRange = Store.bool("quran.repeatRange", false)
-    // قارئ أُزيل من القائمة (العفاسي) يعود إلى الافتراضي بدل بقائه مختارًا خفيًا
-    let chosenReciter = reciter
-    if !Catalog.shared.reciters.contains(where: { $0.id == chosenReciter }) { reciter = Catalog.shared.defaultReciter }
+    // قارئ أُزيل من القائمة (العفاسي) يعود إلى الافتراضي بدل بقائه مختارًا خفيًا (يُقرأ في محلّي: لا قراءة من self قبل اكتمال التهيئة)
+    let storedReciter = Store.str("quran.reciter", Catalog.shared.defaultReciter)
+    reciter = Catalog.shared.reciters.contains(where: { $0.id == storedReciter }) ? storedReciter : Catalog.shared.defaultReciter
+    repeatAyah = Store.int("quran.repeatAyah", 1); repeatRange = Store.bool("quran.repeatRange", false)
     rate = Store.dbl("quran.rate", 1); follow = Store.bool("quran.follow", true); wordHighlight = Store.bool("quran.wordHighlight", true)
     fontScale = Store.dbl("quran.fontScale", 1); lineHeight = Store.dbl("quran.lineHeight", 2.15); hifzOnlyCurrent = Store.bool("quran.hifzOnlyCurrent", true)
     theme = Store.str("quran.theme", "cream"); themeLight = Store.str("quran.themeLight", "cream"); themeDark = Store.str("quran.themeDark", "dark"); themeAuto = Store.bool("quran.themeAuto", false)
