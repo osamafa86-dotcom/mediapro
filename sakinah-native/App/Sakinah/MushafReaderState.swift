@@ -22,7 +22,7 @@ final class MushafReaderState {
   var fitText: Bool { prefs?.fitText ?? true }
   var tajweed: Bool { prefs?.tajweed ?? false }
   /// سماكة الخطّ (0/1/2) وعرض الحدّ الذي يُرسم به كل رمز فوق تعبئته — يُثخّن خطوط QCF الرفيعة إلى وزن طبعة المدينة
-  var weight: Int { prefs?.weight ?? 2 }
+  var weight: Int { prefs?.weight ?? 0 }
   func strokeWidth(_ size: CGFloat) -> CGFloat { size * (weight >= 2 ? 0.022 : weight == 1 ? 0.011 : 0) }
   var wordHighlight: Bool { prefs?.wordHighlight ?? true }
   /// وميض مؤقّت عند الوصول إلى آية بقصد (بحث، علامة، تلاوة) — يُظلّلها دون أن يفتح رصيف الآية

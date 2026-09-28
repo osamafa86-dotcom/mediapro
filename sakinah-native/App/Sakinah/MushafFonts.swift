@@ -3,7 +3,7 @@ import CoreGraphics
 import CoreText
 import Compression
 
-/// خطوط صفحات المصحف (QCF v1) المضمّنة مضغوطة raw-deflate في App/Fonts/*.ttf.z (4 بايتات حجم أصلي + البيانات).
+/// خطوط صفحات المصحف (QCF v2 — خطّ طبعة المدينة الأحدث) المضمّنة مضغوطة raw-deflate في App/Fonts/*.ttf.z (4 بايتات حجم أصلي + البيانات).
 /// تُفكّ وتُسجَّل في CoreText عند الطلب، مع الإبقاء على أقرب 16 خطًا فقط في الذاكرة (كل خط ≈ 150 ك.ب).
 final class MushafFonts {
   static let shared = MushafFonts()
@@ -13,7 +13,7 @@ final class MushafFonts {
   private let keep = 16
 
   /// اسم PostScript لخط الصفحة كما داخل الملف
-  static func pageFontName(_ p: Int) -> String { String(format: "QCF_P%03d", p) }
+  static func pageFontName(_ p: Int) -> String { String(format: "QCF2%03d", p) }
   static let surahNamesFont = "sura_names"
   static let amiriQuranFont = "AmiriQuran"
   /// خط حفص (مجمع الملك فهد، الإصدار 18) لوضع النص — اسم PostScript داخل الملف (مقطوع عند 31 حرفًا)

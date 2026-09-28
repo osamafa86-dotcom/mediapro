@@ -198,7 +198,8 @@ export function fitMushafPage(page) {
   body.style.fontSize = size.toFixed(2) + 'px';
   let maxW = 0;
   for (const l of body.querySelectorAll('.mlw')) maxW = Math.max(maxW, l.getBoundingClientRect().width);
-  if (maxW > W + 0.5) { size *= W / maxW; body.style.fontSize = size.toFixed(2) + 'px'; }
+  // الحجم من أعرض سطر فعلًا (v2 أضيق قليلًا من 14.85em): يملأ العرض ولا يفيض؛ ثم قيد الارتفاع في ملء الشاشة
+  if (maxW > 0 && Math.abs(maxW - W * 0.995) > 0.5) { size *= (W * 0.995) / maxW; if (page.classList.contains('mp-full') && H > 0) { const rowH = H / LINES; if (rowH < size * ROW_MIN_EM) size = rowH / ROW_MIN_EM; } body.style.fontSize = size.toFixed(2) + 'px'; }
   page.style.setProperty('--mp-size', size.toFixed(2) + 'px');
 }
 

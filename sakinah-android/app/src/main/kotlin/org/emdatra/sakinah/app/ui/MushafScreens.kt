@@ -606,15 +606,17 @@ private fun Modifier.frosted(on: Boolean) = if (on && canBlur) this.blur(5.dp) e
     val wPx = with(density) { maxWidth.toPx() }; val hPx = with(density) { (maxHeight - 60.dp).toPx() }
     val sizePx = remember(p, wPx, hPx, family) {
       var s = wPx / 14.85f
-      val rowH = hPx / 15f; if (rowH < s * 1.12f) s = rowH / 1.12f
       // أسطر QCF تملأ العرض بالضبط، ونرسم كل كلمة عنصرًا مستقلًّا: تقريبٌ جزئيّ في كلمة يُفيض
       // السطر فيُقتطع من طرفه، وفقدُ كلمة من صفحة مصحف لا يُحتمل — فنترك شعرة.
-      if (family != null) { val maxW = lines.maxOf { l -> val ws = l.wordList; if (ws.isEmpty()) 0f else measurer.measure(AnnotatedString(ws.joinToString("") { it.glyph }), TextStyle(fontFamily = family, fontSize = with(density) { s.toSp() }), softWrap = false, maxLines = 1).size.width.toFloat() }; val safeW = wPx * 0.988f; if (maxW > safeW) s *= safeW / maxW }
+      if (family != null) { val maxW = lines.maxOf { l -> val ws = l.wordList; if (ws.isEmpty()) 0f else measurer.measure(AnnotatedString(ws.joinToString("") { it.glyph }), TextStyle(fontFamily = family, fontSize = with(density) { s.toSp() }), softWrap = false, maxLines = 1).size.width.toFloat() }; val safeW = wPx * 0.988f; if (maxW > 0f) s *= safeW / maxW }
+      // الحجم من أعرض سطر فعلًا (v2 أضيق قليلًا من 14.85em) ثم يُقيَّد بالارتفاع
+      val rowH = hPx / 15f; if (rowH < s * 1.12f) s = rowH / 1.12f
       s
     }
     val fontSize = with(density) { sizePx.toSp() }; val bodyH = minOf(hPx, 15 * sizePx * 2f)
     Column(Modifier.fillMaxSize()) {
-      if (label != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { val s = "سُورَةُ ${QuranMeta.surah(label.surah).vocalized}"; val j = QuranMeta.juzName(label.juz); Text(if (p % 2 == 1) s else j, fontFamily = Fonts.amiri, color = ink.copy(alpha = 0.85f), fontSize = fontSize * 0.66, maxLines = 1); Text(if (p % 2 == 1) j else s, fontFamily = Fonts.amiri, color = ink.copy(alpha = 0.85f), fontSize = fontSize * 0.66, maxLines = 1) }
+      // اسم السورة والجزء أعلى الصفحة مع هامشٍ واضح قبل أوّل سطر (ملاحظة المالك: كانا ملاصقين لأوّل آية)
+      if (label != null) Row(Modifier.fillMaxWidth().padding(bottom = with(density) { (sizePx * 0.6f).toDp() }), horizontalArrangement = Arrangement.SpaceBetween) { val s = "سُورَةُ ${QuranMeta.surah(label.surah).vocalized}"; val j = QuranMeta.juzName(label.juz); Text(if (p % 2 == 1) s else j, fontFamily = Fonts.amiri, color = ink.copy(alpha = 0.85f), fontSize = fontSize * 0.66, maxLines = 1); Text(if (p % 2 == 1) j else s, fontFamily = Fonts.amiri, color = ink.copy(alpha = 0.85f), fontSize = fontSize * 0.66, maxLines = 1) }
       Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
         Column(Modifier.height(with(density) { bodyH.toDp() }).fillMaxWidth()) {
           val short = lines.size < 15

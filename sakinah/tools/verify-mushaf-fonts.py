@@ -16,7 +16,7 @@ from fontTools.ttLib import TTFont
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 LAYOUT = os.path.join(ROOT, "data", "mushaf-layout.json")
-FONTS = os.path.join(ROOT, "www", "assets", "fonts", "quran", "hafs", "v1", "woff2")
+FONTS = os.path.join(ROOT, "www", "assets", "fonts", "quran", "hafs", "v2", "woff2")
 
 
 def main() -> int:

@@ -1,6 +1,6 @@
 /**
  * توليد تخطيط صفحات مصحف المدينة النبوية (604 صفحات × 15 سطرًا) إلى data/mushaf-layout.json
- * المصدر: واجهة quran.com v4 (بيانات مجمع الملك فهد لطباعة المصحف الشريف: رموز خطوط QCF v1 لكل صفحة، ورقم السطر لكل كلمة).
+ * المصدر: واجهة quran.com v4 (بيانات مجمع الملك فهد لطباعة المصحف الشريف: رموز خطوط QCF v2 (خطّ مصحف المدينة الأحدث) لكل صفحة، ورقم السطر لكل كلمة).
  * لكل كلمة رمز (حرف واحد في منطقة الاستخدام الخاص) يُرسم بخط الصفحة p{n}.woff2 فتظهر الصفحة مطابقة تمامًا للمصحف المطبوع.
  *
  * الاستخدام: node tools/build-mushaf-layout.mjs [--cache DIR] [--from N] [--to N]
@@ -25,14 +25,14 @@ import { setQuranData, getAyahBySurah, pageAyahs, tokenize, normalizeForMatch, s
 const root = fileURLToPath(new URL('..', import.meta.url));
 const args = process.argv.slice(2);
 const opt = (name, def) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : def; };
-const cacheDir = path.resolve(root, opt('--cache', '.cache/qcf'));
+const cacheDir = path.resolve(root, opt('--cache', '.cache/qcf-v2'));
 const from = +opt('--from', 1); const to = +opt('--to', TOTAL_PAGES);
 fs.mkdirSync(cacheDir, { recursive: true });
 
 setQuranData(JSON.parse(fs.readFileSync(path.join(root, 'data/quran.json'), 'utf8')));
 
 const API = 'https://api.quran.com/api/v4/verses/by_page/';
-const FIELDS = 'words=true&word_fields=code_v1,line_number,text_uthmani,char_type_name&per_page=50';
+const FIELDS = 'words=true&word_fields=code_v2,line_number,text_uthmani,char_type_name&per_page=50';
 
 async function fetchPage(p) {
   const file = path.join(cacheDir, `p${p}.json`);
@@ -83,17 +83,18 @@ const raw = new Map();
 await Promise.all(Array.from({ length: 6 }, async () => { while (queue.length) { const p = queue.shift(); raw.set(p, await fetchPage(p)); if (raw.size % 50 === 0) process.stdout.write(`\r  fetched ${raw.size}`); } }));
 process.stdout.write('\n');
 
-// المرحلة الأولى: كلمات كل سطر في كل صفحة، وبدايات السور
-const pageWords = new Map(); // p -> { byLine: Map(line -> items), starts: [{surah, firstLine}], totalLines }
+// المرحلة الأولى: كلمات كل سطر في كل صفحة، وبدايات السور.
+// واجهة by_page تُقسّم الآيات بصفحات طبعة v1، أما كل كلمة فتحمل page_number وline_number بطبعة v2
+// (طبعة المدينة الأحدث تختلف فواصل صفحاتها في ٢٥ صفحة، معظمها في جزء عمّ) — فنجمع الكلمات بصفحة الكلمة نفسها.
+const pageWords = new Map(); // p -> { byLine: Map(line -> items), starts: [{surah, firstLine}], totalLines, special }
+const pageOf = (vp) => { if (!pageWords.has(vp)) pageWords.set(vp, { byLine: new Map(), starts: [], totalLines: vp <= 2 ? 8 : 15, special: new Map() }); return pageWords.get(vp); };
+const seenKeys = new Set(); const ayahPage = new Map(); // n -> صفحة أول كلمة (طبعة v2)
 for (let p = from; p <= to; p++) {
   const json = raw.get(p);
-  const expected = pageAyahs(p);
   const verses = json.verses.slice().sort((a, b) => a.id - b.id);
-  if (verses.length !== expected.length || verses.some((v, i) => v.verse_key !== `${expected[i].surah}:${expected[i].ayah}`)) throw new Error(`page ${p}: ayah list differs from data/quran.json`);
-  const byLine = new Map(); const starts = [];
-  const totalLines = p <= 2 ? 8 : 15;
   for (const v of verses) {
     const [surah] = v.verse_key.split(':').map(Number); const a = getAyahBySurah(surah, v.verse_number); if (!a) throw new Error(`page ${p}: unknown verse ${v.verse_key}`);
+    if (seenKeys.has(v.verse_key)) throw new Error(`verse ${v.verse_key} returned twice`); seenKeys.add(v.verse_key);
     const words = v.words.slice().sort((x, y) => x.position - y.position);
     const qcf = words.filter((w) => w.char_type_name === 'word');
     const ends = words.filter((w) => w.char_type_name === 'end');
@@ -104,19 +105,26 @@ for (let p = from; p <= to; p++) {
     const tokens = tokenize(a.text).filter((t) => t.spoken);
     const map = alignWords(qcf.map((w) => w.text_uthmani), tokens);
     if (map) { maps[a.n] = map; report.mismatched.push({ n: a.n, key: v.verse_key, qcf: qcf.map((w) => w.text_uthmani), tanzil: tokens.map((t) => t.raw), map }); }
+    const vp0 = words[0].page_number || p; ayahPage.set(a.n, vp0);
     let wi = 0;
     for (const w of words) {
-      if (typeof w.line_number !== 'number' || w.line_number < 1 || w.line_number > totalLines) throw new Error(`page ${p} ${v.verse_key}: bad line_number ${w.line_number}`);
-      // رموز خطوط QCF v1 تقع في نطاق U+FB50–U+FDFF (وقد تحوي مسافة بين رمز الكلمة ورمز علامة الوقف)
-      if (!w.code_v1 || !/^[ﭐ-﷿](?: ?[ﭐ-﷿]){0,3}$/.test(w.code_v1)) throw new Error(`page ${p} ${v.verse_key}: unexpected glyph string ${JSON.stringify(w.code_v1)}`);
-      if (!byLine.has(w.line_number)) byLine.set(w.line_number, []);
+      const vp = w.page_number || p; const pg = pageOf(vp);
+      if (vp < 1 || vp > TOTAL_PAGES) throw new Error(`page ${p} ${v.verse_key}: bad page_number ${vp}`);
+      if (typeof w.line_number !== 'number' || w.line_number < 1 || w.line_number > pg.totalLines) throw new Error(`page ${vp} ${v.verse_key}: bad line_number ${w.line_number}`);
+      // رموز خطوط QCF v2 تقع في نطاق U+FB50–U+FDFF كسابقتها v1 (وقد تحوي مسافة بين رمز الكلمة ورمز علامة الوقف)
+      if (!w.code_v2 || !/^[ﭐ-﷿](?: ?[ﭐ-﷿]){0,3}$/.test(w.code_v2)) throw new Error(`page ${vp} ${v.verse_key}: unexpected glyph string ${JSON.stringify(w.code_v2)}`);
+      if (!pg.byLine.has(w.line_number)) pg.byLine.set(w.line_number, []);
       const k = w.char_type_name === 'word' ? (map ? map[wi] : wi) : null;
-      byLine.get(w.line_number).push({ glyph: w.code_v1, n: a.n, end: w.char_type_name === 'end', k, rub: /۞/.test(w.text_uthmani || ''), sajda: /۩/.test(w.text_uthmani || '') });
+      pg.byLine.get(w.line_number).push({ glyph: w.code_v2, n: a.n, end: w.char_type_name === 'end', k, rub: /۞/.test(w.text_uthmani || ''), sajda: /۩/.test(w.text_uthmani || '') });
       if (w.char_type_name === 'word') wi++;
     }
-    if (v.verse_number === 1) starts.push({ surah, firstLine: Math.min(...words.map((w) => w.line_number)) });
+    if (v.verse_number === 1) pageOf(vp0).starts.push({ surah, firstLine: Math.min(...words.filter((w) => (w.page_number || p) === vp0).map((w) => w.line_number)) });
   }
-  pageWords.set(p, { byLine, starts, totalLines, special: new Map() });
+}
+if (from === 1 && to === TOTAL_PAGES) {
+  const qraw = JSON.parse(fs.readFileSync(path.join(root, 'data/quran.json'), 'utf8'));
+  if (seenKeys.size !== qraw.ayahs.length) throw new Error(`coverage: ${seenKeys.size} verses from the API vs ${qraw.ayahs.length} in data/quran.json`);
+  for (let vp = 1; vp <= TOTAL_PAGES; vp++) if (!pageWords.has(vp)) throw new Error(`page ${vp}: no words at all`);
 }
 
 // المرحلة الثانية: مواضع ترويسات السور وأسطر البسملة.
@@ -164,9 +172,15 @@ for (let p = from; p <= to; p++) {
 }
 
 if (from === 1 && to === TOTAL_PAGES) {
-  const out = { v: 1, font: 'qcf-v1', source: 'quran.com API v4 — King Fahd Glorious Quran Printing Complex (Madinah Mushaf, Hafs)', pages, maps };
+  const out = { v: 1, font: 'qcf-v2', source: 'quran.com API v4 — King Fahd Glorious Quran Printing Complex (Madinah Mushaf, Hafs)', pages, maps };
   fs.writeFileSync(path.join(root, 'data/mushaf-layout.json'), JSON.stringify(out));
   console.log('wrote data/mushaf-layout.json', (fs.statSync(path.join(root, 'data/mushaf-layout.json')).size / 1024).toFixed(0) + ' KB');
+  // صفحة كل آية في data/quran.json تتبع طبعة v2 نفسها (صفحة أول كلمة) كي تتطابق الملاحة والعلامات والختمة مع الصفحات المرسومة
+  const qpath = path.join(root, 'data/quran.json'); const qraw = JSON.parse(fs.readFileSync(qpath, 'utf8'));
+  let changed = 0;
+  qraw.ayahs.forEach((r, i) => { const vp = ayahPage.get(i + 1); if (vp && r[2] !== vp) { r[2] = vp; changed++; } });
+  if (changed) { fs.writeFileSync(qpath, JSON.stringify(qraw)); console.log(`data/quran.json: ${changed} ayah page numbers moved to the v2 edition`); }
+  else console.log('data/quran.json: page numbers already match the v2 edition');
 }
 fs.writeFileSync(path.join(cacheDir, 'report.json'), JSON.stringify(report, null, 1));
 console.log('pages', pages.filter(Boolean).length, '| line counts', JSON.stringify(report.lineCounts), '| headers placed at the foot of the previous page', report.orphanHeaders.length, '| ayahs with word-split overrides', report.mismatched.length);

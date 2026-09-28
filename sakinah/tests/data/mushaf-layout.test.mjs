@@ -66,7 +66,7 @@ test('ترويسات السور والبسملة: لكل سورة ترويسة �
       assert.equal(lines[i + 2].words[0].n, firstAyah.n, `surah ${s.n}: first ayah after basmala`);
     }
   }
-  assert.equal(footHeaders, 21);
+  assert.equal(footHeaders, 18); // طبعة v2: ١٨ ترويسة في آخر الصفحة السابقة (كانت ٢١ في v1)
   assert.deepEqual(headersOnPage(604), [112, 113, 114]);
   assert.deepEqual(headersOnPage(76), [4]);
   assert.deepEqual(headersOnPage(1), [1]);
@@ -90,7 +90,7 @@ test('علامات ربع الحزب ۞ (199) والسجدة ۩ (15) في موا
 
 test('مساعدات الخطوط', () => {
   assert.equal(surahNameGlyph(1), '001'); assert.equal(surahNameGlyph(114), '114');
-  assert.match(pageFontUrl(604), /\/hafs\/v1\/woff2\/p604\.woff2$/);
+  assert.match(pageFontUrl(604), /\/hafs\/v2\/woff2\/p604\.woff2$/);
   assert.equal(pageFontFamily(12), 'qcf-p12');
 });
 

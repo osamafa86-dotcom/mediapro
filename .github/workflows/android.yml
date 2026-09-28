@@ -33,7 +33,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: sakinah/.cache/fonts-qcf
-          key: sakinah-qcf-fonts-v1
+          key: sakinah-qcf-fonts-v2
       - name: التبعيات وملفات التشغيل
         run: |
           npm ci

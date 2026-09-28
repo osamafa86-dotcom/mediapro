@@ -23,7 +23,7 @@ final class QuranPrefs {
   var follow: Bool { didSet { Store.d.set(follow, forKey: "quran.follow") } }
   var wordHighlight: Bool { didSet { Store.d.set(wordHighlight, forKey: "quran.wordHighlight") } }
   var fontScale: Double { didSet { Store.d.set(fontScale, forKey: "quran.fontScale") } }
-  /// سماكة خطّ الصفحة: 0 عادي، 1 متوسط، 2 عريض (طبعة المدينة الأثخن — طلب المالك لتسهيل القراءة)
+  /// سماكة خطّ الصفحة: 0 عادي (خطّ v2 بوزنه المطبوع)، 1 متوسط، 2 عريض
   var weight: Int { didSet { Store.d.set(weight, forKey: "quran.weight") } }
   var lineHeight: Double { didSet { Store.d.set(lineHeight, forKey: "quran.lineHeight") } }
   var hifzOnlyCurrent: Bool { didSet { Store.d.set(hifzOnlyCurrent, forKey: "quran.hifzOnlyCurrent") } }
@@ -68,7 +68,7 @@ final class QuranPrefs {
     repeatAyah = Store.int("quran.repeatAyah", 1); repeatRange = Store.bool("quran.repeatRange", false)
     rate = Store.dbl("quran.rate", 1); follow = Store.bool("quran.follow", true); wordHighlight = Store.bool("quran.wordHighlight", true)
     fontScale = Store.dbl("quran.fontScale", 1); lineHeight = Store.dbl("quran.lineHeight", 2.15); hifzOnlyCurrent = Store.bool("quran.hifzOnlyCurrent", true)
-    weight = min(2, max(0, Store.int("quran.weight", 2)))
+    weight = min(2, max(0, Store.int("quran.weight", 0)))
     theme = Store.str("quran.theme", "cream"); themeLight = Store.str("quran.themeLight", "cream"); themeDark = Store.str("quran.themeDark", "dark"); themeAuto = Store.bool("quran.themeAuto", false)
     dim = Store.dbl("quran.dim", 0); keepAwake = Store.bool("quran.keepAwake", true); tajweed = Store.bool("quran.tajweed", false); seenChromeHint = Store.bool("quran.seenChromeHint", false)
     view = Store.str("quran.view", "pages"); scroll = Store.str("quran.scroll", "horizontal"); textFont = Store.str("quran.textFont", "amiri"); fitText = Store.bool("quran.fitText", true)

@@ -36,9 +36,11 @@ enum MushafMetrics {
     // كلمة واحدة ليفيض السطر ويُقتطع من طرفه — وفقدُ كلمة من صفحة مصحف لا يُحتمل. فنترك شعرة.
     // حبر QCF يتجاوز العرض المحجوز عند نهاية السطر بما يبلغ ٠٫٦٥٪ (مقيسًا على ص ٢٧٠)،
     // فالفسحة تغطّيه وزيادة — والفرق في حجم الخطّ نحو واحد بالمئة، لا تراه العين.
+    // الحجم من أعرض سطر فعلًا (v2 أضيق قليلًا من 14.85em): يملأ العرض تمامًا ولا يفيض، ثم يُقيَّد بالارتفاع
     let safeW = W * 0.988
     let maxW = maxLineWidth(fontName: MushafFonts.pageFontName(p), size: size, lines: lines)
-    if maxW > safeW { size *= safeW / maxW }
+    if maxW > 0 { size *= safeW / maxW }
+    if H > 0 { let rowH = H / CGFloat(rows); if rowH < size * rowMinEm { size = rowH / rowMinEm } }
     let bodyH = H > 0 ? min(H, CGFloat(rows) * size * rowMaxEm) : CGFloat(rows) * size * 1.09
     let f = Fit(fontSize: size, bodyHeight: bodyH)
     if cache.count > 64 { cache.removeAll() }
@@ -126,7 +128,8 @@ struct MushafPageView: View {
       let W = geo.size.width - 2 * sideInset
       let base = W / MushafMetrics.fullLineEm
       VStack(spacing: 0) {
-        if showChrome, let label { PageHead(page: page, label: label, size: base, palette: palette).padding(.horizontal, W * 0.01) }
+        // اسم السورة والجزء أعلى الصفحة مع هامشٍ واضح قبل أوّل سطر (ملاحظة المالك: كانا ملاصقين لأوّل آية)
+        if showChrome, let label { PageHead(page: page, label: label, size: base, palette: palette).padding(.horizontal, W * 0.01).padding(.bottom, base * 0.6) }
         GeometryReader { inner in
           let H = inner.size.height - base * 0.6
           let fit = MushafMetrics.fit(page: page, lines: lines, width: W, height: H)

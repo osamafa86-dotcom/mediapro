@@ -428,7 +428,7 @@ details.more[open] summary::before { content: '▾ '; }
 .mp .mw.sel, .mp .me.sel { background: var(--mp-sel); box-shadow: 0 0 0 .08em var(--mp-sel); }
 /* ملء الشاشة: الصفحة تملأ الشريحة والأسطر تتوزع على الارتفاع */
 .mp.mp-full { width: 100%; height: 100%; border-radius: 0; box-shadow: none; padding: calc(var(--safe-t) + 8px) max(3.5%, env(safe-area-inset-right, 0px)) calc(var(--safe-b) + 6px) max(3.5%, env(safe-area-inset-left, 0px)); }
-.mp.mp-full .mp-head { font-size: calc(var(--mp-size) * .66); padding: 0 1%; flex: 0 0 auto; }
+.mp.mp-full .mp-head { font-size: calc(var(--mp-size) * .66); padding: 0 1%; flex: 0 0 auto; margin-bottom: calc(var(--mp-size) * .6); /* هامش واضح قبل أوّل سطر */ }
 .mp.mp-full .mp-mid { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; padding: calc(var(--mp-size) * .3) 0; }
 .mp.mp-full .mp-body { aspect-ratio: auto; height: 100%; }
 .mp.mp-full .mp-foot { flex: 0 0 auto; font-size: calc(var(--mp-size) * .8); margin-top: 0; }
