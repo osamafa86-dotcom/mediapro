@@ -326,7 +326,7 @@ export function createMushafReader(app, cb = {}) {
     root.hidden = false; open = true; document.body.classList.add('mreader-open');
     const qs = app.settings.quran; keepAwake = qs.keepAwake !== false; setTheme(resolveTheme(qs)); setDim(qs.dim || 0); scheduleExitFade(); setChrome(false);
     root.classList.add('veil-ok'); fitText = qs.fitText !== false; root.classList.toggle('fit-text', fitText); textFont = qs.textFont === 'hafs' ? 'hafs' : 'amiri'; autoSpeed = Math.max(10, Math.min(200, Number(qs.autoSpeed) || 40)); vertical = qs.scroll === 'vertical'; root.classList.toggle('vertical', vertical);
-    try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', onScheme); } catch { /* تجاهل */ } textMode = app.settings.quran.view === 'text'; root.classList.toggle('text-mode', textMode); setWeight(app.settings.quran.weight ?? 0);
+    try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', onScheme); } catch { /* تجاهل */ } textMode = app.settings.quran.view === 'text'; root.classList.toggle('text-mode', textMode); setWeight(app.settings.quran.weight ?? 1);
     ensureSurahNamesFont().then(() => root.classList.add('snames')).catch(() => {});
     if (!ro && typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(() => relayout()); ro.observe(stage); }
     page = 0; fill(p); scrollToPage(p, 'instant'); setPage(p);
