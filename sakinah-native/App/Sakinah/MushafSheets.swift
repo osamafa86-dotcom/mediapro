@@ -126,6 +126,11 @@ struct DisplaySheet: View {
             HStack { VStack(alignment: .leading) { Text("التجويد الملوّن"); Text(q.isTextMode ? "تلوين أحكام المدّ والغنّة والقلقلة والإخفاء…" : "يفعّل وضع النص المتدفق (خطوط الصفحات لا تسمح بالتلوين)").font(.arabic(12)).foregroundStyle(.secondary) }; Spacer(); Button { onLegend() } label: { Image(systemName: "info.circle") }.buttonStyle(.borderless).accessibilityLabel("مفتاح ألوان التجويد") }
           }
           Picker("اتجاه التصفح", selection: $q.scroll) { Text("أفقي (تقليب)").tag("horizontal"); Text("رأسي (متصل)").tag("vertical") }
+          VStack(alignment: .leading, spacing: 6) {
+            Text("سماكة الخط")
+            Picker("سماكة الخط", selection: $q.weight) { Text("عادي").tag(0); Text("متوسط").tag(1); Text("عريض").tag(2) }.pickerStyle(.segmented)
+            Text("خطّ أثخن لتسهيل القراءة كما في طبعة مصحف المدينة").font(.arabic(12)).foregroundStyle(.secondary)
+          }
         }
         if q.isTextMode {
           Section("النص المتدفق") {
@@ -147,7 +152,7 @@ struct DisplaySheet: View {
     return ZStack {
       shape.fill(MushafPalette.background(for: t))
       VStack(spacing: 6) {
-        Text((a?.text ?? "") + " ﴿٢﴾").font(.custom(MushafFonts.amiriQuranFont, fixedSize: 20 * (q.isTextMode ? q.fontScale : 1))).foregroundStyle(Color(hex: t.ink)).multilineTextAlignment(.center).lineLimit(2).minimumScaleFactor(0.6)
+        Text((a?.text ?? "") + " ﴿٢﴾").font(.custom(MushafFonts.amiriQuranFont, fixedSize: 20 * (q.isTextMode ? q.fontScale : 1))).modifier(Embolden(width: 20 * (q.weight >= 2 ? 0.022 : q.weight == 1 ? 0.011 : 0) * 0.7)).foregroundStyle(Color(hex: t.ink)).multilineTextAlignment(.center).lineLimit(2).minimumScaleFactor(0.6)
         Text("سورة الفاتحة · \(t.name)").font(DS.F.labelXs).foregroundStyle(Color(hex: t.ink).opacity(0.6))
       }
       .padding(16)

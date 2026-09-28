@@ -31,6 +31,8 @@ object Store {
   var seenIntro by mutableStateOf(false)
   var bookmarks by mutableStateOf<List<WebSettings.Bookmark>>(emptyList())
   var reciter by mutableStateOf(Catalog.shared.defaultReciter); var repeatAyah by mutableStateOf(1); var rate by mutableStateOf(1.0); var follow by mutableStateOf(true); var wordHighlight by mutableStateOf(true); var repeatRange by mutableStateOf(false); var hifzOnlyCurrent by mutableStateOf(true); var shareTheme by mutableStateOf("green")
+  /** سماكة خطّ الصفحة: 0 عادي، 1 متوسط، 2 عريض (طبعة المدينة الأثخن — طلب المالك لتسهيل القراءة) */
+  var weight by mutableStateOf(2)
   var theme by mutableStateOf("cream"); var themeAuto by mutableStateOf(false); var keepAwake by mutableStateOf(true); var view by mutableStateOf("pages"); var tajweed by mutableStateOf(false); var fontScale by mutableStateOf(1.0); var textFont by mutableStateOf("amiri")
   var khatmah by mutableStateOf<KhatmahPlan?>(null); var readLog by mutableStateOf<Map<String, List<Int>>>(emptyMap()); var challenge by mutableStateOf<ActiveChallenge?>(null)
   /** سجلّ الورد (تقدّم الموضع داخل الخطة)، آخر المواضع (موضع لكل سورة، أربعة)، الآيات الضعيفة للمراجعة، ووحدة الورد */
@@ -59,6 +61,7 @@ object Store {
     lastRead = get("quran.lastRead", LastRead.serializer()); bookmarks = get("quran.bookmarks", ListSerializer(WebSettings.Bookmark.serializer())) ?: emptyList()
     // قارئ أُزيل من القائمة (العفاسي) يعود إلى الافتراضي بدل بقائه مختارًا خفيًا
     reciter = sp.getString("quran.reciter", reciter)!!.let { id -> if (Catalog.shared.reciters.any { it.id == id }) id else Catalog.shared.defaultReciter }; repeatAyah = sp.getInt("quran.repeatAyah", 1); rate = sp.getFloat("quran.rate", 1f).toDouble(); follow = sp.getBoolean("quran.follow", true); wordHighlight = sp.getBoolean("quran.wordHighlight", true); repeatRange = sp.getBoolean("quran.repeatRange", false); hifzOnlyCurrent = sp.getBoolean("quran.hifzOnlyCurrent", true); shareTheme = sp.getString("shareTheme", "green")!!
+    weight = sp.getInt("quran.weight", 2).coerceIn(0, 2)
     theme = sp.getString("quran.theme", "cream")!!; themeAuto = sp.getBoolean("quran.themeAuto", false); keepAwake = sp.getBoolean("quran.keepAwake", true); view = sp.getString("quran.view", "pages")!!; tajweed = sp.getBoolean("quran.tajweed", false); fontScale = sp.getFloat("quran.fontScale", 1f).toDouble(); textFont = sp.getString("quran.textFont", "amiri")!!
     khatmah = get("quran.khatmah", KhatmahPlan.serializer()); readLog = get("quran.readLog", MapSerializer(String.serializer(), ListSerializer(Int.serializer()))) ?: emptyMap(); challenge = get("quran.challenge", ActiveChallenge.serializer())
     wird = get("quran.wird", MapSerializer(String.serializer(), Int.serializer())) ?: emptyMap(); recent = get("quran.recent", ListSerializer(LastRead.serializer())) ?: emptyList(); weakAyahs = get("quran.weakAyahs", ListSerializer(Int.serializer())) ?: emptyList(); khatmahUnit = sp.getString("quran.khatmahUnit", "page")!!
@@ -72,7 +75,7 @@ object Store {
       .putBoolean("mosques.enabled", nearbyMosques).putString("mosques.cache", mosquesCache)
       .putString("sky.mode", skyMode).putString("sky.phase", skyPhase).putString("sky.accent", skyAccent).putBoolean("sky.weather", skyWeather).putBoolean("sky.reduceMotion", skyReduceMotion).putString("sky.weather.cache", skyWeatherCache)
       .putFloat("loc.lat", locLat.toFloat()).putFloat("loc.lon", locLon.toFloat()).putString("loc.tz", locTz).putString("loc.name", locName).putString("loc.cc", locCountry).putString("loc.city", locCityId).putString("loc.mode", locMode)
-      .putString("quran.reciter", reciter).putInt("quran.repeatAyah", repeatAyah).putFloat("quran.rate", rate.toFloat()).putBoolean("quran.follow", follow).putBoolean("quran.wordHighlight", wordHighlight).putBoolean("quran.repeatRange", repeatRange).putBoolean("quran.hifzOnlyCurrent", hifzOnlyCurrent).putString("shareTheme", shareTheme)
+      .putString("quran.reciter", reciter).putInt("quran.repeatAyah", repeatAyah).putFloat("quran.rate", rate.toFloat()).putBoolean("quran.follow", follow).putBoolean("quran.wordHighlight", wordHighlight).putBoolean("quran.repeatRange", repeatRange).putBoolean("quran.hifzOnlyCurrent", hifzOnlyCurrent).putString("shareTheme", shareTheme).putInt("quran.weight", weight)
       .putString("quran.theme", theme).putBoolean("quran.themeAuto", themeAuto).putBoolean("quran.keepAwake", keepAwake).putString("quran.view", view).putBoolean("quran.tajweed", tajweed).putFloat("quran.fontScale", fontScale.toFloat()).putString("quran.textFont", textFont).putFloat("textScale", textScale.toFloat()).putBoolean("ui.haptics", haptics).putBoolean("ui.tasbihSound", tasbihSound).putBoolean("quran.seenChromeHint", seenChromeHint).apply()
     put("notifications.prefs", ReminderPrefs.serializer(), reminders); put("notifications.extras", ExtraReminderPrefs.serializer(), extras)
     put("quran.lastRead", LastRead.serializer(), lastRead); put("quran.bookmarks", ListSerializer(WebSettings.Bookmark.serializer()), bookmarks)

@@ -93,6 +93,7 @@ struct TextWord: View {
     let st = rs.style(n: word.n, k: word.k, base: base)
     Text(attributed(st))
       .lineLimit(1).fixedSize()
+      .modifier(Embolden(width: rs.strokeWidth(size) * 0.7))
       // الكلمة المستورة مطموسة خلف ضباب لا شفّافة: يظلّ شكلها عونًا للذاكرة، وتنجلي بنعومة حين تُكشف
       .blur(radius: st.hidden ? size * 0.2 : 0)
       .opacity(st.hidden ? 0.42 : 1)

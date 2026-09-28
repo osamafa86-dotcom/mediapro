@@ -3,6 +3,8 @@ package org.emdatra.sakinah.app.ui
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.draw.blur
 import android.os.Build
 import androidx.compose.ui.geometry.Offset
@@ -266,6 +268,12 @@ data class ReaderTarget(val page: Int, val ayah: Int? = null, val autoplay: Bool
 private fun Modifier.hifzCursor(on: Boolean, color: Color) = if (!on) this else this.drawBehind {
   val h = maxOf(2f, size.height * 0.07f)
   drawLine(color, Offset(size.width * 0.1f, size.height - h / 2), Offset(size.width * 0.9f, size.height - h / 2), strokeWidth = h, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+}
+/** سماكة الخطّ: النصّ يُرسم مرّتين بإزاحة أفقية ضئيلة نسبية من حجمه (خطوط QCF لا وزن عريض لها) — كوزن طبعة المدينة */
+private fun Modifier.embolden(sizeSp: androidx.compose.ui.unit.TextUnit): Modifier {
+  val w = Store.weight; if (w <= 0) return this
+  val factor = if (w >= 2) 0.022f else 0.011f
+  return this.drawWithContent { drawContent(); val dx = sizeSp.value * density * factor; translate(left = dx) { this@drawWithContent.drawContent() } }
 }
 /** الكلمة المستورة تُرسم مطموسةً خلف ضباب (RenderEffect من API 31) — وقبله شفّافة كما كانت */
 private val canBlur = Build.VERSION.SDK_INT >= 31
@@ -626,7 +634,7 @@ private fun Modifier.frosted(on: Boolean) = if (on && canBlur) this.blur(5.dp) e
                     val col = if (hidden) (if (canBlur) ink.copy(alpha = 0.42f) else Color.Transparent) else if (w.end) Gold else ink
                     val bg = if (hidden) ink.copy(alpha = 0.055f) else if (recent) Gold.copy(alpha = 0.26f) else if (playingWord) Gold.copy(alpha = 0.38f) else if (selected == w.n) Gold.copy(alpha = 0.15f) else if (Recitation.current == w.n) Teal.copy(alpha = 0.16f) else Color.Transparent
                     Text(w.glyph, fontFamily = family, fontSize = fontSize, color = col, maxLines = 1, softWrap = false,
-                      modifier = Modifier.background(bg, RoundedCornerShape(3.dp)).hifzCursor(cur, Teal).frosted(hidden).then(if (a != null && hifz == null) Modifier.pointerInput(a) { detectTapGestures(onTap = { onTap(a) }, onLongPress = { onLongPress(a) }) } else Modifier))
+                      modifier = Modifier.background(bg, RoundedCornerShape(3.dp)).hifzCursor(cur, Teal).embolden(fontSize).frosted(hidden).then(if (a != null && hifz == null) Modifier.pointerInput(a) { detectTapGestures(onTap = { onTap(a) }, onLongPress = { onLongPress(a) }) } else Modifier))
                   }
                 }
               }
@@ -670,7 +678,7 @@ private fun Modifier.frosted(on: Boolean) = if (on && canBlur) this.blur(5.dp) e
             val recent = hifz != null && kk >= 0 && hifz.isRecent(a.n, kk)
             val bg = if (hidden) ink.copy(alpha = 0.055f) else if (recent) Gold.copy(alpha = 0.26f) else if (playingWord) Gold.copy(alpha = 0.38f) else if (selected == a.n) Gold.copy(alpha = 0.15f) else if (Recitation.current == a.n) Teal.copy(alpha = 0.16f) else Color.Transparent
             Text(styled, fontFamily = family, fontSize = if (t.spoken) size else size * 0.75, lineHeight = size * 2.05, color = if (hidden) (if (canBlur) ink.copy(alpha = 0.42f) else Color.Transparent) else if (t.spoken) ink else Gold,
-              modifier = Modifier.background(bg, RoundedCornerShape(3.dp)).hifzCursor(cur, Teal).frosted(hidden).then(if (hifz == null) Modifier.pointerInput(a) { detectTapGestures(onTap = { onTap(a) }, onLongPress = { onLongPress(a) }) } else Modifier))
+              modifier = Modifier.background(bg, RoundedCornerShape(3.dp)).hifzCursor(cur, Teal).embolden(if (t.spoken) size else size * 0.75).frosted(hidden).then(if (hifz == null) Modifier.pointerInput(a) { detectTapGestures(onTap = { onTap(a) }, onLongPress = { onLongPress(a) }) } else Modifier))
           }
           Text(if (hafs) QuranMeta.arabicDigits(a.ayah) else "۝" + QuranMeta.arabicDigits(a.ayah), fontFamily = family, fontSize = size * 0.95, lineHeight = size * 2.05, color = Gold)
         }
@@ -894,6 +902,9 @@ fun tajweedColor(code: String, dark: Boolean): Color? { val g = Tajweed.group(co
     Row { FilterChip(Store.view == "pages", { Store.view = "pages"; Store.save() }, { Text("صفحات المصحف") }, Modifier.padding(end = 6.dp)); FilterChip(Store.view == "text", { Store.view = "text"; Store.save() }, { Text("نص متدفق") }) }
     Text(if (Store.view == "text") "نص متدفق بحجم خط قابل للتغيير" else "صفحات مصحف المدينة كما في المطبوع سطرًا بسطر؛ لتكبير الخطّ اختر «نص متدفق»", style = DSType.labelXs, color = c.textSecondary)
     RowSwitch("التجويد الملوّن (وضع النص)", Store.tajweed) { Store.tajweed = it; if (it) Store.view = "text"; Store.save() }
+    Text("سماكة الخط", style = DSType.headingSm, color = c.textPrimary, modifier = Modifier.padding(top = 8.dp))
+    Row { for ((i, name) in listOf("عادي", "متوسط", "عريض").withIndex()) FilterChip(Store.weight == i, { Store.weight = i; Store.save() }, { Text(name) }, Modifier.padding(end = 6.dp)) }
+    Text("خطّ أثخن لتسهيل القراءة كما في طبعة مصحف المدينة", style = DSType.labelXs, color = c.textSecondary)
     if (Store.view == "text") {
       Row(Modifier.padding(top = 8.dp)) { FilterChip(Store.textFont == "amiri", { Store.textFont = "amiri"; Store.save() }, { Text("أميري قرآن") }, Modifier.padding(end = 6.dp)); FilterChip(Store.textFont == "hafs", { Store.textFont = "hafs"; Store.save() }, { Text("حفص (مجمع الملك فهد)") }) }
       Row(verticalAlignment = Alignment.CenterVertically) { Text("حجم الخط ${Fmt.decimal(Store.fontScale, 1)}×", Modifier.weight(1f), style = DSType.bodySm, color = c.textPrimary); OutlinedButton(onClick = { Store.fontScale = maxOf(0.7, Store.fontScale - 0.1); Store.save() }) { Text("أ-") }; Spacer(Modifier.width(6.dp)); OutlinedButton(onClick = { Store.fontScale = minOf(1.8, Store.fontScale + 0.1); Store.save() }) { Text("أ+") } }

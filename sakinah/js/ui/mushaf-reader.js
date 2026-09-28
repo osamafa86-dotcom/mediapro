@@ -299,6 +299,8 @@ export function createMushafReader(app, cb = {}) {
   function setDim(v) { dimmer.style.opacity = String(Math.min(0.7, Math.max(0, Number(v) || 0))); }
   function setKeepAwake(on) { keepAwake = on !== false; if (!open) return; if (keepAwake) requestWakeLock(); else if (wakeLock) { try { wakeLock.release(); } catch { /* تجاهل */ } wakeLock = null; } }
   function setTextMode(on) { if (textMode === on) return; textMode = on; root.classList.toggle('text-mode', on); if (open) { for (const p of [...filled.keys()]) unfill(p); refreshWindow(); } }
+  /** سماكة الخطّ (0/1/2): صنف على الجذر يُثخّن حروف الصفحة بحدٍّ نسبيّ من حجمها */
+  function setWeight(n) { n = Math.max(0, Math.min(2, Number(n) || 0)); root.classList.remove('w1', 'w2'); if (n) root.classList.add('w' + n); }
   function setHifz(on) { hifz = on; root.classList.toggle('hifz', on); for (const e of filled.values()) e.el.classList.toggle('hifz', on); topBar.querySelector('.mr-hifz-btn').classList.toggle('active', on); if (on) setChrome(false); }
   function refreshBookmark() {
     const bms = app.settings.quran.bookmarks || []; const has = bms.some((b) => b.page === page);
@@ -324,7 +326,7 @@ export function createMushafReader(app, cb = {}) {
     root.hidden = false; open = true; document.body.classList.add('mreader-open');
     const qs = app.settings.quran; keepAwake = qs.keepAwake !== false; setTheme(resolveTheme(qs)); setDim(qs.dim || 0); scheduleExitFade(); setChrome(false);
     root.classList.add('veil-ok'); fitText = qs.fitText !== false; root.classList.toggle('fit-text', fitText); textFont = qs.textFont === 'hafs' ? 'hafs' : 'amiri'; autoSpeed = Math.max(10, Math.min(200, Number(qs.autoSpeed) || 40)); vertical = qs.scroll === 'vertical'; root.classList.toggle('vertical', vertical);
-    try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', onScheme); } catch { /* تجاهل */ } textMode = app.settings.quran.view === 'text'; root.classList.toggle('text-mode', textMode);
+    try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', onScheme); } catch { /* تجاهل */ } textMode = app.settings.quran.view === 'text'; root.classList.toggle('text-mode', textMode); setWeight(app.settings.quran.weight ?? 2);
     ensureSurahNamesFont().then(() => root.classList.add('snames')).catch(() => {});
     if (!ro && typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(() => relayout()); ro.observe(stage); }
     page = 0; fill(p); scrollToPage(p, 'instant'); setPage(p);
@@ -348,6 +350,7 @@ export function createMushafReader(app, cb = {}) {
     get theme() { return themeId; }, get vertical() { return vertical; }, get autoscrolling() { return !!auto; },
     setVertical, startAutoScroll, stopAutoScroll, setAutoSpeed, setTajweed, setTextFont, setFitText, refit,
     get textMode() { return textMode; },
+    setWeight,
     setPanel(el) { render(panel, el); root.classList.toggle('has-panel', !!el); },
     pageEl(p) { const e = filled.get(p); return e ? e.el : null; },
     isTextPage(p) { const e = filled.get(p); return !!e && e.text; },

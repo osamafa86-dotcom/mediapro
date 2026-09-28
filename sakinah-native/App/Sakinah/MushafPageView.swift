@@ -184,6 +184,7 @@ struct MushafPageView: View {
       SurahHeader(surah: s, size: size, palette: rs.palette).frame(height: min(rowH * 0.88, size * 1.45)).padding(.horizontal, size * 0.1)
     case .basmala:
       Text(QuranMeta.basmala).font(.custom(MushafFonts.amiriQuranFont, fixedSize: size * 0.98)).foregroundStyle(rs.palette.ink).lineLimit(1).minimumScaleFactor(0.5).frame(maxWidth: width * 0.62)
+        .modifier(Embolden(width: rs.strokeWidth(size * 0.98) * 0.7))
     case .words(let ws):
       MushafLineView(words: ws, page: page, size: size, maxWidth: width).frame(maxWidth: .infinity)
     }
@@ -228,10 +229,17 @@ struct MushafLineView: View {
   private func paint(_ ctx: GraphicsContext, width: CGFloat, fontName: String,
                      runs: [MushafMetrics.GlyphRun], styles: [MushafReaderState.WordStyle], ascent: CGFloat) {
     let font = CTFontCreateWithName(fontName as CFString, size, nil)
+    // سماكة الخطّ: كل رمز يُملأ ويُحدَّد بلونه نفسه بعرضٍ نسبيّ من حجم الخط — فتغلظ الحروف كما في طبعة المدينة دون خطّ آخر
+    let stroke = rs.strokeWidth(size)
+    func setWeight(_ cg: CGContext) {
+      if stroke > 0 { cg.setTextDrawingMode(.fillStroke); cg.setLineWidth(stroke); cg.setLineJoin(.round); cg.setLineCap(.round) }
+      else { cg.setTextDrawingMode(.fill) }
+    }
     ctx.withCGContext { cg in
       cg.textMatrix = .identity
       cg.translateBy(x: 0, y: ascent)
       cg.scaleBy(x: 1, y: -1)
+      setWeight(cg)
       var x = width
       for (i, w) in words.enumerated() {
         let run = runs[i]
@@ -244,7 +252,8 @@ struct MushafLineView: View {
           if w.rub && many && gi == 0 { color = rs.palette.rub }
           else if w.sajda && many && gi == run.ids.count - 1 { color = rs.palette.marker }
           else { color = st.fg }
-          cg.setFillColor(UIColor(color).cgColor)
+          let cgColor = UIColor(color).cgColor
+          cg.setFillColor(cgColor); cg.setStrokeColor(cgColor)
           var g = run.ids[gi]
           var pt = CGPoint(x: x, y: 0)
           CTFontDrawGlyphs(font, &g, &pt, 1, cg)
@@ -260,7 +269,8 @@ struct MushafLineView: View {
         cg.textMatrix = .identity
         cg.translateBy(x: 0, y: ascent)
         cg.scaleBy(x: 1, y: -1)
-        cg.setFillColor(UIColor(rs.palette.ink).cgColor)
+        setWeight(cg)
+        cg.setFillColor(UIColor(rs.palette.ink).cgColor); cg.setStrokeColor(UIColor(rs.palette.ink).cgColor)
         var x = width
         for i in words.indices {
           let run = runs[i]
@@ -302,6 +312,14 @@ struct MushafLineView: View {
           .modifier(WordGestures(enabled: marksLayer, n: w.n, rs: rs))
       }
     }
+  }
+}
+
+/// تثخين نصّ SwiftUI (خطوط لا وزن عريض لها): نسخة ثانية مزاحة أفقيًا بقدر ضئيل فوق الأصل — يعادل حدّ الرموز في لوحة الصفحة
+struct Embolden: ViewModifier {
+  let width: CGFloat
+  func body(content: Content) -> some View {
+    content.overlay { if width > 0 { content.offset(x: width) } }
   }
 }
 

@@ -40,6 +40,7 @@ export const DEFAULT_SETTINGS = {
     challenge: null,         // تحدّي القراءة النشط { id, startedAt, startPage, from, to }
     tafsir: 'muyassar', view: 'pages', // view: 'pages' صفحات المصحف | 'text' نص متدفق بحجم قابل للتغيير
     wordHighlight: true,     // تظليل الكلمة أثناء التلاوة (مصدر quran.com للقرّاء الذين تتوفر توقيتاتهم)
+    weight: 2,               // سماكة خطّ الصفحة: 0 عادي، 1 متوسط، 2 عريض (طبعة المدينة الأثخن)
     downloads: {},           // { [reciterId]: { [surah]: { files, bytes, at } } }
     khatmah: null,           // خطة الختمة (core/khatmah.js)
     readLog: {},             // { 'YYYY-MM-DD': [pages] }

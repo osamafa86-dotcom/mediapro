@@ -729,3 +729,7 @@ p a, .tiny a, .refline a, li a { text-decoration: underline; text-underline-offs
 
 /* خط حفص من مجمع الملك فهد لوضع النص (يُجلب عند اختياره فقط؛ 88 ك.ب) */
 @font-face { font-family: 'KFGQPC Hafs'; font-style: normal; font-weight: 400; font-display: swap; src: url('https://cdn.jsdelivr.net/gh/quran/quran.com-frontend-next@master/public/fonts/quran/hafs/uthmanic_hafs/UthmanicHafs1Ver18.woff2') format('woff2'); }
+
+/* سماكة خطّ المصحف: حدٌّ بلون النصّ نفسه حول الحروف (خطوط QCF لا وزن عريض لها) — طبعة المدينة الأثخن */
+.mreader.w1 .mp-body .mw, .mreader.w1 .mp-body .me, .mreader.w1 .mp-body .ayah-text { -webkit-text-stroke: 0.011em currentColor; paint-order: stroke fill; }
+.mreader.w2 .mp-body .mw, .mreader.w2 .mp-body .me, .mreader.w2 .mp-body .ayah-text { -webkit-text-stroke: 0.022em currentColor; paint-order: stroke fill; }
