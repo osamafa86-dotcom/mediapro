@@ -31,7 +31,12 @@ changed = []
 versions = app.get_app_store_versions
 editable = versions.find { |v| %w[PREPARE_FOR_SUBMISSION DEVELOPER_REJECTED REJECTED METADATA_REJECTED].include?(v.app_store_state) }
 if editable.nil?
-  puts "• لا نسخة قابلة للتحرير — سيُنشئها deliver بالرقم #{target_version}"
+  # تحديثٌ لتطبيقٍ منشور: لا نسخة قابلة للتحرير ولا AppInfo قابلة للتحرير حتى تُنشأ نسخة جديدة
+  # (قِيس في تقديم 5.1.0: «لا AppInfo قابلة للتحرير»). فتُنشأ هنا بالرقم المطلوب — وهو ما كان
+  # deliver سيفعله لاحقًا — كي تنفتح AppInfo للفئة والاسم قبله.
+  app.ensure_version!(target_version, platform: Spaceship::ConnectAPI::Platform::IOS)
+  puts "• أُنشئت النسخة #{target_version} (تحديث لتطبيقٍ منشور)"
+  changed << "version #{target_version} created"
 elsif editable.version_string == target_version
   puts "• رقم النسخة #{target_version} مضبوط أصلاً"
 else
@@ -41,8 +46,25 @@ else
 end
 
 # ── ٢) الفئة والاسم (كلاهما في AppInfo) ──
-info = app.fetch_edit_app_info
-abort '✗ لا AppInfo قابلة للتحرير' if info.nil?
+# AppInfo القابلة للتحرير تظهر مع النسخة الجديدة، وقد تتأخر لحظات بعد إنشائها
+info = nil
+6.times do |i|
+  info = app.fetch_edit_app_info
+  break if info
+  sleep 3
+end
+if info.nil?
+  # لا AppInfo قابلة للتحرير: يكفي أن تطابق النسخة المنشورة المطلوب، وإلا فلا سبيل لضبطها الآن
+  live = app.fetch_live_app_info
+  lp = (live&.primary_category&.id).to_s; ls = (live&.secondary_category&.id).to_s
+  lname = live&.get_app_info_localizations&.find { |l| l.locale == 'ar-SA' }&.name
+  ok = lp == primary_cat && (secondary_cat.nil? || ls == secondary_cat) && app_name.split('|').map(&:strip).include?(lname)
+  abort "✗ لا AppInfo قابلة للتحرير، والمنشورة تختلف عن المطلوب (#{lp} · #{ls} · «#{lname}»)" unless ok
+  puts "• لا AppInfo قابلة للتحرير — المنشورة مطابقة أصلًا (#{lp} · #{ls} · «#{lname}»)"
+  File.write(ENV['CHOSEN_NAME_FILE'], lname) if ENV['CHOSEN_NAME_FILE'] && lname
+  puts changed.empty? ? "\n✓ لا تغيير — كل شيء مضبوط" : "\n✓ غُيّر: #{changed.join(' · ')}"
+  exit 0
+end
 
 cur_primary = (info.primary_category&.id).to_s
 cur_secondary = (info.secondary_category&.id).to_s
