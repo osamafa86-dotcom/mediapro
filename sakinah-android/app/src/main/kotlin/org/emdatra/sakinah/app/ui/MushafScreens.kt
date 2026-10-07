@@ -63,6 +63,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.LayoutDirection
@@ -614,6 +615,10 @@ private fun Modifier.frosted(on: Boolean) = if (on && canBlur) this.blur(5.dp) e
       s
     }
     val fontSize = with(density) { sizePx.toSp() }; val bodyH = minOf(hPx, 15 * sizePx * 2f)
+    // سطر الكلمة = ارتفاع صفّها بالضبط، والحبر خارجه يُرسم ولا يُقصّ: خطوط QCF v2 مقاييسها (ascent 1.2em
+    // + descent 0.6em) أطول من الصفّ (نحو 1.5em، وأقصر مع الرصيف)، فكان Text يُقيَّد بالصفّ ويقصّ نفسه
+    // فتسقط نقاط ما تحت السطر والكسرات (قِيس في لقطة المحاكي: «ٱلَّذِينَ» تخرج «ٱلذىں»)
+    val wordStyle = TextStyle(lineHeight = with(density) { (bodyH / 15f).toSp() }, lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None))
     Column(Modifier.fillMaxSize()) {
       // اسم السورة والجزء أعلى الصفحة مع هامشٍ واضح قبل أوّل سطر (ملاحظة المالك: كانا ملاصقين لأوّل آية)
       if (label != null) Row(Modifier.fillMaxWidth().padding(bottom = with(density) { (sizePx * 0.6f).toDp() }), horizontalArrangement = Arrangement.SpaceBetween) { val s = "سُورَةُ ${QuranMeta.surah(label.surah).vocalized}"; val j = QuranMeta.juzName(label.juz); Text(if (p % 2 == 1) s else j, fontFamily = Fonts.amiri, color = ink.copy(alpha = 0.85f), fontSize = fontSize * 0.66, maxLines = 1); Text(if (p % 2 == 1) j else s, fontFamily = Fonts.amiri, color = ink.copy(alpha = 0.85f), fontSize = fontSize * 0.66, maxLines = 1) }
@@ -635,7 +640,7 @@ private fun Modifier.frosted(on: Boolean) = if (on && canBlur) this.blur(5.dp) e
                     val recent = hifz != null && w.k >= 0 && hifz.isRecent(w.n, w.k)
                     val col = if (hidden) (if (canBlur) ink.copy(alpha = 0.42f) else Color.Transparent) else if (w.end) Gold else ink
                     val bg = if (hidden) ink.copy(alpha = 0.055f) else if (recent) Gold.copy(alpha = 0.26f) else if (playingWord) Gold.copy(alpha = 0.38f) else if (selected == w.n) Gold.copy(alpha = 0.15f) else if (Recitation.current == w.n) Teal.copy(alpha = 0.16f) else Color.Transparent
-                    Text(w.glyph, fontFamily = family, fontSize = fontSize, color = col, maxLines = 1, softWrap = false,
+                    Text(w.glyph, fontFamily = family, fontSize = fontSize, color = col, maxLines = 1, softWrap = false, overflow = TextOverflow.Visible, style = wordStyle,
                       modifier = Modifier.background(bg, RoundedCornerShape(3.dp)).hifzCursor(cur, Teal).embolden(fontSize).frosted(hidden).then(if (a != null && hifz == null) Modifier.pointerInput(a) { detectTapGestures(onTap = { onTap(a) }, onLongPress = { onLongPress(a) }) } else Modifier))
                   }
                 }
