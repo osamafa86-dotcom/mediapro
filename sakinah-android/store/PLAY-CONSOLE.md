@@ -7,9 +7,9 @@
 
 ## ٠. نوع الحساب
 
-- **شخصي أُنشئ بعد 13 نوفمبر 2023**: الإنتاج مغلق حتى اختبارٍ مغلق بـ12 مختبِرًا على الأقل
-  ظلّوا منضمّين 14 يومًا متصلة، ثم «Apply for production» من لوحة التطبيق.
-- **مؤسسة**: لا شرط؛ يمكن الرفع إلى الإنتاج بعد إكمال النماذج.
+حساب سكينة **مؤسسة (شركة)**: لا شرط اختبارٍ مغلق، فالرفع إلى الإنتاج مباشرةً بعد إكمال النماذج
+(`play-production/sakinah`). الحسابات الشخصية المُنشأة بعد 13 نوفمبر 2023 وحدها تحتاج اختبارًا
+مغلقًا بـ12 مختبِرًا لـ14 يومًا قبل «Apply for production».
 
 ## ١. إنشاء التطبيق (Home ← Create app)
 
@@ -21,9 +21,10 @@
 | Free or paid | Free |
 | Declarations | ✓ Developer Program Policies · ✓ US export laws |
 
-## ٢. أول AAB — يدويًا مرة واحدة
+## ٢. أول AAB — يدويًا مرة واحدة إن لزم
 
-Google لا تقبل أول رفع لتطبيقٍ جديد عبر الواجهة البرمجية.
+السير يحاول الرفع الآلي أولًا؛ فإن ردّت Google «Package not found» (تطبيقٌ لم يُرفع له شيء قط)
+يُرفع AAB الأثر يدويًا مرة واحدة، وبعدها كل شيء آلي.
 
 1. AAB من أثر تشغيل `play-build/sakinah` في `appstore-release` (ملف zip: فكّه فيظهر ‎`.aab`).
 2. Test and release ← Testing ← Internal testing ← Create new release.
@@ -39,9 +40,12 @@ Google لا تقبل أول رفع لتطبيقٍ جديد عبر الواجهة
 4. افتحه ← Keys ← Add key ← Create new key ← **JSON** ← يُنزَّل ملف.
 5. Play Console (مستوى الحساب) ← Users and permissions ← Invite new users:
    - البريد: بريد حساب الخدمة (`…@….iam.gserviceaccount.com`).
-   - App permissions ← Add app ← سكينة، ثم فعّل: Release apps to testing tracks ·
-     Release to production, exclude devices, and use Play App Signing ·
-     Manage testing tracks and edit tester lists · Manage store presence ← Invite user.
+   - App permissions ← Add app ← سكينة، ثم فعّل: View app information (read-only) ·
+     Release apps to testing tracks · Release to production, exclude devices, and use Play App Signing ·
+     Manage testing tracks and edit tester lists · Manage store presence ← Apply ← Invite user.
+   - الصلاحيات قد تتأخر حتى 24 ساعة قبل أن تقبلها الواجهة البرمجية («The caller does not have permission»).
+   - إن رفض Google Cloud إنشاء المفتاح («Service account key creation is disabled»)، فتلك سياسة مؤسسة
+     Google Cloud (`iam.disableServiceAccountKeyCreation`) يرفعها مدير المؤسسة للمشروع وحده.
 6. GitHub ← `appstore-release` ← Settings ← Secrets and variables ← Actions ← New repository secret:
    الاسم `PLAY_SERVICE_ACCOUNT_JSON`، والقيمة محتوى ملف JSON كاملًا. ثم احذف الملف من جهازك.
 
@@ -101,9 +105,10 @@ Google لا تقبل أول رفع لتطبيقٍ جديد عبر الواجهة
   والتقويم)؛ على Android 14+ يطلبه التطبيق من صفّ «الأذان في وقته بالضبط» في الإعدادات.
 - لا خدمة واجهة أمامية (foreground service)، ولا موقع في الخلفية، ولا صور أو ملفات.
 
-## ٦. الاختبار المغلق والإنتاج
+## ٦. أول إصدار إنتاج (مرة واحدة)
 
-1. Test and release ← Testing ← Closed testing ← المسار (Alpha) ← Testers: قائمة بريد بـ12 مختبِرًا
-   على الأقل (حسابات Google) ← Save، ثم أرسل لهم رابط الانضمام.
-2. ارفع إليه بـ`play-closed/sakinah`، وانشره (المسودة تُنشر من Edit release ← Save and publish).
-3. بعد 14 يومًا متصلة: Dashboard ← **Apply for production**، ثم `play-production/sakinah`.
+1. `play-production/sakinah` يرفع AAB والنصوص والصور واللقطات. التطبيق لم يُنشر بعد، فتقبل Google
+   الإصدار **مسودة** فقط (السير يكتشف ذلك فيرفعه مسودة).
+2. Play Console ← Test and release ← Production ← Countries/regions ← Add countries/regions ← كل الدول ← Save.
+3. Production ← الإصدار المسودة ← Edit release ← Next ← Save، ثم Publishing overview ← **Send changes for review**.
+4. بعد قبول Google ونشر أول نسخة: كل تحديثٍ لاحق يُرسل للمراجعة آليًا من `play-production/sakinah`.
