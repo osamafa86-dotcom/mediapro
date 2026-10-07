@@ -35,7 +35,7 @@ object Notify {
       for (i in 0 until 3) items.add(Item("${d.id}:${t.plusDays(i.toLong()).toLocalDate()}", t.plusDays(i.toLong()).toInstant(), d.kind, d.title, d.body))
     }
     val chosen = items.filter { it.time.isAfter(now) }.sortedBy { it.time }.take(MAX)
-    val exact = Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()
+    val exact = exactAllowed(ctx)
     val ids = ArrayList<Int>()
     for (it in chosen) {
       val id = it.id.hashCode(); ids.add(id)
@@ -45,6 +45,11 @@ object Notify {
     }
     lastIds = ids
   }
+  /** «المنبّهات والتذكيرات»: من Android 14 لا يُمنح للتثبيت الجديد تلقائيًا (USE_EXACT_ALARM حكرٌ على تطبيقات المنبّه والتقويم في Google Play)؛
+   *  بلا الإذن يُجدوَل المنبّه غير دقيق فقد يتأخر الإشعار دقائق، والإعدادات تعرض زرّ السماح */
+  fun exactAllowed(ctx: Context): Boolean = Build.VERSION.SDK_INT < 31 || ctx.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
+  fun exactSettingsIntent(ctx: Context): Intent =
+    Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:" + ctx.packageName))
   private fun pending(ctx: Context, id: Int, it: Item?): PendingIntent {
     val i = Intent(ctx, ReminderReceiver::class.java).setAction("org.emdatra.sakinah.REMINDER").putExtra("id", id)
     if (it != null) i.putExtra("kind", it.kind.id).putExtra("title", it.title).putExtra("body", it.body)

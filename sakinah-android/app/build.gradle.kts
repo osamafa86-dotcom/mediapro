@@ -3,10 +3,10 @@ plugins { id("com.android.application"); kotlin("android"); kotlin("plugin.compo
 
 android {
   namespace = "org.emdatra.sakinah"
-  compileSdk = 35
+  compileSdk = 36
   defaultConfig {
     applicationId = "org.emdatra.sakinah"
-    minSdk = 26; targetSdk = 35
+    minSdk = 26; targetSdk = 36
     versionCode = (System.getenv("SAKINAH_BUILD") ?: "1").toInt(); versionName = "5.1.0"
     vectorDrawables.useSupportLibrary = true
   }

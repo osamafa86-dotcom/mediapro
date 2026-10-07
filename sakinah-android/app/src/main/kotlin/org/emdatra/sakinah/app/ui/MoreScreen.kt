@@ -290,6 +290,9 @@ private fun downloadsLabel(): String? {
   var showPrayers by remember { mutableStateOf(false) }
   var msg by remember { mutableStateOf<String?>(null) }
   val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> Store.reminders = Store.reminders.copy(enabled = ok); Store.save(); Notify.schedule(ctx) }
+  // يُعاد فحصه عند العودة من شاشة النظام (onResume في MainActivity يعيد الجدولة دقيقةً بعد المنح)
+  var exactOk by remember { mutableStateOf(Notify.exactAllowed(ctx)) }
+  androidx.lifecycle.compose.LifecycleResumeEffect(Unit) { exactOk = Notify.exactAllowed(ctx); onPauseOrDispose { } }
   val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
     uri?.let { ctx.contentResolver.openOutputStream(it)?.use { os -> os.write(Backup.export().encoded().toByteArray()) }; msg = "صُدّرت النسخة" }
   }
@@ -332,6 +335,12 @@ private fun downloadsLabel(): String? {
           else { Store.reminders = Store.reminders.copy(enabled = on); Store.save(); Notify.schedule(ctx) }
         }
         if (Store.reminders.enabled) {
+          if (!exactOk) {
+            DSDivider()
+            SettingsRow("الأذان في وقته بالضبط", "اسمح بـ«المنبّهات والتذكيرات» كي لا يتأخر الإشعار دقائق", "السماح") {
+              runCatching { ctx.startActivity(Notify.exactSettingsIntent(ctx)) }
+            }
+          }
           DSDivider()
           Row(Modifier.fillMaxWidth().padding(12.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("صوت الأذان", style = DSType.bodyMd, color = c.textPrimary)
