@@ -10,7 +10,7 @@ android {
     versionCode = (System.getenv("SAKINAH_BUILD") ?: "1").toInt(); versionName = "5.1.0"
     vectorDrawables.useSupportLibrary = true
   }
-  // مفتاح الرفع إلى Google Play من البيئة (سير sakinah-play-release في wilt)؛ بلا مفتاحٍ يُوقَّع
+  // مفتاح الرفع إلى Google Play من البيئة (سير play.yml في appstore-release)؛ بلا مفتاحٍ يُوقَّع
   // الإصدار بمفتاح debug كي يبقى بناء التجربة ممكناً بلا أسرار — ولا يُرفع مثل هذا البناء للمتجر.
   val uploadKeystore = System.getenv("SAKINAH_KEYSTORE")?.takeIf { it.isNotBlank() && file(it).exists() }
   signingConfigs {

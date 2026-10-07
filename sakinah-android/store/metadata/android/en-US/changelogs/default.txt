@@ -1,5 +1,5 @@
-A new home screen brings prayer times and the Qibla together.
+Sakinah's first release on Google Play.
 
-• The «Now» card pairs the next prayer countdown with a live compass medallion; tap it to open the full Qibla.
-• A clearer daily timetable with the next prayer highlighted and one-tap reminder bells.
-• A floating four-tab bar: Home, Mushaf, Adhkar, More.
+• A home screen whose sky follows the prayer times, with the next prayer, a Qibla compass and the nearest mosque.
+• The Madinah Mushaf in the newer print typeface, gapless recitation by 20 reciters, one-tap ayah bookmarks, khatmah reminders after prayer and recitation-checked memorisation.
+• The complete Hisn al-Muslim, adhkar with counters and reminders, a tasbih, and selections from the two Sahihs and Nawawi's Forty.
