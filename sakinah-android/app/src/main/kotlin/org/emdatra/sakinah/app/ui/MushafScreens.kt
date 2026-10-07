@@ -86,7 +86,10 @@ data class ReaderTarget(val page: Int, val ayah: Int? = null, val autoplay: Bool
   var q by remember { mutableStateOf("") }; var tab by remember { mutableIntStateOf(org.emdatra.sakinah.app.ScreenshotMode.libraryTab) }; var searching by remember { mutableStateOf(false) }
   var sheet by remember { mutableStateOf<String?>(org.emdatra.sakinah.app.ScreenshotMode.librarySheet) }
   LaunchedEffect(Store.pendingReaderPage) { Store.pendingReaderPage?.let { p -> Store.pendingReaderPage = null; reader = ReaderTarget(p) } }
-  reader?.let { t -> MushafReader(startPage = t.page, startAyah = t.ayah, autoplay = t.autoplay, hifz = t.hifz, onClose = { reader = null }); return }
+  reader?.let { t ->
+    DisposableEffect(Unit) { ReaderFullScreen.open = true; onDispose { ReaderFullScreen.open = false } }
+    MushafReader(startPage = t.page, startAyah = t.ayah, autoplay = t.autoplay, hifz = t.hifz, onClose = { reader = null }); return
+  }
   val last = Store.lastRead
   val lastN = last?.let { QuranText.shared.ayah(it.surah, it.ayah)?.n }
   Column(Modifier.fillMaxSize()) {
