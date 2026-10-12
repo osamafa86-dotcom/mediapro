@@ -31,16 +31,17 @@ jobs:
         run: |
           python3 -m pip install --quiet fonttools brotli
           python3 ../sakinah-native/tools/build-fonts.py --android
-          ls app/src/main/assets/fonts | wc -l
-      - name: بناء APK تجريبي
+          echo "أساسية: $(ls app/src/main/assets/fonts | wc -l) · حزمة الصفحات: $(ls mushaf_fonts/src/main/assets/fonts | wc -l)"
+      # خطوط الصفحات في حزمة أصول Play لا تدخل APK العادي، فيُبنى App Bundle تجريبي (يشمل الحزمة) بدل APK
+      - name: بناء App Bundle تجريبي
         if: hashFiles('sakinah-android/app/build.gradle.kts') != ''
-        run: gradle :app:assembleDebug --no-daemon --console=plain
+        run: gradle :app:bundleDebug --no-daemon --console=plain
       - name: الناتج أثرًا
         if: hashFiles('sakinah-android/app/build.gradle.kts') != ''
         uses: actions/upload-artifact@v4
         with:
-          name: sakinah-android-debug-apk
-          path: sakinah-android/app/build/outputs/apk/debug/*.apk
+          name: sakinah-android-debug-aab
+          path: sakinah-android/app/build/outputs/bundle/debug/*.aab
           retention-days: 14
       - name: تقارير الاختبار
         if: always()

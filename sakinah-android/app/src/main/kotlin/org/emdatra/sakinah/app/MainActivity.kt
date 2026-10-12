@@ -18,5 +18,6 @@ class MainActivity : ComponentActivity() {
     ScreenshotMode.arm(intent?.getStringExtra("sakinahShot"), intent?.getStringExtra("sakinahSky"), intent?.getStringExtra("sakinahWeather"))
     setContent { CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) { SakinahTheme { RootScreen() } } }
   }
-  override fun onResume() { super.onResume(); Notify.schedule(this) }
+  // جلب حزمة خطوط المصحف لا ينجح إلا والتطبيق في الواجهة
+  override fun onResume() { super.onResume(); Notify.schedule(this); MushafFontPack.ensure() }
 }

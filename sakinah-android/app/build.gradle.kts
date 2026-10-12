@@ -7,7 +7,7 @@ android {
   defaultConfig {
     applicationId = "org.emdatra.sakinah"
     minSdk = 26; targetSdk = 36
-    versionCode = (System.getenv("SAKINAH_BUILD") ?: "1").toInt(); versionName = "5.1.0"
+    versionCode = (System.getenv("SAKINAH_BUILD") ?: "1").toInt(); versionName = "5.1.1"
     vectorDrawables.useSupportLibrary = true
   }
   // مفتاح الرفع إلى Google Play من البيئة (سير play.yml في appstore-release)؛ بلا مفتاحٍ يُوقَّع
@@ -22,6 +22,11 @@ android {
     }
   }
   buildTypes { release { isMinifyEnabled = false; signingConfig = signingConfigs.getByName(if (uploadKeystore != null) "upload" else "debug") } }
+  // خطوط صفحات المصحف في حزمة أصول منفصلة (:mushaf_fonts، fast-follow) لا في الحزمة الأساسية: حجم المتجر
+  // 128 م.ب → نحو 17. لا تُدرج في APK من assembleDebug؛ لاختبارها على المحاكي يُبنى bundleDebug ثم
+  // bundletool build-apks --local-testing. وبـ -PfontsInBase=true تعود إلى assets الأساسية (APK مستقل للتجربة).
+  assetPacks += listOf(":mushaf_fonts")
+  if (project.findProperty("fontsInBase") == "true") sourceSets["main"].assets.srcDir("../mushaf_fonts/src/main/assets")
   compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
   kotlinOptions { jvmTarget = "17" }
   buildFeatures { compose = true; buildConfig = true }
@@ -49,6 +54,7 @@ dependencies {
   implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")
   implementation("androidx.core:core-ktx:1.13.1")
   implementation("androidx.media3:media3-exoplayer:1.4.1")
+  implementation("com.google.android.play:asset-delivery-ktx:2.3.0")
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
   debugImplementation("androidx.compose.ui:ui-tooling")

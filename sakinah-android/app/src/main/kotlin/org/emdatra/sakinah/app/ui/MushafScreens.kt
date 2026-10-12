@@ -101,6 +101,7 @@ data class ReaderTarget(val page: Int, val ayah: Int? = null, val autoplay: Bool
     LazyColumn(Modifier.fillMaxSize().padding(horizontal = 20.dp), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
       if (q.isBlank()) {
         item { Box(Modifier.padding(bottom = 14.dp)) { HeroCard(onOpen = { p, n -> reader = ReaderTarget(p, n) }, onKhatmah = { sheet = "khatmah" }) } }
+        if (Store.view != "text" && MushafFontPack.phase != MushafFontPack.Phase.READY) item { FontPackCard(Modifier.padding(bottom = 14.dp)) }
         item {
           Row(Modifier.padding(bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Tile(Icons.Filled.PlayArrow, "الاستماع", "${Catalog.shared.reciter(Store.reciter).name} · ${last?.let { QuranMeta.surah(it.surah).name } ?: "الفاتحة"}", Modifier.weight(1f)) { reader = ReaderTarget(last?.page ?: 1, lastN, autoplay = true) }
@@ -347,6 +348,7 @@ private fun Modifier.frosted(on: Boolean) = if (on && canBlur) this.blur(5.dp) e
   val highlight = selected ?: flash
 
   Column(Modifier.fillMaxSize().background(paper).statusBarsPadding().navigationBarsPadding()) {
+    if (Store.view != "text" && MushafFontPack.phase != MushafFontPack.Phase.READY) FontPackCard(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), ink = ink, paper = paper)
     Box(Modifier.weight(1f).fillMaxWidth()) {
       HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, key = { it }) { i ->
         val p = i + 1
@@ -355,7 +357,9 @@ private fun Modifier.frosted(on: Boolean) = if (on && canBlur) this.blur(5.dp) e
           .pointerInput(Unit) { detectVerticalDragGestures { _, dy -> if (kotlin.math.abs(dy) > 3f) showChrome() } }) {
           val onTap: (Ayah) -> Unit = { a -> selected = if (selected == a.n) null else a.n }
           val onLong: (Ayah) -> Unit = { a -> selected = a.n; chromeNonce++; ayahSheet = a }
-          if (Store.view == "text") TextPage(p, ink, paper, highlight, hifzSession, onTap, onLong) else MushafPage(p, ink, paper, highlight, hifzSession, onTap, onLong)
+          // بلا خط الصفحة (حزمة الخطوط لم تُنزَّل بعد) يُعرض النص المتدفق؛ قراءة phase تعيد التركيب حين تجهز
+          val pageFont = if (Store.view == "text") null else { MushafFontPack.phase; Fonts.page(p) }
+          if (pageFont == null) TextPage(p, ink, paper, highlight, hifzSession, onTap, onLong) else MushafPage(p, ink, paper, highlight, hifzSession, onTap, onLong)
         }
       }
       if (!chrome && hifzSession == null) {
@@ -911,6 +915,7 @@ fun tajweedColor(code: String, dark: Boolean): Color? { val g = Tajweed.group(co
     Text("طريقة العرض", style = DSType.headingSm, color = c.textPrimary, modifier = Modifier.padding(top = 8.dp))
     Row { FilterChip(Store.view == "pages", { Store.view = "pages"; Store.save() }, { Text("صفحات المصحف") }, Modifier.padding(end = 6.dp)); FilterChip(Store.view == "text", { Store.view = "text"; Store.save() }, { Text("نص متدفق") }) }
     Text(if (Store.view == "text") "نص متدفق بحجم خط قابل للتغيير" else "صفحات مصحف المدينة كما في المطبوع سطرًا بسطر؛ لتكبير الخطّ اختر «نص متدفق»", style = DSType.labelXs, color = c.textSecondary)
+    if (Store.view == "pages" && MushafFontPack.phase != MushafFontPack.Phase.READY) Text("${MushafFontPack.label()} — حتى تكتمل يُعرض النص المتدفق", style = DSType.labelXs, color = c.accentGoldStrong)
     RowSwitch("التجويد الملوّن (وضع النص)", Store.tajweed) { Store.tajweed = it; if (it) Store.view = "text"; Store.save() }
     Text("سماكة الخط", style = DSType.headingSm, color = c.textPrimary, modifier = Modifier.padding(top = 8.dp))
     Row { for ((i, name) in listOf("عادي", "متوسط", "عريض").withIndex()) FilterChip(Store.weight == i, { Store.weight = i; Store.save() }, { Text(name) }, Modifier.padding(end = 6.dp)) }

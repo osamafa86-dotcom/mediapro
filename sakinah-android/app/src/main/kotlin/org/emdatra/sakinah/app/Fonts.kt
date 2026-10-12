@@ -7,7 +7,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import java.util.LinkedHashMap
 
-/** الخطوط من assets/fonts (المولَّدة بـ build-fonts.py --android): خطوط الواجهة (ui/) وخطوط صفحات المصحف الـ604 وأسماء السور وحفص وأميري قرآن، مع إبقاء أقرب 24 خط صفحة */
+/** الخطوط المولَّدة بـ build-fonts.py --android: خطوط الواجهة (ui/) وأسماء السور وحفص وأميري قرآن في assets/fonts،
+ *  وخطوط صفحات المصحف الـ604 في حزمة أصول Play ([MushafFontPack]) تُقرأ من ملفاتها بعد تنزيلها، مع إبقاء أقرب 24 خط صفحة */
 object Fonts {
   private val cache = object : LinkedHashMap<String, FontFamily>(32, 0.75f, true) { override fun removeEldestEntry(e: MutableMap.MutableEntry<String, FontFamily>?) = size > 24 }
   private var assets: android.content.res.AssetManager? = null
@@ -18,7 +19,18 @@ object Fonts {
     val tf = runCatching { Typeface.createFromAsset(a, "fonts/$name.ttf") }.getOrNull() ?: return null
     val f = FontFamily(androidx.compose.ui.text.font.Typeface(tf)); cache[name] = f; return f
   }
-  fun page(p: Int) = family("p$p")
+  /** خط صفحة المصحف: من حزمة الأصول إن نُزِّلت، وإلا من assets (نسخة -PfontsInBase)، وإلا null فيُعرض النص المتدفق */
+  @Synchronized fun page(p: Int): FontFamily? {
+    val name = "p$p"
+    cache[name]?.let { return it }
+    val dir = MushafFontPack.dir
+    if (dir != null) {
+      val f = java.io.File(dir, "$name.ttf")
+      val tf = if (f.exists()) runCatching { Typeface.createFromFile(f) }.getOrNull() else null
+      if (tf != null) { val fam = FontFamily(androidx.compose.ui.text.font.Typeface(tf)); cache[name] = fam; return fam }
+    }
+    return family(name)
+  }
   val surahNames get() = family("sura_names")
   val amiri get() = family("AmiriQuran")
   val hafs get() = family("hafs")

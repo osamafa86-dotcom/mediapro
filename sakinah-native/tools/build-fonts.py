@@ -35,6 +35,8 @@ def convert(src: pathlib.Path, name: str) -> int:
     return len(z)
 
 ANDROID_OUT = ROOT.parent / 'sakinah-android' / 'app' / 'src' / 'main' / 'assets' / 'fonts'
+# خطوط الصفحات الـ604 في حزمة أصول Play منفصلة (fast-follow) كي لا تُحتسب في حجم المتجر؛ الصغيرة تبقى في الأساس
+ANDROID_PACK_OUT = ROOT.parent / 'sakinah-android' / 'mushaf_fonts' / 'src' / 'main' / 'assets' / 'fonts'
 
 # ---- خطوط الواجهة (نظام التصميم): Readex Pro للواجهة والأرقام، Reem Kufi للعناوين، Amiri للقراءة — كلها برخصة OFL من مستودع Google Fonts
 GF = 'https://raw.githubusercontent.com/google/fonts/main/ofl/'
@@ -76,11 +78,11 @@ def build_ui_fonts(android: bool) -> int:
         data = src.read_bytes(); (out / f'{ps}.ttf').write_bytes(data); total += len(data)
     print(f'خطوط الواجهة: {len(list(out.glob("*.ttf")))} ملفًا → {out} ({total // 1024} ك.ب)')
     return total
-def convert_raw(src: pathlib.Path, name: str) -> int:
+def convert_raw(src: pathlib.Path, name: str, out: pathlib.Path = ANDROID_OUT) -> int:
     """TTF غير مضغوط لتطبيق Android (تُضغط داخل APK/AAB تلقائيًا)"""
     f = TTFont(str(src)); f.flavor = None
     buf = io.BytesIO(); f.save(buf); ttf = buf.getvalue()
-    ANDROID_OUT.mkdir(parents=True, exist_ok=True); (ANDROID_OUT / f'{name}.ttf').write_bytes(ttf); return len(ttf)
+    out.mkdir(parents=True, exist_ok=True); (out / f'{name}.ttf').write_bytes(ttf); return len(ttf)
 
 def main():
     pages = range(1, 605)
@@ -95,11 +97,13 @@ def main():
         a, b = args[1].split('-'); pages = range(int(a), int(b) + 1)
     if android:
         total = 0
-        for p in pages: total += convert_raw(fetch(f'hafs/v2/woff2/p{p}.woff2'), f'p{p}')
+        for p in pages: total += convert_raw(fetch(f'hafs/v2/woff2/p{p}.woff2'), f'p{p}', ANDROID_PACK_OUT)
+        # ما كان في app/assets من خطوط صفحات (قبل حزمة الأصول) يُزال كي لا يُضمَّن مرتين
+        for old in ANDROID_OUT.glob('p[0-9]*.ttf'): old.unlink()
         total += convert_raw(fetch('surah-names/v1/sura_names.woff2'), 'sura_names')
         total += convert_raw(fetch('UthmanicHafs1Ver18.woff2', HAFS_URL), 'hafs')
         if AMIRI.exists(): total += convert_raw(AMIRI, 'AmiriQuran')
-        print(f'خطوط Android: {len(list(pages))} صفحة + أسماء السور + حفص + أميري قرآن → {ANDROID_OUT} ({total // 1024 // 1024} م.ب)')
+        print(f'خطوط Android: {len(list(pages))} صفحة → {ANDROID_PACK_OUT} (حزمة أصول)؛ أسماء السور + حفص + أميري قرآن → {ANDROID_OUT} ({total // 1024 // 1024} م.ب)')
         return
     total = 0
     for p in pages:
