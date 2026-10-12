@@ -21,7 +21,14 @@ android {
       keyPassword = System.getenv("SAKINAH_KEY_PASSWORD") ?: System.getenv("SAKINAH_KEYSTORE_PASSWORD")
     }
   }
-  buildTypes { release { isMinifyEnabled = false; signingConfig = signingConfigs.getByName(if (uploadKeystore != null) "upload" else "debug") } }
+  buildTypes {
+    release {
+      // R8: حذف غير المستعمل (أيقونات Material الممتدة، Guava/media3) بلا تشويش أسماء — انظر proguard-rules.pro
+      isMinifyEnabled = true; isShrinkResources = true
+      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+      signingConfig = signingConfigs.getByName(if (uploadKeystore != null) "upload" else "debug")
+    }
+  }
   // خطوط صفحات المصحف في حزمة أصول منفصلة (:mushaf_fonts، fast-follow) لا في الحزمة الأساسية: حجم المتجر
   // 128 م.ب → نحو 17. لا تُدرج في APK من assembleDebug؛ لاختبارها على المحاكي يُبنى bundleDebug ثم
   // bundletool build-apks --local-testing. وبـ -PfontsInBase=true تعود إلى assets الأساسية (APK مستقل للتجربة).
