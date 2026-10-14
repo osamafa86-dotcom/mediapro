@@ -16,14 +16,20 @@ CACHE = (ROOT.parent / 'sakinah' / '.cache' / 'fonts-qcf')  # الكاش نفس�
 OUT = ROOT / 'App' / 'Fonts'
 AMIRI = ROOT.parent / 'sakinah' / 'assets' / 'fonts' / 'AmiriQuran.woff2'
 
+# مصدر بديل لخطوط quran.com حين يضغط jsDelivr (قِيس: 503 متتالية في CI بلا كاش) — الملفات نفسها من GitHub مباشرة
+FONT_BASE_ALT = FONT_BASE.replace('https://cdn.jsdelivr.net/gh/', 'https://raw.githubusercontent.com/').replace('@', '/', 1)
+
 def fetch(rel: str, url: str | None = None) -> pathlib.Path:
     dst = CACHE / rel
     if dst.exists() and dst.stat().st_size > 1000: return dst
     dst.parent.mkdir(parents=True, exist_ok=True)
-    for attempt in range(3):
-        r = subprocess.run(['curl', '-sS', '-f', '-L', '-m', '60', '-o', str(dst), url or (FONT_BASE + rel)])
+    urls = [url] if url else [FONT_BASE + rel, FONT_BASE_ALT + rel]
+    for attempt in range(6):
+        u = urls[attempt % len(urls)]
+        r = subprocess.run(['curl', '-sS', '-f', '-L', '-m', '60', '--retry', '2', '--retry-delay', '2', '-o', str(dst), u], capture_output=True, text=True)
         if r.returncode == 0 and dst.exists() and dst.stat().st_size > 1000: return dst
-    raise SystemExit(f'تعذّر جلب {rel}')
+        time.sleep(min(2 ** attempt, 20))
+    raise SystemExit(f'تعذّر جلب {rel}: {r.stderr.strip()[-200:]}')
 
 def convert(src: pathlib.Path, name: str) -> int:
     f = TTFont(str(src)); f.flavor = None
