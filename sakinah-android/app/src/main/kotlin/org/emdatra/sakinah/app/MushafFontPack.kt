@@ -91,7 +91,8 @@ object MushafFontPack {
       AssetPackStatus.COMPLETED -> { progress = 1f; if (!locate()) phase = Phase.FAILED }
       AssetPackStatus.PENDING -> phase = Phase.PENDING
       AssetPackStatus.DOWNLOADING -> { phase = Phase.DOWNLOADING; if (total > 0) progress = (s.bytesDownloaded().toFloat() / total).coerceIn(0f, 1f) }
-      AssetPackStatus.TRANSFERRING -> { phase = Phase.DOWNLOADING; progress = (s.transferProgressPercentage() / 100f).coerceIn(0f, 1f) }
+      // بعد اكتمال التنزيل تُفكّ الحزمة (قِيس على المحاكي: تبقى «١٠٠٪» لحظات) — تُعرض كتجهيز لا كتنزيل
+      AssetPackStatus.TRANSFERRING -> { phase = Phase.PENDING; progress = 1f }
       AssetPackStatus.WAITING_FOR_WIFI -> phase = Phase.WAITING_FOR_WIFI
       AssetPackStatus.REQUIRES_USER_CONFIRMATION -> phase = Phase.NEEDS_CONFIRMATION
       AssetPackStatus.NOT_INSTALLED -> { if (phase != Phase.PENDING) phase = Phase.UNKNOWN }
@@ -111,7 +112,7 @@ object MushafFontPack {
   /** نص الحالة للواجهة */
   fun label(): String = when (phase) {
     Phase.READY -> "خطوط المصحف جاهزة"
-    Phase.PENDING -> "جارٍ تجهيز تنزيل خطوط المصحف…"
+    Phase.PENDING -> "جارٍ تجهيز خطوط المصحف…"
     Phase.DOWNLOADING -> "جارٍ تنزيل خطوط المصحف · ${Fmt.number((progress * 100).toInt())}٪ من ${AudioDownloads.fmtBytes(totalBytes)}"
     Phase.WAITING_FOR_WIFI -> "خطوط المصحف (${AudioDownloads.fmtBytes(totalBytes)}) بانتظار شبكة Wi-Fi"
     Phase.NEEDS_CONFIRMATION -> "تنزيل خطوط المصحف (${AudioDownloads.fmtBytes(totalBytes)}) يحتاج موافقتك"
