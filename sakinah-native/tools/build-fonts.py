@@ -4,7 +4,8 @@
 مع 4 بايتات في البداية تحمل الحجم الأصلي. الاعتماديات: pip3 install fonttools brotli
 التشغيل: python3 sakinah-native/tools/build-fonts.py [--pages 1-604]
 """
-import io, os, sys, struct, zlib, subprocess, pathlib
+import io
+import time, os, sys, struct, zlib, subprocess, pathlib
 from fontTools.ttLib import TTFont
 
 HERE = pathlib.Path(__file__).resolve().parent
