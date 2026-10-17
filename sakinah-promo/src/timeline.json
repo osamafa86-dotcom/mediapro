@@ -7,31 +7,31 @@
     },
     {
       "id": "Logo",
-      "frames": 135
+      "frames": 256
     },
     {
       "id": "Prayer",
-      "frames": 150
+      "frames": 219
     },
     {
       "id": "Mushaf",
-      "frames": 170
+      "frames": 250
     },
     {
       "id": "Qibla",
-      "frames": 120
+      "frames": 115
     },
     {
       "id": "Adhkar",
-      "frames": 135
+      "frames": 160
     },
     {
       "id": "Promise",
-      "frames": 125
+      "frames": 183
     },
     {
       "id": "End",
-      "frames": 170
+      "frames": 175
     }
   ],
   "transitions": [

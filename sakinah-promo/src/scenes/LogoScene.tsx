@@ -43,7 +43,7 @@ export const LogoScene: React.FC = () => {
   const draw = interpolate(frame, [6, 46], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.bezier(0.65, 0, 0.35, 1) });
   const dot = spring({ frame: frame - 44, fps, config: { damping: 9, stiffness: 160 } });
   const lift = interpolate(frame, [50, 72], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.bezier(...EASE_OUT) });
-  const line = useReveal(70, 26);
+  const line = useReveal(80, 26); // قبيل قول الراوي «صلاتك وقرآنك…»
   const markSize = wide ? 250 : 300;
   return (
     <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", direction: "rtl" }}>

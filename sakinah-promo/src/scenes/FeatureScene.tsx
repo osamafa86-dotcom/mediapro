@@ -12,6 +12,7 @@ export type FeatureProps = {
   shots: Shot[];
   chips: string[];
   chipStart?: number;
+  chipGap?: number;
   focus?: { from: number; to: number; x: number; y: number; scale: number };
 };
 
@@ -45,7 +46,7 @@ const Eyebrow: React.FC<{ text: string; t: number }> = ({ text, t }) => (
   </div>
 );
 
-export const FeatureScene: React.FC<FeatureProps> = ({ eyebrow, title, sub, shots, chips, chipStart = 34, focus }) => {
+export const FeatureScene: React.FC<FeatureProps> = ({ eyebrow, title, sub, shots, chips, chipStart = 34, chipGap = 13, focus }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const wide = width > height;
@@ -62,7 +63,7 @@ export const FeatureScene: React.FC<FeatureProps> = ({ eyebrow, title, sub, shot
   const subT = useReveal(16, 20);
 
   const chipEls = chips.map((c, i) => {
-    const s = spring({ frame: frame - (chipStart + i * 13), fps, config: { damping: 13, stiffness: 140 } });
+    const s = spring({ frame: frame - (chipStart + i * chipGap), fps, config: { damping: 13, stiffness: 140 } });
     return { c, s };
   });
 

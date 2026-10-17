@@ -10,7 +10,7 @@ import { LogoScene } from "./scenes/LogoScene";
 import { FeatureScene } from "./scenes/FeatureScene";
 import { PromiseScene } from "./scenes/PromiseScene";
 import { EndScene } from "./scenes/EndScene";
-import { SCENE, TRANS, TRANS_KIND } from "./timeline";
+import { CUES, SCENE, TRANS, TRANS_KIND } from "./timeline";
 
 export type PromoProps = { withAudio: boolean };
 
@@ -38,6 +38,8 @@ export const SakinahPromo: React.FC<PromoProps> = ({ withAudio }) => {
             sub="وتنبيه الأذان يصلك حتى والتطبيق مغلق"
             shots={[{ src: "shots/04-home.jpg" }]}
             chips={["طرق الهيئات الرسمية", "تقويم هجري", "تصدير إلى تقويم هاتفك"]}
+            chipStart={CUES.Prayer.chipStart}
+            chipGap={CUES.Prayer.chipGap}
           />
         </TransitionSeries.Sequence>
         <TransitionSeries.Transition presentation={p(2)} timing={t(2)} />
@@ -46,9 +48,11 @@ export const SakinahPromo: React.FC<PromoProps> = ({ withAudio }) => {
             eyebrow="القرآن الكريم"
             title="مصحف المدينة كاملًا"
             sub="٦٠٤ صفحات بخطوط مجمع الملك فهد"
-            shots={[{ src: "shots/01-mushaf.jpg" }, { src: "shots/03-ayah.jpg", from: 78 }]}
+            shots={[{ src: "shots/01-mushaf.jpg" }, { src: "shots/03-ayah.jpg", from: CUES.Mushaf.swap }]}
             chips={["تلاوات ٢٠ قارئًا", "تظليل الكلمة أثناء التلاوة", "تفسير الميسر دون اتصال"]}
-            focus={{ from: 92, to: 165, x: 0.5, y: 0.18, scale: 1.25 }}
+            chipStart={CUES.Mushaf.chipStart}
+            chipGap={CUES.Mushaf.chipGap}
+            focus={{ from: (CUES.Mushaf.swap ?? 78) + 14, to: SCENE.Mushaf - 18, x: 0.5, y: 0.18, scale: 1.25 }}
           />
         </TransitionSeries.Sequence>
         <TransitionSeries.Transition presentation={p(3)} timing={t(3)} />
@@ -59,7 +63,8 @@ export const SakinahPromo: React.FC<PromoProps> = ({ withAudio }) => {
             sub="اتجاه دقيق نحو الكعبة مع تصحيح الانحراف المغناطيسي"
             shots={[{ src: "shots/05-qibla.jpg" }]}
             chips={["المسافة إلى الكعبة", "التحقق بالشمس والخريطة"]}
-            chipStart={30}
+            chipStart={CUES.Qibla.chipStart}
+            chipGap={CUES.Qibla.chipGap}
           />
         </TransitionSeries.Sequence>
         <TransitionSeries.Transition presentation={p(4)} timing={t(4)} />
@@ -70,6 +75,8 @@ export const SakinahPromo: React.FC<PromoProps> = ({ withAudio }) => {
             sub="الصباح والمساء وحصن المسلم كاملًا"
             shots={[{ src: "shots/06-adhkar.jpg" }]}
             chips={["١٣٢ بابًا", "عدّاد يومي وتذكير", "المسبحة الإلكترونية"]}
+            chipStart={CUES.Adhkar.chipStart}
+            chipGap={CUES.Adhkar.chipGap}
           />
         </TransitionSeries.Sequence>
         <TransitionSeries.Transition presentation={p(5)} timing={t(5)} />

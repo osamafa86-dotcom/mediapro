@@ -1,6 +1,7 @@
 """
 مؤثرات صوت الإعلان (بلا موسيقى ولا آلات): هواء خافت، «ووش» من اليمين إلى اليسار عند كل انتقال،
 ضربة منخفضة تحت ظهور الشعار، ورنّات قصيرة كأصوات الإشعار، ونقرات ناعمة لظهور البطاقات.
+مع التعليق الصوتي من src/vo.json (ElevenLabs، يبنيه scripts/vo_build.py) وخفض المؤثرات تحته.
 التوقيتات من src/timeline.json لتطابق المشاهد تمامًا. الناتج: public/audio/soundtrack.wav
 """
 import json, pathlib, wave
@@ -128,12 +129,12 @@ add(ding(1318.5, p=0.3), L + 46, 0.16)  # النقطة الذهبية
 add(whoosh(0.7, 400, 2600, 700), L + 50, 0.12)  # صعود الاسم
 
 # بطاقات المزايا
-chips = {"Prayer": (34, 3), "Mushaf": (34, 3), "Qibla": (30, 2), "Adhkar": (34, 3)}
-for sid, (c0, n) in chips.items():
-    for k in range(n):
-        add(tick(p=0.4 if k % 2 == 0 else -0.4), starts[sid] + c0 + k * 13 + 3, 0.09)
+VO = json.loads((ROOT / "src" / "vo.json").read_text())
+for sid, cue in VO["cues"].items():
+    for k in range(cue["chips"]):
+        add(tick(p=0.4 if k % 2 == 0 else -0.4), starts[sid] + cue["chipStart"] + k * cue["chipGap"] + 3, 0.09)
 # تبديل لقطة المصحف إلى التظليل
-add(ding(1760.0, 1.2, p=-0.2), starts["Mushaf"] + 78, 0.07)
+add(ding(1760.0, 1.2, p=-0.2), starts["Mushaf"] + VO["cues"]["Mushaf"]["swap"], 0.07)
 
 # صفوف «بلا مشتّتات»
 for k in range(3):
@@ -146,21 +147,60 @@ add(tick(0.3), E + 55, 0.09)
 add(tick(-0.3), E + 63, 0.09)
 add(ding(1975.5, 1.6, p=0.0), E + 72, 0.06)  # لمعة الأيقونة
 
-# جهارة مستهدفة نحو -18 LUFS مع محدِّد ناعم يبقي القمم دون -1 dBFS
+# --- التعليق الصوتي ومزج المسارين ---
 import sys
+from scipy import ndimage
 sys.path.insert(0, str(ROOT / "scripts"))
 from lufs import lufs_array
-TARGET, CEIL = -18.0, 10 ** (-1 / 20)
-raw = mix / np.max(np.abs(mix))
-g = 1.0
-for _ in range(12):
-    out_ = np.tanh(raw * g) * CEIL
-    L = lufs_array(out_, SR)
-    g *= 10 ** ((TARGET - L) / 20)
-mix = np.tanh(raw * g) * CEIL
-print(f"gain {g:.2f}, loudness ≈ {lufs_array(mix, SR):.1f} LUFS")
+
+def db(x):
+    return 10 ** (x / 20)
+
+def to_level(x, target):
+    return x * db(target - lufs_array(x, SR))
+
+NO_VO = "--no-vo" in sys.argv  # نسخة المؤثرات وحدها (لتعليق صوتي آخر أو ترجمة)
+vo = np.zeros((N, 2))
+hp = signal.butter(2, 70, btype="high", fs=SR, output="sos")
+for c in ([] if NO_VO else VO["clips"]):
+    w = wave.open(str(ROOT / "public" / c["file"]))
+    y = np.frombuffer(w.readframes(w.getnframes()), "<i2").astype(np.float64) / 32768.0
+    y = signal.sosfilt(hp, y)
+    i = at(starts[c["scene"]] + c["at"])
+    n = min(len(y), N - i)
+    vo[i:i + n] += np.stack([y[:n], y[:n]], axis=1) * 0.7071
+
+sfx = mix
+if np.any(vo):
+    vo = to_level(vo, -17.0)
+    sfx = to_level(sfx, -22.0)
+    # خفض المؤثرات 9 ديسيبل حيث يتكلم الراوي، مع استباق 150 م.ث وتحرير 350 م.ث
+    hop = int(0.01 * SR)
+    env = np.sqrt(ndimage.uniform_filter1d(vo[:, 0] ** 2, hop * 3)[::hop] + 1e-12)
+    voiced = (20 * np.log10(env / env.max()) > -40).astype(float)
+    voiced = ndimage.maximum_filter1d(voiced, 50, origin=-10)
+    voiced = ndimage.uniform_filter1d(voiced, 14)
+    duck = 1 - (1 - db(-9)) * np.repeat(voiced, hop)[:N]
+    if len(duck) < N:
+        duck = np.pad(duck, (0, N - len(duck)), constant_values=1)
+    mix = vo + sfx * duck[:, None]
+    TARGET = -16.0
+else:
+    TARGET = -18.0
+
+# جهارة مستهدفة ومحدِّد قمم باستباق 5 م.ث يبقي العيّنات دون -1 dBFS
+CEIL = db(-1)
+mix = to_level(mix, TARGET)
+for _ in range(3):
+    peak = ndimage.maximum_filter1d(np.max(np.abs(mix), axis=1), int(0.005 * SR))
+    gr = np.minimum(1, CEIL / np.maximum(peak, 1e-9))
+    gr = ndimage.uniform_filter1d(ndimage.minimum_filter1d(gr, int(0.01 * SR)), int(0.01 * SR))
+    mix = mix * gr[:, None]
+    mix = to_level(mix, TARGET) if lufs_array(mix, SR) < TARGET - 0.3 else mix
+mix = np.clip(mix, -CEIL, CEIL)
+print(f"loudness ≈ {lufs_array(mix, SR):.1f} LUFS, peak {20 * np.log10(np.max(np.abs(mix))):.1f} dBFS, voice: {'yes' if np.any(vo) else 'no'}")
 pcm = (mix * 32767).astype("<i2")
-out = ROOT / "public" / "audio" / "soundtrack.wav"
+out = ROOT / "public" / "audio" / ("soundtrack-sfx.wav" if NO_VO else "soundtrack.wav")
 with wave.open(str(out), "wb") as w:
     w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR); w.writeframes(pcm.tobytes())
 print(out, f"{N / SR:.2f}s", {k: v for k, v in starts.items()}, "total", total_frames)

@@ -8,3 +8,5 @@ out
 
 # نسخ بلا صوت تُستخرج محليًا (انظر README)
 renders/*-silent.mp4
+renders/*-sfx.mp4
+__pycache__/

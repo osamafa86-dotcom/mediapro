@@ -1,0 +1,90 @@
+{
+  "clips": [
+    {
+      "id": "logo-name",
+      "scene": "Logo",
+      "at": 52,
+      "frames": 24,
+      "file": "audio/vo/logo-name.wav"
+    },
+    {
+      "id": "logo-line",
+      "scene": "Logo",
+      "at": 88,
+      "frames": 136,
+      "file": "audio/vo/logo-line.wav"
+    },
+    {
+      "id": "prayer",
+      "scene": "Prayer",
+      "at": 12,
+      "frames": 175,
+      "file": "audio/vo/prayer.wav"
+    },
+    {
+      "id": "mushaf",
+      "scene": "Mushaf",
+      "at": 12,
+      "frames": 206,
+      "file": "audio/vo/mushaf.wav"
+    },
+    {
+      "id": "qibla",
+      "scene": "Qibla",
+      "at": 12,
+      "frames": 63,
+      "file": "audio/vo/qibla.wav"
+    },
+    {
+      "id": "adhkar",
+      "scene": "Adhkar",
+      "at": 12,
+      "frames": 116,
+      "file": "audio/vo/adhkar.wav"
+    },
+    {
+      "id": "promise",
+      "scene": "Promise",
+      "at": 14,
+      "frames": 133,
+      "file": "audio/vo/promise.wav"
+    },
+    {
+      "id": "end-name",
+      "scene": "End",
+      "at": 14,
+      "frames": 25,
+      "file": "audio/vo/end-name.wav"
+    },
+    {
+      "id": "end-cta",
+      "scene": "End",
+      "at": 46,
+      "frames": 48,
+      "file": "audio/vo/end-cta.wav"
+    }
+  ],
+  "cues": {
+    "Prayer": {
+      "chipStart": 47,
+      "chipGap": 48,
+      "chips": 3
+    },
+    "Mushaf": {
+      "chipStart": 53,
+      "chipGap": 57,
+      "chips": 3,
+      "swap": 62
+    },
+    "Qibla": {
+      "chipStart": 25,
+      "chipGap": 35,
+      "chips": 2
+    },
+    "Adhkar": {
+      "chipStart": 35,
+      "chipGap": 32,
+      "chips": 3
+    }
+  }
+}
