@@ -5,12 +5,17 @@
 فرمزٌ غائب عن خطّ صفحته يظهر للقارئ فراغًا مكان كلمة — أي نقصًا في المصحف — بلا أي خطأ
 في البيانات نفسها. هذا الفحص يمنع ذلك في كل بناء.
 
+خطوط QCF v2 (منذ ٢٨/٩) ترسم بعض العلامات رموزًا بلا تقدّم أفقي فوق الكلمة السابقة في الخلية نفسها،
+والخلية قد تجمع الكلمة ورمزًا بعدها بمسافة؛ فالمعيار: كل رمز موجود في خطّ صفحته ويرسم حبرًا،
+والرمز الأول في الخلية (الكلمة نفسها) له عرض. المسافة لا تُطلب من خطّ الصفحة.
+
 الاستعمال: python3 tools/verify-mushaf-fonts.py
 """
 import json
 import os
 import sys
 
+from fontTools.pens.boundsPen import BoundsPen
 from fontTools.ttLib import TTFont
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -35,16 +40,26 @@ def main() -> int:
         font = TTFont(path, lazy=True)
         cmap = font.getBestCmap()
         glyphs = font.getGlyphSet()
+        glyf = font["glyf"] if "glyf" in font else None
         for line in page:
             if line[0] != 0:
                 continue
             for cell in line[1].split("|"):
-                for char in cell:
+                for position, char in enumerate(cell):
+                    if char == " ":
+                        continue
                     checked += 1
                     name = cmap.get(ord(char))
                     if name is None:
                         missing_glyph.append((number, hex(ord(char))))
-                    elif getattr(glyphs[name], "width", 1) == 0:
+                        continue
+                    if glyf is not None:
+                        inked = glyf[name].numberOfContours != 0  # المركّب -1 وله حبر
+                    else:
+                        pen = BoundsPen(glyphs)
+                        glyphs[name].draw(pen)
+                        inked = pen.bounds is not None
+                    if not inked or (position == 0 and getattr(glyphs[name], "width", 1) == 0):
                         blank_glyph.append((number, hex(ord(char)), name))
         font.close()
 
@@ -53,7 +68,7 @@ def main() -> int:
     for label, bad in (
         ("خطوط صفحات مفقودة", missing_font),
         ("رموز غائبة عن خطّ صفحتها", missing_glyph),
-        ("رموز بعرض صفر (تظهر فراغًا)", blank_glyph),
+        ("رموز لا ترسم شيئًا أو كلمة بلا عرض (تظهر فراغًا)", blank_glyph),
     ):
         if bad:
             ok = False

@@ -44,6 +44,13 @@ jobs:
         run: node tools/fetch-corpus.mjs
       - name: اختبارات الوحدة والبيانات
         run: npm test
+      - name: كاش خطوط المصحف (المفتاح نفسه في سير الحزمة وتطبيق iOS)
+        uses: actions/cache@v4
+        with:
+          path: sakinah/.cache/fonts-qcf
+          key: sakinah-qcf-fonts-v2
+      - name: بناء النسخة الثابتة (تضع خطوط الصفحات حيث يفحصها الفحص التالي)
+        run: node tools/build-www.mjs
       - name: سلامة خطوط المصحف (كل رمز موجود في خطّ صفحته)
         run: pip install --quiet fonttools brotli && python3 tools/verify-mushaf-fonts.py
       - name: متصفح Chromium
