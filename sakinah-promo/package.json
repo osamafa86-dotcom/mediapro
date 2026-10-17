@@ -31,7 +31,8 @@
     "upgrade": "remotion upgrade",
     "lint": "eslint src && tsc",
     "render": "remotion render SakinahPromo renders/sakinah-promo-vertical.mp4 --crf=17 --color-space=bt709 --pixel-format=yuv420p --audio-bitrate=256k && remotion render SakinahPromoWide renders/sakinah-promo-wide.mp4 --crf=17 --color-space=bt709 --pixel-format=yuv420p --audio-bitrate=256k",
-    "audio": "python3 scripts/make_audio.py"
+    "audio": "python3 scripts/make_audio.py",
+    "render:ad30": "python3 scripts/ad30_build.py && remotion render SakinahAd30 renders/sakinah-ad30-vertical.mp4 --crf=17 --color-space=bt709 --pixel-format=yuv420p --audio-bitrate=256k --jpeg-quality=95"
   },
   "allowScripts": {
     "esbuild": false

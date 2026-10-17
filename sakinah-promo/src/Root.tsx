@@ -9,6 +9,8 @@ import { FeatureScene, FeatureProps } from "./scenes/FeatureScene";
 import { PromiseScene } from "./scenes/PromiseScene";
 import { EndScene } from "./scenes/EndScene";
 import { FPS, SCENE, TOTAL } from "./timeline";
+import { Ad30 } from "./ad30/Ad30";
+import { FPS as AD_FPS, TOTAL as AD_TOTAL } from "./ad30/core";
 
 const withBg = (C: React.FC) => () => (
   <AbsoluteFill>
@@ -42,6 +44,15 @@ export const RemotionRoot: React.FC = () => {
         fps={FPS}
         width={1920}
         height={1080}
+        defaultProps={{ withAudio: true }}
+      />
+      <Composition
+        id="SakinahAd30"
+        component={Ad30}
+        durationInFrames={AD_TOTAL}
+        fps={AD_FPS}
+        width={1080}
+        height={1920}
         defaultProps={{ withAudio: true }}
       />
       <Folder name="Scenes">

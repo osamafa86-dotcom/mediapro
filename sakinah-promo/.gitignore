@@ -10,3 +10,5 @@ out
 renders/*-silent.mp4
 renders/*-sfx.mp4
 __pycache__/
+# مسارات المراجعة التي يكتبها ad30_build.py --stems
+public/ad30/stem-*.wav

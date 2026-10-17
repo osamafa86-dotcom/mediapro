@@ -1,0 +1,14 @@
+{
+ "logoName": 318,
+ "logoHit": 310,
+ "promise": {
+  "ads": 665,
+  "track": 699,
+  "only": 741
+ },
+ "verse": {
+  "rec": 68,
+  "recEnd": 236
+ },
+ "soundtrack": "ad30/soundtrack.wav"
+}
