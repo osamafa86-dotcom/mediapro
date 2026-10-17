@@ -6,7 +6,7 @@
  */
 import { h, icon, render, vibrate } from './components.js';
 import { themeById, isDarkTheme, themeVars, migrateTheme } from '../core/mushaf-themes.js';
-import { renderMushafPage, mountMushafPage, renderTextPage, fitMushafPage, preloadPageFonts, releasePageFonts, ensureSurahNamesFont, surahNameText, markAyah, clearMarks, wordEl } from './mushaf-page.js';
+import { renderMushafPage, mountMushafPage, renderTextPage, fitMushafPage, refitSoon, preloadPageFonts, releasePageFonts, ensureSurahNamesFont, surahNameText, markAyah, clearMarks, wordEl } from './mushaf-page.js';
 import { juzName } from '../core/mushaf.js';
 import { pageAyahs, pageLabel, surahInfo, SURAHS, JUZ_STARTS, TOTAL_PAGES } from '../core/quran.js';
 
@@ -164,7 +164,7 @@ export function createMushafReader(app, cb = {}) {
     mountMushafPage(el).then(() => {
       clearTimeout(timer); if (filled.get(p) !== entry) return;
       entry.ready = true;
-      if (entry.interim) { render(slide, el); el.classList.add('swap'); entry.el = el; entry.text = false; entry.interim = null; fitMushafPage(el); }
+      if (entry.interim) { render(slide, el); el.classList.add('swap'); entry.el = el; entry.text = false; entry.interim = null; fitMushafPage(el); refitSoon(el); }
       cb.onPageReady && cb.onPageReady(p, el);
     }).catch(() => {
       clearTimeout(timer); if (filled.get(p) !== entry) return;

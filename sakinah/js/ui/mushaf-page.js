@@ -129,6 +129,7 @@ export async function mountMushafPage(page) {
     await Promise.all([ensurePageFont(p), page.querySelector('.mh') ? ensureSurahNamesFont() : null]);
   } catch (e) { page.classList.remove('loading'); page.classList.add('font-error'); throw e; }
   fitMushafPage(page);
+  refitSoon(page);
   page.classList.remove('loading'); page.classList.add('ready');
   // داخل القارئ (mp-full) يتكفّل مراقب المسرح بإعادة الملاءمة لكل الصفحات؛ مراقب لكل صفحة يلزم فقط خارجه
   if (typeof ResizeObserver !== 'undefined' && !page._ro && !page.classList.contains('mp-full')) { page._ro = new ResizeObserver(() => fitMushafPage(page)); page._ro.observe(page); }
@@ -158,6 +159,15 @@ export function centerSurahName(el) {
     const f = frame.getBoundingClientRect(); const dy = f.top + f.height / 2 - inkCenter;
     if (Math.abs(dy) > 0.5) el.style.transform = `translateY(${dy.toFixed(2)}px)`;
   } catch { /* لا قياس (بيئة بلا canvas): يبقى النص في موضعه */ }
+}
+/**
+ * إعادة الملاءمة بعد إطارين: خطٌّ أُضيف للتوّ (document.fonts.add) قد لا يُطابَق في القياس المتزامن الأول، فتُقاس الأسطر
+ * بالخط البديل (أضيق بنحو ٣٠٪) ويُحفظ حجمٌ أكبر من اللازم فتفيض الأسطر عن الصفحة (مقيس في Chromium: 514 بكسل في جسم 363).
+ * ولا يطلق إضافة FontFace يدويًا حدث loadingdone الذي يعيد القارئ عنده القياس، فيُعاد هنا صراحةً.
+ */
+export function refitSoon(page) {
+  if (typeof requestAnimationFrame === 'undefined') return;
+  requestAnimationFrame(() => requestAnimationFrame(() => { page._fitKey = null; fitMushafPage(page); }));
 }
 export function fitMushafPage(page) {
   const body = page.querySelector('.mp-body'); if (!body) return;
@@ -199,7 +209,15 @@ export function fitMushafPage(page) {
   let maxW = 0;
   for (const l of body.querySelectorAll('.mlw')) maxW = Math.max(maxW, l.getBoundingClientRect().width);
   // الحجم من أعرض سطر فعلًا (v2 أضيق قليلًا من 14.85em): يملأ العرض ولا يفيض؛ ثم قيد الارتفاع في ملء الشاشة
-  if (maxW > 0 && Math.abs(maxW - W * 0.995) > 0.5) { size *= (W * 0.995) / maxW; if (page.classList.contains('mp-full') && H > 0) { const rowH = H / LINES; if (rowH < size * ROW_MIN_EM) size = rowH / ROW_MIN_EM; } body.style.fontSize = size.toFixed(2) + 'px'; }
+  if (maxW > 0 && Math.abs(maxW - W * 0.995) > 0.5) {
+    size *= (W * 0.995) / maxW;
+    if (page.classList.contains('mp-full') && H > 0) {
+      const rowH = H / LINES; if (rowH < size * ROW_MIN_EM) size = rowH / ROW_MIN_EM;
+      // ارتفاع الكتلة من الحجم المصحَّح لا من التقدير الأول، كي لا يتجاوز التباعد ROW_MAX_EM
+      body.style.height = Math.min(H, LINES * size * ROW_MAX_EM).toFixed(1) + 'px';
+    }
+    body.style.fontSize = size.toFixed(2) + 'px';
+  }
   page.style.setProperty('--mp-size', size.toFixed(2) + 'px');
 }
 

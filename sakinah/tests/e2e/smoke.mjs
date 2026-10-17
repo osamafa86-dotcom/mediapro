@@ -404,7 +404,8 @@ check(/تفسير الإسراء: \d+/.test(await page.locator('#sheet-title').t
 await page.locator('#sheet-close').click(); await page.waitForTimeout(500);
 await page.touchscreen.tap(wb.x + wb.width / 2, wb.y + wb.height / 2); await page.waitForTimeout(500);
 await page.locator('.ayahbar .ab-actions button', { hasText: 'استماع' }).click(); await page.waitForTimeout(400);
-check((await page.locator('.listen-reciters .surah-row').count()) === 21 && /الاستماع/.test(await page.locator('#sheet-title').textContent()), 'نافذة الاستماع تعرض 21 قارئًا مع المدى والتكرار');
+// ٢٠ قارئًا منذ ٢٤/٩ (حُذف العفاسي بطلب المالك من الكتالوج المشترك)
+check((await page.locator('.listen-reciters .surah-row').count()) === 20 && /الاستماع/.test(await page.locator('#sheet-title').textContent()), 'نافذة الاستماع تعرض 20 قارئًا مع المدى والتكرار');
 await page.locator('#sheet-close').click(); await page.waitForTimeout(500);
 await page.locator('.ayahbar .icon-btn[aria-label="إغلاق"]').click(); await page.waitForTimeout(300);
 check(await page.evaluate(() => document.querySelector('.mr-ayahbar').hidden) && (await page.locator('.mw.sel').count()) === 0, 'إغلاق شريط الآية يزيل التحديد');
