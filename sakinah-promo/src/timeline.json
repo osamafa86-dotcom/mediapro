@@ -1,0 +1,67 @@
+{
+  "fps": 30,
+  "scenes": [
+    {
+      "id": "Verse",
+      "frames": 150
+    },
+    {
+      "id": "Logo",
+      "frames": 135
+    },
+    {
+      "id": "Prayer",
+      "frames": 150
+    },
+    {
+      "id": "Mushaf",
+      "frames": 170
+    },
+    {
+      "id": "Qibla",
+      "frames": 120
+    },
+    {
+      "id": "Adhkar",
+      "frames": 135
+    },
+    {
+      "id": "Promise",
+      "frames": 125
+    },
+    {
+      "id": "End",
+      "frames": 170
+    }
+  ],
+  "transitions": [
+    {
+      "frames": 20,
+      "kind": "handoff"
+    },
+    {
+      "frames": 18,
+      "kind": "push"
+    },
+    {
+      "frames": 18,
+      "kind": "push"
+    },
+    {
+      "frames": 18,
+      "kind": "push"
+    },
+    {
+      "frames": 18,
+      "kind": "push"
+    },
+    {
+      "frames": 18,
+      "kind": "push"
+    },
+    {
+      "frames": 22,
+      "kind": "handoff"
+    }
+  ]
+}
