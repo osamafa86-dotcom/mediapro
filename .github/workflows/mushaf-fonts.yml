@@ -1,0 +1,75 @@
+# حزمة خطوط صفحات المصحف لتطبيق iOS (منذ 5.1.1): تُبنى هنا وتُنشر إصدارًا على GitHub يُنزّله التطبيق بعد التثبيت.
+# المدخل: تغيير sakinah-native/tools/mushaf-pack.version (مثل v1 → v2). الإصدار المنشور لا يُستبدل أبدًا:
+# التطبيق يتحقق من بصمة SHA-256 المثبّتة في MushafPack.swift، فأي تغيير في الخطوط يحتاج إصدارًا جديدًا ونسخة تطبيق.
+name: Mushaf fonts pack
+
+on:
+  push:
+    branches: ['claude/islamic-app-development-tpmkko', 'main']
+    paths: ['sakinah-native/tools/mushaf-pack.version', '.github/workflows/mushaf-fonts.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mushaf-fonts-pack
+  cancel-in-progress: false
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+
+      - name: الاعتماديات
+        run: python3 -m pip install --quiet fonttools brotli
+
+      - name: كاش خطوط quran.com
+        uses: actions/cache@v4
+        with:
+          path: sakinah/.cache/fonts-qcf
+          key: sakinah-qcf-fonts-v2
+
+      - name: بناء الحزمة
+        id: build
+        run: |
+          V=$(tr -d '[:space:]' < sakinah-native/tools/mushaf-pack.version)
+          F="mushaf-pages-$V.pack"
+          python3 sakinah-native/tools/build-fonts.py --pack "$RUNNER_TEMP/$F"
+          (cd "$RUNNER_TEMP" && sha256sum "$F" > "$F.sha256")
+          SIZE=$(stat -c %s "$RUNNER_TEMP/$F")
+          SHA=$(cut -d' ' -f1 "$RUNNER_TEMP/$F.sha256")
+          { echo "version=$V"; echo "file=$F"; echo "size=$SIZE"; echo "sha=$SHA"; } >> "$GITHUB_OUTPUT"
+
+      - name: النشر إصدارًا (مرة واحدة لكل نسخة حزمة)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ steps.build.outputs.version }}
+          F: ${{ steps.build.outputs.file }}
+          SIZE: ${{ steps.build.outputs.size }}
+          SHA: ${{ steps.build.outputs.sha }}
+        run: |
+          TAG="sakinah-mushaf-fonts-$V"
+          URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$F"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            OLD=$(gh release download "$TAG" -p "$F.sha256" -O - | cut -d' ' -f1)
+            echo "::notice::$TAG منشور سلفًا — لا يُستبدل (البصمة المنشورة $OLD، والمبنية الآن $SHA)"
+            exit 0
+          fi
+          NOTES="خطوط صفحات مصحف المدينة (QCF v2، مجمع الملك فهد لطباعة المصحف الشريف) لتطبيق سكينة على iOS.
+          $(printf '\n')- الصفحات: 604 في ملف واحد مفهرس
+          - الحجم: $SIZE بايت
+          - SHA-256: \`$SHA\`
+          - الرابط: $URL"
+          gh release create "$TAG" "$RUNNER_TEMP/$F" "$RUNNER_TEMP/$F.sha256" \
+            --target "$GITHUB_SHA" --title "سكينة — خطوط صفحات المصحف $V" --notes "$NOTES" --latest=false
+          {
+            echo "### $TAG"
+            echo "| | |"; echo "|---|---|"
+            echo "| الرابط | $URL |"; echo "| الحجم | $SIZE |"; echo "| SHA-256 | \`$SHA\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
