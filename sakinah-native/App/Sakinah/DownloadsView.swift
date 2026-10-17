@@ -22,6 +22,22 @@ struct DownloadsView: View {
             Button("حذف الكل", role: .destructive) { dl.deleteAll() }.buttonStyle(.bordered)
           }
         }
+        Section("صفحات المصحف") {
+          let pack = MushafPack.shared
+          HStack {
+            VStack(alignment: .leading, spacing: 2) {
+              Text("خط مصحف المدينة لكل الصفحات").font(.arabic(16))
+              Text(MushafPackText.subtitle(pack, numerals: numerals)).font(.arabic(12)).foregroundStyle(.secondary)
+            }
+            Spacer()
+            switch pack.phase {
+            case .ready: Button("حذف", role: .destructive) { pack.delete() }.buttonStyle(.bordered).tint(.red).font(.arabic(13))
+            case .downloading: Button("إيقاف") { pack.cancel() }.buttonStyle(.bordered).font(.arabic(13))
+            case .verifying: ProgressView()
+            case .missing, .failed: Button("تنزيل") { pack.download() }.buttonStyle(.bordered).tint(Theme.primary).font(.arabic(13))
+            }
+          }
+        }
         Section("السور") {
           ForEach(ordered) { su in
             let e = dl.entry(reciter: reciter, surah: su.n); let running = dl.isRunning(reciter: reciter, surah: su.n)

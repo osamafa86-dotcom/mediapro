@@ -145,7 +145,8 @@ struct MushafReaderView: View {
   }
   private func pageView(_ p: Int, _ geo: GeometryProxy, _ rs: MushafReaderState) -> some View {
     Group {
-      if rs.textMode { MushafTextPageView(page: p, insets: geo.safeAreaInsets) } else { MushafPageView(page: p, insets: geo.safeAreaInsets) }
+      // صفحة لم يُنزَّل خطها بعد (الحزمة بعد التثبيت) تُعرض بوضع النص؛ تتبدّل وحدها حين تكتمل الحزمة
+      if rs.textMode || !MushafPack.shared.hasPage(p) { MushafTextPageView(page: p, insets: geo.safeAreaInsets) } else { MushafPageView(page: p, insets: geo.safeAreaInsets) }
     }
     .contentShape(Rectangle())
     .onTapGesture { if rs.hifz != nil { hifzTap() } else { toggleChrome() } }
@@ -172,6 +173,8 @@ struct MushafReaderView: View {
           .transition(.move(edge: .bottom))
       } else if model.player.current != nil {
         AudioBarView(onPickReciter: { sheet = .reciter }, onGoToPage: { go(to: $0) }, toast: show, theme: rs.theme).transition(.move(edge: .bottom))
+      } else if !rs.textMode && !MushafPack.shared.hasPage(current) {
+        MushafPackBanner(palette: rs.palette).transition(.move(edge: .bottom))
       }
     }
     .animation(.spring(response: 0.3, dampingFraction: 0.9), value: rs.selected == nil)
