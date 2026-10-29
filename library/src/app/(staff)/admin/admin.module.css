@@ -1,0 +1,6 @@
+.main { max-inline-size: 960px; margin-inline: auto; padding: var(--space-32) var(--space-16); display: flex; flex-direction: column; gap: var(--space-16); }
+.head { display: flex; justify-content: space-between; align-items: start; gap: var(--space-16); }
+.head h1 { margin: 0; }
+.muted { color: var(--color-text-secondary); margin: 0; }
+.list { list-style: none; margin: 0; padding: 0; border-block-start: var(--stroke-hairline) solid var(--color-border-hairline); }
+.list li { display: flex; justify-content: space-between; align-items: center; gap: var(--space-16); min-block-size: 48px; border-block-end: var(--stroke-hairline) solid var(--color-border-hairline); }
