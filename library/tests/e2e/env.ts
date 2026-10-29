@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 
 export const PORT = Number(process.env.E2E_PORT ?? 3100);
+export const WORKER_HEALTH_PORT = Number(process.env.E2E_WORKER_PORT ?? 3191);
 export const ORIGIN = `http://127.0.0.1:${PORT}`;
 
 /** Test-only values (never used anywhere else). Production secrets live on the server only. */

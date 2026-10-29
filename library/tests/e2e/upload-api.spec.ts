@@ -105,8 +105,10 @@ test('complete: the real object size decides; a short object is deleted, a right
   const { assetId } = (await ok.json()) as { assetId: string };
   const db = sql();
   const [asset] = await db<{ size: string; group: string; section: string; status: string; original_name: string }[]>`select size, "group", section, status, original_name from assets where id = ${assetId}`;
+  expect(asset).toMatchObject({ size: '3000', group: 'raw', section: 'photos', original_name: 'IMG_9000.CR3' });
+  // queued for the worker in the same transaction; these bytes are no RAW, so it ends with a reason (M4)
+  await expect.poll(async () => (await db<{ error: string | null }[]>`select error from assets where id = ${assetId}`)[0]!.error, { timeout: 30_000 }).toMatch(/^type_mismatch/);
   await db.end();
-  expect(asset).toEqual({ size: '3000', group: 'raw', section: 'photos', status: 'processing', original_name: 'IMG_9000.CR3' });
   // completing twice is harmless; someone else cannot complete or abort it
   expect((await write(a, 'POST', `/api/uploads/${good.id}/complete`)).status()).toBe(200);
   const b = await login('b@e2e.test');

@@ -40,6 +40,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm, cache-dependency-path: library/pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile
+      # the processing worker's tools (the worker image carries the same — docs/processing.md)
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg libimage-exiftool-perl libraw-bin fonts-dejavu-core
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm db:migrate
