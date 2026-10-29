@@ -321,3 +321,29 @@
 @media (max-width: 860px) {
   .searchRow > button { display: none; } /* saved views: a desktop tool */
 }
+
+/* ── the users page: password field + permissions matrix ──
+   The matrix has its own table class: the archive table's rules (gray sticky th, cards on phone) are not for it. */
+.grow { flex: 1; min-inline-size: 0; }
+.matrix { container-type: inline-size; overflow: hidden; }
+.mxTable { inline-size: 100%; border-collapse: collapse; font-size: 14px; line-height: 1.4; }
+.mxTable thead th { background: var(--color-bg-subtle); color: var(--color-text-secondary); font-weight: 500; font-size: 12px; text-align: start; padding: 0 var(--space-12); block-size: 36px; border-block-end: var(--stroke-hairline) solid var(--color-border-hairline); white-space: nowrap; }
+.mxTable td, .mxTable tbody th { padding: var(--space-12); border-block-end: var(--stroke-hairline) solid var(--color-border-hairline); vertical-align: middle; }
+.mxTable tbody tr:last-child td, .mxTable tbody tr:last-child th { border-block-end: 0; }
+.mxGroup th { background: var(--color-bg-subtle); color: var(--color-text-secondary); font-size: 12px; font-weight: 500; text-align: start; padding: var(--space-8) var(--space-12) !important; }
+.mxGroup svg { vertical-align: -2px; }
+.mxPerm { text-align: start; font-weight: 400; }
+.mxPerm strong { display: block; font-weight: 500; font-size: 14px; color: var(--color-text-primary); }
+.mxPerm span { display: block; margin-block-start: 2px; font-size: 13px; color: var(--color-text-secondary); }
+.mxCol { text-align: center !important; inline-size: 104px; }
+.mxSwitch { justify-content: center; min-block-size: 0; }
+.mxYes { color: var(--color-text-success); display: inline-flex; }
+.mxNo { color: var(--color-text-tertiary); display: inline-flex; }
+/* phone: the admin column is always «everything» — it gives its room to the three roles; the hints go */
+@container (max-width: 560px) {
+  .mxCol[data-admin] { display: none; }
+  .mxCol { inline-size: 64px; padding-inline: var(--space-4) !important; }
+  .mxPerm span { display: none; }
+  .mxTable td, .mxTable tbody th { padding-block: var(--space-8); }
+  .mxCol .small { font-size: 12px; }
+}

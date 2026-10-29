@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { rm } from 'node:fs/promises';
 import { E2E_ENV } from './env';
-import { mails } from './helpers';
+import { ctx, H, mails } from './helpers';
 import { ORIGIN, PASSWORD, seed, sql, type Seed } from './seed';
 
 /* M2 screens in a real browser: archive, project + share link, clients, team, settings, first run. */
@@ -106,28 +106,72 @@ test('clients: create in the side panel, edit, archive', async ({ page }, info) 
   await expect(page.getByTestId('clients-table')).toContainText('بلدية دير البلح');
 });
 
-test('team: invite sends mail; permissions persist; the locked one is disabled', async ({ page }, info) => {
+test('users: an emailed invite, or a password the admin hands over; the permissions matrix persists', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'admin flow');
   await signIn(page);
   await page.goto('/admin/team');
-  await page.getByRole('button', { name: 'دعوة مصوّر' }).click();
-  const dlg = page.getByTestId('invite-dialog');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('المستخدمون');
+  // 1) by mail, as before
+  await page.getByRole('button', { name: 'إضافة مستخدم' }).click();
+  let dlg = page.getByTestId('invite-dialog');
   await dlg.getByLabel('الاسم').fill('يوسف كمال');
   await dlg.getByLabel('البريد الإلكتروني').fill('yousef@e2e.test');
   await dlg.getByRole('button', { name: 'متعاون' }).click();
+  await dlg.getByRole('button', { name: 'دعوة بالبريد' }).click();
   await dlg.getByRole('button', { name: 'إرسال الدعوة' }).click();
   await expect(dlg).toBeHidden();
   await expect(page.locator('main').getByRole('status')).toContainText('yousef@e2e.test');
   expect((await mails()).some((m) => m.to === 'yousef@e2e.test')).toBe(true);
-  await expect(page.locator('tr[data-state="pending"]', { hasText: 'يوسف كمال' })).toHaveCount(1);
+  await expect(page.locator('tr[data-state="pending"]', { hasText: 'يوسف كمال' })).toContainText('دعوة معلّقة');
 
+  // 2) with a password: too short is said in the form; a generated one is 16 characters; no mail
+  await page.getByRole('button', { name: 'إضافة مستخدم' }).click();
+  dlg = page.getByTestId('invite-dialog');
+  await dlg.getByLabel('الاسم').fill('ليلى منصور');
+  await dlg.getByLabel('البريد الإلكتروني').fill('layla@e2e.test');
+  await dlg.getByRole('button', { name: 'محرّر' }).click();
+  await dlg.getByLabel('كلمة المرور').fill('short');
+  await dlg.getByRole('button', { name: 'إضافة المستخدم' }).click();
+  await expect(dlg.getByRole('alert')).toHaveText('كلمة المرور قصيرة: 12 حرفًا على الأقل.');
+  await dlg.getByRole('button', { name: 'توليد كلمة' }).click();
+  const pw = await dlg.getByLabel('كلمة المرور').inputValue();
+  expect(pw).toMatch(/^[a-zA-Z2-9]{16}$/);
+  await dlg.getByRole('button', { name: 'إضافة المستخدم' }).click();
+  await expect(dlg).toBeHidden();
+  await expect(page.locator('main').getByRole('status')).toContainText('أُضيف ليلى منصور');
+  expect((await mails()).some((m) => m.to === 'layla@e2e.test')).toBe(false);
+  const row = page.locator('tr', { hasText: 'ليلى منصور' });
+  await expect(row).toContainText('لم يدخل بعد');
+  await expect(row.getByRole('button', { name: 'إعادة الإرسال' })).toHaveCount(0);
+  const member = await ctx();
+  expect((await member.post('/api/auth/login', { headers: H, data: { email: 'layla@e2e.test', password: pw } })).status()).toBe(200);
+
+  // 3) a new password from the row menu: the old one stops working
+  await row.getByRole('button', { name: 'المزيد: ليلى منصور' }).click();
+  await page.getByRole('menuitem', { name: 'تعيين كلمة مرور' }).click();
+  const pdlg = page.getByTestId('password-dialog');
+  await expect(pdlg).toContainText('كلمة مرور جديدة لـليلى منصور');
+  await pdlg.getByLabel('كلمة المرور').fill('handed over in person 1');
+  await pdlg.getByRole('button', { name: 'حفظ' }).click();
+  await expect(pdlg).toBeHidden();
+  await expect(row).toContainText('حُفظت كلمة المرور الجديدة.');
+  expect((await member.get('/api/me')).status()).toBe(401);
+  expect((await (await ctx()).post('/api/auth/login', { headers: H, data: { email: 'layla@e2e.test', password: 'handed over in person 1' } })).status()).toBe(200);
+
+  // 4) the matrix: every role side by side; a switch saves at once and survives a reload; fixed rules have no switch
   const perms = page.getByTestId('role-permissions');
-  await expect(perms.getByTestId('perm-seeClientLinks').getByRole('switch')).toBeDisabled();
-  await perms.getByTestId('perm-publishWithoutReview').click();
-  await expect(perms.getByTestId('perm-publishWithoutReview').getByRole('switch')).toBeChecked();
+  await expect(perms.getByRole('columnheader')).toHaveText(['الصلاحية', 'المدير', 'مصوّر', 'محرّر', 'متعاون']);
+  const sw = perms.getByTestId('perm-publishWithoutReview-editor');
+  await expect(sw.getByRole('switch')).not.toBeChecked();
+  await sw.click();
+  await expect(sw.getByRole('switch')).toBeChecked();
+  await expect(perms.getByTestId('perm-publishWithoutReview-photographer').getByRole('switch')).not.toBeChecked();
   await page.waitForTimeout(300);
   await page.reload();
-  await expect(page.getByTestId('role-permissions').getByTestId('perm-publishWithoutReview').getByRole('switch')).toBeChecked();
+  await expect(page.getByTestId('perm-publishWithoutReview-editor').getByRole('switch')).toBeChecked();
+  for (const f of ['viewProjects', 'notes', 'clients', 'users', 'settings']) await expect(page.getByTestId(`fixed-${f}`).getByRole('switch')).toHaveCount(0);
+  await expect(page.getByTestId('fixed-clients')).toContainText('غير مسموح');
+  await expect(page.getByTestId('role-permissions')).toContainText('حذف الملفات غير متاح لأي دور');
 });
 
 test('settings: one save, persisted; date preview follows digits', async ({ page }, info) => {

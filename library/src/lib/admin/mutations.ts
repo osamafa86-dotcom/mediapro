@@ -1,6 +1,7 @@
 import 'server-only';
 import { z } from 'zod';
 import { getSql } from '@/db';
+import { hashSecret, passwordProblem } from '../auth/password';
 import { randomToken, sha256 } from '../crypto';
 import { env } from '../env';
 import { endOfStudioDay } from '../links';
@@ -148,7 +149,15 @@ export const InviteInput = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
   role: z.enum(['photographer', 'editor', 'contributor']),
   title: text(80).nullish(),
+  /** chosen by the admin and handed over by them: no mail is sent. Absent → the emailed invite link, as before. */
+  password: z.string().max(256).optional(),
 });
+
+/** 400 with the reason, so the form can say it (12+ characters). */
+function checkPassword(p: string) {
+  const problem = passwordProblem(p);
+  if (problem) throw new HttpError(400, problem);
+}
 
 async function sendInvite(userId: string, email: string, locale: 'ar' | 'tr', inviter: string) {
   const token = randomToken();
@@ -163,10 +172,42 @@ export async function invite(staff: Staff, i: z.infer<typeof InviteInput>) {
   if (staff.role !== 'admin') throw new HttpError(403, 'forbidden');
   const sql = getSql();
   if ((await sql`select 1 from users where lower(email) = ${i.email}`).length) throw new HttpError(409, 'email_taken');
-  const [u] = await sql<{ id: string }[]>`insert into users (name, email, role, title, locale) values (${i.name}, ${i.email}, ${i.role}, ${blank(i.title)}, ${staff.locale}) returning id`;
-  await sendInvite(u!.id, i.email, staff.locale, staff.name);
-  await audit('user', staff.id, 'team.invited', { type: 'user', id: u!.id });
+  if (i.password !== undefined) checkPassword(i.password);
+  const hash = i.password === undefined ? null : await hashSecret(i.password);
+  const [u] = await sql<{ id: string }[]>`insert into users (name, email, role, title, locale, password_hash)
+    values (${i.name}, ${i.email}, ${i.role}, ${blank(i.title)}, ${staff.locale}, ${hash}) returning id`;
+  if (hash) {
+    await audit('user', staff.id, 'team.created_with_password', { type: 'user', id: u!.id });
+  } else {
+    await sendInvite(u!.id, i.email, staff.locale, staff.name);
+    await audit('user', staff.id, 'team.invited', { type: 'user', id: u!.id });
+  }
   return u!.id;
+}
+
+export const PasswordInput = z.object({ password: z.string().max(256) });
+
+/**
+ * The admin sets a member's password (a new member who lost it, or a handover). The member is signed out
+ * everywhere, and a lock from wrong attempts on this email is lifted, so the new password works at once.
+ * Accounts that sign in through the parent site (SSO) have no local password: 409.
+ */
+export async function setMemberPassword(staff: Staff, id: string, password: string) {
+  if (staff.role !== 'admin') throw new HttpError(403, 'forbidden');
+  checkPassword(password);
+  const sql = getSql();
+  const [u] = await sql<{ email: string | null; auth_provider: 'local' | 'emdatra' }[]>`
+    select email, auth_provider from users where id = ${id} and role <> 'admin'`;
+  if (!u) throw new HttpError(404, 'not_found');
+  if (u.auth_provider !== 'local') throw new HttpError(409, 'sso_account');
+  await sql`update users set password_hash = ${await hashSecret(password)} where id = ${id}`;
+  await sql`delete from sessions where user_id = ${id}`;
+  if (u.email) {
+    // both lock keys of the login route: `login:<email>` and `login-ip:<ip>:<email>` (matched by suffix: an email may hold `_`)
+    const e = u.email.toLowerCase();
+    await sql`delete from login_throttle where key = ${`login:${e}`} or (key like 'login-ip:%' and right(key, ${e.length + 1}) = ${`:${e}`})`;
+  }
+  await audit('user', staff.id, 'team.password_set', { type: 'user', id });
 }
 
 export async function resendInvite(staff: Staff, id: string) {
