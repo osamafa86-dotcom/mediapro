@@ -86,15 +86,15 @@ jobs:
         run: |
           DB=postgres://media:media@127.0.0.1:5432/media
           docker run --rm --network host -e DATABASE_URL=$DB media-worker:ci node ops/migrate.mjs
-          docker run -d --name w --network host -e DATABASE_URL=$DB -e S3_ENDPOINT=http://127.0.0.1:9 -e S3_BUCKET=x \
+          docker run -d --name media-worker-ci --network host -e DATABASE_URL=$DB -e S3_ENDPOINT=http://127.0.0.1:9 -e S3_BUCKET=x \
             -e S3_ACCESS_KEY_ID=x -e S3_SECRET_ACCESS_KEY=x -e SESSION_SECRET=ci-only-not-a-secret-0000000000000000 media-worker:ci
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:3191/ && break; sleep 1; done
-          curl -sf http://127.0.0.1:3191/ || { docker logs w; exit 1; }
-          docker logs w 2>&1 | grep -q "looking for jobs" || { docker logs w; exit 1; }
+          curl -sf http://127.0.0.1:3191/ || { docker logs media-worker-ci; exit 1; }
+          docker logs media-worker-ci 2>&1 | grep -q "looking for jobs" || { docker logs media-worker-ci; exit 1; }
       - name: The app image serves /api/health from the same database
         run: |
-          docker run -d --name a --network host -e DATABASE_URL=postgres://media:media@127.0.0.1:5432/media -e PORT=3300 \
+          docker run -d --name media-app-ci --network host -e DATABASE_URL=postgres://media:media@127.0.0.1:5432/media -e PORT=3300 \
             -e SESSION_SECRET=ci-only-not-a-secret-0000000000000000 -e LINK_SIGNING_SECRET=ci-only-not-a-secret-1111111111111111 \
             -e APP_ORIGIN=http://127.0.0.1:3300 -e S3_ENDPOINT=http://127.0.0.1:9 -e S3_BUCKET=x -e S3_ACCESS_KEY_ID=x -e S3_SECRET_ACCESS_KEY=x media-app:ci
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:3300/api/health && break; sleep 1; done
-          curl -sf http://127.0.0.1:3300/api/health | grep -q '"ok":true' || { docker logs a; exit 1; }
+          curl -sf http://127.0.0.1:3300/api/health | grep -q '"ok":true' || { docker logs media-app-ci; exit 1; }

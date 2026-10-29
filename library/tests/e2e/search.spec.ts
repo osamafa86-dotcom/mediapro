@@ -57,6 +57,11 @@ test('clients list: «النور» finds «مؤسسة النور للتنمية�
   }
 });
 
+/** The header search is interactive only once hydrated (see PortalSearch): wait for it before typing or pressing keys. */
+async function searchReady(page: Page) {
+  await expect(page.getByTestId('portal-search')).toHaveAttribute('data-hydrated', 'true');
+}
+
 async function client(page: Page) {
   const a = await login('admin@e2e.test');
   const l = (await (await write(a, 'POST', '/api/admin/links', { clientId: S.clientX })).json()) as { path: string; pin: string };
@@ -67,6 +72,7 @@ async function client(page: Page) {
 test('«مكتبتي»: the header search filters, and a year with no match says where the match is', async ({ page }) => {
   await client(page);
   await page.goto('/library');
+  await searchReady(page);
   const cards = page.getByTestId('client-library').locator('[data-project-id]');
   await expect(cards).toHaveCount(2);
   await page.getByTestId('portal-search').fill('حفل 2026'); // «حفل تخرّج» is 2025: every word must match
@@ -84,6 +90,7 @@ test('«مكتبتي»: the header search filters, and a year with no match says
   await expect(cards).toHaveCount(1);
   // the search is in the address, so it survives a reload and can be shared
   await page.reload();
+  await searchReady(page);
   await expect(page.getByTestId('portal-search')).toHaveValue('التخرج');
   await expect(cards).toHaveCount(1);
   // Escape clears it
@@ -94,6 +101,7 @@ test('«مكتبتي»: the header search filters, and a year with no match says
 test('inside a project: file names, and a clear empty state', async ({ page }) => {
   await client(page);
   await page.goto(`/p/${S.p1}?q=${encodeURIComponent('dsc 4821')}`);
+  await searchReady(page);
   await expect(page.getByTestId('photo-grid').locator('[data-asset-id]')).toHaveCount(1);
   await page.getByTestId('portal-search').fill('لا يوجد');
   await expect(page.getByTestId('search-empty')).toContainText('لا نتائج لـ«لا يوجد»');
