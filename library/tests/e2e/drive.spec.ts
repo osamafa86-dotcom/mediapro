@@ -122,6 +122,8 @@ test.describe('drive', () => {
     expect(r.status()).toBe(201);
     await expect.poll(async () => (await db<{ n: number }[]>`select count(*)::int as n from drive_imports where status = 'done'`)[0]!.n, { timeout: 60_000 }).toBe(3);
     expect((await db<{ n: number }[]>`select count(*)::int as n from assets where project_id = ${grad!.project_id}`)[0]!.n).toBe(3);
+    const [rerun] = await db<{ done: number; failed: number }[]>`select done, failed from drive_imports where folder_id = 'f-grad' order by created_at desc limit 1`;
+    expect(rerun).toEqual({ done: 3, failed: 1 }); // the three arrived files count as done, not as copy failures
     await db.end();
   });
 

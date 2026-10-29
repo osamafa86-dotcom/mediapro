@@ -69,6 +69,8 @@ test('«مكتبتي»: the header search filters, and a year with no match says
   await page.goto('/library');
   const cards = page.getByTestId('client-library').locator('[data-project-id]');
   await expect(cards).toHaveCount(2);
+  await page.getByTestId('portal-search').fill('حفل 2026'); // «حفل تخرّج» is 2025: every word must match
+  await expect(page.getByTestId('search-empty')).toBeVisible();
   await page.getByTestId('portal-search').fill('التخرج');
   await expect(page).toHaveURL(/\?q=/);
   await expect(cards).toHaveCount(1);
