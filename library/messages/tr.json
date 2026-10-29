@@ -92,6 +92,18 @@
     "roles": {
       "admin": "Yönetici",
       "photographer": "Fotoğrafçı"
+    },
+    "ssoRefused": "Ana siteden giriş yapılamadı: {why}. Ana siteye dönüp kütüphaneyi yeniden aç.",
+    "ssoWhy": {
+      "sso_expired": "bağlantının süresi doldu",
+      "sso_replayed": "bağlantı zaten kullanıldı",
+      "sso_bad_signature": "imza geçersiz",
+      "sso_malformed": "bağlantı eksik",
+      "sso_too_far": "bağlantının zamanı geçersiz",
+      "sso_role": "rolün kütüphaneye girişe izin vermiyor",
+      "disabled": "hesabın askıya alındı",
+      "email_taken": "e-posta başka bir hesaba bağlı",
+      "sso_failed": "beklenmeyen hata"
     }
   },
   "gate": {

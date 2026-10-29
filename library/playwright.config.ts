@@ -28,8 +28,8 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
-      // the processing worker, as deployed (its own process; jobs come through Postgres)
-      command: 'pnpm -s worker',
+      // the processing worker, as deployed: the same bundle the worker image runs (pnpm build makes it)
+      command: 'node dist/ops/worker.mjs',
       url: `http://127.0.0.1:${WORKER_HEALTH_PORT}/`,
       reuseExistingServer: !process.env.CI,
       env: { ...E2E_ENV, WORKER_HEALTH_PORT: String(WORKER_HEALTH_PORT), WORKER_CONCURRENCY: '2' },

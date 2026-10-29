@@ -1,0 +1,49 @@
+# =============================================================================
+# مكتبة المرئيات — كتلة Caddy. يرسمها سكربت التركيب إلى /srv/sites/caddy/media.caddy
+#   __SITE_ADDRESS__   النطاق (اسم مجرّد = HTTPS تلقائي؛ قائمة بفواصل للحيّ والتجريبي)
+#   __STAGING_HEADER__ سطر X-Robots-Tag للنسخة التجريبية، ويُترك فارغاً في الحيّة
+#   __TLS_LINE__       خلف كلاودفلير (برتقالي، المنطقة على Full): `tls internal` كما في بقية المواقع الحديثة على
+#                      الخادم؛ وفارغ = شهادة Let's Encrypt تلقائية (يلزم أن يصل تحدّي HTTP-01 إلى الخادم)
+#
+# التطبيق يضع CSP بنفسه لكل طلب (src/proxy.ts) لأنه يحتاج عنوان R2 من البيئة؛ هنا ما لا يتغيّر.
+# الملفات لا تمرّ من هنا: الرفع والتنزيل والصور روابط موقّعة إلى R2 مباشرة.
+# ما يمرّ: الصفحات، وقوائم HLS، وملفات ZIP المتدفّقة (بلا تخزين مؤقت: flush_interval -1).
+# =============================================================================
+
+__SITE_ADDRESS__ {
+	__TLS_LINE__
+	__STAGING_HEADER__
+
+	# الضغط الافتراضي يشمل النصوص وحدها: ملفات ZIP (STORE) والصور لا تُضغط ولا تتأخّر
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+		-X-Powered-By
+	}
+
+	# الطلبات إلى الخادم صغيرة (الملفات تذهب إلى R2 مباشرة) — حدّ يمنع إساءة الاستعمال
+	request_body {
+		max_size 2MB
+	}
+
+	# عنوان الزائر الحقيقي: من ترويسة كلاودفلير **فقط** حين يأتي الطلب من شبكتها (القائمة الرسمية
+	# cloudflare.com/ips)، وإلا فعنوان الاتصال نفسه — فلا يزوّر أحدٌ الترويسة ليفلت من حدّ محاولات الدخول.
+	@cloudflare remote_ip 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+	vars client_ip {remote_host}
+	vars @cloudflare client_ip {header.CF-Connecting-IP}
+
+	reverse_proxy media-app:3000 {
+		flush_interval -1
+		header_up X-Forwarded-For {vars.client_ip}
+		transport http {
+			read_timeout 0
+			write_timeout 0
+		}
+	}
+
+}

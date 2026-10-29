@@ -46,3 +46,4 @@
 .locale:hover { background: var(--color-bg-component-hover); }
 .link { background: none; border: 0; padding: 0; font: inherit; color: var(--color-text-accent); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .time { unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
+.ssoError { margin: 0; padding: var(--space-12) var(--space-16); border-radius: var(--radius-control); background: var(--color-bg-danger-subtle); color: var(--color-text-danger); font-size: 14px; }

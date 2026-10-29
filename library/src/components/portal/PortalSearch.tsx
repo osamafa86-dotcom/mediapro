@@ -16,6 +16,9 @@ export function PortalSearch({ scope }: { scope: 'library' | 'project' }) {
   const timer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
+    // marks the box as React's: before that, Escape in a type=search box is the browser's own clear, which leaves
+    // `?q=` and the results as they were — tests wait for this before pressing keys
+    input.current?.setAttribute('data-hydrated', 'true');
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); input.current?.focus(); }
     };
