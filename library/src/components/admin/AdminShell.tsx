@@ -1,11 +1,14 @@
 import { Film } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
+import { cookies } from 'next/headers';
 import { getSql } from '@/db';
 import { navCounts } from '@/lib/admin/queries';
 import { openNotesCount } from '@/lib/notes';
 import type { Staff } from '@/lib/auth/session';
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import { NavLinks, type NavItem } from './NavLinks';
+import { SIDEBAR_COOKIE } from '@/lib/sidebar';
+import { SidebarToggle } from './SidebarToggle';
 import s from './admin.module.css';
 
 /** Sidebar at the inline start (right in Arabic), as in every admin frame of the design. */
@@ -30,8 +33,9 @@ export async function AdminShell({ staff, children }: { staff: Staff; children: 
       { key: 'settings' as const, href: '/admin/settings', label: t('nav.settings') },
     ] : []),
   ];
+  const collapsed = (await cookies()).get(SIDEBAR_COOKIE)?.value === 'collapsed';
   return (
-    <div className={s.shell}>
+    <div className={s.shell} data-shell data-collapsed={collapsed ? 'true' : undefined}>
       <aside className={s.sidebar} aria-label={t('nav.menu')}>
         <div className={s.brand}>
           <span className={s.brandMark} aria-hidden>
@@ -42,6 +46,7 @@ export async function AdminShell({ staff, children }: { staff: Staff; children: 
             <strong>{(await getTranslations('app'))('name')}</strong>
             <span className={s.mono} dir="ltr">media.emdatra.org</span>
           </span>
+          <SidebarToggle initial={collapsed} collapseLabel={t('nav.collapse')} expandLabel={t('nav.expand')} />
         </div>
         <nav aria-label={t('nav.menu')}>
           <NavLinks items={items} views={views?.value ?? []} />

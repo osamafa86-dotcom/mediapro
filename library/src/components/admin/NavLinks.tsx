@@ -1,10 +1,10 @@
 'use client';
-import { Archive, CloudDownload, Camera, LayoutGrid, MessageSquare, SlidersHorizontal, Upload, Users } from 'lucide-react';
+import { Archive, CloudDownload, LayoutGrid, MessageSquare, SlidersHorizontal, Upload, UserCog, Users } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import s from './admin.module.css';
 
-const ICONS = { dashboard: LayoutGrid, archive: Archive, notes: MessageSquare, upload: Upload, clients: Users, team: Camera, import: CloudDownload, settings: SlidersHorizontal } as const;
+const ICONS = { dashboard: LayoutGrid, archive: Archive, notes: MessageSquare, upload: Upload, clients: Users, team: UserCog, import: CloudDownload, settings: SlidersHorizontal } as const;
 export type NavKey = keyof typeof ICONS;
 
 export interface NavItem { key: NavKey; href: string; label: string; count?: number }
@@ -18,9 +18,10 @@ export function NavLinks({ items, views }: { items: NavItem[]; views: { name: st
         const Icon = ICONS[it.key];
         return (
           <li key={it.key}>
-            <Link href={it.href} className={s.navItem} aria-current={active(it.href) ? 'page' : undefined}>
+            {/* title: the name on hover when the sidebar is folded to icons */}
+            <Link href={it.href} className={s.navItem} aria-current={active(it.href) ? 'page' : undefined} title={it.label}>
               <Icon size={18} aria-hidden />
-              <span>{it.label}</span>
+              <span className={s.navLabel}>{it.label}</span>
               {it.count !== undefined ? <span className={s.navCount}>{it.count}</span> : null}
             </Link>
             {it.key === 'archive' && views.length > 0 ? (

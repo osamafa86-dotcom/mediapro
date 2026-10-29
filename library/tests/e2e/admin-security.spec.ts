@@ -22,6 +22,7 @@ test('every admin-only write refuses a photographer', async () => {
     ['POST', `/api/admin/clients/${S.clientX}/archive`, { archived: true }],
     ['POST', '/api/admin/team/invite', { name: 'x y', email: 'x@e2e.test', role: 'photographer' }],
     ['PATCH', `/api/admin/team/${S.photoB}`, { disabled: true }],
+    ['PUT', `/api/admin/team/${S.photoB}/password`, { password: 'twelve chars ok' }],
     ['PUT', '/api/admin/settings/rolePermissions', {}],
     ['PUT', '/api/admin/settings/identity', { nameAr: 'x', nameTr: 'y' }],
     ['POST', '/api/admin/projects/bulk', { ids: [S.p1], action: 'archive' }],
@@ -106,6 +107,54 @@ test('suspending a member signs them out at once', async () => {
   expect((await b.get('/api/me')).status()).toBe(401);
   expect((await write(admin, 'PATCH', `/api/admin/team/${S.admin}`, { disabled: true })).status()).toBe(404);
   await write(admin, 'PATCH', `/api/admin/team/${S.photoB}`, { disabled: false });
+});
+
+test('a password the admin chooses: no mail, the member signs in at once; under 12 characters refused', async () => {
+  const admin = await login('admin@e2e.test');
+  const short = await write(admin, 'POST', '/api/admin/team/invite', { name: 'قصير', email: 'short@e2e.test', role: 'editor', password: 'elevenchars' });
+  expect(short.status()).toBe(400);
+  expect(((await short.json()) as { error: string }).error).toBe('too_short');
+  const db = sql();
+  expect(await db`select 1 from users where email = 'short@e2e.test'`).toHaveLength(0); // refused before any row
+  const r = await write(admin, 'POST', '/api/admin/team/invite', { name: 'رنا حداد', email: 'Rana@E2E.test', role: 'editor', password: 'رنا كلمة سر طويلة 2026' });
+  expect(r.status()).toBe(201);
+  expect((await mails()).filter((x) => x.to === 'rana@e2e.test')).toHaveLength(0);
+  const c = await ctx();
+  const li = await c.post('/api/auth/login', { headers: H, data: { email: 'rana@e2e.test', password: 'رنا كلمة سر طويلة 2026' } });
+  expect(li.status()).toBe(200);
+  expect(((await li.json()) as { next: string }).next).toBe('/upload');
+  expect(((await (await c.get('/api/me')).json()) as { role: string }).role).toBe('editor');
+  const [row] = await db<{ password_hash: string }[]>`select password_hash from users where email = 'rana@e2e.test'`;
+  expect(row!.password_hash).toMatch(/^\$argon2id\$/); // stored as a hash, never as typed
+  await db.end();
+});
+
+test('setting a password: the member is signed out everywhere, a lock is lifted, the old one stops; SSO accounts refused', async () => {
+  const db = sql();
+  const [u] = await db<{ id: string }[]>`select id from users where email = 'rana@e2e.test'`;
+  const old = 'رنا كلمة سر طويلة 2026';
+  const fresh = 'a new one handed over 2026';
+  const member = await ctx();
+  expect((await member.post('/api/auth/login', { headers: H, data: { email: 'rana@e2e.test', password: old } })).status()).toBe(200);
+  // five wrong attempts lock the email
+  const guess = await ctx();
+  let last = 0;
+  for (let i = 0; i < 5; i++) last = (await guess.post('/api/auth/login', { headers: H, data: { email: 'rana@e2e.test', password: `wrong ${i}` } })).status();
+  expect(last).toBe(423);
+  const admin = await login('admin@e2e.test');
+  expect((await write(admin, 'PUT', `/api/admin/team/${u!.id}/password`, { password: 'too short' })).status()).toBe(400);
+  expect((await write(admin, 'PUT', `/api/admin/team/${u!.id}/password`, { password: fresh })).status()).toBe(200);
+  expect((await member.get('/api/me')).status()).toBe(401);
+  const after = await ctx();
+  expect((await after.post('/api/auth/login', { headers: H, data: { email: 'rana@e2e.test', password: old } })).status()).toBe(401);
+  expect((await after.post('/api/auth/login', { headers: H, data: { email: 'rana@e2e.test', password: fresh } })).status()).toBe(200);
+  // the admin's own password is not reachable here, and an SSO account has no local password
+  expect((await write(admin, 'PUT', `/api/admin/team/${S.admin}/password`, { password: fresh })).status()).toBe(404);
+  const [sso] = await db<{ id: string }[]>`insert into users (name, email, role, auth_provider, external_id) values ('من الموقع الأم', 'sso-pw@e2e.test', 'editor', 'emdatra', 'ext-pw-1') returning id`;
+  const refused = await write(admin, 'PUT', `/api/admin/team/${sso!.id}/password`, { password: fresh });
+  expect(refused.status()).toBe(409);
+  expect(((await refused.json()) as { error: string }).error).toBe('sso_account');
+  await db.end();
 });
 
 test('short link → signed gate; download rights are per link; a guest never downloads', async () => {
