@@ -9,6 +9,7 @@ import s from '@/components/auth/auth.module.css';
 import { getSql } from '@/db';
 import { formatDate, type Locale } from '@/i18n/config';
 import { gateState, getViewer } from '@/lib/auth/viewer';
+import { getSettings } from '@/lib/settings';
 
 export const metadata = { referrer: 'no-referrer' as const };
 
@@ -65,12 +66,13 @@ export default async function LinkGate({ params }: { params: Promise<{ token: st
 }
 
 async function Shell({ children, testState }: { children: React.ReactNode; testState?: string }) {
-  const t = await getTranslations('brand');
+  const locale = await getLocale();
+  const { identity } = await getSettings();
   return (
     <main className={s.page} data-gate={testState}>
       <div className={s.column}>
         <BrandMark />
-        <p className={s.kicker}>{t('kicker')}</p>
+        <p className={s.kicker}>{locale === 'tr' ? identity.nameTr : identity.nameAr}</p>
         {children}
         <LocaleSwitch />
       </div>

@@ -108,8 +108,9 @@ test('staff: /admin needs a login; login, then logout', async ({ page }) => {
   await page.getByLabel('كلمة المرور').fill(PASSWORD);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();
   await page.waitForURL('**/admin');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('أهلًا، مصوّر أ');
-  await expect(page.getByTestId('staff-projects').locator('li')).toHaveCount(1);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^(صباح|مساء) الخير، مصوّر$/);
+  // a photographer's nav has no clients, team or settings
+  await expect(page.getByRole('link', { name: /العملاء/ })).toHaveCount(0);
   await page.getByRole('button', { name: 'خروج' }).click();
   await page.waitForURL('**/login');
 });

@@ -15,6 +15,13 @@
       "when": 1793286414897,
       "tag": "0001_viewer_csrf",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793290460043,
+      "tag": "0002_admin_panel",
+      "breakpoints": true
     }
   ]
 }

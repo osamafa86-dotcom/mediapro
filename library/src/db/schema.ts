@@ -14,7 +14,8 @@ const ts = (name: string) => timestamp(name, { withTimezone: true });
 const id = () => uuid('id').primaryKey().default(sql`gen_random_uuid()`);
 const created = () => ts('created_at').notNull().defaultNow();
 
-export const roleEnum = pgEnum('role', ['admin', 'photographer']);
+/** admin = full access; the three others are "team" roles: member projects only, permissions per role in settings */
+export const roleEnum = pgEnum('role', ['admin', 'photographer', 'editor', 'contributor']);
 export const authProviderEnum = pgEnum('auth_provider', ['local', 'emdatra']);
 export const clientKindEnum = pgEnum('client_kind', ['partner', 'beneficiary']);
 export const localeEnum = pgEnum('locale', ['ar', 'tr']);
@@ -39,6 +40,8 @@ export const users = pgTable('users', {
   authProvider: authProviderEnum('auth_provider').notNull().default('local'),
   /** user id on the parent site (phase 2 SSO). Present from day one so phase 2 is an addition, not a migration. */
   externalId: text('external_id'),
+  /** free text shown under the name, e.g. «مصوّر رئيسي» */
+  title: text('title'),
   passwordHash: text('password_hash'),
   disabledAt: ts('disabled_at'),
   lastLoginAt: ts('last_login_at'),
@@ -65,6 +68,8 @@ export const magicLinks = pgTable('magic_links', {
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   expiresAt: ts('expires_at').notNull(),
   usedAt: ts('used_at'),
+  /** login = 15 min sign-in link; invite = 7-day first sign-in for a new team member */
+  purpose: text('purpose').notNull().default('login'),
   createdAt: created(),
 });
 
@@ -94,6 +99,8 @@ export const clients = pgTable('clients', {
   locale: localeEnum('locale').notNull().default('ar'),
   defaultLinkDays: smallint('default_link_days').notNull().default(90),
   allowRaw: boolean('allow_raw').notNull().default(false),
+  /** e-mail the client 7 days before a link expires */
+  expiryReminder: boolean('expiry_reminder').notNull().default(true),
   /** archiving hides the client's links; media stays */
   archivedAt: ts('archived_at'),
   createdAt: created(),
@@ -112,6 +119,8 @@ export const projects = pgTable('projects', {
   expiresAt: ts('expires_at'),
   coverAssetId: uuid('cover_asset_id'),
   publishedAt: ts('published_at'),
+  /** archived = hidden from the archive view and from clients; never deleted automatically */
+  archivedAt: ts('archived_at'),
   createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
   createdAt: created(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
@@ -200,6 +209,10 @@ export const links = pgTable('links', {
   projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
   kind: linkKindEnum('kind').notNull().default('client'),
   jti: text('jti').notNull(),
+  /** short public code: /c/<code> redirects to the signed /l/<jwt> URL */
+  code: text('code'),
+  allowDownload: boolean('allow_download').notNull().default(true),
+  notifyFirstDownload: boolean('notify_first_download').notNull().default(false),
   pinHash: text('pin_hash'),
   expiresAt: ts('expires_at').notNull(),
   revokedAt: ts('revoked_at'),
@@ -209,7 +222,7 @@ export const links = pgTable('links', {
   lastOpenedAt: ts('last_opened_at'),
   createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
   createdAt: created(),
-}, (t) => [uniqueIndex('links_jti_uq').on(t.jti), index('links_client_idx').on(t.clientId)]);
+}, (t) => [uniqueIndex('links_jti_uq').on(t.jti), uniqueIndex('links_code_uq').on(t.code), index('links_client_idx').on(t.clientId)]);
 
 /** A client/guest browser that passed the PIN gate. Cookie holds a random token; only its hash is stored. */
 export const viewerSessions = pgTable('viewer_sessions', {

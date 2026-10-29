@@ -11,7 +11,9 @@ import { HttpError, requireSameOrigin } from '../server/http';
 const ABSOLUTE_DAYS = 30;
 const IDLE_DAYS = 7;
 
-export type Role = 'admin' | 'photographer';
+export type Role = 'admin' | 'photographer' | 'editor' | 'contributor';
+export const TEAM_ROLES = ['photographer', 'editor', 'contributor'] as const;
+export type TeamRole = (typeof TEAM_ROLES)[number];
 export interface Staff { id: string; name: string; email: string | null; role: Role; locale: 'ar' | 'tr'; csrf: string; tokenHash: string }
 
 export async function createSession(userId: string, req: Request) {

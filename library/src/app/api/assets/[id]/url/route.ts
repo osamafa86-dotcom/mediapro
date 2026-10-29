@@ -22,6 +22,7 @@ export const GET = handle(async (_req: Request, ctx: { params: Promise<{ id: str
     if (!(await staffCanAccessProject(staff, asset.project_id))) throw new HttpError(404, 'not_found');
   } else {
     if (!(await viewerCanSeeProject(viewer!, asset.project_id))) throw new HttpError(404, 'not_found');
+    if (!viewer!.allowDownload) throw new HttpError(403, 'download_disabled');
     if (asset.group === 'raw') {
       const [c] = await getSql()<{ allow_raw: boolean }[]>`select allow_raw from clients where id = ${viewer!.clientId}`;
       if (!c?.allow_raw) throw new HttpError(403, 'raw_not_allowed');

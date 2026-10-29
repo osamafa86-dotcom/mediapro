@@ -30,3 +30,10 @@ export function decrypt(blob: string): string {
   d.setAuthTag(tag);
   return Buffer.concat([d.update(ct), d.final()]).toString('utf8');
 }
+
+/** Short public link code, 10 chars in two groups of 5, no look-alikes (0/O, 1/l/I): ~58 bits. */
+const CODE_ALPHABET = '23456789abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ';
+export function randomCode(): string {
+  const pick = () => Array.from({ length: 5 }, () => CODE_ALPHABET[randomInt(0, CODE_ALPHABET.length)]).join('');
+  return `${pick()}-${pick()}`;
+}
