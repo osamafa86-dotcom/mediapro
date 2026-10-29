@@ -1,5 +1,5 @@
 import { AlertTriangle, Film, Heart, Loader } from 'lucide-react';
-import { getTranslations } from 'next-intl/server';
+import { useTranslations } from 'next-intl';
 import type { Renditions } from '@/db/schema';
 import { ltr } from '@/lib/format';
 import { placeholder } from '@/lib/thumb';
@@ -21,9 +21,10 @@ const clock = (sec: number) => {
 /**
  * One grid tile. Every image comes through /m/<id>/… (authorized, then a short signed redirect):
  * AVIF → WebP → JPEG at the grid widths, over a ThumbHash placeholder so nothing jumps while it loads.
+ * Not async: the admin's interactive grid renders it on the client too.
  */
-export async function MediaTile({ a, sizes = '(max-width: 600px) 50vw, 220px', favs = 0 }: { a: TileAsset; sizes?: string; favs?: number }) {
-  const t = await getTranslations('media');
+export function MediaTile({ a, sizes = '(max-width: 600px) 50vw, 220px', favs = 0 }: { a: TileAsset; sizes?: string; favs?: number }) {
+  const t = useTranslations('media');
   const grid = (a.renditions.images ?? []).filter((i) => i.w <= 1280);
   const set = (ext: 'avif' | 'webp' | 'jpg') => grid.filter((i) => (ext === 'avif' ? i.avif : true)).map((i) => `/m/${a.id}/w${i.w}.${ext} ${i.w}w`).join(', ');
   const bg = placeholder(a.thumbhash);

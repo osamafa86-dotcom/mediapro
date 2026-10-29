@@ -1,4 +1,4 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectsCommand, GetObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
@@ -44,4 +44,22 @@ export async function putBuffer(key: string, body: Buffer, contentType: string) 
 export async function putFile(key: string, path: string, contentType: string) {
   const { size } = await stat(path);
   await s3().send(new PutObjectCommand({ Bucket: bucket(), Key: key, Body: createReadStream(path), ContentLength: size, ContentType: contentType, CacheControl: CACHE }));
+}
+
+/** Deletes these keys and everything under these prefixes; a key already gone is not an error (the job may run twice). */
+export async function purge(keys: string[], prefixes: string[]): Promise<number> {
+  const all = [...keys];
+  for (const p of prefixes) {
+    let token: string | undefined;
+    do {
+      const r = await s3().send(new ListObjectsV2Command({ Bucket: bucket(), Prefix: p, ContinuationToken: token }));
+      for (const o of r.Contents ?? []) if (o.Key) all.push(o.Key);
+      token = r.IsTruncated ? r.NextContinuationToken : undefined;
+    } while (token);
+  }
+  for (let i = 0; i < all.length; i += 1000) {
+    const r = await s3().send(new DeleteObjectsCommand({ Bucket: bucket(), Delete: { Objects: all.slice(i, i + 1000).map((Key) => ({ Key })), Quiet: true } }));
+    if (r.Errors?.length) throw new Error(`purge: ${r.Errors.length} objects not deleted (${r.Errors[0]?.Code})`);
+  }
+  return all.length;
 }

@@ -169,9 +169,11 @@ test('users: an emailed invite, or a password the admin hands over; the permissi
   await page.waitForTimeout(300);
   await page.reload();
   await expect(page.getByTestId('perm-publishWithoutReview-editor').getByRole('switch')).toBeChecked();
-  for (const f of ['viewProjects', 'notes', 'clients', 'users', 'settings']) await expect(page.getByTestId(`fixed-${f}`).getByRole('switch')).toHaveCount(0);
+  for (const f of ['viewProjects', 'notes', 'delete', 'clients', 'users', 'settings']) await expect(page.getByTestId(`fixed-${f}`).getByRole('switch')).toHaveCount(0);
   await expect(page.getByTestId('fixed-clients')).toContainText('غير مسموح');
-  await expect(page.getByTestId('role-permissions')).toContainText('حذف الملفات غير متاح لأي دور');
+  // deletion: the admin anything, a member only their own uploads before publication — and the note says it is final
+  await expect(page.getByTestId('fixed-delete')).toContainText('ما رفعه قبل النشر');
+  await expect(page.getByTestId('role-permissions')).toContainText('الحذف نهائي');
 });
 
 test('the sidebar folds to a rail of icons and stays folded; the work area takes the room; no fold on a phone', async ({ page }, info) => {

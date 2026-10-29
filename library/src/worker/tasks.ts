@@ -6,7 +6,7 @@ import { getSql } from '@/db';
 import type { Renditions } from '@/db/schema';
 import { ProcessingError } from './errors';
 import { imageRenditions, rawSource, readExif } from './image';
-import { download, head, prefix, putFile } from './s3io';
+import { download, head, prefix, purge, putFile } from './s3io';
 import { fits, sniff } from './sniff';
 import { driveImport } from './drive';
 import { encodeRung, plan, posterFrame, probe, putMaster, sprite, uploadRung, webMp4, type Rung } from './video';
@@ -45,6 +45,15 @@ async function guarded(assetId: string, helpers: JobHelpers, onFail: 'asset' | '
 const keyPrefix = () => `${prefix()}renditions/`;
 
 export const taskList: TaskList = {
+  /** Storage of deleted assets (the rows are already gone): originals and renditions folders. */
+  purge_objects: async (payload, helpers) => {
+    const { keys, prefixes } = payload as { keys: string[]; prefixes: string[] };
+    // only our own objects: a payload naming anything outside the prefix is a bug, not a request
+    const mine = (k: string) => k.startsWith(prefix()) && !k.includes('..');
+    if (![...keys, ...prefixes].every(mine)) throw new Error('purge_objects: key outside the library prefix');
+    helpers.logger.info(`purged ${await purge(keys, prefixes)} objects`);
+  },
+
   /** A Drive folder copied into its project; every file then goes through process_asset like an upload. */
   drive_import: driveImport,
 

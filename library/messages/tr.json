@@ -494,7 +494,10 @@
         "settingsSub": "Kimlik, bildirimler, depolama ve içe aktarma",
         "notes": "Müşteri notları",
         "notesSub": "Kullanıcı kendisine atanan notları görür ve yanıtlar",
-        "deleteNote": "Dosya silme şu an hiçbir rolde yok. Yönetici projeyi arşivler; hiçbir şey otomatik silinmez."
+        "deleteNote": "Silme kalıcıdır: dosya depolamadan kaldırılır ve geri gelmez. Yalnızca gizlemek için yönetici projeyi arşivler.",
+        "delete": "Medya silme",
+        "deleteSub": "Kullanıcı kendi yüklediğini, proje yayınlanmadan önce siler",
+        "own": "Yayından önce kendisininki"
       }
     },
     "settings": {
@@ -643,6 +646,36 @@
       "saved": "Kaydedildi.",
       "failed": "Kaydedilemedi.",
       "at": "{time} anında"
+    },
+    "media": {
+      "open": "Aç",
+      "cover": "Kapak",
+      "makeCover": "Proje kapağı yap",
+      "uncover": "Kapağı kaldır (otomatik seçime döner)",
+      "coverSet": "Proje kapağı yapıldı.",
+      "coverCleared": "Seçilen kapak kaldırıldı.",
+      "moveHeader": "Sıra",
+      "toStart": "Başa al",
+      "stepUp": "Bir öne al",
+      "stepDown": "Bir geri al",
+      "toEnd": "Sona al",
+      "downloadOriginal": "Orijinali indir",
+      "delete": "Sil",
+      "selection": "Seçili medya",
+      "selected": "{n} seçili",
+      "select": "{name} seç",
+      "selectAll": "Tümünü seç",
+      "clear": "Seçimi kaldır",
+      "dragHint": "Yerini değiştirmek için sürükleyin. Müşteri bu sırayı görür.",
+      "orderSaved": "Sıra kaydedildi.",
+      "stale": "Sayfa açıldığından beri medya değişti (yükleme veya silme). Yeniden yüklendi; sırayı tekrar düzenleyin.",
+      "cannotDelete": "Bu medyayı silemezsiniz: silme yöneticide; kullanıcı yalnızca kendi yüklediğini yayından önce siler.",
+      "deleted": "{n, plural, one {1 medya silindi.} other {# medya silindi.}}",
+      "confirmTitle": "{n, plural, one {Bu medya silinsin mi?} other {# medya silinsin mi?}}",
+      "confirmBody": "Projeden ve depolamadan kalıcı olarak silinir; geri alınamaz. Müşterilerin notları ve favorileri de silinir.",
+      "confirmDelete": "{n, plural, one {Kalıcı olarak sil} other {# öğeyi kalıcı olarak sil}}",
+      "prev": "Önceki",
+      "next": "Sonraki"
     }
   },
   "upload": {
@@ -738,6 +771,7 @@
     "downloadGroup": "“{group}” klasörünü indir · {size}",
     "sort": {
       "label": "Sıralama",
+      "curated": "Seçilen sıra",
       "newest": "En yeni",
       "oldest": "En eski",
       "name": "Ad"

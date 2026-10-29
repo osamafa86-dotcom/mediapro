@@ -22,7 +22,8 @@ export interface ViewAsset {
   widths: number[]; web: boolean; quality: string | null;
 }
 
-type Sort = 'newest' | 'oldest' | 'name';
+/** «curated» = the order the studio set by dragging (the server sends sort_order); the default */
+type Sort = 'curated' | 'newest' | 'oldest' | 'name';
 const GROUP_ORDER = ['final', 'footage', 'raw'] as const;
 
 export function ProjectView({ projectId, title, assets, canDownload, guest = false, favourites = [], digits, initial }: {
@@ -33,7 +34,7 @@ export function ProjectView({ projectId, title, assets, canDownload, guest = fal
   const locale = useLocale() as Locale;
   const size = (b: number) => ltr(formatBytes(b, locale, digits));
   const [tab, setTab] = useState<'photos' | 'videos'>(initial.tab);
-  const [sort, setSort] = useState<Sort>('newest');
+  const [sort, setSort] = useState<Sort>('curated');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [viewing, setViewing] = useState<number | null>(null);
   const dl = useDownloads();
@@ -53,8 +54,9 @@ export function ProjectView({ projectId, title, assets, canDownload, guest = fal
   const [groupState, setGroup] = useState<string | undefined>(initial.group);
   const group = groupState && groups.includes(groupState as never) ? groupState : groups[0];
   const time = (a: ViewAsset) => (a.taken ? Date.parse(a.taken) : 0);
-  const shown = (favOnly ? inTab.filter((a) => favs.has(a.id)) : inTab.filter((a) => a.group === group))
-    .sort(sort === 'name' ? (a, b) => a.name.localeCompare(b.name, locale) : (a, b) => (sort === 'newest' ? time(b) - time(a) : time(a) - time(b)));
+  const picked = favOnly ? inTab.filter((a) => favs.has(a.id)) : inTab.filter((a) => a.group === group);
+  const shown = sort === 'curated' ? picked
+    : picked.sort(sort === 'name' ? (a, b) => a.name.localeCompare(b.name, locale) : (a, b) => (sort === 'newest' ? time(b) - time(a) : time(a) - time(b)));
 
   // the address bar follows the tab and group, so a link opens on the same view
   useEffect(() => {
@@ -98,7 +100,7 @@ export function ProjectView({ projectId, title, assets, canDownload, guest = fal
           ) : null}
           <label className="sr-only" htmlFor="sort">{t('sort.label')}</label>
           <select id="sort" className={s.select} value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
-            {(['newest', 'oldest', 'name'] as const).map((k) => <option key={k} value={k}>{t(`sort.${k}`)}</option>)}
+            {(['curated', 'newest', 'oldest', 'name'] as const).map((k) => <option key={k} value={k}>{t(`sort.${k}`)}</option>)}
           </select>
         </div>
       </div>
