@@ -144,7 +144,9 @@
       "settings": "Ayarlar",
       "menu": "Menü",
       "views": "Kayıtlı görünümler",
-      "notes": "Müşteri notları"
+      "notes": "Müşteri notları",
+      "collapse": "Menüyü daralt",
+      "expand": "Menüyü genişlet"
     },
     "roles": {
       "admin": "Genel yönetici",

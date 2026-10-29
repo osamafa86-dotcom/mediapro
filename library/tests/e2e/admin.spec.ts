@@ -174,6 +174,33 @@ test('users: an emailed invite, or a password the admin hands over; the permissi
   await expect(page.getByTestId('role-permissions')).toContainText('حذف الملفات غير متاح لأي دور');
 });
 
+test('the sidebar folds to a rail of icons and stays folded; the work area takes the room; no fold on a phone', async ({ page }, info) => {
+  await signIn(page);
+  await page.goto('/admin/archive');
+  const toggle = page.getByTestId('sidebar-toggle');
+  if (info.project.name !== 'desktop') { await expect(toggle).toBeHidden(); return; }
+  const aside = page.locator('aside').first();
+  const main = page.locator('main#main');
+  const before = { aside: (await aside.boundingBox())!.width, main: (await main.boundingBox())!.width };
+  expect(before.aside).toBeGreaterThan(200);
+  await expect(toggle).toHaveAttribute('aria-label', 'طيّ القائمة');
+  await toggle.click();
+  await expect.poll(async () => (await aside.boundingBox())!.width).toBeLessThan(70);
+  await expect.poll(async () => (await main.boundingBox())!.width).toBeGreaterThan(before.main + 150);
+  // icons only, but every link keeps its name (screen readers, hover title)
+  await expect(aside.getByRole('link', { name: 'الأرشيف' })).toBeVisible();
+  await expect(aside.getByRole('link', { name: 'الأرشيف' })).toHaveAttribute('title', 'الأرشيف');
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  // remembered: the next page is drawn folded by the server, no flash
+  await page.goto('/admin/team');
+  await expect(page.locator('[data-shell]')).toHaveAttribute('data-collapsed');
+  expect((await page.locator('aside').first().boundingBox())!.width).toBeLessThan(70);
+  await page.getByTestId('sidebar-toggle').click();
+  await expect.poll(async () => (await page.locator('aside').first().boundingBox())!.width).toBeGreaterThan(200);
+  await page.reload();
+  await expect(page.locator('[data-shell]')).not.toHaveAttribute('data-collapsed');
+});
+
 test('settings: one save, persisted; date preview follows digits', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'admin flow');
   await signIn(page);
