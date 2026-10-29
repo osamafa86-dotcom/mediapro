@@ -174,8 +174,8 @@ test('first run: an empty library shows the setup checklist', async ({ page }, i
   await page.goto('/admin/archive');
   const fr = page.getByTestId('archive-first-run');
   await expect(fr.getByRole('heading', { name: 'أرشيفك يبدأ من هنا' })).toBeVisible();
-  // the test server points at an unreachable bucket: say so, never «متصل»
-  await expect(fr).toContainText('تعذّر الوصول إلى e2e');
-  await expect(fr).not.toContainText('متصل');
-  await expect(fr.locator('a[data-done]')).toHaveCount(2); // clients and team exist; no R2, no import yet
+  // the test bucket exists and answers (global-setup creates it): «متصل» is measured, not assumed
+  await expect(fr).toContainText('e2e · متصل');
+  await expect(fr).not.toContainText('تعذّر الوصول');
+  await expect(fr.locator('a[data-done]')).toHaveCount(3); // storage, clients and team; no import yet
 });
