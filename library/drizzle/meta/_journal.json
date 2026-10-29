@@ -36,6 +36,20 @@
       "when": 1793299899716,
       "tag": "0004_download_tickets",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793304026353,
+      "tag": "0005_search_norm",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793304349114,
+      "tag": "0006_drive_import",
+      "breakpoints": true
     }
   ]
 }

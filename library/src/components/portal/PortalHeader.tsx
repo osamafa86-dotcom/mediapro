@@ -5,11 +5,12 @@ import { getTranslations } from 'next-intl/server';
 import { getSql } from '@/db';
 import { THEME_COOKIE } from '@/i18n/config';
 import { LangSwitch } from './LangSwitch';
+import { PortalSearch } from './PortalSearch';
 import { ThemeToggle } from './ThemeToggle';
 import s from './portal.module.css';
 
 /** Organisation · مكتبتي › project — then language and theme (Figma 14:2xx header). */
-export async function PortalHeader({ org, project, library = true }: { org: string; project?: { title: string }; library?: boolean }) {
+export async function PortalHeader({ org, project, library = true, search }: { org: string; project?: { title: string }; library?: boolean; search?: 'library' | 'project' }) {
   const t = await getTranslations('portal');
   let logo = false;
   try { logo = (await getSql()`select 1 from settings where key = 'logo'`).length > 0; } catch { /* keep the mark */ }
@@ -39,6 +40,7 @@ export async function PortalHeader({ org, project, library = true }: { org: stri
         ) : null}
       </nav>
       <div className={s.headEnd}>
+        {search ? <PortalSearch scope={search} /> : null}
         <LangSwitch />
         <ThemeToggle initial={(await cookies()).get(THEME_COOKIE)?.value === 'light' ? 'light' : 'dark'} />
       </div>

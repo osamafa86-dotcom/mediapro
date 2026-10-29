@@ -30,10 +30,11 @@ export default async function Library() {
     counts: t('portal.cardCounts', { photos: p.photos, videos: p.videos, sep: p.photos && p.videos ? ' · ' : '' }),
     until: p.expires_at ? t('portal.until', { date: formatDay(p.expires_at, locale, region.timeZone, region.digits) }) : null,
     cover: p.cover, bg: placeholder(p.cover_hash),
+    key: [p.title, p.place ?? '', p.shot_date ?? '', p.shot_date ? formatDay(p.shot_date, locale, 'UTC', region.digits) : ''].join(' '),
   }));
   return (
     <div className={s.shell}>
-      <PortalHeader org={org} />
+      <PortalHeader org={org} search="library" />
       <main className={s.main} data-testid="client-library">
         <div className={s.hello}>
           <p className={s.muted}>{t('portal.welcome')}</p>

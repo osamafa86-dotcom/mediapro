@@ -10,7 +10,7 @@ import type { Locale } from '@/i18n/config';
 import { normSql } from '@/lib/admin/queries';
 import { requireStaffPage } from '@/lib/auth/session';
 import { isUuid } from '@/lib/authz';
-import { daysUntil, formatDay, normalizeSearch } from '@/lib/format';
+import { daysUntil, formatDay, searchTokens } from '@/lib/format';
 import { getSettings } from '@/lib/settings';
 
 type SP = Record<string, string | undefined>;
@@ -27,7 +27,8 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
   const q = sp.q?.slice(0, 100) ?? '';
   const kind = sp.kind === 'partner' || sp.kind === 'beneficiary' ? sp.kind : '';
   const status = sp.status === 'archived' ? 'archived' : 'active';
-  const like = `%${normalizeSearch(q).replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  // every search word must appear in the client's names or contact (Arabic/Turkish-normalized)
+  const nameMatch = searchTokens(q).reduce((acc, tok) => sql`${acc} and ${normSql(sql`c.name_ar || ' ' || coalesce(c.name_tr, '') || ' ' || coalesce(c.contact_name, '')`)} like ${`%${tok.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`}`, sql``);
 
   const [rows, [tot]] = await Promise.all([
     sql<{ id: string; name_ar: string; name_tr: string | null; kind: 'partner' | 'beneficiary'; contact_name: string | null; projects: number;
@@ -41,7 +42,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
       from clients c
       where ${status === 'archived' ? sql`c.archived_at is not null` : sql`c.archived_at is null`}
         ${kind ? sql`and c.kind = ${kind}` : sql``}
-        ${q ? sql`and (${normSql(sql`c.name_ar`)} like ${like} or ${normSql(sql`coalesce(c.name_tr, '')`)} like ${like} or ${normSql(sql`coalesce(c.contact_name, '')`)} like ${like})` : sql``}
+        ${nameMatch}
       order by last_published desc nulls last, c.name_ar
       limit 500`,
     sql<{ n: number }[]>`select count(*)::int as n from clients`,

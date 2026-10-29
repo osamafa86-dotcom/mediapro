@@ -52,12 +52,20 @@ export function daysUntil(d: Date | string, now = Date.now()) {
 
 /**
  * Search key: Arabic hamza/alef forms, alef maqsura, taa marbuta, tatweel and harakat folded; Turkish
- * dotted/dotless i folded. The SQL twin is `normSql` in lib/admin/queries.ts — keep them identical.
+ * dotted/dotless i folded, the Arabic article dropped. The SQL twin is `ml_norm()` (drizzle/0005) — keep them identical.
  */
 export function normalizeSearch(s: string) {
   return s.toLocaleLowerCase('tr-TR').normalize('NFC')
     .replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/ı/g, 'i')
-    .replace(/[ـً-ْٰ̇]/g, '').trim();
+    .replace(/[ـً-ْٰ̇]/g, '')
+    // the article at the start of a word, when 2+ letters remain: «الزفاف» = «زفاف», «للتنمية» = «تنمية»
+    .replace(/(^|[^ء-ي])(وال|بال|لل|ال)(?=[ء-ي]{2,})/g, '$1')
+    .replace(/\s+/g, ' ').trim();
+}
+
+/** Search words: normalized, de-duplicated, at most 8, each ready for a LIKE pattern. */
+export function searchTokens(q: string): string[] {
+  return [...new Set(normalizeSearch(q.slice(0, 200)).split(' ').filter(Boolean))].slice(0, 8);
 }
 
 /** «الأربعاء 28 تشرين الأول 2026» */

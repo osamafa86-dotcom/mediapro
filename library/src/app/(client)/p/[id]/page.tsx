@@ -32,7 +32,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const tab = q.tab === 'videos' || (q.tab !== 'photos' && !assets.some((a) => a.section === 'photos') && assets.length) ? 'videos' : 'photos';
   return (
     <div className={s.shell}>
-      <PortalHeader org={org} project={{ title: p.title }} library={!guest} />
+      <PortalHeader org={org} project={{ title: p.title }} library={!guest} search="project" />
       <main className={s.main} data-testid="client-project" data-kind={viewer.kind}>
         {guest ? <p className={s.banner} role="note">{t('client.guestBanner', { date: formatDay(viewer.linkExpiresAt, locale, region.timeZone, region.digits) })}</p> : null}
         <div className={s.projHead}>

@@ -178,10 +178,13 @@ export const assets = pgTable('assets', {
   downloads: integer('downloads').notNull().default(0),
   /** v2 "upload revised version": the old asset points to its replacement and leaves the client view */
   replacedBy: uuid('replaced_by'),
+  /** where an imported file came from, e.g. `drive:<fileId>` — a re-run of an import never duplicates it */
+  sourceRef: text('source_ref'),
   createdAt: created(),
 }, (t) => [
   index('assets_project_idx').on(t.projectId, t.section, t.group),
   uniqueIndex('assets_key_uq').on(t.r2Key),
+  uniqueIndex('assets_source_uq').on(t.projectId, t.sourceRef),
 ]);
 
 /** Browser→R2 multipart sessions. Resume = same fingerprint → ListParts on the same uploadId. */
@@ -335,6 +338,9 @@ export const driveImports = pgTable('drive_imports', {
   done: integer('done').notNull().default(0),
   failed: integer('failed').notNull().default(0),
   report: jsonb('report').$type<{ file: string; ok: boolean; error?: string }[]>().notNull().default([]),
+  /** why the whole import stopped (token revoked, folder gone…), shown on the import page */
+  error: text('error'),
+  startedAt: ts('started_at'),
   createdAt: created(),
   finishedAt: ts('finished_at'),
 });
