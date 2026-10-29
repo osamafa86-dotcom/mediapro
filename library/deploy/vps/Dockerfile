@@ -40,7 +40,10 @@ FROM node:22-bookworm-slim AS worker
 RUN apt-get update -qq \
  && apt-get install -y -qq --no-install-recommends ffmpeg libimage-exiftool-perl libraw-bin fonts-dejavu-core ca-certificates \
  && rm -rf /var/lib/apt/lists/* \
- && ffmpeg -hide_banner -encoders 2>/dev/null | grep -E 'libx264|libsvtav1' | wc -l | grep -q '^2$'
+ && enc="$(ffmpeg -hide_banner -encoders 2>/dev/null)" \
+ && for e in libx264 libsvtav1 aac; do \
+      echo "$enc" | awk -v e="$e" '$2 == e { f = 1 } END { exit !f }' || { echo "ffmpeg without encoder $e" >&2; exit 1; }; \
+    done
 WORKDIR /app
 ENV NODE_ENV=production TZ=Asia/Hebron WORKER_HEALTH_PORT=3191
 COPY --from=prod-deps --chown=node:node /app/node_modules ./node_modules
