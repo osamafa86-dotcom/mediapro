@@ -292,7 +292,7 @@
 .btnPrimary:hover { background: var(--color-bg-accent-hover); }
 .btnSecondary { background: var(--color-bg-component); color: var(--color-text-primary); }
 .btnSecondary:hover { background: var(--color-bg-component-hover); }
-.rowMenu { display: inline-grid; place-items: center; inline-size: 32px; block-size: 32px; border-radius: var(--radius-control); color: var(--color-icon-secondary); }
+.rowMenu { display: inline-grid; place-items: center; inline-size: 32px; block-size: 32px; border: 0; background: none; padding: 0; cursor: pointer; border-radius: var(--radius-control); color: var(--color-icon-secondary); }
 .rowMenu:hover { background: var(--color-bg-component-hover); }
 .tabLink { display: inline-flex; align-items: center; gap: var(--space-8); padding: 6px var(--space-12); border-radius: calc(var(--radius-control) - 2px); color: var(--color-text-secondary); text-decoration: none; font-size: 14px; }
 .tabLink[aria-selected='true'] { background: var(--color-bg-surface); color: var(--color-text-primary); font-weight: 600; box-shadow: 0 1px 2px rgb(0 0 0 / 8%); }
