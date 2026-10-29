@@ -207,6 +207,8 @@ export const uploads = pgTable('uploads', {
   assetId: uuid('asset_id'),
   createdAt: created(),
   completedAt: ts('completed_at'),
+  /** «رفع نسخة معدّلة»: when complete, the new asset takes this one's place (M7) */
+  replacesAssetId: uuid('replaces_asset_id'),
 }, (t) => [index('uploads_fp_idx').on(t.userId, t.projectId, t.fingerprint, t.status)]);
 
 // ── delivery ───────────────────────────────────────────────────────
@@ -306,7 +308,8 @@ export const comments = pgTable('comments', {
   assigneeId: uuid('assignee_id').references(() => users.id, { onDelete: 'set null' }),
   parentId: uuid('parent_id'),
   createdAt: created(),
-}, (t) => [index('comments_asset_idx').on(t.assetId), index('comments_status_idx').on(t.status)]);
+  resolvedAt: ts('resolved_at'),
+}, (t) => [index('comments_asset_idx').on(t.assetId), index('comments_status_idx').on(t.status), index('comments_parent_idx').on(t.parentId)]);
 
 // ── operations ─────────────────────────────────────────────────────
 export const settings = pgTable('settings', {

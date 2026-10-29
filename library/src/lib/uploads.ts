@@ -30,11 +30,14 @@ export const OpenInput = z.object({
   fingerprint: z.string().min(8).max(300),
   group: z.enum(['final', 'footage']).default('final'),
   lastModified: z.number().int().optional(),
+  /** «رفع نسخة معدّلة»: this file replaces that asset when it completes (same project, same section) */
+  replaces: z.string().uuid().optional(),
 });
 
 interface UploadRow {
   id: string; project_id: string; user_id: string; s3_upload_id: string; key: string; filename: string; size: string;
   mime: string; section: 'photos' | 'videos'; group: 'final' | 'raw' | 'footage'; status: string; part_size: number; asset_id: string | null;
+  replaces_asset_id: string | null;
 }
 
 async function mayUpload(staff: Staff, projectId: string) {
@@ -51,9 +54,18 @@ const view = (r: UploadRow) => ({
 /** Opens (or, for the same file by the same person, re-opens) an upload. Re-opening is how a closed tab resumes. */
 export async function openUpload(staff: Staff, input: z.infer<typeof OpenInput>) {
   await mayUpload(staff, input.projectId);
-  const c = classify(input.filename, input.group);
+  let c = classify(input.filename, input.group);
   if (!c) throw new HttpError(415, 'unsupported_type');
   const sql = getSql();
+  if (input.replaces) {
+    // a revised version lands in the old one's place: same project, same section, same group
+    const [old] = await sql<{ section: 'photos' | 'videos'; group: 'final' | 'raw' | 'footage'; replaced_by: string | null }[]>`
+      select section, "group", replaced_by from assets where id = ${input.replaces} and project_id = ${input.projectId}`;
+    if (!old) throw new HttpError(404, 'not_found');
+    if (old.replaced_by) throw new HttpError(409, 'already_replaced');
+    if (old.section !== c.section) throw new HttpError(415, 'section_mismatch');
+    c = { ...c, group: c.raw ? 'raw' : old.group === 'raw' ? 'final' : old.group };
+  }
   const [existing] = await sql<UploadRow[]>`select * from uploads where user_id = ${staff.id} and project_id = ${input.projectId}
     and fingerprint = ${input.fingerprint} and size = ${input.size} and status = 'active' order by created_at desc limit 1`;
   if (existing) return { ...view(existing), resumed: true };
@@ -64,9 +76,9 @@ export async function openUpload(staff: Staff, input: z.infer<typeof OpenInput>)
   const created = await s3().send(new CreateMultipartUploadCommand({ Bucket: bucket(), Key: key, ContentType: mime }));
   if (!created.UploadId) throw new HttpError(502, 'storage_unavailable');
   const [row] = await sql<UploadRow[]>`
-    insert into uploads (project_id, user_id, s3_upload_id, key, filename, size, mime, fingerprint, section, "group", part_size)
+    insert into uploads (project_id, user_id, s3_upload_id, key, filename, size, mime, fingerprint, section, "group", part_size, replaces_asset_id)
     values (${input.projectId}, ${staff.id}, ${created.UploadId}, ${key}, ${input.filename}, ${input.size}, ${mime}, ${input.fingerprint},
-      ${c.section}, ${c.group}, ${partSizeFor(input.size)})
+      ${c.section}, ${c.group}, ${partSizeFor(input.size)}, ${input.replaces ?? null})
     returning *`;
   await sql`update projects set status = 'uploading', updated_at = now() where id = ${input.projectId} and status = 'draft'`;
   return { ...view(row!), resumed: false };
@@ -126,6 +138,18 @@ export async function finishUpload(staff: Staff, id: string) {
         (select coalesce(max(sort_order), 0) + 1 from assets where project_id = ${row.project_id}))
       returning id`;
     await tx`update uploads set status = 'completed', completed_at = now(), asset_id = ${a!.id} where id = ${id}`;
+    if (row.replaces_asset_id) {
+      // the revised version takes the old one's place for the client; the old one stays in the record,
+      // and its open notes close with a line saying why (DESIGN: «هذا هو المسار الطبيعي لإغلاق ملاحظة»)
+      await tx`update assets set sort_order = o.sort_order, tags = o.tags from assets o where assets.id = ${a!.id} and o.id = ${row.replaces_asset_id}`;
+      await tx`update assets set replaced_by = ${a!.id} where id = ${row.replaces_asset_id} and replaced_by is null`;
+      const open = await tx<{ id: string }[]>`update comments set status = 'resolved', resolved_at = now()
+        where asset_id = ${row.replaces_asset_id} and parent_id is null and status <> 'resolved' returning id`;
+      for (const c of open) {
+        await tx`insert into comments (asset_id, user_id, author_name, body, parent_id, status)
+          values (${row.replaces_asset_id}, ${staff.id}, ${staff.name}, ${`replaced:${a!.id}`}, ${c.id}, 'resolved')`;
+      }
+    }
     // processing job in the same transaction: an asset can never exist without its job
     await tx`select graphile_worker.add_job('process_asset', json_build_object('assetId', ${a!.id}::text), max_attempts := 3, job_key := ${`asset:${a!.id}`})`;
     return { assetId: a!.id };

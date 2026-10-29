@@ -2,8 +2,7 @@ import { Download } from 'lucide-react';
 import { notFound } from 'next/navigation';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { PortalHeader } from '@/components/portal/PortalHeader';
-import { VideoList } from '@/components/portal/VideoList';
-import { VideoPlayer } from '@/components/portal/VideoPlayer';
+import { Watch } from '@/components/portal/Watch';
 import s from '@/components/portal/portal.module.css';
 import type { Locale } from '@/i18n/config';
 import { getViewer } from '@/lib/auth/viewer';
@@ -36,10 +35,9 @@ export default async function VideoPage({ params }: { params: Promise<{ id: stri
     <div className={s.shell}>
       <PortalHeader org={org} project={{ title: p.title }} library={!guest} />
       <main className={`${s.main} ${s.watch}`} data-testid="client-video" data-kind={viewer.kind}>
-        <section className={s.watchMain}>
-          {a.renditions.hls?.master ? (
-            <VideoPlayer assetId={a.id} poster={`/m/${a.id}/poster`} duration={a.duration ?? 0} rungs={a.renditions.hls.rungs} />
-          ) : <p className={s.banner}>{t('portal.player.processing')}</p>}
+        <Watch projectId={p.id} asset={{ id: a.id, duration: a.duration ?? 0, rungs: a.renditions.hls?.rungs ?? [] }} videos={videos}
+          canNote={!guest} playable={!!a.renditions.hls?.master}>
+          {a.renditions.hls?.master ? null : <p className={s.banner}>{t('portal.player.processing')}</p>}
           <div className={s.watchInfo}>
             <div>
               <h1 className="t-heading" style={{ margin: 0 }}><bdi>{a.original_name}</bdi></h1>
@@ -57,8 +55,7 @@ export default async function VideoPage({ params }: { params: Promise<{ id: stri
             ) : null}
           </div>
           <p className={`${s.muted} ${s.small} ${s.keysHint}`}>{t('portal.player.keys')}</p>
-        </section>
-        <VideoList projectId={p.id} current={a.id} videos={videos} />
+        </Watch>
       </main>
     </div>
   );

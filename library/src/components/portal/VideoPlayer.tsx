@@ -1,6 +1,6 @@
 'use client';
-import { Maximize, Minimize, Pause, PictureInPicture2, Play, RotateCcw, Volume2, VolumeX } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { Maximize, MessageSquare, Minimize, Pause, PictureInPicture2, Play, RotateCcw, Volume2, VolumeX } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type Hls from 'hls.js';
 import s from './player.module.css';
@@ -35,8 +35,16 @@ function parseVtt(text: string): Cue[] {
  * Adaptive streaming player (hls.js; native HLS only where MSE is missing). Our own controls so the time bar never flips
  * in RTL, the shortcuts follow DESIGN §6.6, and the scrub preview comes from the WebVTT sprite.
  */
-export function VideoPlayer({ assetId, poster, duration, rungs }: { assetId: string; poster: string; duration: number; rungs: number[] }) {
+export interface Marker { t: number; resolved: boolean; label: string }
+
+export function VideoPlayer({ assetId, poster, duration, rungs, markers = [], jump, onTime, onNotes, notesOpen, notesLabel }: {
+  assetId: string; poster: string; duration: number; rungs: number[];
+  /** notes on the timeline (resolved ones grey) */ markers?: Marker[];
+  /** seek here whenever it changes (k makes repeated jumps to the same time count) */ jump?: { t: number; k: number } | null;
+  onTime?: (t: number) => void; onNotes?: () => void; notesOpen?: boolean; notesLabel?: string;
+}) {
   const t = useTranslations('portal.player');
+  const locale = useLocale();
   const video = useRef<HTMLVideoElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const hls = useRef<Hls | null>(null);
@@ -118,6 +126,10 @@ export function VideoPlayer({ assetId, poster, duration, rungs }: { assetId: str
     return () => window.removeEventListener('keydown', onKey);
   }, [toggle, seekBy, fullscreen, poke]);
 
+  useEffect(() => {
+    if (jump && video.current) { video.current.currentTime = jump.t; video.current.pause(); }
+  }, [jump]);
+
   const total = dur || duration || 0;
   const pct = total ? (time / total) * 100 : 0;
   const cue = hover ? cues.find((c) => hover.t >= c.start && hover.t < c.end) ?? cues.at(-1) : undefined;
@@ -130,7 +142,8 @@ export function VideoPlayer({ assetId, poster, duration, rungs }: { assetId: str
         ref={video} className={s.video} poster={poster} playsInline preload="metadata" crossOrigin="anonymous"
         onClick={toggle}
         onPlay={() => { setPlaying(true); poke(); }} onPause={() => { setPlaying(false); setChrome(true); }}
-        onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
+        onTimeUpdate={(e) => { setTime(e.currentTarget.currentTime); onTime?.(e.currentTarget.currentTime); }}
+        onSeeked={(e) => onTime?.(e.currentTarget.currentTime)}
         onDurationChange={(e) => setDur(Number.isFinite(e.currentTarget.duration) ? e.currentTarget.duration : 0)}
         onProgress={(e) => { const b = e.currentTarget.buffered; if (b.length) setBuffered(b.end(b.length - 1)); }}
         onVolumeChange={(e) => setMuted(e.currentTarget.muted)}
@@ -149,6 +162,9 @@ export function VideoPlayer({ assetId, poster, duration, rungs }: { assetId: str
           ) : null}
           <div className={s.buffered} style={{ width: `${total ? (buffered / total) * 100 : 0}%` }} />
           <div className={s.played} style={{ width: `${pct}%` }} />
+          {total ? markers.map((m, i) => (
+            <span key={i} className={s.marker} data-resolved={m.resolved} style={{ left: `${(m.t / total) * 100}%` }} title={m.label} aria-hidden />
+          )) : null}
           <input type="range" className={s.seek} min={0} max={total || 1} step={0.1} value={time} aria-label={t('seek')} aria-valuetext={`${fmt(time)} / ${fmt(total)}`}
             onChange={(e) => { const v = video.current; if (v) v.currentTime = Number(e.target.value); setTime(Number(e.target.value)); }} />
         </div>
@@ -162,8 +178,13 @@ export function VideoPlayer({ assetId, poster, duration, rungs }: { assetId: str
           </button>
           <span className={s.time} data-testid="time">{fmt(time)} / {fmt(total)}</span>
           <span className={s.grow} />
+          {onNotes ? (
+            <button type="button" className={s.btn} onClick={onNotes} aria-pressed={!!notesOpen} aria-label={notesLabel} data-testid="player-notes">
+              <MessageSquare size={18} aria-hidden />
+            </button>
+          ) : null}
           {levels.length > 1 ? (
-            <select className={s.quality} aria-label={t('quality')} value={level} data-testid="quality"
+            <select className={s.quality} aria-label={t('quality')} value={level} data-testid="quality" dir={locale === 'ar' ? 'rtl' : 'ltr'}
               onChange={(e) => { const n = Number(e.target.value); setLevel(n); if (hls.current) hls.current.currentLevel = n; }}>
               <option value={-1}>{t('auto')}{level === -1 && current ? ` · ${label(current)}` : ''}</option>
               {levels.map((l) => <option key={l.index} value={l.index}>{label(l.height)}</option>)}

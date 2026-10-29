@@ -113,7 +113,7 @@ test('staff: /admin needs a login; login, then logout', async ({ page }) => {
   await page.goto('/admin');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^(صباح|مساء) الخير، مصوّر$/);
   // a photographer's nav has no clients, team or settings
-  await expect(page.getByRole('link', { name: /العملاء/ })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: /^العملاء/ })).toHaveCount(0); // «ملاحظات العملاء» is theirs too
   await page.getByRole('button', { name: 'خروج' }).click();
   await page.waitForURL('**/login');
 });

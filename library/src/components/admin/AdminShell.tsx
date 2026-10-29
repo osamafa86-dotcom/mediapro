@@ -2,6 +2,7 @@ import { Film } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { getSql } from '@/db';
 import { navCounts } from '@/lib/admin/queries';
+import { openNotesCount } from '@/lib/notes';
 import type { Staff } from '@/lib/auth/session';
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import { NavLinks, type NavItem } from './NavLinks';
@@ -20,6 +21,7 @@ export async function AdminShell({ staff, children }: { staff: Staff; children: 
   const items: NavItem[] = [
     { key: 'dashboard', href: '/admin', label: t('nav.dashboard') },
     { key: 'archive', href: '/admin/archive', label: t('nav.archive'), count: counts.projects },
+    { key: 'notes', href: '/admin/notes', label: t('nav.notes'), count: await openNotesCount(staff) },
     ...(admin ? [] : [{ key: 'upload' as const, href: '/upload', label: (await getTranslations('upload'))('nav') }]),
     ...(admin ? [
       { key: 'clients' as const, href: '/admin/clients', label: t('nav.clients'), count: counts.clients },
