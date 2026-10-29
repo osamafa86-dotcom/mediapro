@@ -1,21 +1,131 @@
 {
-  "app": { "name": "Medya Kütüphanesi", "org": "EMDATRA" },
-  "common": {
-    "search": "Ara", "searchPlaceholder": "Projelerde ve müşterilerde ara…", "clear": "Temizle", "save": "Kaydet", "cancel": "İptal",
-    "close": "Kapat", "back": "Geri", "next": "İleri", "download": "İndir", "upload": "Yükle", "more": "Daha fazla",
-    "language": "Dil", "theme": "Görünüm", "light": "Açık", "dark": "Koyu", "loading": "Yükleniyor…"
+  "app": {
+    "name": "Medya Kütüphanesi",
+    "org": "EMDATRA"
   },
-  "status": { "draft": "Taslak", "uploading": "Yükleniyor", "review": "İnceleme bekliyor", "published": "Yayında", "expired": "Süresi doldu" },
-  "sections": { "photos": "Fotoğraflar", "videos": "Videolar" },
-  "groups": { "final": "Son hâli", "raw": "Ham", "footage": "Ham çekimler" },
-  "pin": { "label": "Giriş kodu", "digit": "{n}. hane / 4", "help": "Bağlantıdan ayrı olarak gönderilen 4 haneli kodu girin." },
+  "common": {
+    "search": "Ara",
+    "searchPlaceholder": "Projelerde ve müşterilerde ara…",
+    "clear": "Temizle",
+    "save": "Kaydet",
+    "cancel": "İptal",
+    "close": "Kapat",
+    "back": "Geri",
+    "next": "İleri",
+    "download": "İndir",
+    "upload": "Yükle",
+    "more": "Daha fazla",
+    "language": "Dil",
+    "theme": "Görünüm",
+    "light": "Açık",
+    "dark": "Koyu",
+    "loading": "Yükleniyor…"
+  },
+  "status": {
+    "draft": "Taslak",
+    "uploading": "Yükleniyor",
+    "review": "İnceleme bekliyor",
+    "published": "Yayında",
+    "expired": "Süresi doldu"
+  },
+  "sections": {
+    "photos": "Fotoğraflar",
+    "videos": "Videolar"
+  },
+  "groups": {
+    "final": "Son hâli",
+    "raw": "Ham",
+    "footage": "Ham çekimler"
+  },
+  "pin": {
+    "label": "Giriş kodu",
+    "digit": "{n}. hane / 4",
+    "help": "Bağlantıdan ayrı olarak gönderilen 4 haneli kodu girin."
+  },
   "dev": {
-    "title": "Arayüz bileşenleri", "buttons": "Düğmeler", "primary": "Bağlantı oluştur", "secondary": "Düzenle", "ghost": "İptal",
-    "iconButtons": "Simge düğmeleri", "chips": "Filtre çipleri", "chipClient": "Müşteri: Kızılay", "chipYear": "2026",
-    "search": "Arama alanı", "tabs": "Sekmeler", "badges": "Durum rozetleri", "fields": "Alanlar",
-    "nameLabel": "Proje adı", "nameHelp": "Müşteri bunu yazdığınız gibi görür.", "nameError": "En az 3 harfli bir ad yazın.",
-    "typeLabel": "Proje türü", "typeDistribution": "Dağıtım", "typeConstruction": "İnşaat", "typeEvent": "Etkinlik",
-    "switches": "Anahtarlar", "switchRaw": "Ham dosya indirmeye izin ver", "pinCells": "Kod haneleri", "size": "Boyut",
+    "title": "Arayüz bileşenleri",
+    "buttons": "Düğmeler",
+    "primary": "Bağlantı oluştur",
+    "secondary": "Düzenle",
+    "ghost": "İptal",
+    "iconButtons": "Simge düğmeleri",
+    "chips": "Filtre çipleri",
+    "chipClient": "Müşteri: Kızılay",
+    "chipYear": "2026",
+    "search": "Arama alanı",
+    "tabs": "Sekmeler",
+    "badges": "Durum rozetleri",
+    "fields": "Alanlar",
+    "nameLabel": "Proje adı",
+    "nameHelp": "Müşteri bunu yazdığınız gibi görür.",
+    "nameError": "En az 3 harfli bir ad yazın.",
+    "typeLabel": "Proje türü",
+    "typeDistribution": "Dağıtım",
+    "typeConstruction": "İnşaat",
+    "typeEvent": "Etkinlik",
+    "switches": "Anahtarlar",
+    "switchRaw": "Ham dosya indirmeye izin ver",
+    "pinCells": "Kod haneleri",
+    "size": "Boyut",
     "sizeSample": "18,4 GB · %64"
+  },
+  "brand": {
+    "kicker": "EMDATRA · Medya Kütüphanesi"
+  },
+  "auth": {
+    "title": "Medya Kütüphanesine giriş",
+    "subtitle": "Yönetici ve fotoğrafçılar için. Müşteriler kendilerine gelen bağlantıdan girer.",
+    "email": "E-posta",
+    "password": "Şifre",
+    "submit": "Giriş",
+    "orMagic": "Ya da bana giriş bağlantısı gönder",
+    "magicSent": "E-posta kayıtlıysa 15 dakika geçerli bir giriş bağlantısı gönderildi.",
+    "badCredentials": "E-posta veya şifre hatalı.",
+    "locked": "5 hatalı denemeden sonra bu e-posta için giriş geçici olarak durduruldu. {time} sonra deneyin.",
+    "error": "Şu anda giriş yapılamadı. Biraz sonra tekrar deneyin.",
+    "magicTitle": "Girişi onayla",
+    "magicBody": "Bu cihazdan Medya Kütüphanesine girmek için dokunun.",
+    "magicButton": "Şimdi giriş yap",
+    "magicInvalid": "Giriş bağlantısının süresi doldu veya daha önce kullanıldı. Yeni bir bağlantı isteyin.",
+    "backToLogin": "Girişe dön",
+    "logout": "Çıkış",
+    "roles": {
+      "admin": "Yönetici",
+      "photographer": "Fotoğrafçı"
+    }
+  },
+  "gate": {
+    "library": "{client} kütüphanesi",
+    "enter": "Giriş",
+    "pinHelp": "Bağlantıdan ayrı olarak gönderilen 4 haneli giriş kodunu girin.",
+    "noPin": "Kod gelmedi mi? Bağlantıyı gönderen kişiden isteyin.",
+    "wrongPin": "Kod hatalı. Geçici durdurmadan önce {remaining, plural, one {# deneme} other {# deneme}} hakkınız kaldı.",
+    "lockedTitle": "Giriş geçici olarak durduruldu",
+    "lockedBody": "5 kez yanlış kod girildi. 10 dakika sonra tekrar deneyin ya da bağlantıyı gönderenden yeni kod isteyin.",
+    "retryIn": "{time} sonra deneyin",
+    "expiredBody": "Teslim bağlantısının süresi doldu. Hiçbir şey silinmedi — dosyalarınız duruyor, yenilenmesini istemeniz yeterli.",
+    "expiredOn": "{date}'da sona erdi",
+    "sentBy": "Gönderen: EMDATRA · {name}",
+    "renew": "Yeni bağlantı iste",
+    "renewNote": "Yeni bağlantı aynı e-postaya, kod ayrı bir mesajla gelir.",
+    "renewSent": "Talebiniz alındı. Yakında yeni bir bağlantı gelecek.",
+    "invalidTitle": "Bu bağlantı geçersiz",
+    "invalidBody": "Bağlantıyı eksiksiz kopyaladığınızdan emin olun ya da gönderenden yeni bir bağlantı isteyin.",
+    "sessionEnded": "Oturumunuz sona erdi. Size gelen bağlantıyı yeniden açın.",
+    "error": "Şu anda doğrulanamadı. Tekrar deneyin."
+  },
+  "client": {
+    "welcome": "Hoş geldiniz,",
+    "summary": "{projects, plural, =0 {Henüz yayınlanmış proje yok} other {# proje}}",
+    "emptyTitle": "Kütüphaneniz hazır, dosyalar yolda",
+    "emptyBody": "Fotoğrafçı ilk projenizi yayınladığında burada görünür; aynı bağlantıyla e-posta alırsınız.",
+    "until": "{date} tarihine kadar",
+    "guestBanner": "Yalnızca görüntüleme — misafir olarak bakıyorsunuz. Bağlantı {date} tarihinde sona erer."
+  },
+  "admin": {
+    "hello": "Merhaba, {name}",
+    "projects": "Projeler",
+    "noProjects": "Henüz proje yok.",
+    "placeholder": "Tam yönetici paneli bir sonraki aşamada (M2) gelecek."
   }
 }

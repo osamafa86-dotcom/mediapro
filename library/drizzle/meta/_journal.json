@@ -8,6 +8,13 @@
       "when": 1793285971465,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793286414897,
+      "tag": "0001_viewer_csrf",
+      "breakpoints": true
     }
   ]
 }

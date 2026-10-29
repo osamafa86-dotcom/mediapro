@@ -215,9 +215,11 @@ export const links = pgTable('links', {
 export const viewerSessions = pgTable('viewer_sessions', {
   tokenHash: text('token_hash').primaryKey(),
   linkId: uuid('link_id').notNull().references(() => links.id, { onDelete: 'cascade' }),
+  /** per-session CSRF token for viewer writes (renewal request, favourites, comments) */
+  csrfToken: text('csrf_token').notNull(),
   createdAt: created(),
   expiresAt: ts('expires_at').notNull(),
-});
+}, (t) => [index('viewer_sessions_link_idx').on(t.linkId)]);
 
 export const renewalRequests = pgTable('renewal_requests', {
   id: id(),

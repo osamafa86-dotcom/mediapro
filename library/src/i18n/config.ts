@@ -17,3 +17,12 @@ export function intlLocale(locale: Locale, easternDigits = false): string {
   if (locale === 'ar') return easternDigits ? 'ar-u-nu-arab' : 'ar-u-nu-latn';
   return 'tr-TR';
 }
+
+/** Dates as the studio reads them: Levantine month names in Arabic («تشرين الأول»), Latin digits. */
+export function dateLocale(locale: Locale): string {
+  return locale === 'ar' ? 'ar-PS-u-nu-latn' : 'tr-TR';
+}
+
+export function formatDate(d: Date | string, locale: Locale): string {
+  return new Intl.DateTimeFormat(dateLocale(locale), { dateStyle: 'long', timeZone: 'Asia/Hebron' }).format(new Date(d));
+}
