@@ -107,7 +107,10 @@ test('staff: /admin needs a login; login, then logout', async ({ page }) => {
   await expect(page.locator('main').getByRole('alert')).toHaveText('البريد أو كلمة المرور غير صحيحة.');
   await page.getByLabel('كلمة المرور').fill(PASSWORD);
   await page.getByRole('button', { name: 'دخول', exact: true }).click();
-  await page.waitForURL('**/admin');
+  // a photographer lands on the upload page of an assigned project, not the admin dashboard
+  await page.waitForURL(`**/upload/${S.p1}`);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('توزيع الطرود الغذائية — رفح');
+  await page.goto('/admin');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(/^(صباح|مساء) الخير، مصوّر$/);
   // a photographer's nav has no clients, team or settings
   await expect(page.getByRole('link', { name: /العملاء/ })).toHaveCount(0);

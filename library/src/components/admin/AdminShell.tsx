@@ -20,6 +20,7 @@ export async function AdminShell({ staff, children }: { staff: Staff; children: 
   const items: NavItem[] = [
     { key: 'dashboard', href: '/admin', label: t('nav.dashboard') },
     { key: 'archive', href: '/admin/archive', label: t('nav.archive'), count: counts.projects },
+    ...(admin ? [] : [{ key: 'upload' as const, href: '/upload', label: (await getTranslations('upload'))('nav') }]),
     ...(admin ? [
       { key: 'clients' as const, href: '/admin/clients', label: t('nav.clients'), count: counts.clients },
       { key: 'team' as const, href: '/admin/team', label: t('nav.team'), count: counts.team },
