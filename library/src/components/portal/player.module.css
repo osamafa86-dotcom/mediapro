@@ -1,0 +1,38 @@
+/* Video player — Figma player frame. Always LTR inside (the time bar never mirrors), pure black stage. */
+.player { position: relative; aspect-ratio: 16 / 9; inline-size: 100%; background: #000; border-radius: var(--radius-panel); overflow: hidden; color: #fff; }
+.player:fullscreen { border-radius: 0; aspect-ratio: auto; }
+.video { inline-size: 100%; block-size: 100%; display: block; object-fit: contain; background: #000; }
+.chrome { position: absolute; inset-inline: 0; inset-block-end: 0; padding: 48px var(--space-24) var(--space-12); background: linear-gradient(to top, rgb(0 0 0 / .7), transparent);
+  transition: opacity var(--dur-base) var(--ease-standard); }
+.player[data-chrome='false'] .chrome { opacity: 0; pointer-events: none; }
+.player[data-chrome='false'] { cursor: none; }
+.track { position: relative; block-size: 20px; display: flex; align-items: center; }
+.track::before { content: ''; position: absolute; inset-inline: 0; block-size: 4px; border-radius: 2px; background: rgb(255 255 255 / .24); }
+.buffered, .played { position: absolute; inset-inline-start: 0; block-size: 4px; border-radius: 2px; pointer-events: none; }
+.buffered { background: rgb(255 255 255 / .4); }
+.played { background: var(--teal-400, #2dd4bf); }
+.seek { position: absolute; inset: 0; inline-size: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.seek:focus-visible { opacity: 1; accent-color: var(--teal-400, #2dd4bf); }
+.preview { position: absolute; inset-block-end: 28px; inline-size: 180px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 3px; border-radius: 8px; background: #000; border: 1px solid rgb(255 255 255 / .2); pointer-events: none; }
+.previewImg { inline-size: 100%; border-radius: 5px; background-repeat: no-repeat; }
+.previewTime { font-family: var(--font-mono); font-size: 12px; }
+.row { display: flex; align-items: center; gap: var(--space-8); margin-block-start: var(--space-8); }
+.btn { display: grid; place-items: center; inline-size: 36px; block-size: 36px; border: 0; border-radius: var(--radius-control); background: transparent; color: #fff; cursor: pointer; }
+.btn:hover { background: rgb(255 255 255 / .14); }
+.btn:focus-visible, .quality:focus-visible { outline: 2px solid var(--teal-400, #2dd4bf); outline-offset: 1px; }
+.time { font-family: var(--font-mono); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.grow { flex: 1; }
+.quality, .badge { block-size: 28px; padding-inline: var(--space-8); border: 0; border-radius: 6px; background: rgb(255 255 255 / .16); color: #fff; font-family: var(--font-mono); font-size: 12px; }
+.badge { display: inline-flex; align-items: center; }
+.quality option { color: #000; }
+.error { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: var(--space-24); text-align: center; background: rgb(0 0 0 / .7); }
+@media (hover: none) { .btn { inline-size: 44px; block-size: 44px; } .chrome { padding-inline: var(--space-12); } }
+@media (max-width: 700px) { .player { border-radius: var(--radius-card); } }
+@media (prefers-reduced-motion: reduce) { .chrome { transition: none; } }
+/* narrow players keep play, mute, time, quality and fullscreen; «-10 s» and PiP stay on the keyboard / wide screens */
+.player { container-type: inline-size; }
+@container (max-width: 480px) {
+  .wide { display: none; }
+  .row { gap: var(--space-4); }
+  .time { font-size: 12px; }
+}

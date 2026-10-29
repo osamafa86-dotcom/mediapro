@@ -28,5 +28,18 @@ export async function makeFixtures() {
   }
   // a shell script renamed to .jpg: the extension says photo, the bytes say otherwise
   if (!existsSync(p('holiday.jpg'))) writeFileSync(p('holiday.jpg'), '#!/bin/sh\necho not a photo\n'.repeat(40));
-  return { cam: p('cam.jpg'), raw: p('IMG_0042.DNG'), clip: p('clip.mp4'), fakeJpg: p('holiday.jpg') };
+  // more photos of different shapes, so the justified grid has real rows to justify
+  const shapes: [string, number, number, [number, number, number]][] = [
+    ['wide.jpg', 3000, 1500, [180, 120, 60]], ['tall.jpg', 1600, 2400, [60, 90, 150]], ['square.jpg', 2000, 2000, [150, 40, 70]],
+    ['ممر الطرود.jpg', 2400, 1600, [90, 140, 110]],
+  ];
+  for (const [name, w, h, [r, g, b]] of shapes) {
+    if (existsSync(p(name))) continue;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="rgb(${r},${g},${b})"/><stop offset="1" stop-color="rgb(${b},${r},${g})"/></linearGradient></defs><rect width="100%" height="100%" fill="url(#g)"/><circle cx="${w / 2}" cy="${h / 2}" r="${Math.min(w, h) / 4}" fill="rgba(255,255,255,.35)"/></svg>`;
+    await sharp(Buffer.from(svg)).jpeg({ quality: 85 }).toFile(p(name));
+  }
+  return {
+    cam: p('cam.jpg'), raw: p('IMG_0042.DNG'), clip: p('clip.mp4'), fakeJpg: p('holiday.jpg'),
+    photos: shapes.map(([n]) => p(n)),
+  };
 }

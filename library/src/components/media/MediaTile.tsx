@@ -1,8 +1,8 @@
 import { AlertTriangle, Film, Loader } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
-import { thumbHashToDataURL } from 'thumbhash';
 import type { Renditions } from '@/db/schema';
 import { ltr } from '@/lib/format';
+import { placeholder } from '@/lib/thumb';
 import s from './media.module.css';
 
 export interface TileAsset {
@@ -11,11 +11,6 @@ export interface TileAsset {
 }
 
 const REASONS = ['type_mismatch', 'decode_failed', 'raw_no_preview', 'transcode_failed', 'source_missing', 'too_large'] as const;
-
-function placeholder(hash: string | null) {
-  if (!hash) return undefined;
-  try { return thumbHashToDataURL(Buffer.from(hash, 'base64')); } catch { return undefined; }
-}
 
 const clock = (sec: number) => {
   const t = Math.round(sec);

@@ -265,6 +265,19 @@ export const downloads = pgTable('downloads', {
   at: ts('at').notNull().defaultNow(),
 });
 
+/** A prepared bulk download: the browser then simply navigates to it (iOS Safari has no other way to save a stream). */
+export const downloadTickets = pgTable('download_tickets', {
+  id: id(),
+  linkId: uuid('link_id').references(() => links.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  assetIds: uuid('asset_ids').array().notNull(),
+  name: text('name').notNull(),
+  bytes: bigint('bytes', { mode: 'number' }).notNull(),
+  expiresAt: ts('expires_at').notNull(),
+  createdAt: created(),
+});
+
 // ── v2 ─────────────────────────────────────────────────────────────
 export const favourites = pgTable('favourites', {
   id: id(),
