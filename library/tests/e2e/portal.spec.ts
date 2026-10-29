@@ -232,7 +232,9 @@ test('guest: view only — no download, no selection, no «خام», and the ser
   await expect(page.getByTestId('viewer-footer')).toBeVisible();
   await expect(page.getByTestId('viewer-footer').getByRole('link')).toHaveCount(0);
   const r = page.request;
-  expect((await r.get(`/api/download/${ids.cam}`, { maxRedirects: 0 })).status()).toBe(403);
+  const g = await r.get(`/api/download/${ids.cam}`, { maxRedirects: 0 });
+  expect(g.status()).toBe(403);
+  expect(await g.json()).toEqual({ error: 'guest_view_only' }); // refused for being a guest, not only because downloads are off
   const vc = (await page.context().cookies()).find((k) => k.name.endsWith('ml_vcsrf'))!.value;
   expect((await r.post('/api/download/prepare', { headers: { ...H, 'x-csrf-token': vc }, data: { projectId: S.p1, label: 'x' } })).status()).toBe(403);
   await db`update clients set allow_raw = false where id = ${S.clientX}`;
