@@ -9,6 +9,7 @@ import type { Locale } from '@/i18n/config';
 import { getViewer } from '@/lib/auth/viewer';
 import { isUuid } from '@/lib/authz';
 import { formatBytes, formatDay, joinNames, ltr } from '@/lib/format';
+import { favouritesIn } from '@/lib/notes';
 import { projectFor, toView } from '@/lib/portal';
 import { getSettings } from '@/lib/settings';
 
@@ -25,6 +26,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const locale = (await getLocale()) as Locale;
   const { region } = await getSettings();
   const { project: p, photographers, assets } = data;
+  const favourites = await favouritesIn(viewer, p.id);
   const org = locale === 'tr' ? p.client_name_tr || p.client_name_ar : p.client_name_ar;
   const guest = viewer.kind === 'guest';
   const canDownload = !guest && viewer.allowDownload;
@@ -51,7 +53,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
             </DownloadAllButton>
           ) : null}
         </div>
-        <ProjectView projectId={p.id} title={p.title} assets={assets.map(toView)} canDownload={canDownload} guest={guest} digits={region.digits}
+        <ProjectView projectId={p.id} title={p.title} assets={assets.map(toView)} canDownload={canDownload} guest={guest} favourites={favourites} digits={region.digits}
           initial={{ tab, group: q.group }} />
       </main>
     </div>

@@ -1,4 +1,4 @@
-import { AlertTriangle, Film, Loader } from 'lucide-react';
+import { AlertTriangle, Film, Heart, Loader } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import type { Renditions } from '@/db/schema';
 import { ltr } from '@/lib/format';
@@ -22,7 +22,7 @@ const clock = (sec: number) => {
  * One grid tile. Every image comes through /m/<id>/… (authorized, then a short signed redirect):
  * AVIF → WebP → JPEG at the grid widths, over a ThumbHash placeholder so nothing jumps while it loads.
  */
-export async function MediaTile({ a, sizes = '(max-width: 600px) 50vw, 220px' }: { a: TileAsset; sizes?: string }) {
+export async function MediaTile({ a, sizes = '(max-width: 600px) 50vw, 220px', favs = 0 }: { a: TileAsset; sizes?: string; favs?: number }) {
   const t = await getTranslations('media');
   const grid = (a.renditions.images ?? []).filter((i) => i.w <= 1280);
   const set = (ext: 'avif' | 'webp' | 'jpg') => grid.filter((i) => (ext === 'avif' ? i.avif : true)).map((i) => `/m/${a.id}/w${i.w}.${ext} ${i.w}w`).join(', ');
@@ -61,6 +61,7 @@ export async function MediaTile({ a, sizes = '(max-width: 600px) 50vw, 220px' }:
         <img src={`/m/${a.id}/w${grid[Math.min(1, grid.length - 1)]!.w}.jpg`} srcSet={set('jpg')} sizes={sizes} alt={a.original_name}
           width={largest.w} height={largest.h} loading="lazy" decoding="async" className={s.img} />
       </picture>
+      {favs ? <span className={s.fav} data-testid="client-fav" title={t('favs', { n: favs })}><Heart size={12} fill="currentColor" aria-hidden /><span className={s.num}>{favs}</span></span> : null}
       {a.section === 'videos' && a.duration ? (
         <span className={s.badge}><Film size={12} aria-hidden /><span className={s.num}>{ltr(clock(a.duration))}</span></span>
       ) : null}

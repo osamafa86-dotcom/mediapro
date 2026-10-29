@@ -180,6 +180,7 @@ export function SettingsForm({ initial, logoVersion, storage, ssoEnabled }: {
               <SwitchRow title={t('settings.onReview')} isSelected={v.notifications.onReview} onChange={(x) => set('notifications', 'onReview', x)} />
               <SwitchRow title={t('settings.onFirstDownload')} isSelected={v.notifications.onFirstDownload} onChange={(x) => set('notifications', 'onFirstDownload', x)} />
               <SwitchRow title={t('settings.onRenewal')} isSelected={v.notifications.onRenewalRequest} onChange={(x) => set('notifications', 'onRenewalRequest', x)} />
+              <SwitchRow title={t('settings.onComment')} isSelected={v.notifications.onComment} onChange={(x) => set('notifications', 'onComment', x)} />
             </div>
           </section>
 

@@ -1,6 +1,6 @@
 'use client';
 import justifiedLayout from 'justified-layout';
-import { Check, Download, Film, Image as ImageIcon, Video, X } from 'lucide-react';
+import { Check, Download, Film, Heart, Image as ImageIcon, Video, X } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { thumbHashToDataURL } from 'thumbhash';
 import { SegmentTab, Chip } from '@/components/ui';
 import type { Locale } from '@/i18n/config';
+import { postJson } from '@/lib/client/api';
 import { clock } from '@/lib/clock';
 import { formatBytes, ltr, normalizeSearch, searchTokens, type Digits } from '@/lib/format';
 import { DownloadFeedback } from './DownloadFeedback';
@@ -24,8 +25,8 @@ export interface ViewAsset {
 type Sort = 'newest' | 'oldest' | 'name';
 const GROUP_ORDER = ['final', 'footage', 'raw'] as const;
 
-export function ProjectView({ projectId, title, assets, canDownload, guest = false, digits, initial }: {
-  projectId: string; title: string; assets: ViewAsset[]; canDownload: boolean; guest?: boolean; digits: Digits;
+export function ProjectView({ projectId, title, assets, canDownload, guest = false, favourites = [], digits, initial }: {
+  projectId: string; title: string; assets: ViewAsset[]; canDownload: boolean; guest?: boolean; favourites?: string[]; digits: Digits;
   initial: { tab: 'photos' | 'videos'; group?: string };
 }) {
   const t = useTranslations('portal');
@@ -36,6 +37,13 @@ export function ProjectView({ projectId, title, assets, canDownload, guest = fal
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [viewing, setViewing] = useState<number | null>(null);
   const dl = useDownloads();
+  const [favs, setFavs] = useState(() => new Set(favourites));
+  const [favOnly, setFavOnly] = useState(false);
+  const setFav = async (id: string, on: boolean) => {
+    setFavs((cur) => { const n = new Set(cur); if (on) n.add(id); else n.delete(id); return n; });
+    const r = await postJson('/api/favourites', { assetId: id, on }, 'vcsrf');
+    if (!r.ok) setFavs((cur) => { const n = new Set(cur); if (on) n.delete(id); else n.add(id); return n; });
+  };
 
   const q = useSearchParams().get('q') ?? '';
   const toks = searchTokens(q);
@@ -45,7 +53,7 @@ export function ProjectView({ projectId, title, assets, canDownload, guest = fal
   const [groupState, setGroup] = useState<string | undefined>(initial.group);
   const group = groupState && groups.includes(groupState as never) ? groupState : groups[0];
   const time = (a: ViewAsset) => (a.taken ? Date.parse(a.taken) : 0);
-  const shown = inTab.filter((a) => a.group === group)
+  const shown = (favOnly ? inTab.filter((a) => favs.has(a.id)) : inTab.filter((a) => a.group === group))
     .sort(sort === 'name' ? (a, b) => a.name.localeCompare(b.name, locale) : (a, b) => (sort === 'newest' ? time(b) - time(a) : time(a) - time(b)));
 
   // the address bar follows the tab and group, so a link opens on the same view
@@ -69,16 +77,20 @@ export function ProjectView({ projectId, title, assets, canDownload, guest = fal
             { id: 'photos', label: <span className={s.meta} style={{ color: 'inherit' }}><ImageIcon size={16} aria-hidden />{t('photos')}</span>, count: count('photos') },
             { id: 'videos', label: <span className={s.meta} style={{ color: 'inherit' }}><Video size={16} aria-hidden />{t('videos')}</span>, count: count('videos') },
           ]} />
-        {groups.length > 1 ? (
+        {groups.length > 1 || (!guest && inTab.some((a) => favs.has(a.id))) ? (
           <div className={s.chips} role="group" aria-label={t('groupsLabel')}>
-            {groups.map((g) => (
-              <Chip key={g} isSelected={g === group} onChange={() => setGroup(g)}
+            {!guest && inTab.some((a) => favs.has(a.id)) ? (
+              <Chip isSelected={favOnly} onChange={() => setFavOnly(!favOnly)} data-testid="fav-chip"
+                label={<>{t('fav.chip')} · <span className={s.num}>{inTab.filter((a) => favs.has(a.id)).length}</span></>} />
+            ) : null}
+            {groups.length > 1 ? groups.map((g) => (
+              <Chip key={g} isSelected={!favOnly && g === group} onChange={() => { setFavOnly(false); setGroup(g); }}
                 label={<>{t(`group.${g}`)} · <span className={s.num}>{inTab.filter((a) => a.group === g).length}</span></>} />
-            ))}
+            )) : null}
           </div>
         ) : null}
         <div className={s.toolEnd}>
-          {canDownload && shown.length && group ? (
+          {canDownload && shown.length && group && !favOnly ? (
             <button type="button" className={s.linkBtn} disabled={dl.busy} data-testid="download-group"
               onClick={() => dl.bulk({ projectId, section: tab, group, label: `${title} - ${t(tab)} - ${t(`group.${group}`)}` })}>
               <Download size={16} aria-hidden />{t('downloadGroup', { group: t(`group.${group}`), size: size(total(shown)) })}
@@ -99,7 +111,7 @@ export function ProjectView({ projectId, title, assets, canDownload, guest = fal
           ) : <p className={s.muted}>{t(tab === 'photos' ? 'emptyPhotos' : 'emptyVideos')}</p>}
         </section>
       ) : tab === 'photos' ? (
-        <Justified items={shown} selected={selected} canSelect={canDownload} selecting={selected.size > 0} avif={!guest}
+        <Justified items={shown} selected={selected} canSelect={canDownload} selecting={selected.size > 0} avif={!guest} favs={favs}
           onOpen={(i) => setViewing(i)} onToggle={toggle} />
       ) : (
         <ul className={s.vgrid} data-testid="video-grid">
@@ -120,7 +132,19 @@ export function ProjectView({ projectId, title, assets, canDownload, guest = fal
       )}
 
       {viewing !== null ? (
-        <PhotoViewer items={shown} index={viewing} canDownload={canDownload} digits={digits} onClose={() => setViewing(null)} />
+        <PhotoViewer items={shown} index={viewing} canDownload={canDownload} canNote={!guest} favs={favs} onFav={setFav} digits={digits} onClose={() => setViewing(null)} />
+      ) : null}
+
+      {favOnly && selected.size === 0 && canDownload && shown.length ? (
+        <div className={s.bar} role="region" aria-label={t('fav.inFav', { n: shown.length })} data-testid="fav-bar">
+          <button type="button" className={s.iconBtn} aria-label={t('clearSelection')} onClick={() => setFavOnly(false)}><X size={18} aria-hidden /></button>
+          <span className={s.barCount}>{t('fav.inFav', { n: shown.length })}</span>
+          <span className={`${s.mono} ${s.small} ${s.muted}`}>{size(total(shown))}</span>
+          <button type="button" className={s.primary} aria-disabled={dl.busy}
+            onClick={() => dl.bulk({ projectId, ids: shown.map((a) => a.id), label: `${title} - ${t('fav.chip')}` })}>
+            <Download size={16} aria-hidden />{t('fav.download')}
+          </button>
+        </div>
       ) : null}
 
       {selected.size > 0 ? (
@@ -159,8 +183,8 @@ function SelectBox({ a, on, toggle, label }: { a: ViewAsset; on: boolean; toggle
 }
 
 /** Justified rows (justified-layout, MIT — docs/decisions/0001). Positions are logical, so RTL mirrors itself. */
-function Justified({ items, selected, canSelect, selecting, avif, onOpen, onToggle }: {
-  items: ViewAsset[]; selected: Set<string>; canSelect: boolean; selecting: boolean; avif: boolean; onOpen: (i: number) => void; onToggle: (id: string) => void;
+function Justified({ items, selected, canSelect, selecting, avif, favs, onOpen, onToggle }: {
+  items: ViewAsset[]; selected: Set<string>; canSelect: boolean; selecting: boolean; avif: boolean; favs: Set<string>; onOpen: (i: number) => void; onToggle: (id: string) => void;
 }) {
   const t = useTranslations('portal');
   const ref = useRef<HTMLDivElement>(null);
@@ -195,6 +219,7 @@ function Justified({ items, selected, canSelect, selecting, avif, onOpen, onTogg
               </picture>
               <span className={s.tileScrim} />
             </button>
+            {favs.has(a.id) ? <span className={s.favBadge} data-testid="fav-badge" aria-label={t('fav.chip')}><Heart size={14} fill="currentColor" aria-hidden /></span> : null}
             {canSelect ? (
               <>
                 <SelectBox a={a} on={on} toggle={onToggle} label={t('select', { name: a.name })} />

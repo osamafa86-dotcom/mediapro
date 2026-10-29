@@ -1,10 +1,10 @@
 'use client';
-import { Archive, CloudDownload, Camera, LayoutGrid, SlidersHorizontal, Upload, Users } from 'lucide-react';
+import { Archive, CloudDownload, Camera, LayoutGrid, MessageSquare, SlidersHorizontal, Upload, Users } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import s from './admin.module.css';
 
-const ICONS = { dashboard: LayoutGrid, archive: Archive, upload: Upload, clients: Users, team: Camera, import: CloudDownload, settings: SlidersHorizontal } as const;
+const ICONS = { dashboard: LayoutGrid, archive: Archive, notes: MessageSquare, upload: Upload, clients: Users, team: Camera, import: CloudDownload, settings: SlidersHorizontal } as const;
 export type NavKey = keyof typeof ICONS;
 
 export interface NavItem { key: NavKey; href: string; label: string; count?: number }

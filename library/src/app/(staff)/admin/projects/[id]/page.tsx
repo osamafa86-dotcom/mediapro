@@ -13,6 +13,7 @@ import type { Locale } from '@/i18n/config';
 import { requireStaffPage } from '@/lib/auth/session';
 import { isUuid, staffCanAccessProject } from '@/lib/authz';
 import { daysUntil, formatDay, formatNumber, formatRelative, joinNames } from '@/lib/format';
+import { favouriteCounts } from '@/lib/notes';
 import { getSettings } from '@/lib/settings';
 
 export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
@@ -43,6 +44,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       : Promise.resolve([]),
   ]);
   if (!p) notFound();
+  const favs = await favouriteCounts(id);
   const n = (sec: string) => counts.find((c) => c.section === sec)?.n ?? 0;
   const ready = counts.reduce((a, c) => a + c.ready, 0);
   const client = locale === 'tr' ? p.name_tr || p.name_ar : p.name_ar;
@@ -125,7 +127,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           </div>
         ) : (
           <ul className={s.grid} style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-            {assets.map((a) => <li key={a.id} data-asset-id={a.id}><MediaTile a={a} /></li>)}
+            {assets.map((a) => <li key={a.id} data-asset-id={a.id}><MediaTile a={a} favs={favs[a.id] ?? 0} /></li>)}
           </ul>
         )}
         {n(tab) > assets.length ? <p className={`${s.small} ${s.tertiary}`} style={{ marginBlockStart: 12 }}>{t('project.moreMedia', { n: formatNumber(n(tab) - assets.length, locale, region.digits) })}</p> : null}

@@ -30,7 +30,7 @@ export const schemas = {
     digits: z.enum(['latn', 'arab']),
   }),
   rolePermissions: z.object({ photographer: RolePerms, editor: RolePerms, contributor: RolePerms }),
-  notifications: z.object({ onReview: z.boolean(), onFirstDownload: z.boolean(), onRenewalRequest: z.boolean() }),
+  notifications: z.object({ onReview: z.boolean(), onFirstDownload: z.boolean(), onRenewalRequest: z.boolean(), onComment: z.boolean() }),
   storage: z.object({ quotaBytes: z.number().int().min(0) }),
 };
 export type SettingKey = keyof typeof schemas;
@@ -46,7 +46,7 @@ export const DEFAULTS: Settings = {
     editor: { ...off, upload: true },
     contributor: { ...off, upload: true },
   },
-  notifications: { onReview: true, onFirstDownload: true, onRenewalRequest: true },
+  notifications: { onReview: true, onFirstDownload: true, onRenewalRequest: true, onComment: true },
   storage: { quotaBytes: 10 * 1024 ** 4 },
 };
 

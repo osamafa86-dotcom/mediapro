@@ -131,7 +131,8 @@
       "import": "Drive'dan içe aktar",
       "settings": "Ayarlar",
       "menu": "Menü",
-      "views": "Kayıtlı görünümler"
+      "views": "Kayıtlı görünümler",
+      "notes": "Müşteri notları"
     },
     "roles": {
       "admin": "Genel yönetici",
@@ -499,7 +500,8 @@
       "onRenewal": "Bir müşteri bağlantı yenilemesi istediğinde",
       "ssoSub": "Ana site oturumuyla wallt.emdatra.org üzerinden giriş",
       "ssoOff": "Kapalı — ikinci aşama",
-      "ssoBody": "Etkinleştirildiğinde personel ana sitedeki «Kütüphane» düğmesine basar ve ikinci bir şifre olmadan buraya girer. Kod hazır ve kapalı (EMDATRA_SSO_ENABLED)."
+      "ssoBody": "Etkinleştirildiğinde personel ana sitedeki «Kütüphane» düğmesine basar ve ikinci bir şifre olmadan buraya girer. Kod hazır ve kapalı (EMDATRA_SSO_ENABLED).",
+      "onComment": "Müşteriden yeni not"
     },
     "import": {
       "title": "Drive'dan içe aktar",
@@ -563,6 +565,31 @@
         "folder_not_found": "Klasör artık yok"
       },
       "openProject": "Projeyi aç"
+    },
+    "notes": {
+      "title": "Müşteri notları",
+      "subtitle": "Müşterilerin fotoğraf ve videolar için istedikleri · en eski önce · fotoğrafçı yalnızca kendisine atananları görür",
+      "open": "Çözülmemiş",
+      "resolved": "Çözülmüş",
+      "assignee": "Atanan",
+      "all": "Tümü",
+      "none": "Atanmamış",
+      "empty": "Burada not yok.",
+      "pick": "Listeden bir not seç.",
+      "openProject": "Projede aç",
+      "replyTo": "{name} adlı kişiye yanıt",
+      "replyHelp": "Yanıt müşteriye e-postayla ve fotoğrafın üzerinde ulaşır",
+      "send": "Yanıtı gönder",
+      "replace": "Düzenlenmiş sürümü yükle",
+      "replacing": "Yükleniyor… {pct}",
+      "replaceHelp": "Düzenlenmiş sürüm müşterinin kütüphanesinde aslının yerini alır, asıl kayıtta saklanır ve not kendiliğinden kapanır.",
+      "replaced": "Düzenlenmiş sürümle değiştirildi",
+      "resolve": "Çözüldü olarak işaretle",
+      "reopen": "Yeniden aç",
+      "status": "Durum",
+      "saved": "Kaydedildi.",
+      "failed": "Kaydedilemedi.",
+      "at": "{time} anında"
     }
   },
   "upload": {
@@ -630,7 +657,8 @@
       "source_missing": "Asıl dosya depolamada yok",
       "too_large": "Dosya izin verilen sınırı aşıyor",
       "other": "Beklenmeyen bir hata"
-    }
+    },
+    "favs": "{n, plural, one {# müşterinin favorisinde} other {# müşterinin favorisinde}}"
   },
   "portal": {
     "myLibrary": "Kütüphanem",
@@ -719,6 +747,41 @@
       "foundIn": "{year} yılında bulundu",
       "hint": "Arama proje adlarını, yerleri, tarihleri ve dosya adlarını kapsar. Daha kısa bir kelime dene.",
       "results": "{n, plural, =0 {sonuç yok} one {# sonuç} other {# sonuç}}"
+    },
+    "fav": {
+      "chip": "Favoriler",
+      "add": "Favorilere ekle",
+      "remove": "Favorilerden çıkar",
+      "inFav": "{n, plural, one {# öğe favorilerde} other {# öğe favorilerde}}",
+      "download": "Favorileri indir",
+      "empty": "Henüz favorilere bir şey eklemedin."
+    },
+    "notes": {
+      "open": "Notlar",
+      "count": "{n, plural, =0 {not yok} one {# not} other {# not}}",
+      "titlePhoto": "Bu fotoğraftaki notlar",
+      "titleVideo": "Bu videodaki notlar",
+      "who": "Fotoğrafçı ve yönetici görür",
+      "placeholderPhoto": "Not ekleyin… ya da konum için fotoğrafa dokunun",
+      "placeholderVideo": "Not yazın…",
+      "pinHint": "Konum için fotoğrafa dokunun",
+      "pinSet": "Konum seçildi — notunuzu yazın",
+      "atTime": "Geçerli oynatma anına sabitlenir",
+      "send": "Gönder",
+      "cancelPin": "Konumu iptal et",
+      "failed": "Gönderilemedi. Tekrar dene.",
+      "empty": "Henüz not yok. İlk notu yaz.",
+      "filterOpen": "Açık",
+      "filterAll": "Tümü",
+      "resolvedN": "{n} çözüldü",
+      "status": {
+        "open": "Açık",
+        "in_progress": "Üzerinde çalışılıyor",
+        "resolved": "Çözüldü"
+      },
+      "replaced": "Öğe, düzenlenmiş sürümle değiştirildi.",
+      "pinN": "Not {n}",
+      "jump": "{time} anına git"
     }
   }
 }
