@@ -10,9 +10,13 @@ export async function generateMetadata() {
   return { title: (await getTranslations('auth'))('title') };
 }
 
-export default async function LoginPage() {
+const SSO_WHY = ['sso_expired', 'sso_replayed', 'sso_bad_signature', 'sso_malformed', 'sso_too_far', 'sso_role', 'disabled', 'email_taken', 'sso_failed'];
+
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ sso?: string }> }) {
   if (await getStaff()) redirect('/admin');
   const t = await getTranslations();
+  const sso = (await searchParams).sso;
+  const why = sso && SSO_WHY.includes(sso) ? sso : null;
   return (
     <main className={s.page}>
       <div className={s.column}>
@@ -20,6 +24,7 @@ export default async function LoginPage() {
         <p className={s.kicker}>{t('brand.kicker')}</p>
         <h1 className={`t-title ${s.title}`}>{t('auth.title')}</h1>
         <p className={s.body}>{t('auth.subtitle')}</p>
+        {why ? <p className={s.ssoError} role="alert" data-testid="sso-error">{t('auth.ssoRefused', { why: t(`auth.ssoWhy.${why}`) })}</p> : null}
         <LoginForm />
         <LocaleSwitch />
       </div>

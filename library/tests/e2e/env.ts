@@ -15,6 +15,8 @@ export const E2E_ENV = {
   MAIL_DIR: resolve(process.cwd(), 'test-results/mail'),
   // bulk downloads above 5 MB become per-file links (production: 20 GB) — lets the e2e cover both paths
   ZIP_LINKS_LIMIT_BYTES: '5000000',
+  // phase 2 single sign-on, on for the tests (production: off until the parent site issues links)
+  EMDATRA_SSO_ENABLED: 'true', EMDATRA_SSO_SECRET: 'e2e-only-sso-secret-not-for-production-0000001',
   // Google OAuth and Drive point at tests/e2e/fixtures/fake-google.mjs
   GOOGLE_CLIENT_ID: 'fake-client', GOOGLE_CLIENT_SECRET: 'fake-secret',
   GOOGLE_AUTH_URL: `${G}/o/oauth2/v2/auth`, GOOGLE_TOKEN_URL: `${G}/token`, GOOGLE_DRIVE_API: `${G}/drive/v3`,

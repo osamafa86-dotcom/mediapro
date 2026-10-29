@@ -61,3 +61,40 @@ jobs:
       - if: failure()
         uses: actions/upload-artifact@v4
         with: { name: playwright-report, path: library/test-results, retention-days: 7 }
+
+  # The two production images build from the same Dockerfile the server uses (library/deploy/vps); the worker
+  # image refuses to build without ffmpeg's libx264 and libsvtav1. Then the image's own bundles migrate an empty
+  # database and the worker starts against it — the first minutes of the server, rehearsed. Nothing is pushed.
+  images:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: media, POSTGRES_PASSWORD: media, POSTGRES_DB: media }
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U media" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the app image
+        run: docker build -f deploy/vps/Dockerfile --target app -t media-app:ci .
+      - name: Build the worker image
+        run: docker build -f deploy/vps/Dockerfile --target worker -t media-worker:ci .
+      - name: The worker image carries its tools, bundles and migrations
+        run: docker run --rm media-worker:ci sh -c 'exiftool -ver >/dev/null && command -v dcraw_emu && test -f ops/worker.mjs && test -f drizzle/meta/_journal.json && test -f deploy/vps/r2-cors.json'
+      - name: Migrate an empty database with the image, then start the worker against it
+        run: |
+          DB=postgres://media:media@127.0.0.1:5432/media
+          docker run --rm --network host -e DATABASE_URL=$DB media-worker:ci node ops/migrate.mjs
+          docker run -d --name w --network host -e DATABASE_URL=$DB -e S3_ENDPOINT=http://127.0.0.1:9 -e S3_BUCKET=x \
+            -e S3_ACCESS_KEY_ID=x -e S3_SECRET_ACCESS_KEY=x -e SESSION_SECRET=ci-only-not-a-secret-0000000000000000 media-worker:ci
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:3191/ && break; sleep 1; done
+          curl -sf http://127.0.0.1:3191/ || { docker logs w; exit 1; }
+          docker logs w 2>&1 | grep -q "looking for jobs" || { docker logs w; exit 1; }
+      - name: The app image serves /api/health from the same database
+        run: |
+          docker run -d --name a --network host -e DATABASE_URL=postgres://media:media@127.0.0.1:5432/media -e PORT=3300 \
+            -e SESSION_SECRET=ci-only-not-a-secret-0000000000000000 -e LINK_SIGNING_SECRET=ci-only-not-a-secret-1111111111111111 \
+            -e APP_ORIGIN=http://127.0.0.1:3300 -e S3_ENDPOINT=http://127.0.0.1:9 -e S3_BUCKET=x -e S3_ACCESS_KEY_ID=x -e S3_SECRET_ACCESS_KEY=x media-app:ci
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:3300/api/health && break; sleep 1; done
+          curl -sf http://127.0.0.1:3300/api/health | grep -q '"ok":true' || { docker logs a; exit 1; }
