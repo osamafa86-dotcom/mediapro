@@ -2,7 +2,7 @@ import 'server-only';
 // Raw postgres.js queries take ISO strings for timestamps: drizzle replaces the shared client's Date serializer.
 import { cookies } from 'next/headers';
 import { getSql } from '@/db';
-import { randomPin, randomToken, safeEqual, sha256 } from '../crypto';
+import { randomCode, randomPin, randomToken, safeEqual, sha256 } from '../crypto';
 import { endOfStudioDay, signLink, verifyLink, type LinkScope } from '../links';
 import { cookieName, cookieOpts } from '../server/cookies';
 import { HttpError, requireSameOrigin } from '../server/http';
@@ -11,19 +11,45 @@ import { LOCK_MINUTES, MAX_FAILURES } from './throttle';
 
 const VIEWER_MAX_DAYS = 30;
 
-export async function issueLink(o: { clientId: string; projectId?: string | null; kind: LinkScope; days: number; createdBy: string }) {
+export interface IssueOpts {
+  clientId: string; projectId?: string | null; kind: LinkScope; days: number; createdBy: string;
+  allowDownload?: boolean; notifyFirstDownload?: boolean; timeZone?: string;
+}
+
+export async function issueLink(o: IssueOpts) {
   if (o.kind === 'guest' && !o.projectId) throw new HttpError(400, 'guest_needs_project');
   const sql = getSql();
   const jti = randomToken(16);
+  const code = randomCode();
   const pin = randomPin();
-  const expiresAt = endOfStudioDay(o.days);
+  const expiresAt = endOfStudioDay(o.days, new Date(), o.timeZone);
+  // a guest never downloads (DESIGN.md): the flag is forced off, not merely hidden in the form
+  const allowDownload = o.kind === 'guest' ? false : (o.allowDownload ?? true);
   const [row] = await sql<{ id: string }[]>`
-    insert into links (client_id, project_id, kind, jti, pin_hash, expires_at, created_by)
-    values (${o.clientId}, ${o.projectId ?? null}, ${o.kind}, ${jti}, ${await hashSecret(pin)}, ${expiresAt.toISOString()}, ${o.createdBy})
+    insert into links (client_id, project_id, kind, jti, code, pin_hash, expires_at, created_by, allow_download, notify_first_download)
+    values (${o.clientId}, ${o.projectId ?? null}, ${o.kind}, ${jti}, ${code}, ${await hashSecret(pin)}, ${expiresAt.toISOString()},
+      ${o.createdBy}, ${allowDownload}, ${o.notifyFirstDownload ?? false})
     returning id`;
   const token = await signLink({ cid: o.clientId, scope: o.kind, pid: o.projectId ?? undefined, jti }, expiresAt);
   // The PIN is returned once, to the admin who created the link; only its hash is stored.
-  return { id: row!.id, token, path: `/l/${token}`, pin, expiresAt };
+  return { id: row!.id, token, path: `/l/${token}`, shortPath: `/c/${code}`, pin, expiresAt };
+}
+
+/** The signed URL behind a short code (re-signed from the row: the row, not the token, holds the truth). */
+export async function tokenForCode(code: string): Promise<string | null> {
+  if (!/^[2-9a-zA-Z]{5}-[2-9a-zA-Z]{5}$/.test(code)) return null;
+  const [l] = await getSql()<{ client_id: string; project_id: string | null; kind: LinkScope; jti: string; expires_at: string }[]>`
+    select client_id, project_id, kind, jti, expires_at from links where code = ${code}`;
+  if (!l) return null;
+  return signLink({ cid: l.client_id, scope: l.kind, pid: l.project_id ?? undefined, jti: l.jti }, new Date(l.expires_at));
+}
+
+/** New PIN for an existing link (e.g. the client lost it, or it is locked): unlocks it, returns the PIN once. */
+export async function resetPin(linkId: string): Promise<string | null> {
+  const pin = randomPin();
+  const r = await getSql()`update links set pin_hash = ${await hashSecret(pin)}, failed_attempts = 0, locked_until = null
+    where id = ${linkId} and revoked_at is null returning id`;
+  return r.length ? pin : null;
 }
 
 export interface LinkRow {
@@ -85,6 +111,7 @@ export async function attemptPin(token: string, pin: string): Promise<PinResult>
     }
 
     await tx`update links set failed_attempts = 0, locked_until = null, opens = opens + 1, last_opened_at = now() where id = ${link.id}`;
+    await tx`insert into audit_log (actor_type, actor_id, action, target_type, target_id) values ('link', ${link.id}, 'link.opened', 'link', ${link.id})`;
     const vt = randomToken();
     const csrf = randomToken();
     const expiresAt = new Date(Math.min(new Date(link.expires_at).getTime(), Date.now() + VIEWER_MAX_DAYS * 86_400_000));
@@ -97,18 +124,18 @@ export async function attemptPin(token: string, pin: string): Promise<PinResult>
   });
 }
 
-export interface Viewer { linkId: string; clientId: string; projectId: string | null; kind: LinkScope; csrf: string; linkExpiresAt: Date }
+export interface Viewer { linkId: string; clientId: string; projectId: string | null; kind: LinkScope; csrf: string; linkExpiresAt: Date; allowDownload: boolean }
 
 /** The client/guest behind the viewer cookie — only while its link is neither revoked nor expired. */
 export async function getViewer(): Promise<Viewer | null> {
   const t = (await cookies()).get(cookieName('viewer'))?.value;
   if (!t) return null;
-  const [r] = await getSql()<{ link_id: string; client_id: string; project_id: string | null; kind: LinkScope; csrf_token: string; expires_at: Date }[]>`
-    select l.id as link_id, l.client_id, l.project_id, l.kind, v.csrf_token, l.expires_at
+  const [r] = await getSql()<{ link_id: string; client_id: string; project_id: string | null; kind: LinkScope; csrf_token: string; expires_at: Date; allow_download: boolean }[]>`
+    select l.id as link_id, l.client_id, l.project_id, l.kind, v.csrf_token, l.expires_at, l.allow_download
     from viewer_sessions v join links l on l.id = v.link_id
     where v.token_hash = ${sha256(t)} and v.expires_at > now() and l.revoked_at is null and l.expires_at > now()`;
   if (!r) return null;
-  return { linkId: r.link_id, clientId: r.client_id, projectId: r.project_id, kind: r.kind, csrf: r.csrf_token, linkExpiresAt: new Date(r.expires_at) };
+  return { linkId: r.link_id, clientId: r.client_id, projectId: r.project_id, kind: r.kind, csrf: r.csrf_token, linkExpiresAt: new Date(r.expires_at), allowDownload: r.allow_download && r.kind !== 'guest' };
 }
 
 export async function requireViewer(req: Request): Promise<Viewer> {

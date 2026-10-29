@@ -32,3 +32,23 @@ export async function presignGet(key: string, opts: { filename?: string; seconds
   });
   return getSignedUrl(s3(), cmd, { expiresIn: opts.seconds ?? 3600 });
 }
+
+export type StorageStatus = { state: 'unconfigured' } | { state: 'connected'; bucket: string } | { state: 'error'; bucket: string };
+let statusCache: { at: number; v: StorageStatus } | null = null;
+
+/** Is the bucket reachable? HeadBucket with a 3 s timeout, remembered for a minute. */
+export async function storageStatus(): Promise<StorageStatus> {
+  if (!process.env.S3_ENDPOINT || !process.env.S3_BUCKET || !process.env.S3_ACCESS_KEY_ID) return { state: 'unconfigured' };
+  if (statusCache && Date.now() - statusCache.at < 60_000) return statusCache.v;
+  const { HeadBucketCommand } = await import('@aws-sdk/client-s3');
+  const b = bucket();
+  let v: StorageStatus;
+  try {
+    await s3().send(new HeadBucketCommand({ Bucket: b }), { abortSignal: AbortSignal.timeout(3000) });
+    v = { state: 'connected', bucket: b };
+  } catch {
+    v = { state: 'error', bucket: b };
+  }
+  statusCache = { at: Date.now(), v };
+  return v;
+}

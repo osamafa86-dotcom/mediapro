@@ -47,11 +47,10 @@ export async function verifyLink(token: string): Promise<VerifyResult> {
 }
 
 /**
- * Links expire at 23:59:59 studio time (Asia/Hebron) on the last day — "hidden at 23:59", the date
+ * Links expire at 23:59:59 studio time (Asia/Hebron unless the library setting says otherwise) on the last day — "hidden at 23:59", the date
  * printed on the page. DST-safe: the offset is read for that very day.
  */
-export function endOfStudioDay(daysFromNow: number, now = new Date()): Date {
-  const tz = 'Asia/Hebron';
+export function endOfStudioDay(daysFromNow: number, now = new Date(), tz = 'Asia/Hebron'): Date {
   const day = new Date(now.getTime() + daysFromNow * 86_400_000);
   const ymd = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(day);
   const guess = new Date(`${ymd}T23:59:59Z`);

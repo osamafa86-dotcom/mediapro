@@ -9,6 +9,10 @@ declare global {
   var __mediaDb: PostgresJsDatabase<typeof schema> | undefined;
 }
 
+/**
+ * Raw postgres.js queries share this client with drizzle, and drizzle replaces its serializers: pass
+ * timestamps as ISO strings and JSON as `${JSON.stringify(v)}::jsonb` — never Date objects or sql.json().
+ */
 export function getSql(): Sql {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error('DATABASE_URL is not set — see .env.example');
