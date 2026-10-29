@@ -27,6 +27,8 @@
     "@ibm/plex-sans": "1.1.0",
     "@ibm/plex-sans-arabic": "1.1.0",
     "@node-rs/argon2": "2.2.2",
+    "@uppy/aws-s3": "6.2.2",
+    "@uppy/core": "6.2.0",
     "drizzle-orm": "0.45.4",
     "jose": "6.2.14",
     "lucide-react": "1.64.0",

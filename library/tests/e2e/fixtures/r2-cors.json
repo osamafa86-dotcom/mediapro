@@ -1,0 +1,9 @@
+[
+  {
+    "AllowedOrigins": ["https://media.emdatra.org"],
+    "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+    "AllowedHeaders": ["content-type", "content-md5", "x-amz-*"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]

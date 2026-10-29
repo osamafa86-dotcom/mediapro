@@ -35,5 +35,5 @@ export const POST = handle(async (req: Request) => {
   for (const k of keys) await clearFailures(k);
   await createSession(u.id, req);
   await audit('user', u.id, 'auth.login');
-  return json({ ok: true, next: '/admin' });
+  return json({ ok: true, next: u.role === 'admin' ? '/admin' : '/upload' });
 });

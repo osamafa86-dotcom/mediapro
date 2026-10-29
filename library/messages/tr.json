@@ -307,7 +307,8 @@
       "newPin": "Yeni kod",
       "newPinShown": "Yeni kod: {pin} — yalnızca bir kez gösterilir.",
       "noProjectsForClient": "Henüz müşteri yok — önce bir müşteri ekleyin.",
-      "moreMedia": "ve {n} medya daha — küçük resimlerle tam görünüm işleme aşamasıyla (M4) geliyor."
+      "moreMedia": "ve {n} medya daha — küçük resimlerle tam görünüm işleme aşamasıyla (M4) geliyor.",
+      "upload": "Medya yükle"
     },
     "share": {
       "title": "Teslim bağlantısı",
@@ -507,5 +508,58 @@
       "soonBody": "Yönetici için Google yetkilendirmesi, her klasör için müşteri, proje ve tarih önerisi, R2'ye doğrudan aktarım ve neyin başarılı olup neyin olmadığına dair rapor.",
       "empty": "Henüz içe aktarma yok."
     }
+  },
+  "upload": {
+    "nav": "Projelerim",
+    "title": "Yükleme",
+    "target": "Hedef:",
+    "photos": "Fotoğraf",
+    "videos": "Video",
+    "final": "Final",
+    "footage": "Ham çekim",
+    "rawNote": "RAW dosyalar otomatik olarak «Ham» grubuna gider.",
+    "dropTitle": "Dosyaları ya da klasörün tamamını buraya sürükleyin",
+    "dropBody": "JPEG ve RAW fotoğraflar (CR3 · NEF · ARW · DNG) ve 4K'ya kadar video. Yükleme doğrudan depolamaya gider; bağlantı koparsa kendiliğinden devam eder.",
+    "chooseFiles": "Dosya seç",
+    "chooseFolder": "Klasör seç",
+    "queue": "Yükleme kuyruğu",
+    "queueMeta": "{n} dosya · {size} · {speed}",
+    "pauseAll": "Tümünü duraklat",
+    "resumeAll": "Tümünü sürdür",
+    "pause": "Duraklat",
+    "resume": "Sürdür",
+    "retry": "Yeniden dene",
+    "remove": "Kaldır",
+    "progress": "{pct} · {speed} · {eta} kaldı",
+    "paused": "Duraklatıldı · {pct}",
+    "offline": "Bağlantı koptu — {pct}'ten devam edecek",
+    "failed": "Başarısız: {reason}",
+    "done": "Tamamlandı · {size}",
+    "verifying": "Boyut doğrulanıyor…",
+    "queued": "Sırada",
+    "resumed": "Kaldığı yerden devam ediyor",
+    "unfinishedTitle": "Tamamlanmamış yüklemeler",
+    "unfinishedBody": "Bu dosyalar bitmeden sayfa kapandı. Aynı dosyayı tekrar seçin, kaldığı yerden devam etsin.",
+    "myProjects": "Bana atanan projeler",
+    "noProjects": "Size atanmış proje yok.",
+    "ready": "İncelemeye gönder",
+    "readyHint": "Yükleme bitince etkinleşir{left, plural, =0 {} other { (# dosya kaldı)}}. Yönetici yayınladığında bildirim alırsınız.",
+    "readyDone": "İncelemeye gönderildi.",
+    "readyPublished": "Müşteriye yayınlandı.",
+    "notAllowed": "Yükleme izniniz yok. Yöneticiden isteyin.",
+    "err": {
+      "unsupported_type": "Desteklenmeyen tür",
+      "size_mismatch": "Boyut dosyayla eşleşmiyor",
+      "network": "Bağlantı koptu",
+      "forbidden": "İzin yok",
+      "too_large": "200 GB'tan büyük",
+      "server": "Yüklenemedi"
+    },
+    "eta": {
+      "s": "{n} sn",
+      "m": "{n} dk",
+      "h": "{n} sa"
+    },
+    "openUpload": "Medya yükle"
   }
 }

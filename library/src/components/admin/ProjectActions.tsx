@@ -1,5 +1,6 @@
 'use client';
 import { Archive, Link2, Pencil, Upload } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
@@ -34,6 +35,7 @@ export function ProjectActions({ admin, project, edit }: { admin: boolean; proje
   return (
     <>
       {msg ? <p className={s.formMsg} data-kind="error" role="alert">{msg}</p> : null}
+      <Link href={`/upload/${project.id}`} className={s.btnLink}><Upload size={16} aria-hidden />&nbsp;{t('project.upload')}</Link>
       <ProjectDialog options={edit.options} project={{ id: project.id, ...edit.values }}
         trigger={(open) => <Button variant="ghost" icon={<Pencil size={16} />} onPress={open}>{t('common.edit')}</Button>} />
       {admin ? (

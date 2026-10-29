@@ -46,7 +46,16 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: pnpm exec playwright install --with-deps chromium
+      # S3-compatible stand-in for R2 (MinIO's downloads are unreliable in CI); the bucket gets R2's CORS policy in global-setup
+      - name: Start S3 test server (moto)
+        run: |
+          python3 -m pip install --quiet "moto[server]==5.1.20"
+          nohup moto_server -H 127.0.0.1 -p 9000 > moto.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:9000/ >/dev/null && break; sleep 1; done
       - run: pnpm test:e2e
+      # M3 acceptance: a 2 GiB file, network cut and tab closed mid-way, resumed, size verified
+      - run: pnpm exec playwright test upload.spec -g "survives"
+        env: { E2E_BIG_UPLOAD: '1' }
       - if: failure()
         uses: actions/upload-artifact@v4
         with: { name: playwright-report, path: library/test-results, retention-days: 7 }

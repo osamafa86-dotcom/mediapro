@@ -196,6 +196,9 @@ export const uploads = pgTable('uploads', {
   section: sectionEnum('section').notNull(),
   group: groupEnum('group').notNull(),
   status: uploadStatusEnum('status').notNull().default('active'),
+  /** fixed part size chosen by the server; the client must use the same split to resume */
+  partSize: integer('part_size').notNull().default(16 * 1024 * 1024),
+  error: text('error'),
   assetId: uuid('asset_id'),
   createdAt: created(),
   completedAt: ts('completed_at'),
