@@ -575,5 +575,82 @@
       "too_large": "Dosya izin verilen sınırı aşıyor",
       "other": "Beklenmeyen bir hata"
     }
+  },
+  "portal": {
+    "myLibrary": "Kütüphanem",
+    "photos": "Fotoğraflar",
+    "videos": "Videolar",
+    "group": {
+      "final": "Final",
+      "raw": "Ham",
+      "footage": "Ham çekim"
+    },
+    "theme": {
+      "dark": "Koyu tema",
+      "light": "Açık tema"
+    },
+    "welcome": "Merhaba,",
+    "stats": "{projects, plural, =0 {Proje yok} one {# proje} other {# proje}} · {files, plural, =0 {dosya yok} one {# dosya} other {# dosya}}",
+    "expiring": "«{title}» projesi {days, plural, =0 {bugün} one {yarın} other {# gün sonra}} kapanıyor. İhtiyacın olanı {date} tarihinden önce indir.",
+    "years": "Yıl",
+    "allYears": "Tümü",
+    "cardCounts": "{photos, plural, =0 {} other {# fotoğraf}}{sep}{videos, plural, =0 {} other {# video}}",
+    "until": "{date} tarihine kadar erişilebilir",
+    "by": "Çekim: {names}",
+    "downloadAll": "Projenin tamamını indir · {size}",
+    "downloadGroup": "“{group}” klasörünü indir · {size}",
+    "sort": {
+      "label": "Sıralama",
+      "newest": "En yeni",
+      "oldest": "En eski",
+      "name": "Ad"
+    },
+    "groupsLabel": "Gruplar",
+    "sectionsLabel": "Bölümler",
+    "select": "{name} seç",
+    "download": "{name} indir",
+    "selected": "{n, plural, one {# öğe seçildi} other {# öğe seçildi}}",
+    "downloadSelected": "Seçilenleri indir",
+    "clearSelection": "Seçimi kaldır",
+    "preparing": "Dosya hazırlanıyor…",
+    "started": "İndirme başladı: {name}",
+    "tooBig": "Boyut ({size}) tek bir dosyada sıkıştırılamayacak kadar büyük; dosyalar tek tek indirilecek (bağlantılar 3 saat geçerli).",
+    "linksTitle": "Tek tek indir",
+    "failed": "İndirme hazırlanamadı. Tekrar dene.",
+    "noDownload": "Bu bağlantıyla indirme kapalı.",
+    "original": "Aslını indir · {size}",
+    "webPhoto": "Web kopyası 2048px",
+    "webVideo": "1080p kopya",
+    "webVideoSize": "1080p kopya",
+    "emptyPhotos": "Bu projede fotoğraf yok.",
+    "emptyVideos": "Bu projede video yok.",
+    "inProject": "Bu projede · {n, plural, one {# video} other {# video}}",
+    "viewer": {
+      "close": "Kapat",
+      "prev": "Önceki",
+      "next": "Sonraki",
+      "zoomIn": "Yakınlaştır",
+      "zoomOut": "Uzaklaştır"
+    },
+    "player": {
+      "play": "Oynat",
+      "pause": "Duraklat",
+      "mute": "Sesi kapat",
+      "unmute": "Sesi aç",
+      "back": "10 sn geri",
+      "fullscreen": "Tam ekran",
+      "exitFullscreen": "Tam ekrandan çık",
+      "pip": "Resim içinde resim",
+      "quality": "Kalite",
+      "auto": "Otomatik",
+      "seek": "Oynatma konumu",
+      "volume": "Ses düzeyi",
+      "keys": "Boşluk: oynat/duraklat · L/J: ±10 sn · →/←: ±5 sn · F: tam ekran · M: sessiz",
+      "processing": "Bu video hazırlanıyor, birazdan oynatılabilir.",
+      "error": "Video oynatılamadı."
+    },
+    "videoMeta": "{group} · {quality} · {duration} · {size}",
+    "back": "Projeye dön",
+    "sessionEnded": "Oturum sona erdi. Bağlantıyı yeniden aç."
   }
 }

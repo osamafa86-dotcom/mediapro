@@ -8,9 +8,10 @@ import { getSettings } from './settings';
  * E-mail to the admins for the events chosen in Settings → Notifications. A failed mail never fails
  * the action that triggered it.
  */
-export async function notifyAdmins(event: 'onReview' | 'onFirstDownload' | 'onRenewalRequest', d: { projectId?: string; by?: string; client?: string }) {
+export async function notifyAdmins(event: 'onReview' | 'onFirstDownload' | 'onRenewalRequest', d: { projectId?: string; by?: string; client?: string }, o: { force?: boolean } = {}) {
   try {
-    if (!(await getSettings()).notifications[event]) return;
+    // force: the link itself asked for this mail («أبلغني عند أول تنزيل»), whatever the global default
+    if (!o.force && !(await getSettings()).notifications[event]) return;
     const sql = getSql();
     const admins = await sql<{ email: string; locale: 'ar' | 'tr' }[]>`select email, locale from users where role = 'admin' and disabled_at is null and email is not null`;
     const [p] = d.projectId ? await sql<{ title: string }[]>`select title from projects where id = ${d.projectId}` : [];

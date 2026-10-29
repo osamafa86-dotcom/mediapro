@@ -1,6 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 import { E2E_ENV, ORIGIN, PORT, WORKER_HEALTH_PORT } from './tests/e2e/env';
 
+// Chromium turns a non-ASCII download name into «download» under the C locale (bare containers); CI runners use UTF-8.
+if (!/utf-?8/i.test(process.env.LC_ALL || process.env.LANG || '')) process.env.LANG = 'C.UTF-8';
+
 
 export default defineConfig({
   testDir: 'tests/e2e',

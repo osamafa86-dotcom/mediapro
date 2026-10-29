@@ -31,7 +31,7 @@ export async function listProjectsForStaff(staff: Staff): Promise<ProjectRow[]> 
 /** Same predicate, written once in SQL, for both "can see one" and "list". */
 function viewerWhere(v: Viewer) {
   const sql = getSql();
-  return sql`p.client_id = ${v.clientId} and p.status = 'published' and (p.expires_at is null or p.expires_at > now())
+  return sql`p.client_id = ${v.clientId} and p.status = 'published' and p.archived_at is null and (p.expires_at is null or p.expires_at > now())
     ${v.kind === 'guest' ? sql`and p.id = ${v.projectId}` : sql``}`;
 }
 

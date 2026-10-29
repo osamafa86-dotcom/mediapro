@@ -575,5 +575,82 @@
       "too_large": "الملف أكبر من الحدّ المسموح",
       "other": "خطأ غير متوقّع"
     }
+  },
+  "portal": {
+    "myLibrary": "مكتبتي",
+    "photos": "الصور",
+    "videos": "الفيديو",
+    "group": {
+      "final": "نهائي",
+      "raw": "خام",
+      "footage": "رشزات"
+    },
+    "theme": {
+      "dark": "الوضع الداكن",
+      "light": "الوضع الفاتح"
+    },
+    "welcome": "مرحبًا،",
+    "stats": "{projects, plural, zero {لا مشاريع} one {مشروع واحد} two {مشروعان} few {# مشاريع} many {# مشروعًا} other {# مشروع}} · {files, plural, zero {لا ملفات} one {ملف واحد} two {ملفان} few {# ملفات} many {# ملفًا} other {# ملف}}",
+    "expiring": "ينتهي مشروع «{title}» {days, plural, zero {اليوم} one {غدًا} two {بعد يومين} few {بعد # أيام} many {بعد # يومًا} other {بعد # يوم}}. نزّل ما تحتاجه قبل {date}.",
+    "years": "السنة",
+    "allYears": "الكل",
+    "cardCounts": "{photos, plural, zero {} one {صورة واحدة} two {صورتان} few {# صور} many {# صورة} other {# صورة}}{sep}{videos, plural, zero {} one {فيديو واحد} two {فيديوهان} few {# فيديوهات} many {# فيديو} other {# فيديو}}",
+    "until": "متاح حتى {date}",
+    "by": "تصوير: {names}",
+    "downloadAll": "تنزيل المشروع كاملًا · {size}",
+    "downloadGroup": "تنزيل «{group}» · {size}",
+    "sort": {
+      "label": "الترتيب",
+      "newest": "الأحدث أولًا",
+      "oldest": "الأقدم أولًا",
+      "name": "الاسم"
+    },
+    "groupsLabel": "المجموعات",
+    "sectionsLabel": "الأقسام",
+    "select": "تحديد {name}",
+    "download": "تنزيل {name}",
+    "selected": "{n, plural, one {عنصر محدّد} two {عنصران محدّدان} few {# عناصر محدّدة} many {# عنصرًا محدّدًا} other {# عنصر محدّد}}",
+    "downloadSelected": "تنزيل المحدد",
+    "clearSelection": "إلغاء التحديد",
+    "preparing": "يُجهَّز الملف…",
+    "started": "بدأ التنزيل: {name}",
+    "tooBig": "الحجم {size} أكبر من أن يُضغط في ملف واحد، فهذه روابط الملفات واحدًا واحدًا (صالحة 3 ساعات).",
+    "linksTitle": "تنزيل ملفًا ملفًا",
+    "failed": "تعذّر تجهيز التنزيل. حاول مرة أخرى.",
+    "noDownload": "التنزيل غير متاح بهذا الرابط.",
+    "original": "تنزيل الأصل · {size}",
+    "webPhoto": "نسخة الويب 2048px",
+    "webVideo": "نسخة 1080p",
+    "webVideoSize": "نسخة 1080p",
+    "emptyPhotos": "لا صور في هذا المشروع.",
+    "emptyVideos": "لا فيديو في هذا المشروع.",
+    "inProject": "في هذا المشروع · {n, plural, one {فيديو واحد} two {فيديوهان} few {# فيديوهات} many {# فيديو} other {# فيديو}}",
+    "viewer": {
+      "close": "إغلاق",
+      "prev": "السابق",
+      "next": "التالي",
+      "zoomIn": "تكبير",
+      "zoomOut": "تصغير"
+    },
+    "player": {
+      "play": "تشغيل",
+      "pause": "إيقاف مؤقت",
+      "mute": "كتم",
+      "unmute": "إلغاء الكتم",
+      "back": "رجوع 10 ثوانٍ",
+      "fullscreen": "ملء الشاشة",
+      "exitFullscreen": "الخروج من ملء الشاشة",
+      "pip": "صورة داخل صورة",
+      "quality": "الجودة",
+      "auto": "تلقائي",
+      "seek": "موضع التشغيل",
+      "volume": "مستوى الصوت",
+      "keys": "مسافة: تشغيل/إيقاف · L/J: ±10 ث · →/←: ±5 ث · F: ملء الشاشة · M: كتم",
+      "processing": "يُجهَّز هذا الفيديو، ويعمل بعد قليل.",
+      "error": "تعذّر تشغيل الفيديو."
+    },
+    "videoMeta": "{group} · {quality} · {duration} · {size}",
+    "back": "رجوع إلى المشروع",
+    "sessionEnded": "انتهت الجلسة. افتح الرابط من جديد."
   }
 }

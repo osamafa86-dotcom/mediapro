@@ -4,7 +4,8 @@ import { getSql } from '@/db';
 import type { Renditions } from '@/db/schema';
 import { getStaff } from './auth/session';
 import { getViewer } from './auth/viewer';
-import { staffCanAccessProject, viewerCanSeeProject } from './authz';
+import { staffCanAccessProject } from './authz';
+import { visibleAsset } from './portal';
 import { bucket, s3 } from './storage';
 export { keyFor } from './media-keys';
 export type { Audience } from './media-keys';
@@ -22,10 +23,10 @@ export async function audienceFor(asset: AssetForMedia): Promise<Audience | null
   const staff = await getStaff();
   if (staff) return (await staffCanAccessProject(staff, asset.project_id)) ? 'staff' : null;
   const viewer = await getViewer();
-  if (!viewer || asset.status !== 'ready') return null;
-  if (!(await viewerCanSeeProject(viewer, asset.project_id))) return null;
-  if (viewer.kind !== 'guest') return 'client';
-  return asset.group === 'raw' ? null : 'guest'; // no «خام» for guests (DESIGN.md)
+  if (!viewer) return null;
+  // the portal's one visibility rule: ready, current version, a published project of theirs, «خام» only when allowed
+  if (!(await visibleAsset(viewer, asset.id))) return null;
+  return viewer.kind === 'guest' ? 'guest' : 'client';
 }
 
 export async function loadAsset(id: string): Promise<AssetForMedia | null> {

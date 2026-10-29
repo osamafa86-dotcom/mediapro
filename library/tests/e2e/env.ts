@@ -11,5 +11,7 @@ export const E2E_ENV = {
   LINK_SIGNING_SECRET: 'e2e-only-link-secret-not-for-production-000002',
   APP_ORIGIN: ORIGIN,
   MAIL_DIR: resolve(process.cwd(), 'test-results/mail'),
+  // bulk downloads above 5 MB become per-file links (production: 20 GB) — lets the e2e cover both paths
+  ZIP_LINKS_LIMIT_BYTES: '5000000',
   S3_ENDPOINT: 'http://127.0.0.1:9000', S3_REGION: 'auto', S3_BUCKET: 'e2e', S3_ACCESS_KEY_ID: 'e2e', S3_SECRET_ACCESS_KEY: 'e2e-secret',
 };

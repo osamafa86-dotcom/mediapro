@@ -24,11 +24,18 @@ export function s3(): S3Client {
 
 export const bucket = () => need('S3_BUCKET');
 
+/** RFC 6266/5987 attachment header: an ASCII fallback plus the exact UTF-8 name (Arabic and Turkish names survive). */
+export function contentDisposition(name: string) {
+  const ascii = name.replace(/[^\x20-\x7e]+/g, '_').replace(/["\\]/g, '_');
+  const star = encodeURIComponent(name).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${star}`;
+}
+
 /** Short-lived signed GET. Only callers that passed asset authorization may reach this (never a guest). */
 export async function presignGet(key: string, opts: { filename?: string; seconds?: number } = {}) {
   const cmd = new GetObjectCommand({
     Bucket: bucket(), Key: key,
-    ResponseContentDisposition: opts.filename ? `attachment; filename*=UTF-8''${encodeURIComponent(opts.filename)}` : undefined,
+    ResponseContentDisposition: opts.filename ? contentDisposition(opts.filename) : undefined,
   });
   return getSignedUrl(s3(), cmd, { expiresIn: opts.seconds ?? 3600 });
 }
