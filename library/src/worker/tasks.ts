@@ -8,6 +8,7 @@ import { ProcessingError } from './errors';
 import { imageRenditions, rawSource, readExif } from './image';
 import { download, head, prefix, putFile } from './s3io';
 import { fits, sniff } from './sniff';
+import { driveImport } from './drive';
 import { encodeRung, plan, posterFrame, probe, putMaster, sprite, uploadRung, webMp4, type Rung } from './video';
 
 interface AssetRow { id: string; r2_key: string; section: 'photos' | 'videos'; group: string; mime: string; renditions: Renditions; status: string }
@@ -44,6 +45,9 @@ async function guarded(assetId: string, helpers: JobHelpers, onFail: 'asset' | '
 const keyPrefix = () => `${prefix()}renditions/`;
 
 export const taskList: TaskList = {
+  /** A Drive folder copied into its project; every file then goes through process_asset like an upload. */
+  drive_import: driveImport,
+
   /** Originals → everything the grid, viewer and player need; video becomes playable after its lowest rung. */
   process_asset: async (payload, helpers) => {
     const { assetId } = payload as { assetId: string };

@@ -1,5 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
-import { E2E_ENV, ORIGIN, PORT, WORKER_HEALTH_PORT } from './tests/e2e/env';
+import { E2E_ENV, FAKE_GOOGLE_PORT, ORIGIN, PORT, WORKER_HEALTH_PORT } from './tests/e2e/env';
 
 // Chromium turns a non-ASCII download name into «download» under the C locale (bare containers); CI runners use UTF-8.
 if (!/utf-?8/i.test(process.env.LC_ALL || process.env.LANG || '')) process.env.LANG = 'C.UTF-8';
@@ -34,6 +34,14 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       env: { ...E2E_ENV, WORKER_HEALTH_PORT: String(WORKER_HEALTH_PORT), WORKER_CONCURRENCY: '2' },
       timeout: 60_000,
+    },
+    {
+      // Google OAuth + Drive v3 stand-in for the import (M6)
+      command: 'node tests/e2e/fixtures/fake-google.mjs',
+      url: `http://127.0.0.1:${FAKE_GOOGLE_PORT}/health`,
+      reuseExistingServer: !process.env.CI,
+      env: { FAKE_GOOGLE_PORT: String(FAKE_GOOGLE_PORT) },
+      timeout: 20_000,
     },
   ],
 });
