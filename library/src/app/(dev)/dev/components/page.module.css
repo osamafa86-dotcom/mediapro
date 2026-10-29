@@ -1,0 +1,9 @@
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(560px, 1fr)); gap: 0; }
+.panel { background: var(--color-bg-app); color: var(--color-text-primary); padding: var(--space-32); display: grid; gap: var(--space-24); align-content: start; }
+.panel:lang(ar) { font-family: var(--font-ar); }
+.panel:lang(tr) { font-family: var(--font-tr); }
+.row { display: flex; flex-wrap: wrap; gap: var(--space-12); align-items: center; }
+.block { display: grid; gap: var(--space-12); }
+.h { margin: 0; }
+.media { position: relative; inline-size: 220px; block-size: 124px; border-radius: var(--radius-card); background: linear-gradient(135deg, #3d6b5f, #c9a46a); overflow: hidden; }
+.mediaTools { position: absolute; inset-block-start: var(--space-8); inset-inline-end: var(--space-8); display: flex; gap: var(--space-4); }

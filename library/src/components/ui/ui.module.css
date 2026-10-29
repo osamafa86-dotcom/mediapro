@@ -1,0 +1,120 @@
+/* All components: logical properties only, tokens only (DESIGN.md §rules 1, tokens.css). */
+
+/* ── Button ───────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-8);
+  min-block-size: var(--size-control); padding-inline: var(--space-16);
+  border-radius: var(--radius-control); border: var(--stroke-hairline) solid transparent;
+  font-weight: 500; font-size: 14px; line-height: 20px; cursor: pointer; white-space: nowrap;
+  transition: background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard);
+}
+:lang(ar) .btn { font-size: 15px; }
+.btn[data-disabled] { opacity: .45; cursor: not-allowed; }
+.btn-lg { min-block-size: var(--size-touch); padding-inline: var(--space-20); }
+.btn-primary { background: var(--color-bg-accent); color: var(--color-text-on-accent); }
+.btn-primary[data-hovered] { background: var(--color-bg-accent-hover); }
+.btn-secondary { background: var(--color-bg-surface); color: var(--color-text-primary); border-color: var(--color-border-strong); }
+.btn-secondary[data-hovered] { background: var(--color-bg-subtle); }
+.btn-ghost { background: transparent; color: var(--color-text-primary); }
+.btn-ghost[data-hovered] { background: var(--color-bg-component); }
+.btn-danger { background: var(--color-bg-surface); color: var(--color-text-danger); border-color: var(--color-border-danger); }
+.btnIcon { display: inline-flex; }
+.btn[data-pressed] { transform: translateY(1px); }
+
+/* ── IconButton ───────────────────────────────────────── */
+.iconBtn {
+  inline-size: var(--size-icon-button); block-size: var(--size-icon-button);
+  display: inline-grid; place-items: center; border-radius: var(--radius-control);
+  border: 0; background: transparent; color: var(--color-icon-secondary); cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-standard);
+}
+.iconBtn-44 { inline-size: var(--size-touch); block-size: var(--size-touch); }
+.iconBtn-ghost[data-hovered] { background: var(--color-bg-component); color: var(--color-icon-primary); }
+.iconBtn-surface { background: var(--color-bg-surface); border: var(--stroke-hairline) solid var(--color-border-hairline); color: var(--color-icon-primary); }
+.iconBtn-onMedia { background: var(--color-overlay-scrim); color: var(--color-icon-on-media); border-radius: var(--radius-full); }
+.iconBtnGlyph { display: inline-flex; }
+@media (pointer: coarse) { .iconBtn { inline-size: var(--size-touch); block-size: var(--size-touch); } }
+
+/* ── Chip ─────────────────────────────────────────────── */
+.chip {
+  display: inline-flex; align-items: center; gap: var(--space-4);
+  min-block-size: 32px; padding-inline: var(--space-12); border-radius: var(--radius-full);
+  border: var(--stroke-hairline) solid var(--color-border-hairline); background: var(--color-bg-surface);
+  color: var(--color-text-secondary); font-size: 13px; cursor: pointer;
+}
+.chip[data-selected], .chipActive { background: var(--color-bg-accent-subtle); color: var(--color-text-accent); border-color: transparent; font-weight: 500; }
+.chipRemove { display: inline-grid; place-items: center; inline-size: 24px; block-size: 24px; margin-inline-end: calc(var(--space-8) * -1); border: 0; border-radius: var(--radius-full); background: transparent; color: inherit; cursor: pointer; }
+.chipRemove:hover { background: var(--color-overlay-glass); }
+
+/* ── SearchField ──────────────────────────────────────── */
+.search { position: relative; display: flex; align-items: center; min-inline-size: 240px; }
+.searchIcon { position: absolute; inset-inline-start: var(--space-12); color: var(--color-icon-secondary); pointer-events: none; }
+.searchInput {
+  inline-size: 100%; min-block-size: var(--size-control); padding-inline: 36px 64px;
+  border-radius: var(--radius-control); border: var(--stroke-hairline) solid var(--color-border-strong);
+  background: var(--color-bg-surface); color: var(--color-text-primary); font-size: 14px;
+}
+.searchInput::placeholder { color: var(--color-text-tertiary); }
+.searchInput::-webkit-search-cancel-button { display: none; }
+.searchClear { position: absolute; inset-inline-end: 40px; display: inline-grid; place-items: center; inline-size: 24px; block-size: 24px; border: 0; border-radius: var(--radius-full); background: var(--color-bg-component); color: var(--color-icon-secondary); cursor: pointer; }
+.search[data-empty] .searchClear { display: none; }
+.kbd { position: absolute; inset-inline-end: var(--space-12); font: 11px/16px var(--font-mono); color: var(--color-text-tertiary); border: var(--stroke-hairline) solid var(--color-border-hairline); border-radius: 4px; padding-inline: 4px; unicode-bidi: isolate; }
+/* not `direction: ltr` on .kbd: logical insets resolve against the element's OWN direction, so that
+   flips inset-inline-end to the physical right in an RTL page and stacks it on the search icon. */
+
+/* ── SegmentTab ───────────────────────────────────────── */
+.segment { display: inline-flex; justify-self: start; padding: var(--space-4); gap: var(--space-4); border-radius: var(--radius-card); background: var(--color-bg-component); }
+.segmentItem {
+  display: inline-flex; align-items: center; gap: var(--space-8); min-block-size: 36px; padding-inline: var(--space-16);
+  border: 0; border-radius: var(--radius-control); background: transparent; color: var(--color-text-secondary); font-weight: 500; cursor: pointer;
+}
+.segmentItem[data-selected] { background: var(--color-bg-surface); color: var(--color-text-primary); box-shadow: 0 1px 2px rgb(0 0 0 / .08); }
+.segmentCount { color: var(--color-text-tertiary); font-size: 12px; }
+
+/* ── StatusBadge ──────────────────────────────────────── */
+.badge { display: inline-flex; align-items: center; gap: 6px; min-block-size: 24px; padding-inline: var(--space-8); border-radius: var(--radius-full); font-size: 12px; font-weight: 500; background: var(--color-bg-component); color: var(--color-text-secondary); white-space: nowrap; }
+:lang(ar) .badge { font-size: 13px; }
+.badgeDot { inline-size: 6px; block-size: 6px; border-radius: var(--radius-full); background: currentColor; }
+.badge-draft { background: var(--color-bg-component); color: var(--color-text-secondary); }
+.badge-uploading { background: var(--color-bg-warning-subtle); color: var(--color-text-warning); }
+.badge-review { background: var(--color-bg-accent-subtle); color: var(--color-text-accent); }
+.badge-published { background: var(--color-bg-success-subtle); color: var(--color-text-success); }
+.badge-expired { background: var(--color-bg-subtle); color: var(--color-text-tertiary); }
+
+/* ── TextField / Select ───────────────────────────────── */
+.field { display: grid; gap: 6px; min-inline-size: 220px; }
+.fieldLabel { font-size: 13px; font-weight: 500; color: var(--color-text-secondary); }
+.input {
+  min-block-size: var(--size-control); padding-inline: var(--space-12);
+  border-radius: var(--radius-control); border: var(--stroke-hairline) solid var(--color-border-strong);
+  background: var(--color-bg-surface); color: var(--color-text-primary); font-size: 14px; inline-size: 100%;
+}
+.field[data-invalid] .input { border-color: var(--color-border-danger); }
+.fieldHelp { font-size: 12px; color: var(--color-text-tertiary); }
+.fieldError { font-size: 12px; color: var(--color-text-danger); }
+.selectTrigger { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); cursor: pointer; text-align: start; }
+.popover { min-inline-size: var(--trigger-width); background: var(--color-bg-elevated); border: var(--stroke-hairline) solid var(--color-border-hairline); border-radius: var(--radius-card); box-shadow: 0 12px 32px rgb(0 0 0 / .16); padding: var(--space-4); }
+.listbox { outline: none; display: grid; gap: 2px; }
+.option { padding: var(--space-8) var(--space-12); border-radius: var(--radius-control); cursor: pointer; outline: none; font-size: 14px; }
+.option[data-focused], .option[data-hovered] { background: var(--color-bg-component); }
+.option[data-selected] { color: var(--color-text-accent); font-weight: 500; }
+
+/* ── Switch ───────────────────────────────────────────── */
+.switch { display: flex; align-items: center; justify-content: space-between; gap: var(--space-16); min-block-size: var(--size-touch); cursor: pointer; }
+.switchLabel { font-size: 14px; }
+.switchTrack { position: relative; inline-size: 36px; block-size: 20px; border-radius: var(--radius-full); background: var(--color-bg-component-hover); transition: background-color var(--dur-fast) var(--ease-standard); flex: none; }
+.switchKnob { position: absolute; inset-block-start: 2px; inset-inline-start: 2px; inline-size: 16px; block-size: 16px; border-radius: var(--radius-full); background: var(--neutral-0); box-shadow: 0 1px 2px rgb(0 0 0 / .2); transition: inset-inline-start var(--dur-fast) var(--ease-standard); }
+.switch[data-selected] .switchTrack { background: var(--color-bg-accent); }
+.switch[data-selected] .switchKnob { inset-inline-start: 18px; }
+.switch[data-focus-visible] .switchTrack { outline: var(--stroke-focus) solid var(--color-border-focus); outline-offset: 2px; }
+
+/* ── PinInput ─────────────────────────────────────────── */
+.pin { display: inline-flex; gap: var(--space-12); direction: ltr; }
+.pinCell {
+  inline-size: 56px; block-size: 64px; text-align: center; font: 600 28px/1 var(--font-mono);
+  border-radius: var(--radius-card); border: var(--stroke-hairline) solid var(--color-border-strong);
+  background: var(--color-bg-surface); color: var(--color-text-primary); caret-color: var(--color-border-focus);
+}
+.pinCell:focus-visible { outline: var(--stroke-focus) solid var(--color-border-focus); outline-offset: 0; border-color: transparent; }
+.pin[data-invalid] .pinCell { border-color: var(--color-border-danger); background: var(--color-bg-danger-subtle); }
+.pinCell:disabled { opacity: .5; }

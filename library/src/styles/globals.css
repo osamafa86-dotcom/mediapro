@@ -1,0 +1,43 @@
+@import "./fonts.css";
+@import "./tokens.css";
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--color-bg-app);
+  color: var(--color-text-primary);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+:lang(ar) body, body:lang(ar) { font-size: 17px; line-height: 1.65; }
+button, input, select, textarea { font: inherit; color: inherit; }
+img, video { max-width: 100%; display: block; }
+a { color: var(--color-text-accent); }
+
+/* one focus language everywhere: 2px teal ring, 2px offset (WCAG 2.4.7 / 1.4.11) */
+:focus-visible { outline: var(--stroke-focus) solid var(--color-border-focus); outline-offset: 2px; }
+[data-focus-visible] { outline: var(--stroke-focus) solid var(--color-border-focus); outline-offset: 2px; }
+
+.sr-only { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* type roles (tokens.css table) */
+.t-display { font-size: 32px; line-height: 40px; font-weight: 600; }
+.t-title { font-size: 24px; line-height: 32px; font-weight: 600; }
+.t-heading { font-size: 20px; line-height: 28px; font-weight: 600; }
+.t-subheading { font-size: 16px; line-height: 24px; font-weight: 500; }
+.t-ui { font-size: 14px; line-height: 20px; }
+.t-label { font-size: 12px; line-height: 16px; font-weight: 500; }
+.t-caption { font-size: 12px; line-height: 16px; color: var(--color-text-tertiary); }
+:lang(ar) .t-display { font-size: 34px; line-height: 48px; }
+:lang(ar) .t-title { font-size: 26px; line-height: 38px; }
+:lang(ar) .t-heading { font-size: 22px; line-height: 32px; }
+:lang(ar) .t-subheading { font-size: 17px; line-height: 26px; }
+:lang(ar) .t-ui { font-size: 15px; line-height: 24px; }
+:lang(ar) .t-label, :lang(ar) .t-caption { font-size: 13px; line-height: 20px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-property: opacity !important; }
+}

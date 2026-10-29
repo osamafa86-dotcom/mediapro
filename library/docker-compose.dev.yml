@@ -1,0 +1,20 @@
+# Local development services only (PROMPT §5 M0). Production services live in the infra repo.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment: { POSTGRES_USER: media, POSTGRES_PASSWORD: media, POSTGRES_DB: media, TZ: Asia/Hebron }
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+  meilisearch:
+    image: getmeili/meilisearch:v1.11
+    environment: { MEILI_MASTER_KEY: dev-master-key-change-me, MEILI_ENV: development }
+    ports: ["127.0.0.1:7700:7700"]
+    volumes: [meili:/meili_data]
+  minio:
+    # stands in for Cloudflare R2 locally (S3 API, multipart, presigned URLs)
+    image: minio/minio:latest
+    command: server /data --console-address :9001
+    environment: { MINIO_ROOT_USER: minio, MINIO_ROOT_PASSWORD: minio-secret-dev }
+    ports: ["127.0.0.1:9000:9000", "127.0.0.1:9001:9001"]
+    volumes: [minio:/data]
+volumes: { pgdata: {}, meili: {}, minio: {} }
