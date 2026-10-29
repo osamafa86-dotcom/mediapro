@@ -90,6 +90,9 @@ test('a pin note on the photo: placed where it was tapped, numbered, mailed to t
   const layer = page.getByTestId('pin-layer').first();
   await expect(layer).toBeVisible();
   const box = (await layer.boundingBox())!;
+  // the layer is the image as drawn (object-fit: contain), not the whole black frame around it
+  const img = (await page.locator('.yarl__slide_current img').boundingBox())!;
+  for (const k of ['x', 'y', 'width', 'height'] as const) expect(Math.abs(box[k] - img[k]), k).toBeLessThan(2);
   await page.mouse.click(box.x + box.width * 0.6, box.y + box.height * 0.4);
   await expect(panel).toContainText('الموضع محدّد');
   await page.getByTestId('note-input').fill('هل توجد نسخة أفقية أوسع؟');
