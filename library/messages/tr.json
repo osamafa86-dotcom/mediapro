@@ -290,7 +290,7 @@
       "archive": "Projeyi arşivle",
       "unarchive": "Projeyi geri al",
       "emptyMedia": "Bu bölümde henüz medya yok.",
-      "emptyMediaHint": "Fotoğrafçı medyayı yükleme sayfasından yükler (M3 aşaması).",
+      "emptyMediaHint": "Fotoğrafçı medyayı yükleme sayfasından yükler.",
       "links": "Teslim bağlantıları",
       "linksEmpty": "Bu proje için bağlantı oluşturulmadı.",
       "linkKind": {
@@ -307,7 +307,7 @@
       "newPin": "Yeni kod",
       "newPinShown": "Yeni kod: {pin} — yalnızca bir kez gösterilir.",
       "noProjectsForClient": "Henüz müşteri yok — önce bir müşteri ekleyin.",
-      "moreMedia": "ve {n} medya daha — küçük resimlerle tam görünüm işleme aşamasıyla (M4) geliyor.",
+      "moreMedia": "ve {n} medya daha.",
       "upload": "Medya yükle"
     },
     "share": {
@@ -561,5 +561,19 @@
       "h": "{n} sa"
     },
     "openUpload": "Medya yükle"
+  },
+  "media": {
+    "processing": "İşleniyor…",
+    "uploading": "Yükleniyor…",
+    "failed": "İşlenemedi: {reason}",
+    "reason": {
+      "type_mismatch": "Dosyanın içeriği türüyle uyuşmuyor",
+      "decode_failed": "Dosya bozuk ya da desteklenmeyen biçimde",
+      "raw_no_preview": "RAW dosyası okunamadı",
+      "transcode_failed": "Video dönüştürülemedi",
+      "source_missing": "Asıl dosya depolamada yok",
+      "too_large": "Dosya izin verilen sınırı aşıyor",
+      "other": "Beklenmeyen bir hata"
+    }
   }
 }

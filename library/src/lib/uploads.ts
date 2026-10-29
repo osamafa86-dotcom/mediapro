@@ -126,6 +126,8 @@ export async function finishUpload(staff: Staff, id: string) {
         (select coalesce(max(sort_order), 0) + 1 from assets where project_id = ${row.project_id}))
       returning id`;
     await tx`update uploads set status = 'completed', completed_at = now(), asset_id = ${a!.id} where id = ${id}`;
+    // processing job in the same transaction: an asset can never exist without its job
+    await tx`select graphile_worker.add_job('process_asset', json_build_object('assetId', ${a!.id}::text), max_attempts := 3, job_key := ${`asset:${a!.id}`})`;
     return { assetId: a!.id };
   });
 }

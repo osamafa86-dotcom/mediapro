@@ -6,6 +6,7 @@ import { PageHead } from '@/components/admin/AdminShell';
 import { ProjectActions, LinkRowActions } from '@/components/admin/ProjectActions';
 import { projectOptions } from '@/components/admin/ProjectDialog';
 import s from '@/components/admin/admin.module.css';
+import { MediaTile, type TileAsset } from '@/components/media/MediaTile';
 import { StatusBadge, type ProjectStatus } from '@/components/ui';
 import { getSql } from '@/db';
 import type { Locale } from '@/i18n/config';
@@ -33,7 +34,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       from projects p join clients c on c.id = p.client_id where p.id = ${id}`,
     sql<{ id: string; name: string }[]>`select u.id, u.name from project_members m join users u on u.id = m.user_id where m.project_id = ${id} order by u.name`,
     sql<{ section: string; n: number; ready: number }[]>`select section, count(*)::int as n, count(*) filter (where status = 'ready')::int as ready from assets where project_id = ${id} and replaced_by is null group by section`,
-    sql<{ id: string; original_name: string; status: string }[]>`select id, original_name, status from assets where project_id = ${id} and section = ${tab} and replaced_by is null order by sort_order, original_name, created_at limit 48`,
+    sql<TileAsset[]>`select id, original_name, status, error, section, thumbhash, duration, renditions from assets where project_id = ${id} and section = ${tab} and replaced_by is null order by sort_order, original_name, created_at limit 48`,
     admin
       ? sql<{ id: string; kind: 'client' | 'guest'; project_id: string | null; code: string | null; created_at: string; expires_at: string; revoked_at: string | null; opens: number; locked_until: string | null }[]>`
         select id, kind, project_id, code, created_at, expires_at, revoked_at, opens, locked_until from links
@@ -124,7 +125,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           </div>
         ) : (
           <ul className={s.grid} style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-            {assets.map((a) => <li key={a.id} className={s.tile} data-status={a.status}><span dir="ltr">{a.original_name}</span></li>)}
+            {assets.map((a) => <li key={a.id} data-asset-id={a.id}><MediaTile a={a} /></li>)}
           </ul>
         )}
         {n(tab) > assets.length ? <p className={`${s.small} ${s.tertiary}`} style={{ marginBlockStart: 12 }}>{t('project.moreMedia', { n: formatNumber(n(tab) - assets.length, locale, region.digits) })}</p> : null}

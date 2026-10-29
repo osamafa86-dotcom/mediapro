@@ -138,13 +138,15 @@ export const projectMembers = pgTable('project_members', {
 // ── media ──────────────────────────────────────────────────────────
 export type Renditions = {
   /** image variants: width → object key per format */
-  images?: { w: number; avif?: string; webp?: string; jpeg?: string }[];
+  images?: { w: number; h?: number; avif?: string; webp?: string; jpeg?: string }[];
+  /** watermarked previews — what a guest sees (DESIGN.md: guest previews are always watermarked) */
+  wm?: { w: number; h?: number; webp: string; jpeg: string }[];
   /** web download (2048px JPEG) */
   web?: string;
   /** embedded RAW preview */
   rawPreview?: string;
   /** HLS master playlist key and the lowest-rung-first status */
-  hls?: { master: string; rungs: number[] };
+  hls?: { master: string; rungs: number[]; dir?: string; meta?: { height: number; width: number; codec: 'h264' | 'av1'; bandwidth: number }[]; audio?: boolean };
   /** scrub-preview sprite + WebVTT */
   sprite?: { vtt: string; image: string };
   poster?: string;
