@@ -1,0 +1,158 @@
+/* ═══════════════════════════════════════════════════════════════════
+   EMDATRA · Media Library — design tokens (v1, 2026-10-28)
+   Source of truth: Figma file MQuPpKCXoEIwtmSbwTaUUJ (collections:
+   Primitives · Color [Light/Dark] · Dimension). Names match Figma code syntax.
+   Rule: the UI is chroma-0 neutral; media is the only saturated element.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Primitives ─────────────────────────────────────────────────── */
+:root {
+  --neutral-0: #ffffff;   --neutral-50: #fafafa;  --neutral-100: #f5f5f5;
+  --neutral-200: #e5e5e5; --neutral-300: #d4d4d4; --neutral-400: #a3a3a3;
+  --neutral-450: #8f8f8f; --neutral-500: #737373; --neutral-550: #636363;
+  --neutral-600: #525252; --neutral-700: #404040; --neutral-800: #262626;
+  --neutral-900: #171717; --neutral-950: #0a0a0a; --neutral-1000: #000000;
+
+  --teal-50: #e6fbfa; --teal-100: #c2f3f0; --teal-200: #7fe5e0; --teal-400: #1fc9c2;
+  --teal-500: #06b0aa; --teal-700: #04827e; --teal-800: #05605d; --teal-950: #062e2d;
+
+  --red-50: #fef2f2;   --red-300: #fca5a5;   --red-500: #ef4444;   --red-700: #b91c1c;   --red-950: #3b0d0d;
+  --amber-50: #fffbeb; --amber-300: #fcd34d; --amber-500: #f59e0b; --amber-700: #b45309; --amber-950: #3a2504;
+  --green-50: #f0fdf4; --green-300: #86efac; --green-600: #16a34a; --green-700: #15803d; --green-950: #062c16;
+}
+
+/* ── Semantic colour · Light (admin & photographer default) ─────── */
+:root, [data-theme="light"] {
+  color-scheme: light;
+  --color-bg-app: var(--neutral-50);
+  --color-bg-surface: var(--neutral-0);
+  --color-bg-subtle: var(--neutral-100);
+  --color-bg-elevated: var(--neutral-0);
+  --color-bg-component: var(--neutral-200);
+  --color-bg-component-hover: var(--neutral-300);
+  --color-bg-viewer: var(--neutral-1000);
+  --color-bg-accent: var(--teal-700);
+  --color-bg-accent-hover: var(--teal-800);
+  --color-bg-accent-subtle: var(--teal-50);
+  --color-bg-inverse: var(--neutral-950);
+  --color-bg-danger-subtle: var(--red-50);
+  --color-bg-warning-subtle: var(--amber-50);
+  --color-bg-success-subtle: var(--green-50);
+  --color-overlay-scrim: rgb(0 0 0 / 0.60);
+  --color-overlay-gradient-start: rgb(0 0 0 / 0.64);
+  --color-overlay-glass: rgb(255 255 255 / 0.16);
+
+  --color-text-primary: var(--neutral-950);
+  --color-text-secondary: var(--neutral-700);
+  --color-text-tertiary: var(--neutral-550);   /* 6.0:1 surface · 4.8:1 component */
+  --color-text-on-accent: var(--neutral-0);
+  --color-text-accent: var(--teal-800);        /* 6.9:1 on accent-subtle */
+  --color-text-on-media: var(--neutral-0);
+  --color-text-on-media-muted: rgb(255 255 255 / 0.72);
+  --color-text-inverse: var(--neutral-50);
+  --color-text-danger: var(--red-700);
+  --color-text-warning: var(--amber-700);
+  --color-text-success: var(--green-700);
+
+  --color-icon-primary: var(--neutral-950);
+  --color-icon-secondary: var(--neutral-600);
+  --color-icon-accent: var(--teal-700);
+  --color-icon-on-media: var(--neutral-0);
+  --color-icon-on-accent: var(--neutral-0);
+
+  --color-border-hairline: rgb(0 0 0 / 0.08);
+  --color-border-soft: rgb(0 0 0 / 0.04);
+  --color-border-strong: var(--neutral-400);
+  --color-border-focus: var(--teal-700);       /* 4.5:1 vs app (1.4.11) */
+  --color-border-on-media: var(--neutral-0);
+  --color-border-danger: var(--red-500);
+}
+
+/* ── Semantic colour · Dark (client default) ────────────────────── */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg-app: var(--neutral-950);
+  --color-bg-surface: var(--neutral-900);
+  --color-bg-subtle: var(--neutral-900);
+  --color-bg-elevated: var(--neutral-800);
+  --color-bg-component: var(--neutral-800);
+  --color-bg-component-hover: var(--neutral-700);
+  --color-bg-viewer: var(--neutral-1000);      /* pure black only inside the viewer */
+  --color-bg-accent: var(--teal-400);
+  --color-bg-accent-hover: var(--teal-200);
+  --color-bg-accent-subtle: var(--teal-950);
+  --color-bg-inverse: var(--neutral-50);
+  --color-bg-danger-subtle: var(--red-950);
+  --color-bg-warning-subtle: var(--amber-950);
+  --color-bg-success-subtle: var(--green-950);
+
+  --color-text-primary: var(--neutral-100);
+  --color-text-secondary: var(--neutral-400);
+  --color-text-tertiary: var(--neutral-450);   /* 6.1:1 app · 5.5:1 surface */
+  --color-text-on-accent: var(--neutral-950);
+  --color-text-accent: var(--teal-400);
+  --color-text-inverse: var(--neutral-950);
+  --color-text-danger: var(--red-300);
+  --color-text-warning: var(--amber-300);
+  --color-text-success: var(--green-300);
+
+  --color-icon-primary: var(--neutral-100);
+  --color-icon-secondary: var(--neutral-400);
+  --color-icon-accent: var(--teal-400);
+  --color-icon-on-accent: var(--neutral-950);
+
+  --color-border-hairline: rgb(255 255 255 / 0.08);
+  --color-border-soft: rgb(255 255 255 / 0.04);
+  --color-border-strong: var(--neutral-700);
+  --color-border-focus: var(--teal-400);
+}
+
+/* ── Dimension · Type · Motion ───────────────────────────────────── */
+:root {
+  --space-2: 2px; --space-4: 4px; --space-8: 8px; --space-12: 12px; --space-16: 16px; --space-20: 20px;
+  --space-24: 24px; --space-32: 32px; --space-40: 40px; --space-48: 48px; --space-64: 64px;
+  --radius-none: 0; --radius-control: 6px; --radius-card: 10px; --radius-panel: 16px; --radius-full: 9999px;
+  --size-target-min: 24px;  /* WCAG 2.5.8 */
+  --size-icon-button: 32px; /* over media */
+  --size-touch: 44px;       /* touch */
+  --size-control: 40px;
+  --stroke-hairline: 1px; --stroke-focus: 2px;
+
+  /* Arabic first, Latin (Turkish) paired; load latin-ext for Ğ Ş İ */
+  --font-ar: "IBM Plex Sans Arabic", "Noto Sans Arabic", system-ui, sans-serif;
+  --font-tr: "IBM Plex Sans", "Noto Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --dur-fast: 120ms;  /* hover, toggles */
+  --dur-base: 200ms;  /* scrims, menus */
+  --dur-slow: 320ms;  /* viewer open, panel collapse */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --hover-preview-delay: 300ms;
+  --viewer-chrome-autohide: 2500ms;
+}
+
+/* Type scale — [lang="ar"] uses the AR column, [lang="tr"] the TR column.
+   role        TR size/line   AR size/line   weight
+   display     32/40          34/48          600
+   title       24/32          26/38          600
+   heading     20/28          22/32          600
+   subheading  16/24          17/26          500
+   body        16/24          17/28          400
+   ui          14/20          15/24          400
+   ui-strong   14/20          15/24          500
+   label       12/16          13/20          500
+   caption     12/16          13/20          400
+   meta(mono)  12/16 tabular-nums, always direction:ltr                    */
+:lang(ar) { font-family: var(--font-ar); letter-spacing: 0; }
+:lang(tr) { font-family: var(--font-tr); }
+.meta, time, .size, .duration { font-family: var(--font-mono); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-base: 0ms; --dur-slow: 120ms; }
+  /* keep opacity fades, remove translate/scale; disable hover-scrub previews */
+}
+
+/* RTL icon mirroring — allow-list only */
+[dir="rtl"] .icon-mirror { transform: scaleX(-1); }
+/* mirror: chevron, arrow, send, list, volume.  never: play/pause/skip, scrubber,
+   clock, check, x, search, download/upload, camera, logos. */

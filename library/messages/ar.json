@@ -1,0 +1,21 @@
+{
+  "app": { "name": "مكتبة المرئيات", "org": "EMDATRA" },
+  "common": {
+    "search": "بحث", "searchPlaceholder": "ابحث في المشاريع والعملاء…", "clear": "مسح", "save": "حفظ", "cancel": "إلغاء",
+    "close": "إغلاق", "back": "رجوع", "next": "التالي", "download": "تنزيل", "upload": "رفع", "more": "المزيد",
+    "language": "اللغة", "theme": "المظهر", "light": "فاتح", "dark": "داكن", "loading": "جارٍ التحميل…"
+  },
+  "status": { "draft": "مسودة", "uploading": "قيد الرفع", "review": "بانتظار المراجعة", "published": "منشور", "expired": "منتهٍ" },
+  "sections": { "photos": "الصور", "videos": "الفيديو" },
+  "groups": { "final": "نهائي", "raw": "خام", "footage": "رشزات" },
+  "pin": { "label": "رمز الدخول", "digit": "الرقم {n} من 4", "help": "أدخل الرمز المكوّن من 4 أرقام الذي وصلك منفصلًا عن الرابط." },
+  "dev": {
+    "title": "مكوّنات الواجهة", "buttons": "الأزرار", "primary": "إنشاء رابط", "secondary": "تعديل", "ghost": "إلغاء",
+    "iconButtons": "أزرار الأيقونات", "chips": "الشرائح", "chipClient": "العميل: الهلال الأحمر", "chipYear": "2026",
+    "search": "حقل البحث", "tabs": "التبويبات", "badges": "شارات الحالة", "fields": "الحقول",
+    "nameLabel": "اسم المشروع", "nameHelp": "يظهر للعميل كما تكتبه.", "nameError": "اكتب اسمًا من 3 أحرف على الأقل.",
+    "typeLabel": "نوع المشروع", "typeDistribution": "توزيع", "typeConstruction": "بناء", "typeEvent": "فعالية",
+    "switches": "المفاتيح", "switchRaw": "السماح بتنزيل الخام", "pinCells": "خانات الرمز", "size": "الحجم",
+    "sizeSample": "‎18.4 GB · ‎64%"
+  }
+}

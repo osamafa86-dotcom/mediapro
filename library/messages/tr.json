@@ -1,0 +1,21 @@
+{
+  "app": { "name": "Medya Kütüphanesi", "org": "EMDATRA" },
+  "common": {
+    "search": "Ara", "searchPlaceholder": "Projelerde ve müşterilerde ara…", "clear": "Temizle", "save": "Kaydet", "cancel": "İptal",
+    "close": "Kapat", "back": "Geri", "next": "İleri", "download": "İndir", "upload": "Yükle", "more": "Daha fazla",
+    "language": "Dil", "theme": "Görünüm", "light": "Açık", "dark": "Koyu", "loading": "Yükleniyor…"
+  },
+  "status": { "draft": "Taslak", "uploading": "Yükleniyor", "review": "İnceleme bekliyor", "published": "Yayında", "expired": "Süresi doldu" },
+  "sections": { "photos": "Fotoğraflar", "videos": "Videolar" },
+  "groups": { "final": "Son hâli", "raw": "Ham", "footage": "Ham çekimler" },
+  "pin": { "label": "Giriş kodu", "digit": "{n}. hane / 4", "help": "Bağlantıdan ayrı olarak gönderilen 4 haneli kodu girin." },
+  "dev": {
+    "title": "Arayüz bileşenleri", "buttons": "Düğmeler", "primary": "Bağlantı oluştur", "secondary": "Düzenle", "ghost": "İptal",
+    "iconButtons": "Simge düğmeleri", "chips": "Filtre çipleri", "chipClient": "Müşteri: Kızılay", "chipYear": "2026",
+    "search": "Arama alanı", "tabs": "Sekmeler", "badges": "Durum rozetleri", "fields": "Alanlar",
+    "nameLabel": "Proje adı", "nameHelp": "Müşteri bunu yazdığınız gibi görür.", "nameError": "En az 3 harfli bir ad yazın.",
+    "typeLabel": "Proje türü", "typeDistribution": "Dağıtım", "typeConstruction": "İnşaat", "typeEvent": "Etkinlik",
+    "switches": "Anahtarlar", "switchRaw": "Ham dosya indirmeye izin ver", "pinCells": "Kod haneleri", "size": "Boyut",
+    "sizeSample": "18,4 GB · %64"
+  }
+}
