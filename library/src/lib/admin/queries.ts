@@ -2,16 +2,36 @@ import 'server-only';
 import type { PendingQuery, Row } from 'postgres';
 import { getSql } from '@/db';
 import type { Staff } from '../auth/session';
-import { normalizeSearch } from '../format';
+import { searchTokens } from '../format';
 
 /* Read models for the admin panel. Team roles (photographer/editor/contributor) only ever see member projects. */
 
 type Frag = PendingQuery<Row[]>;
 
-/** SQL twin of normalizeSearch() in lib/format.ts — keep them identical. */
+/** The search key in SQL: ml_norm() (drizzle/0005), twin of normalizeSearch() in lib/format.ts. */
 export function normSql(col: Frag): Frag {
   const sql = getSql();
-  return sql`regexp_replace(translate(lower(${col}), 'أإآٱىةı', 'اااايهi'), '[ـً-ْٰ̇]', '', 'g')`;
+  return sql`ml_norm(${col})`;
+}
+
+const likeOf = (tok: string) => `%${tok.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+
+/**
+ * Every search word must match somewhere in the project (AND across words, OR across fields): title,
+ * place, type, client names, photographers, file names and tags.
+ */
+export function projectSearch(q: string): Frag | null {
+  const sql = getSql();
+  const toks = searchTokens(q);
+  if (!toks.length) return null;
+  return toks.map((t) => {
+    const like = likeOf(t);
+    return sql`(ml_norm(p.title) like ${like} or ml_norm(coalesce(p.place, '') || ' ' || coalesce(p.type, '')) like ${like}
+      or ml_norm(c.name_ar || ' ' || coalesce(c.name_tr, '')) like ${like}
+      or exists (select 1 from project_members m join users u on u.id = m.user_id where m.project_id = p.id and ml_norm(u.name) like ${like})
+      or exists (select 1 from assets a where a.project_id = p.id and (ml_norm(a.original_name) like ${like}
+        or exists (select 1 from unnest(a.tags) tg where ml_norm(tg) like ${like}))))`;
+  }).reduce((a, b) => sql`${a} and ${b}`);
 }
 
 function scope(staff: Staff): Frag {
@@ -41,10 +61,8 @@ export async function archive(staff: Staff, f: ArchiveFilters) {
   const sql = getSql();
   const conds: Frag[] = [scope(staff), f.archived ? sql`p.archived_at is not null` : sql`p.archived_at is null`];
   if (f.q) {
-    const like = `%${normalizeSearch(f.q).replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-    conds.push(sql`(${normSql(sql`p.title`)} like ${like} or ${normSql(sql`coalesce(p.place, '')`)} like ${like}
-      or ${normSql(sql`c.name_ar`)} like ${like} or ${normSql(sql`coalesce(c.name_tr, '')`)} like ${like}
-      or exists (select 1 from assets a where a.project_id = p.id and ${like} like any (select '%' || ${normSql(sql`t`)} || '%' from unnest(a.tags) t)))`);
+    const m = projectSearch(f.q);
+    if (m) conds.push(m);
   }
   if (f.client) conds.push(sql`p.client_id = ${f.client}`);
   if (f.photographer) conds.push(sql`exists (select 1 from project_members m where m.project_id = p.id and m.user_id = ${f.photographer})`);

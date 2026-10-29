@@ -651,6 +651,18 @@
     },
     "videoMeta": "{group} · {quality} · {duration} · {size}",
     "back": "Projeye dön",
-    "sessionEnded": "Oturum sona erdi. Bağlantıyı yeniden aç."
+    "sessionEnded": "Oturum sona erdi. Bağlantıyı yeniden aç.",
+    "search": {
+      "label": "Ara",
+      "library": "Kütüphanende ara…",
+      "project": "Bu projede ara…",
+      "clear": "Aramayı temizle",
+      "none": "“{q}” için sonuç yok",
+      "noneYear": "{year} içinde “{q}” için sonuç yok",
+      "allYears": "Tüm yıllarda ara",
+      "foundIn": "{year} yılında bulundu",
+      "hint": "Arama proje adlarını, yerleri, tarihleri ve dosya adlarını kapsar. Daha kısa bir kelime dene.",
+      "results": "{n, plural, =0 {sonuç yok} one {# sonuç} other {# sonuç}}"
+    }
   }
 }

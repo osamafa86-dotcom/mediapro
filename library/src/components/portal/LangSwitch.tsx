@@ -10,12 +10,12 @@ export function LangSwitch() {
   const router = useRouter();
   const other = locale === 'ar' ? 'tr' : 'ar';
   return (
-    <button type="button" className={s.iconBtn} lang={other} onClick={() => {
+    <button type="button" className={s.iconBtn} lang={other} aria-label={other === 'tr' ? 'Türkçe' : 'العربية'} onClick={() => {
       document.cookie = `locale=${other}; path=/; max-age=31536000; samesite=lax`;
       router.refresh();
     }}>
       <Globe size={18} aria-hidden />
-      <span>{other === 'tr' ? 'Türkçe' : 'العربية'}</span>
+      <span className={s.langLabel}>{other === 'tr' ? 'Türkçe' : 'العربية'}</span>
     </button>
   );
 }

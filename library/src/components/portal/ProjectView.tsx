@@ -2,13 +2,14 @@
 import justifiedLayout from 'justified-layout';
 import { Check, Download, Film, Image as ImageIcon, Video, X } from 'lucide-react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { thumbHashToDataURL } from 'thumbhash';
 import { SegmentTab, Chip } from '@/components/ui';
 import type { Locale } from '@/i18n/config';
 import { clock } from '@/lib/clock';
-import { formatBytes, ltr, type Digits } from '@/lib/format';
+import { formatBytes, ltr, normalizeSearch, searchTokens, type Digits } from '@/lib/format';
 import { DownloadFeedback } from './DownloadFeedback';
 import { PhotoViewer } from './PhotoViewer';
 import { useDownloads } from './useDownloads';
@@ -36,7 +37,10 @@ export function ProjectView({ projectId, title, assets, canDownload, guest = fal
   const [viewing, setViewing] = useState<number | null>(null);
   const dl = useDownloads();
 
-  const inTab = assets.filter((a) => a.section === tab);
+  const q = useSearchParams().get('q') ?? '';
+  const toks = searchTokens(q);
+  const found = toks.length ? assets.filter((a) => { const k = normalizeSearch(a.name); return toks.every((tk) => k.includes(tk)); }) : assets;
+  const inTab = found.filter((a) => a.section === tab);
   const groups = GROUP_ORDER.filter((g) => inTab.some((a) => a.group === g));
   const [groupState, setGroup] = useState<string | undefined>(initial.group);
   const group = groupState && groups.includes(groupState as never) ? groupState : groups[0];
@@ -55,7 +59,7 @@ export function ProjectView({ projectId, title, assets, canDownload, guest = fal
   const total = (list: ViewAsset[]) => list.reduce((n, a) => n + a.size, 0);
   const sel = assets.filter((a) => selected.has(a.id));
   const toggle = (id: string) => setSelected((cur) => { const n = new Set(cur); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const count = (sec: 'photos' | 'videos') => assets.filter((a) => a.section === sec).length;
+  const count = (sec: 'photos' | 'videos') => found.filter((a) => a.section === sec).length;
 
   return (
     <>
@@ -88,9 +92,11 @@ export function ProjectView({ projectId, title, assets, canDownload, guest = fal
       </div>
 
       {shown.length === 0 ? (
-        <section className={s.empty}>
+        <section className={s.empty} data-testid={toks.length ? 'search-empty' : undefined}>
           <span className={s.emptyIcon} aria-hidden>{tab === 'photos' ? <ImageIcon size={22} /> : <Film size={22} />}</span>
-          <p className={s.muted}>{t(tab === 'photos' ? 'emptyPhotos' : 'emptyVideos')}</p>
+          {toks.length ? (
+            <><h2 className="t-heading">{t('search.none', { q })}</h2><p className={s.muted}>{t('search.hint')}</p></>
+          ) : <p className={s.muted}>{t(tab === 'photos' ? 'emptyPhotos' : 'emptyVideos')}</p>}
         </section>
       ) : tab === 'photos' ? (
         <Justified items={shown} selected={selected} canSelect={canDownload} selecting={selected.size > 0} avif={!guest}
