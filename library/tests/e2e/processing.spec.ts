@@ -1,5 +1,6 @@
 import { GetObjectCommand, HeadObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { expect, test, type APIRequestContext } from '@playwright/test';
+import { resolve } from 'node:path';
 import { E2E_ENV } from './env';
 import { makeFixtures } from './fixtures/media';
 import { ctx, login, uploadFile, write } from './helpers';
@@ -71,6 +72,18 @@ test('a camera JPEG: EXIF date and source, AVIF/WebP/JPEG at each width, the web
   expect((await media(anon, `/m/${id}/w640.webp`)).status).toBe(404);
   expect((await media(await login('b@e2e.test'), `/m/${id}/w640.webp`)).status).toBe(404);
   expect((await media(await login('a@e2e.test'), `/m/${id}/w640.webp`)).status).toBe(302); // A is a member
+});
+
+test('an iPhone HEIC (HEVC inside HEIF): decoded through libheif, every rendition made, nothing cropped', async () => {
+  // sharp's libvips has no HEVC decoder: this file failed «decode_failed … HEVC» on the server (2026-10-30)
+  const a = await login('admin@e2e.test');
+  const id = await uploadFile(a, S.p1, resolve('tests/fixtures/iphone.heic'), { mime: 'image/heic' });
+  const r = await settle(id, (x) => x.status !== 'processing');
+  expect(r.error).toBeNull();
+  expect(r).toMatchObject({ status: 'ready', width: 1200, height: 1600 });
+  expect(r.renditions.images.map((i: { w: number }) => i.w)).toEqual([320, 640]); // 1280 > 1200: never upscaled
+  for (const i of r.renditions.images) expect(await exists(i.jpeg)).toBe('image/jpeg');
+  expect(Buffer.from(r.thumbhash!, 'base64').length).toBeGreaterThan(10);
 });
 
 test('RAW: the embedded preview becomes the image (and is kept for staff)', async () => {

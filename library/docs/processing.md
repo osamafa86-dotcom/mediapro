@@ -64,7 +64,10 @@
 ## الحاوية والمتغيرات
 
 الأدوات المطلوبة في صورة العامل: `ffmpeg` (مع libx264 وlibsvtav1 وaac)، و`exiftool`، و`dcraw_emu` (حزمة
-`libraw-bin`)، وخط `DejaVu Sans` للعلامة المائية. sharp يجلب libvips معه.
+`libraw-bin`)، و`heif-convert` (حزمة `libheif-examples`) لصور الآيفون HEIC، وخط `DejaVu Sans` للعلامة المائية.
+sharp يجلب libvips معه، لكنها مبنية بلا فكّ HEVC (قيود براءات): فكل HEIC يمرّ أولًا بـ`heif-convert` إلى JPEG
+بجودة 95 والتدوير مطبَّق، ثم يكمل كأي صورة (`decodable` في `src/worker/image.ts`). بدونها فشلت كل صورة آيفون
+بـ«decode_failed … HEVC» (‎2026-10-30‎).
 
 | المتغير | |
 |---|---|
