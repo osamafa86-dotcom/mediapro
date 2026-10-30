@@ -41,7 +41,7 @@ jobs:
         with: { node-version: 22, cache: pnpm, cache-dependency-path: library/pnpm-lock.yaml }
       - run: pnpm install --frozen-lockfile
       # the processing worker's tools (the worker image carries the same — docs/processing.md)
-      - run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg libimage-exiftool-perl libraw-bin fonts-dejavu-core
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg libimage-exiftool-perl libraw-bin libheif-examples libheif-plugin-libde265 fonts-dejavu-core
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm db:migrate
@@ -82,6 +82,10 @@ jobs:
         run: docker build -f deploy/vps/Dockerfile --target worker -t media-worker:ci .
       - name: The worker image carries its tools, bundles and migrations
         run: docker run --rm media-worker:ci sh -c 'exiftool -ver >/dev/null && command -v dcraw_emu && test -f ops/worker.mjs && test -f drizzle/meta/_journal.json && test -f deploy/vps/r2-cors.json'
+      - name: The worker image decodes an iPhone HEIC (HEVC) — sharp alone cannot
+        run: |
+          docker run --rm -v "$PWD/tests/fixtures:/fx:ro" media-worker:ci sh -c 'heif-convert -q 90 /fx/iphone.heic /tmp/o.jpg >/dev/null && test -s /tmp/o.jpg' \
+            || { echo "heif-convert in the worker image cannot decode HEVC"; exit 1; }
       - name: Migrate an empty database with the image, then start the worker against it
         run: |
           DB=postgres://media:media@127.0.0.1:5432/media

@@ -6,6 +6,7 @@ import type { AssetEdit, Renditions } from '@/db/schema';
 import { ProcessingError } from './errors';
 import { run } from './run';
 import { putBuffer } from './s3io';
+import { sniff } from './sniff';
 
 /*
  * Images: AVIF → WebP → JPEG at grid widths, larger WebP/JPEG for zoom and the 2048px web download,
@@ -66,6 +67,25 @@ export async function rawSource(file: string, dir: string): Promise<{ path: stri
 
 const ROT: Record<number, number> = { 3: 180, 6: 90, 8: 270 };
 
+/**
+ * The bytes sharp can decode. iPhone photos are HEIC — HEVC inside a HEIF box — and sharp's libvips is built
+ * without an HEVC decoder (patents), so every one used to fail «decode_failed … HEVC». Those go through
+ * libheif's heif-convert first (the worker image carries it with its HEVC plugin): a full-quality JPEG with the
+ * camera's rotation already applied (libheif applies irot/imir and resets the EXIF orientation it copies).
+ * AVIF and everything else is read as it is.
+ */
+export async function decodable(src: string): Promise<Buffer> {
+  const bytes = await readFile(src);
+  if (sniff(bytes.subarray(0, 64)) !== 'heif') return bytes;
+  const out = `${src}.heic.jpg`;
+  try {
+    await run('heif-convert', ['-q', '95', src, out], { timeoutMs: 120_000 });
+  } catch (e) {
+    throw new ProcessingError('decode_failed', `heif: ${(e as Error).message}`);
+  }
+  return readFile(out);
+}
+
 export async function imageRenditions(opts: {
   src: string; id: string; keyPrefix: string; watermark: string; rotateFromExif?: number | null; maxWidths?: number[];
   /** the admin's edit (quarter turns, then a crop of the turned picture), applied after EXIF orientation */
@@ -73,7 +93,7 @@ export async function imageRenditions(opts: {
 }): Promise<{ renditions: Partial<Renditions>; width: number; height: number; thumbhash: string }> {
   let base: Sharp;
   try {
-    base = sharp(await readFile(opts.src), { failOn: 'error', limitInputPixels: 500_000_000 });
+    base = sharp(await decodable(opts.src), { failOn: 'error', limitInputPixels: 500_000_000 });
     // embedded RAW previews carry no orientation of their own: use the RAW's
     base = opts.rotateFromExif && ROT[opts.rotateFromExif] ? base.rotate(ROT[opts.rotateFromExif]) : base.rotate();
     const flat = await base.toBuffer({ resolveWithObject: true });
