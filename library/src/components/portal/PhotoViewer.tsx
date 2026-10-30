@@ -23,9 +23,13 @@ const PLUGINS = [Zoom, Thumbnails, Counter];
  * explicit download buttons (DESIGN §6.5, §6.7). RAW shows through its embedded preview. Guests: no buttons,
  * no heart, no notes. Clients: the heart and the notes; with the notes open, a tap on the photo drops a pin.
  */
-export function PhotoViewer({ items, index, canDownload, canNote = false, favs, onFav, digits, onClose }: {
+export function PhotoViewer({ items, index, canDownload, canNote = false, favs, onFav, digits, onClose, extraButtons, onIndex }: {
   items: ViewAsset[]; index: number; canDownload: boolean; canNote?: boolean; favs?: Set<string>; onFav?: (id: string, on: boolean) => void;
   digits: Digits; onClose: () => void;
+  /** toolbar buttons for the photo on screen (the admin's cover and delete), before «close» */
+  extraButtons?: (cur: ViewAsset) => React.JSX.Element[];
+  /** the photo on screen changed (the admin keeps its selection in step) */
+  onIndex?: (i: number) => void;
 }) {
   const t = useTranslations('portal');
   const locale = useLocale() as Locale;
@@ -62,6 +66,7 @@ export function PhotoViewer({ items, index, canDownload, canNote = false, favs, 
     </button>,
     'close',
   ] : ['close'];
+  if (extraButtons && cur) buttons.splice(buttons.length - 1, 0, ...extraButtons(cur));
 
   return (
     <Lightbox
@@ -71,7 +76,7 @@ export function PhotoViewer({ items, index, canDownload, canNote = false, favs, 
       slides={slides}
       plugins={PLUGINS}
       counter={{ container: { style: { direction: 'ltr', unicodeBidi: 'isolate' } } }}
-      on={{ view: ({ index: i }) => { setAt(i); setPin(null); }, zoom: ({ zoom }) => setZoomed(zoom > 1.01) }}
+      on={{ view: ({ index: i }) => { setAt(i); setPin(null); onIndex?.(i); }, zoom: ({ zoom }) => setZoomed(zoom > 1.01) }}
       zoom={{ maxZoomPixelRatio: 2, scrollToZoom: true }}
       thumbnails={{ width: 64, height: 44, gap: 8, border: 0, borderRadius: 4, padding: 0, imageFit: 'cover', showToggle: false }}
       carousel={{ finite: false, preload: 2 }}

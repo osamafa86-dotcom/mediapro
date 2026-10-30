@@ -144,18 +144,19 @@ export function MemberMenu({ id, name, state, role, hasPassword, sso }: {
 }
 
 /** What every role may do, side by side. Only what the server enforces is listed: the three switches (saved at once)
- * and the fixed rules. «حذف المواد بعد النشر» is not offered: the system has no file deletion for any role. */
+ * and the fixed rules (deletion included: the admin anything, a member what they uploaded before publication). */
 const EDITABLE = ['upload', 'createProject', 'publishWithoutReview'] as const;
 type Editable = (typeof EDITABLE)[number];
 const FIXED = [
   { key: 'viewProjects', admin: 'all', team: 'assigned' },
   { key: 'notes', admin: 'all', team: 'assigned' },
+  { key: 'delete', admin: 'all', team: 'own' },
   { key: 'clients', admin: 'yes', team: 'no' },
   { key: 'users', admin: 'yes', team: 'no' },
   { key: 'settings', admin: 'yes', team: 'no' },
 ] as const;
 
-function Fixed({ v }: { v: 'all' | 'assigned' | 'yes' | 'no' }) {
+function Fixed({ v }: { v: 'all' | 'assigned' | 'own' | 'yes' | 'no' }) {
   const t = useTranslations('admin.team.matrix');
   if (v === 'yes') return <span className={s.mxYes}><Check size={16} aria-hidden /><span className="sr-only">{t('yes')}</span></span>;
   if (v === 'no') return <span className={s.mxNo}><Minus size={16} aria-hidden /><span className="sr-only">{t('no')}</span></span>;

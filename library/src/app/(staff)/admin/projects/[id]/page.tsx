@@ -6,7 +6,8 @@ import { PageHead } from '@/components/admin/AdminShell';
 import { ProjectActions, LinkRowActions } from '@/components/admin/ProjectActions';
 import { projectOptions } from '@/components/admin/ProjectDialog';
 import s from '@/components/admin/admin.module.css';
-import { MediaTile, type TileAsset } from '@/components/media/MediaTile';
+import { MediaManager, type ManagedAsset } from '@/components/admin/MediaManager';
+import type { Renditions } from '@/db/schema';
 import { StatusBadge, type ProjectStatus } from '@/components/ui';
 import { getSql } from '@/db';
 import type { Locale } from '@/i18n/config';
@@ -30,12 +31,17 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
 
   const [[p], members, counts, assets, links] = await Promise.all([
     sql<{ id: string; title: string; status: ProjectStatus; type: string | null; shot_date: string | null; place: string | null; archived_at: string | null;
-      client_id: string; name_ar: string; name_tr: string | null; default_link_days: number; contact_email: string | null }[]>`
-      select p.id, p.title, p.status, p.type, p.shot_date, p.place, p.archived_at, p.client_id, c.name_ar, c.name_tr, c.default_link_days, c.contact_email
+      client_id: string; name_ar: string; name_tr: string | null; default_link_days: number; contact_email: string | null; cover_asset_id: string | null }[]>`
+      select p.id, p.title, p.status, p.type, p.shot_date, p.place, p.archived_at, p.client_id, c.name_ar, c.name_tr, c.default_link_days, c.contact_email, p.cover_asset_id
       from projects p join clients c on c.id = p.client_id where p.id = ${id}`,
     sql<{ id: string; name: string }[]>`select u.id, u.name from project_members m join users u on u.id = m.user_id where m.project_id = ${id} order by u.name`,
     sql<{ section: string; n: number; ready: number }[]>`select section, count(*)::int as n, count(*) filter (where status = 'ready')::int as ready from assets where project_id = ${id} and replaced_by is null group by section`,
-    sql<TileAsset[]>`select id, original_name, status, error, section, thumbhash, duration, renditions from assets where project_id = ${id} and section = ${tab} and replaced_by is null order by sort_order, original_name, created_at limit 48`,
+    // the whole section: reordering needs every item (2000 is far above any real shoot)
+    sql<{ id: string; original_name: string; status: string; error: string | null; section: 'photos' | 'videos'; group: 'final' | 'raw' | 'footage';
+      thumbhash: string | null; duration: number | null; renditions: Renditions; width: number | null; height: number | null; size: number;
+      taken_at: string | null; uploaded_by: string | null }[]>`
+      select id, original_name, status, error, section, "group", thumbhash, duration, renditions, width, height, size::float8 as size, taken_at, uploaded_by
+      from assets where project_id = ${id} and section = ${tab} and replaced_by is null order by sort_order, original_name, created_at limit 2000`,
     admin
       ? sql<{ id: string; kind: 'client' | 'guest'; project_id: string | null; code: string | null; created_at: string; expires_at: string; revoked_at: string | null; opens: number; locked_until: string | null }[]>`
         select id, kind, project_id, code, created_at, expires_at, revoked_at, opens, locked_until from links
@@ -126,11 +132,18 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
             <p className={s.small}>{t('project.emptyMediaHint')}</p>
           </div>
         ) : (
-          <ul className={s.grid} style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-            {assets.map((a) => <li key={a.id} data-asset-id={a.id}><MediaTile a={a} favs={favs[a.id] ?? 0} /></li>)}
-          </ul>
+          <MediaManager projectId={id} section={tab} coverId={p.cover_asset_id} digits={region.digits} canReorder
+            items={assets.map((a): ManagedAsset => ({
+              ...a, favs: favs[a.id] ?? 0,
+              // the admin deletes anything; a member what they uploaded, while the client cannot have it yet
+              deletable: admin || (a.uploaded_by === staff.id && p.status !== 'published'),
+              view: {
+                id: a.id, name: a.original_name, section: a.section, group: a.group, w: a.width ?? 0, h: a.height ?? 0, size: a.size,
+                duration: a.duration, taken: a.taken_at, hash: a.thumbhash, widths: (a.renditions.images ?? []).map((i) => i.w),
+                web: !!(a.section === 'photos' ? a.renditions.web : a.renditions.mp4_1080), quality: null,
+              },
+            }))} />
         )}
-        {n(tab) > assets.length ? <p className={`${s.small} ${s.tertiary}`} style={{ marginBlockStart: 12 }}>{t('project.moreMedia', { n: formatNumber(n(tab) - assets.length, locale, region.digits) })}</p> : null}
       </section>
 
     </>
