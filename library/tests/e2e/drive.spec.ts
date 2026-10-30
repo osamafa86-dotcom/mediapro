@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { E2E_ENV } from './env';
 import { makeFixtures } from './fixtures/media';
-import { ctx, login } from './helpers';
+import { ctx, login, write } from './helpers';
 import { PASSWORD, seed, sql, type Seed } from './seed';
 
 /*
@@ -124,6 +124,36 @@ test.describe('drive', () => {
     expect((await db<{ n: number }[]>`select count(*)::int as n from assets where project_id = ${grad!.project_id}`)[0]!.n).toBe(3);
     const [rerun] = await db<{ done: number; failed: number }[]>`select done, failed from drive_imports where folder_id = 'f-grad' order by created_at desc limit 1`;
     expect(rerun).toEqual({ done: 3, failed: 1 }); // the three arrived files count as done, not as copy failures
+    await db.end();
+  });
+
+  test('cancel: a queued import stops, the worker then writes nothing, and the button is there while it moves', async ({ page }) => {
+    await admin(page);
+    const db = sql();
+    const [proj] = await db<{ id: string }[]>`insert into projects (client_id, title, status, created_by) values (${S.clientX}, 'سنة كاملة', 'review', ${S.admin}) returning id`;
+    // a queued import with no job yet: the race with a fast worker is taken out of the test
+    const [imp] = await db<{ id: string }[]>`insert into drive_imports (created_by, folder_id, folder_name, client_id, project_id)
+      values (${S.admin}, 'f-grad', '2026', ${S.clientX}, ${proj!.id}) returning id`;
+    await page.goto('/admin/import');
+    const row = page.getByTestId('drive-history').locator(`[data-import-id="${imp!.id}"]`);
+    page.once('dialog', (dlg) => { expect(dlg.message()).toContain('«2026»'); void dlg.accept(); });
+    await row.getByTestId('drive-cancel').click();
+    await expect(row).toHaveAttribute('data-status', 'failed');
+    await expect(row).toContainText('أُلغي');
+    await expect(row.getByTestId('drive-cancel')).toHaveCount(0);
+
+    const csrf = (await page.context().cookies()).find((k) => k.name === 'ml_csrf')!.value;
+    const again = await page.request.post(`/api/admin/drive/imports/${imp!.id}/cancel`, { headers: { ...H, 'x-csrf-token': csrf } });
+    expect(again.status()).toBe(409); // already stopped
+    const a = await login('a@e2e.test');
+    expect((await write(a, 'POST', `/api/admin/drive/imports/${imp!.id}/cancel`, {})).status()).toBe(403); // staff, not admin
+
+    // a job that still reaches the worker for it (queued before the cancel) is a no-op
+    await db`select graphile_worker.add_job('drive_import', json_build_object('importId', ${imp!.id}::text))`;
+    await expect.poll(async () => (await db<{ n: number }[]>`select count(*)::int as n from graphile_worker.jobs where task_identifier = 'drive_import'`)[0]!.n, { timeout: 30_000 }).toBe(0);
+    const [after] = await db<{ status: string; error: string; total: number }[]>`select status, error, total from drive_imports where id = ${imp!.id}`;
+    expect(after).toEqual({ status: 'failed', error: 'cancelled', total: 0 });
+    expect((await db<{ n: number }[]>`select count(*)::int as n from assets where project_id = ${proj!.id}`)[0]!.n).toBe(0);
     await db.end();
   });
 

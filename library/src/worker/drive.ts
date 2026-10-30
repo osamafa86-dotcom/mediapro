@@ -25,8 +25,14 @@ export async function driveImport(payload: unknown, helpers: JobHelpers) {
   const sql = getSql();
   const [imp] = await sql<ImportRow[]>`select id, created_by, folder_id, project_id, status from drive_imports where id = ${importId}`;
   if (!imp || imp.status === 'done' || !imp.project_id) return;
+  // «running» from the first moment: listing a big folder takes minutes, and «queued 0 of 0» meanwhile reads as stuck.
+  // The guard also makes a cancelled import (failed) a no-op here and in every write below.
+  const [go] = await sql`update drive_imports set status = 'running', started_at = coalesce(started_at, now()), error = null
+    where id = ${importId} and status in ('queued', 'running') returning id`;
+  if (!go) return;
+  const live = async () => (await sql`select 1 from drive_imports where id = ${importId} and status = 'running'`).length > 0;
   const stop = async (error: string) => {
-    await sql`update drive_imports set status = 'failed', error = ${error}, finished_at = now() where id = ${importId}`;
+    await sql`update drive_imports set status = 'failed', error = ${error}, finished_at = now() where id = ${importId} and status = 'running'`;
   };
   const [g] = imp.created_by ? await sql<{ refresh_token_enc: string }[]>`select refresh_token_enc from google_tokens where user_id = ${imp.created_by}` : [];
   if (!g) return stop('drive_not_connected');
@@ -43,13 +49,15 @@ export async function driveImport(payload: unknown, helpers: JobHelpers) {
   } catch (e) {
     return stop(e instanceof GoogleError && e.status === 404 ? 'folder_not_found' : 'drive_unavailable');
   }
-  await sql`update drive_imports set status = 'running', started_at = coalesce(started_at, now()), total = ${files.length}, error = null where id = ${importId}`;
+  if (!(await live())) return; // cancelled while the folder was being listed
+  await sql`update drive_imports set total = ${files.length} where id = ${importId} and status = 'running'`;
 
   const report: Entry[] = [];
   let done = 0, failed = 0;
-  const save = () => sql`update drive_imports set done = ${done}, failed = ${failed}, report = ${JSON.stringify(report)}::jsonb where id = ${importId}`;
+  const save = () => sql`update drive_imports set done = ${done}, failed = ${failed}, report = ${JSON.stringify(report)}::jsonb where id = ${importId} and status = 'running'`;
 
   for (const f of files) {
+    if (!(await live())) return; // cancelled: stop before the next file; what arrived stays in the project
     const label = [...f.path, f.name].join('/');
     const fail = async (error: string) => { failed++; report.push({ file: label, ok: false, error }); await save(); };
     if (isGoogleNative(f.mimeType)) { await fail('not_media'); continue; }
@@ -89,5 +97,6 @@ export async function driveImport(payload: unknown, helpers: JobHelpers) {
       await fail(e instanceof GoogleError ? (e.status === 404 ? 'not_found' : 'drive_error') : 'copy_failed');
     }
   }
-  await sql`update drive_imports set status = 'done', done = ${done}, failed = ${failed}, report = ${JSON.stringify(report)}::jsonb, finished_at = now() where id = ${importId}`;
+  await sql`update drive_imports set status = 'done', done = ${done}, failed = ${failed}, report = ${JSON.stringify(report)}::jsonb, finished_at = now()
+    where id = ${importId} and status = 'running'`;
 }
