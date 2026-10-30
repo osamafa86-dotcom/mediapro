@@ -19,7 +19,7 @@ async function signIn(page: Page, email = 'admin@e2e.test', locale = 'ar') {
 test('archive: Arabic search folds letter forms and harakat; numbers line up on the right', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'desktop table');
   await signIn(page);
-  await page.goto('/admin/archive');
+  await page.goto('/admin/archive?view=table');
   await expect(page.getByTestId('archive-table').locator('tbody tr')).toHaveCount(5); // every non-archived project: the admin sees all clients and every status
   // «تخرج» without shadda finds «حفل تخرّج»
   await page.getByRole('searchbox').fill('تخرج');
@@ -39,7 +39,7 @@ test('archive: Arabic search folds letter forms and harakat; numbers line up on 
 test('archive: status chip filters; selection bar archives in bulk', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'desktop table');
   await signIn(page);
-  await page.goto('/admin/archive');
+  await page.goto('/admin/archive?view=table');
   await page.locator('select[data-filter="status"]').selectOption('draft');
   await expect(page).toHaveURL(/status=draft/);
   await expect(page.getByTestId('archive-table').locator('tbody tr')).toHaveCount(1);
@@ -49,11 +49,48 @@ test('archive: status chip filters; selection bar archives in bulk', async ({ pa
   await page.getByTestId('selection-bar').getByRole('button', { name: 'أرشفة' }).click();
   await expect(page.getByRole('status')).toContainText('تغيّر مشروع واحد');
   await expect(page.getByTestId('archive-table')).not.toContainText('حفل تخرّج');
-  await page.goto('/admin/archive?archived=1');
+  await page.goto('/admin/archive?archived=1&view=table');
   await expect(page.getByTestId('archive-table')).toContainText('حفل تخرّج');
   await page.getByRole('checkbox', { name: /حفل تخرّج/ }).check();
   await page.getByTestId('selection-bar').getByRole('button', { name: 'استعادة' }).click();
   await expect(page.getByTestId('archive-empty')).toBeVisible();
+});
+
+test('archive as albums: the default; a tap opens the project; «تحديد» picks albums for the same bulk bar; the table choice is remembered', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/admin/archive');
+  const cards = page.getByTestId('archive-cards');
+  await expect(cards.locator('li[data-id]')).toHaveCount(5);
+  await expect(page.getByTestId('archive-table')).toHaveCount(0);
+  const grad = cards.locator('li', { hasText: 'حفل تخرّج' });
+  await expect(grad.locator('a')).toHaveAttribute('href', /\/admin\/projects\/[0-9a-f-]{36}$/);
+  // a phone shows two albums side by side and never scrolls sideways
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+  // select mode: a tap picks instead of opening
+  await page.getByTestId('archive-select').click();
+  await grad.getByRole('button', { name: /حفل تخرّج/ }).click();
+  await expect(grad.getByRole('button', { name: /حفل تخرّج/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page).toHaveURL(/\/admin\/archive/);
+  await expect(page.getByTestId('selection-bar')).toContainText('1 محدّدة');
+  await page.getByTestId('selection-bar').getByRole('button', { name: 'أرشفة' }).click();
+  await expect(page.getByRole('status')).toContainText('تغيّر مشروع واحد');
+  await expect(cards.locator('li[data-id]')).toHaveCount(4);
+  await page.goto('/admin/archive?archived=1');
+  await page.getByTestId('archive-select').click();
+  await page.getByTestId('archive-cards').getByRole('button', { name: /حفل تخرّج/ }).click();
+  await page.getByTestId('selection-bar').getByRole('button', { name: 'استعادة' }).click();
+  await expect(page.getByTestId('archive-empty')).toBeVisible();
+  // the table is one tap away, and the next visit opens on it
+  await page.goto('/admin/archive');
+  await page.getByTestId('view-table').click();
+  await expect(page.getByTestId('archive-table')).toBeVisible();
+  await page.goto('/admin/archive');
+  await expect(page.getByTestId('archive-table')).toBeVisible();
+  await page.getByTestId('view-cards').click();
+  await expect(page.getByTestId('archive-cards')).toBeVisible();
+  await page.goto('/admin/archive');
+  await expect(page.getByTestId('archive-cards')).toBeVisible();
 });
 
 test('project → share dialog → short link + PIN → the client gets in', async ({ page, browser }, info) => {
@@ -229,7 +266,7 @@ test('Turkish admin: LTR, Arabic names keep their order', async ({ page }, info)
 test('phone: the archive is a record list, and the nav stays reachable', async ({ page }, info) => {
   test.skip(info.project.name !== 'iphone', 'phone layout');
   await signIn(page);
-  await page.goto('/admin/archive');
+  await page.goto('/admin/archive?view=table');
   await expect(page.getByTestId('archive-table').locator('thead')).toBeHidden();
   const row = page.getByTestId('archive-table').locator('tbody tr').first();
   await expect(row.locator('td[data-col="status"]')).toBeVisible();

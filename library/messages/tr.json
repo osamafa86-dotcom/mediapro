@@ -220,6 +220,11 @@
         "archived": "Arşivlenenler"
       },
       "periods": {
+        "today": "Bugün",
+        "yesterday": "Dün",
+        "7d": "Son 7 gün",
+        "thisMonth": "Bu ay",
+        "lastMonth": "Geçen ay",
         "3m": "Son 3 ay",
         "6m": "Son 6 ay",
         "12m": "Son 1 yıl"
@@ -283,7 +288,25 @@
       "prev": "Önceki",
       "next": "Sonraki",
       "setupR2Err": "{bucket} kovasına ulaşılamadı — anahtarları ve CORS ayarını kontrol edin",
-      "clearSearch": "Aramayı temizle"
+      "clearSearch": "Aramayı temizle",
+      "dateQuick": "Hızlı dönemler",
+      "dateDay": "Belirli gün",
+      "dateMonth": "Belirli ay",
+      "dateYear": "Yıl",
+      "dateRange": "Tarihten tarihe",
+      "dateFrom": "Başlangıç",
+      "dateTo": "Bitiş",
+      "dateApply": "Uygula",
+      "dateClear": "Tarihi temizle",
+      "view": {
+        "label": "Görünüm",
+        "cards": "Albümler",
+        "table": "Tablo"
+      },
+      "cards": {
+        "photos": "fotoğraf",
+        "videos": "video"
+      }
     },
     "project": {
       "new": "Yeni proje",
@@ -666,7 +689,7 @@
       "select": "{name} seç",
       "selectAll": "Tümünü seç",
       "clear": "Seçimi kaldır",
-      "dragHint": "Yerini değiştirmek için sürükleyin. Müşteri bu sırayı görür.",
+      "dragHint": "Açmak için dokunun. Yerini değiştirmek için basılı tutup sürükleyin; hareket ettirmeden bırakırsanız seçenekler açılır. Müşteri bu sırayı görür.",
       "orderSaved": "Sıra kaydedildi.",
       "stale": "Sayfa açıldığından beri medya değişti (yükleme veya silme). Yeniden yüklendi; sırayı tekrar düzenleyin.",
       "cannotDelete": "Bu medyayı silemezsiniz: silme yöneticide; kullanıcı yalnızca kendi yüklediğini yayından önce siler.",
@@ -693,7 +716,13 @@
         "failed": "Düzenleme uygulanamadı",
         "notEditable": "Bu medya düzenlenemez: kırpma ve döndürme hazır fotoğraflar içindir, RAW için değil.",
         "titleShort": "Kırp ve döndür"
-      }
+      },
+      "selectMode": "Seç",
+      "done": "Bitti",
+      "pickItems": "Medya seçin",
+      "selectThis": "Seç",
+      "notOpenableYet": "Bu medya henüz hazır değil (yükleniyor veya işleniyor); hazır olunca açılır.",
+      "notOpenableFailed": "Bu medya işlenemedi; önizlemesi yok."
     }
   },
   "upload": {

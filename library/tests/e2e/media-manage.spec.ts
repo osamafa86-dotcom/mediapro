@@ -146,14 +146,20 @@ test('admin grid: open large and move between photos; cover from the viewer; sel
 
   // select the last two → «تقديم إلى البداية»
   const last2 = before.slice(-2);
-  for (const id of last2) await grid.locator(`li[data-asset-id="${id}"] input[type=checkbox]`).check();
+  // «تحديد» switches the grid to selecting: a tap ticks instead of opening
+  await page.getByTestId('select-mode').click();
   const bar = page.getByTestId('media-selection');
+  await expect(bar).toContainText('اختر المواد');
+  for (const id of last2) await grid.locator(`li[data-asset-id="${id}"] button`).first().click();
+  await expect(page.locator('.yarl__root')).toHaveCount(0);
   await expect(bar).toContainText('محدّدتان');
   await bar.getByRole('button', { name: 'تقديم إلى البداية' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'حُفظ الترتيب.' })).toBeVisible();
   const afterSel = [...last2, ...before.filter((id) => !last2.includes(id))];
   expect(await gridIds(page)).toEqual(afterSel);
   expect(await order(S.p1)).toEqual(afterSel);
+  await bar.getByRole('button', { name: 'تم' }).click();
+  await expect(bar).toHaveCount(0);
 
   // drag the last tile onto the first one with the mouse
   const from = grid.locator(`li[data-asset-id="${afterSel.at(-1)}"]`);
@@ -196,14 +202,32 @@ test('admin grid: delete from the viewer after a confirmation; the tile goes', a
   await expect(grid.locator('li[data-asset-id]')).toHaveCount(before.length - 1);
 });
 
-test('admin grid on a phone: the menu is there without hover, a tap opens the photo large', async ({ page }, info) => {
+test('admin grid on a phone: a tap opens the photo large; a long press without moving opens its menu', async ({ page }, info) => {
   test.skip(info.project.name === 'desktop', 'phone');
   await signIn(page);
   await page.goto(`/admin/projects/${S.p1}`);
-  const tile = page.getByTestId('media-grid').locator('li[data-asset-id]').first();
-  await expect(tile.getByRole('button', { name: /^المزيد: / })).toBeVisible();
+  const tile = page.getByTestId('media-grid').locator(`li[data-asset-id="${photos.find(Boolean)}"]`);
   await tile.locator('button').first().tap();
   await expect(page.locator('.yarl__root')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.yarl__root')).toHaveCount(0);
+  // a long press (held past the lift delay, released in place): the item's menu, no viewer, no reorder
+  const before = await order(S.p1);
+  const box = (await tile.boundingBox())!;
+  await tile.evaluate(async (el, p) => {
+    const touch = (t: string, target: EventTarget) => new TouchEvent(t, { bubbles: true, cancelable: true,
+      touches: t === 'touchend' ? [] : [new Touch({ identifier: 1, target, clientX: p.x, clientY: p.y })],
+      changedTouches: [new Touch({ identifier: 1, target, clientX: p.x, clientY: p.y })] });
+    el.dispatchEvent(touch('touchstart', el));
+    await new Promise((r) => setTimeout(r, 650));
+    el.dispatchEvent(touch('touchend', el));
+  }, { x: box.x + box.width / 2, y: box.y + box.height / 2 });
+  await expect(page.getByRole('menuitem', { name: 'تحديد' })).toBeVisible();
+  await expect(page.locator('.yarl__root')).toHaveCount(0);
+  expect(await order(S.p1)).toEqual(before);
+  // «تحديد» from that menu: selecting, with this item already ticked
+  await page.getByRole('menuitem', { name: 'تحديد' }).click();
+  await expect(page.getByTestId('media-selection')).toContainText('محدّدة واحدة');
 });
 
 test('admin grid: a video opens large in the player; Esc closes it', async ({ page }, info) => {

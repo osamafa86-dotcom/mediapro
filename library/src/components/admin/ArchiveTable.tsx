@@ -1,10 +1,11 @@
 'use client';
-import { ArrowDown, ArrowUp, Eye, Image as ImageIcon, MoreHorizontal } from 'lucide-react';
+import { ArrowDown, ArrowUp, CheckCircle2, Circle, Eye, Image as ImageIcon, LayoutGrid, List, MoreHorizontal, Play, Video } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { Button, StatusBadge, type ProjectStatus } from '@/components/ui';
+import { ARCHIVE_VIEW_COOKIE, type ArchiveView } from '@/lib/archive-view';
 import { postJson } from '@/lib/client/api';
 import { AdminDialog } from './Dialog';
 import s from './admin.module.css';
@@ -12,7 +13,11 @@ import s from './admin.module.css';
 export interface ArchiveItem {
   id: string; title: string; client: string; date: string; people: string; counts: string; size: string;
   status: string; statusLabel: string; link: { text: string; tone: 'muted' | 'warn' }; archived: boolean;
+  photos: string; videos: string; hasPhotos: boolean; hasVideos: boolean;
+  /** the album's face: a ready photo, or a video's poster; `bg` is its ThumbHash placeholder */
+  cover: { id: string; kind: 'photos' | 'videos'; bg?: string } | null;
 }
+
 
 /*
  * Records table (financial-tables rules): P1 = project/client, date, size, status; P2 = people, counts,
@@ -20,9 +25,10 @@ export interface ArchiveItem {
  * record list. Checkbox value is the row id, never its index. The selection bar replaces nothing:
  * it appears in the same toolbar when rows are selected.
  */
-export function ArchiveTable({ items, summary, sort, sortHref, admin, archivedView, emptyFiltered, pager }: {
+export function ArchiveTable({ items, summary, sort, sortHref, admin, archivedView, emptyFiltered, pager, view, viewHref }: {
   items: ArchiveItem[]; summary: string; sort: 'date_desc' | 'date_asc'; sortHref: string; admin: boolean; archivedView: boolean;
   emptyFiltered: boolean; pager: { text: string; prev: string | null; next: string | null } | null;
+  view: ArchiveView; viewHref: Record<ArchiveView, string>;
 }) {
   const t = useTranslations('admin');
   const router = useRouter();
@@ -31,6 +37,8 @@ export function ArchiveTable({ items, summary, sort, sortHref, admin, archivedVi
   const [days, setDays] = useState(30);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // albums open on a tap, like Photos; «تحديد» turns a tap into a pick
+  const [selecting, setSelecting] = useState(false);
   const allOn = items.length > 0 && items.every((i) => sel.has(i.id));
   const toggle = (id: string) => setSel((x) => { const n = new Set(x); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
@@ -42,8 +50,12 @@ export function ArchiveTable({ items, summary, sort, sortHref, admin, archivedVi
     const n = r.data.changed ?? 0;
     setMsg(t('archive.changed', { n }) + (action === 'publish' && n < sel.size ? ` ${t('archive.publishSkipped')}` : ''));
     setSel(new Set());
+    setSelecting(false);
     router.refresh();
   }
+  // the choice outlives the visit: the page reads it when the address names no view
+  const remember = (v: ArchiveView) => { document.cookie = `${ARCHIVE_VIEW_COOKIE}=${v}; path=/admin; max-age=31536000; samesite=lax`; };
+  const empty = emptyFiltered || items.length === 0;
 
   return (
     <>
@@ -62,14 +74,77 @@ export function ArchiveTable({ items, summary, sort, sortHref, admin, archivedVi
             <button type="button" onClick={() => setSel(new Set())}>{t('archive.clearSelection')}</button>
           </div>
         ) : null}
+        <span className={s.barEnd}>
+          {admin && view === 'cards' && !empty ? (
+            selecting ? (
+              <>
+                <button type="button" className={s.btnLink} onClick={() => setSel(allOn ? new Set() : new Set(items.map((i) => i.id)))}>{allOn ? t('archive.clearSelection') : t('media.selectAll')}</button>
+                <button type="button" className={s.btnSecondary} onClick={() => { setSelecting(false); setSel(new Set()); }} data-testid="select-done">{t('media.done')}</button>
+              </>
+            ) : <button type="button" className={s.btnSecondary} onClick={() => setSelecting(true)} data-testid="archive-select">{t('media.selectMode')}</button>
+          ) : null}
+          <span className={s.segmented} role="group" aria-label={t('archive.view.label')}>
+            <Link href={viewHref.cards} scroll={false} aria-current={view === 'cards' ? 'true' : undefined} aria-label={t('archive.view.cards')} title={t('archive.view.cards')}
+              onClick={() => remember('cards')} data-testid="view-cards"><LayoutGrid size={16} aria-hidden /></Link>
+            <Link href={viewHref.table} scroll={false} aria-current={view === 'table' ? 'true' : undefined} aria-label={t('archive.view.table')} title={t('archive.view.table')}
+              onClick={() => remember('table')} data-testid="view-table"><List size={16} aria-hidden /></Link>
+          </span>
+        </span>
       </div>
       {msg ? <p className={s.formMsg} data-kind="ok" role="status">{msg}</p> : null}
-      <section className={`${s.card} ${s.tableWrap}`}>
-        {emptyFiltered || items.length === 0 ? (
+      <section className={view === 'cards' && !empty ? s.albumsWrap : `${s.card} ${s.tableWrap}`}>
+        {empty ? (
           <div className={s.emptyState} data-testid="archive-empty">
             <h2>{t('archive.empty')}</h2>
             <p>{t('archive.emptyHint')}</p>
           </div>
+        ) : view === 'cards' ? (
+          <ul className={s.albums} data-testid="archive-cards" aria-label={t('nav.archive')}>
+            {items.map((it) => {
+              const on = sel.has(it.id);
+              const body = (
+                <>
+                  <span className={s.albumCover} style={it.cover?.bg ? { backgroundImage: `url(${it.cover.bg})` } : undefined}>
+                    {it.cover ? (
+                      it.cover.kind === 'photos' ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={`/m/${it.cover.id}/w640.webp`} srcSet={`/m/${it.cover.id}/w640.webp 640w, /m/${it.cover.id}/w1280.webp 1280w`}
+                          sizes="(max-width: 700px) 100vw, 360px" alt="" loading="lazy" decoding="async" />
+                      ) : (
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={`/m/${it.cover.id}/poster`} alt="" loading="lazy" decoding="async" />
+                          <span className={s.albumPlay} aria-hidden><Play size={18} /></span>
+                        </>
+                      )
+                    ) : <span className={s.albumNone} aria-hidden><ImageIcon size={28} /></span>}
+                    {it.hasPhotos || it.hasVideos ? (
+                      <span className={s.albumCounts}>
+                        {it.hasPhotos ? <span><ImageIcon size={13} aria-hidden /><bdi dir="ltr">{it.photos}</bdi><span className="sr-only">{t('archive.cards.photos')}</span></span> : null}
+                        {it.hasVideos ? <span><Video size={13} aria-hidden /><bdi dir="ltr">{it.videos}</bdi><span className="sr-only">{t('archive.cards.videos')}</span></span> : null}
+                      </span>
+                    ) : null}
+                    {selecting ? <span className={s.albumTick} data-on={on || undefined} aria-hidden>{on ? <CheckCircle2 size={24} /> : <Circle size={24} />}</span> : null}
+                  </span>
+                  <span className={s.albumTitle}>{it.title}</span>
+                  <span className={s.albumMeta}><bdi>{it.client}</bdi>{it.date !== '—' ? <><span aria-hidden>·</span><bdi className={s.num}>{it.date}</bdi></> : null}</span>
+                  <span className={s.albumFoot}>
+                    <StatusBadge status={it.status as ProjectStatus} label={it.statusLabel} />
+                    <span className={`${s.albumLink} ${it.link.tone === 'warn' ? s.linkWarn : ''}`}>{it.link.text}</span>
+                  </span>
+                </>
+              );
+              return (
+                <li key={it.id} data-id={it.id} data-selected={on || undefined}>
+                  {selecting ? (
+                    <button type="button" className={s.album} aria-pressed={on} aria-label={`${t('archive.col.select')}: ${it.title}`} onClick={() => toggle(it.id)}>{body}</button>
+                  ) : (
+                    <Link href={`/admin/projects/${it.id}`} className={s.album}>{body}</Link>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         ) : (
           <table className={s.table} data-testid="archive-table">
             <caption>{t('nav.archive')}</caption>
