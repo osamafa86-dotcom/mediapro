@@ -40,7 +40,7 @@ export async function requester(req: Request): Promise<Requester> {
   return { kind: 'viewer', viewer: viewer! };
 }
 
-interface DlAsset { id: string; project_id: string; r2_key: string; original_name: string; section: 'photos' | 'videos'; group: string; size: number; renditions: Renditions; taken_at: string | null }
+interface DlAsset { id: string; project_id: string; r2_key: string; original_name: string; section: 'photos' | 'videos'; group: string; size: number; renditions: Renditions; taken_at: string | null; album: string | null }
 
 /** The project's downloadable assets for this requester, optionally narrowed. 404 if the project is not theirs. */
 export async function downloadable(r: Requester, projectId: string, f: { section?: string; group?: string; ids?: string[] } = {}): Promise<DlAsset[]> {
@@ -57,12 +57,13 @@ export async function downloadable(r: Requester, projectId: string, f: { section
     scope = visibleAssets(v, await clientAllowsRaw(v.clientId));
   }
   const rows = await sql<DlAsset[]>`
-    select a.id, a.project_id, a.r2_key, a.original_name, a.section, a."group", a.size::float8 as size, a.renditions, a.taken_at
+    select a.id, a.project_id, a.r2_key, a.original_name, a.section, a."group", a.size::float8 as size, a.renditions, a.taken_at,
+      (select al.name from project_albums al where al.id = a.album_id) as album
     from assets a where a.project_id = ${projectId} and ${scope}
-      ${f.section ? sql`and a.section = ${f.section}` : sql``}
+      ${f.section ? sql`and a.section = ${f.section} and a.album_id is null` : sql``}
       ${f.group ? sql`and a."group" = ${f.group}` : sql``}
       ${f.ids ? sql`and a.id = any(${f.ids}::uuid[])` : sql``}
-    order by a.section, a."group", a.sort_order, a.original_name`;
+    order by a.album_id nulls first, a.section, a."group", a.sort_order, a.original_name`;
   // an edited photo's «original» is the full-resolution edit (the upload stays in storage for a reset)
   return rows.map((a) => (a.renditions.edited
     ? { ...a, r2_key: a.renditions.edited.key, size: a.renditions.edited.size, original_name: `${stem(a.original_name)}.jpg` }
@@ -111,11 +112,15 @@ export async function singleFile(r: Requester, assetId: string, variant: 'origin
 
 export interface Folders { photos: string; videos: string; final: string; raw: string; footage: string }
 
-/** Names inside the ZIP: <section>/<group>/<file>, with (2), (3)… for duplicates. Exported for tests. */
-export function zipNames(assets: { section: string; group: string; original_name: string }[], folders: Folders) {
+/**
+ * Names inside the ZIP: <section>/<group>/<file>, or <album>/<group>/<file> for a file in an album («مونتاج»…),
+ * with (2), (3)… for duplicates. Exported for tests.
+ */
+export function zipNames(assets: { section: string; group: string; original_name: string; album?: string | null }[], folders: Folders) {
   const seen = new Map<string, number>();
   return assets.map((a) => {
-    const dir = `${folders[a.section as 'photos']}/${folders[a.group as 'final']}`;
+    const top = a.album ? a.album.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/^\.+/, '_').trim() || 'album' : folders[a.section as 'photos'];
+    const dir = `${top}/${folders[a.group as 'final']}`;
     const base = a.original_name.replace(/[\\/]/g, '_').replace(/^\.+/, '_') || 'file';
     let name = `${dir}/${base}`;
     const n = (seen.get(name.toLowerCase()) ?? 0) + 1;

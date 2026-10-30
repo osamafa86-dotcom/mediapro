@@ -1,10 +1,11 @@
 'use client';
 import {
-  TextField as RACTextField, Label, Input, Text, FieldError,
+  TextField as RACTextField, Label, Input, Text, FieldError, ComboBox, Group,
   Select as RACSelect, SelectValue, Button, Popover, ListBox, ListBoxItem,
   type TextFieldProps as RACTextFieldProps, type SelectProps as RACSelectProps, type Key,
 } from 'react-aria-components';
 import { ChevronDown } from 'lucide-react';
+import { useState } from 'react';
 import s from './ui.module.css';
 
 export interface TextFieldProps extends RACTextFieldProps {
@@ -56,5 +57,49 @@ export function SelectField<T extends object>({ label, items, description, value
         </ListBox>
       </Popover>
     </RACSelect>
+  );
+}
+
+export interface ComboFieldProps {
+  label: string;
+  description?: string;
+  /** saved choices, offered as the user types; any other text is accepted too (and saved by the server) */
+  options: string[];
+  value: string;
+  onChange: (v: string) => void;
+  isRequired?: boolean;
+  autoFocus?: boolean;
+  /** matching that ignores what should not matter (hamza forms, taa marbuta, harakat…) */
+  normalize?: (s: string) => string;
+  emptyLabel?: string;
+  testId?: string;
+}
+
+/** A text field with a list under it: pick a saved name, or type a new one. */
+export function ComboField({ label, description, options, value, onChange, isRequired, autoFocus, normalize = (x) => x.toLowerCase(), emptyLabel, testId }: ComboFieldProps) {
+  // the arrow shows every saved choice; typing narrows the list
+  const [all, setAll] = useState(false);
+  const q = all ? '' : normalize(value.trim());
+  const shown = options.filter((o) => !q || normalize(o).includes(q)).slice(0, 50);
+  return (
+    <ComboBox
+      className={s.field} allowsCustomValue allowsEmptyCollection menuTrigger="input" isRequired={isRequired} autoFocus={autoFocus}
+      inputValue={value} onInputChange={(v) => { setAll(false); onChange(v); }}
+      onOpenChange={(open, trigger) => setAll(open && trigger === 'manual')}
+      onSelectionChange={(k: Key | null) => { if (k != null) onChange(String(k)); }}
+      items={shown.map((o) => ({ id: o }))} data-testid={testId}
+    >
+      <Label className={s.fieldLabel}>{label}</Label>
+      <Group className={s.comboGroup}>
+        <Input className={s.input} />
+        {options.length ? <Button className={s.comboBtn}><ChevronDown size={16} strokeWidth={1.5} aria-hidden="true" /></Button> : null}
+      </Group>
+      {description ? <Text slot="description" className={s.fieldHelp}>{description}</Text> : null}
+      <Popover className={s.popover}>
+        <ListBox className={s.listbox} renderEmptyState={() => (emptyLabel ? <div className={s.comboEmpty}>{emptyLabel}</div> : null)}>
+          {(it: { id: string }) => <ListBoxItem id={it.id} textValue={it.id} className={s.option}>{it.id}</ListBoxItem>}
+        </ListBox>
+      </Popover>
+    </ComboBox>
   );
 }

@@ -1,8 +1,9 @@
-import { Calendar, Camera, ChevronLeft, Film, Image as ImageIcon, MapPin } from 'lucide-react';
+import { Calendar, Camera, ChevronLeft, Film, Folder, Image as ImageIcon, MapPin, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { PageHead } from '@/components/admin/AdminShell';
+import { AlbumMenu, NewAlbumButton } from '@/components/admin/Albums';
 import { ProjectActions, LinkRowActions } from '@/components/admin/ProjectActions';
 import { projectOptions } from '@/components/admin/ProjectDialog';
 import s from '@/components/admin/admin.module.css';
@@ -20,14 +21,20 @@ import { getSettings } from '@/lib/settings';
 export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ tab?: string }> }) {
   const staff = await requireStaffPage();
   const { id } = await params;
-  const tab = (await searchParams).tab === 'videos' ? 'videos' : 'photos';
   if (!isUuid(id) || !(await staffCanAccessProject(staff, id))) notFound();
+  const sql = getSql();
+  // the tab: «الصور», «الفيديو», or one of the project's albums (by id)
+  const albums = await sql<{ id: string; name: string; n: number; created_by: string | null }[]>`
+    select al.id, al.name, al.created_by, (select count(*)::int from assets a where a.album_id = al.id and a.replaced_by is null) as n
+    from project_albums al where al.project_id = ${id} order by al.sort_order, al.created_at`;
+  const asked = (await searchParams).tab;
+  const album = albums.find((a) => a.id === asked) ?? null;
+  const tab = album ? 'album' : asked === 'videos' ? 'videos' : 'photos';
   const t = await getTranslations('admin');
   const ts = await getTranslations('status');
   const locale = (await getLocale()) as Locale;
   const { region } = await getSettings();
   const admin = staff.role === 'admin';
-  const sql = getSql();
 
   const [[p], members, counts, assets, links] = await Promise.all([
     sql<{ id: string; title: string; status: ProjectStatus; type: string | null; shot_date: string | null; place: string | null; archived_at: string | null;
@@ -35,13 +42,16 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       select p.id, p.title, p.status, p.type, p.shot_date, p.place, p.archived_at, p.client_id, c.name_ar, c.name_tr, c.default_link_days, c.contact_email, p.cover_asset_id
       from projects p join clients c on c.id = p.client_id where p.id = ${id}`,
     sql<{ id: string; name: string }[]>`select u.id, u.name from project_members m join users u on u.id = m.user_id where m.project_id = ${id} order by u.name`,
-    sql<{ section: string; n: number; ready: number }[]>`select section, count(*)::int as n, count(*) filter (where status = 'ready')::int as ready from assets where project_id = ${id} and replaced_by is null group by section`,
+    sql<{ section: string; n: number; ready: number; in_album: boolean }[]>`select section, album_id is not null as in_album, count(*)::int as n, count(*) filter (where status = 'ready')::int as ready
+      from assets where project_id = ${id} and replaced_by is null group by section, album_id is not null`,
     // the whole section: reordering needs every item (2000 is far above any real shoot)
     sql<{ id: string; original_name: string; status: string; error: string | null; section: 'photos' | 'videos'; group: 'final' | 'raw' | 'footage';
       thumbhash: string | null; duration: number | null; renditions: Renditions; width: number | null; height: number | null; size: number;
       taken_at: string | null; uploaded_by: string | null; edit: AssetEdit | null }[]>`
       select id, original_name, status, error, section, "group", thumbhash, duration, renditions, width, height, size::float8 as size, taken_at, uploaded_by, edit
-      from assets where project_id = ${id} and section = ${tab} and replaced_by is null order by sort_order, original_name, created_at limit 2000`,
+      from assets where project_id = ${id} and replaced_by is null
+        and ${album ? sql`album_id = ${album.id}` : sql`section = ${tab} and album_id is null`}
+      order by sort_order, original_name, created_at limit 2000`,
     admin
       ? sql<{ id: string; kind: 'client' | 'guest'; project_id: string | null; code: string | null; created_at: string; expires_at: string; revoked_at: string | null; opens: number; locked_until: string | null }[]>`
         select id, kind, project_id, code, created_at, expires_at, revoked_at, opens, locked_until from links
@@ -51,7 +61,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   ]);
   if (!p) notFound();
   const favs = await favouriteCounts(id);
-  const n = (sec: string) => counts.find((c) => c.section === sec)?.n ?? 0;
+  const n = (sec: string) => counts.find((c) => c.section === sec && !c.in_album)?.n ?? 0;
   const ready = counts.reduce((a, c) => a + c.ready, 0);
   const client = locale === 'tr' ? p.name_tr || p.name_ar : p.name_ar;
   const options = await projectOptions();
@@ -68,7 +78,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         actions={
           <ProjectActions
             admin={admin}
-            project={{ id: p.id, title: p.title, status: p.status, archived: !!p.archived_at, clientId: p.client_id, clientName: client, defaultDays: p.default_link_days, hasEmail: !!p.contact_email, readyCount: ready, timeZone: region.timeZone }}
+            project={{ id: p.id, title: p.title, status: p.status, archived: !!p.archived_at, clientId: p.client_id, clientName: client, defaultDays: p.default_link_days, hasEmail: !!p.contact_email, readyCount: ready, timeZone: region.timeZone, assetCount: counts.reduce((a, c) => a + c.n, 0) }}
             edit={{ options, values: { title: p.title, clientId: p.client_id, type: p.type ?? '', shotDate: p.shot_date ?? '', place: p.place ?? '', memberIds: members.map((m) => m.id) } }}
           />
         }
@@ -116,23 +126,43 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         </section>
       ) : null}
 
-      <div className={s.segmented} role="tablist" aria-label={t('project.photos')}>
-        {(['photos', 'videos'] as const).map((sec) => (
-          <Link key={sec} href={`?tab=${sec}`} role="tab" aria-selected={tab === sec} className={s.tabLink} scroll={false}>
-            {sec === 'photos' ? <ImageIcon size={16} aria-hidden /> : <Film size={16} aria-hidden />}
-            {t(`project.${sec}`)} <span className={s.num}>{formatNumber(n(sec), locale, region.digits)}</span>
-          </Link>
-        ))}
+      <div className={s.tabsRow}>
+        <div className={`${s.segmented} ${s.albumTabs}`} role="tablist" aria-label={t('albums.label')} data-testid="project-tabs">
+          {(['photos', 'videos'] as const).map((sec) => (
+            <Link key={sec} href={`?tab=${sec}`} role="tab" aria-selected={tab === sec} className={s.tabLink} scroll={false}>
+              {sec === 'photos' ? <ImageIcon size={16} aria-hidden /> : <Film size={16} aria-hidden />}
+              {t(`project.${sec}`)} <span className={s.num}>{formatNumber(n(sec), locale, region.digits)}</span>
+            </Link>
+          ))}
+          {albums.map((al) => (
+            <Link key={al.id} href={`?tab=${al.id}`} role="tab" aria-selected={album?.id === al.id} className={s.tabLink} scroll={false} data-album-id={al.id}>
+              <Folder size={16} aria-hidden /><bdi>{al.name}</bdi> <span className={s.num}>{formatNumber(al.n, locale, region.digits)}</span>
+            </Link>
+          ))}
+        </div>
+        <NewAlbumButton projectId={id} />
       </div>
 
-      <section aria-label={t(`project.${tab}`)}>
+      {album ? (
+        <div className={s.albumHead} data-testid="album-head">
+          <h2><Folder size={18} aria-hidden /><bdi>{album.name}</bdi></h2>
+          <span className={`${s.small} ${s.muted}`}>{t('albums.mixed')}</span>
+          <span className={s.albumHeadEnd}>
+            <Link href={`/upload/${id}?album=${album.id}`} className={s.btnLink}><Upload size={16} aria-hidden />&nbsp;{t('albums.uploadHere')}</Link>
+            <AlbumMenu projectId={id} album={album} canDelete={admin || album.created_by === staff.id} />
+          </span>
+        </div>
+      ) : null}
+
+      <section aria-label={album ? album.name : t(`project.${tab as 'photos' | 'videos'}`)}>
         {assets.length === 0 ? (
           <div className={`${s.card} ${s.emptyState}`} style={{ paddingBlock: 32 }}>
-            <h2 style={{ fontSize: 17 }}>{t('project.emptyMedia')}</h2>
-            <p className={s.small}>{t('project.emptyMediaHint')}</p>
+            <h2 style={{ fontSize: 17 }}>{album ? t('albums.empty') : t('project.emptyMedia')}</h2>
+            <p className={s.small}>{album ? t('albums.emptyHint') : t('project.emptyMediaHint')}</p>
           </div>
         ) : (
-          <MediaManager projectId={id} section={tab} coverId={p.cover_asset_id} digits={region.digits} canReorder
+          <MediaManager key={album?.id ?? tab} projectId={id} section={tab === 'videos' ? 'videos' : 'photos'} albumId={album?.id ?? null}
+            albums={albums.map((x) => ({ id: x.id, name: x.name }))} coverId={p.cover_asset_id} digits={region.digits} canReorder
             items={assets.map((a): ManagedAsset => ({
               ...a, favs: favs[a.id] ?? 0,
               // the admin deletes anything; a member what they uploaded, while the client cannot have it yet

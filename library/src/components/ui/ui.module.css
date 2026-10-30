@@ -63,7 +63,8 @@
    flips inset-inline-end to the physical right in an RTL page and stacks it on the search icon. */
 
 /* ── SegmentTab ───────────────────────────────────────── */
-.segment { display: inline-flex; justify-self: start; padding: var(--space-4); gap: var(--space-4); border-radius: var(--radius-card); background: var(--color-bg-component); }
+.segment { display: inline-flex; justify-self: start; padding: var(--space-4); gap: var(--space-4); border-radius: var(--radius-card); background: var(--color-bg-component); max-inline-size: 100%; overflow-x: auto; scrollbar-width: none; }
+.segment > * { flex: none; white-space: nowrap; }
 .segmentItem {
   display: inline-flex; align-items: center; gap: var(--space-8); min-block-size: 36px; padding-inline: var(--space-16);
   border: 0; border-radius: var(--radius-control); background: transparent; color: var(--color-text-secondary); font-weight: 500; cursor: pointer;
@@ -118,3 +119,11 @@
 .pinCell:focus-visible { outline: var(--stroke-focus) solid var(--color-border-focus); outline-offset: 0; border-color: transparent; }
 .pin[data-invalid] .pinCell { border-color: var(--color-border-danger); background: var(--color-bg-danger-subtle); }
 .pinCell:disabled { opacity: .5; }
+
+/* ── ComboField ───────────────────────────────────────── */
+.comboGroup { position: relative; display: flex; align-items: center; }
+.comboGroup .input { padding-inline-end: 40px; }
+.comboBtn { position: absolute; inset-inline-end: 4px; display: grid; place-items: center; inline-size: 32px; block-size: 32px; border: 0; border-radius: var(--radius-control); background: none; color: var(--color-icon-secondary); cursor: pointer; }
+.comboBtn:hover { background: var(--color-bg-component); }
+.comboEmpty { padding: var(--space-8) var(--space-12); font-size: 13px; color: var(--color-text-tertiary); }
+.popover .listbox { max-block-size: 280px; overflow-y: auto; }

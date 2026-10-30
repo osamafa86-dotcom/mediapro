@@ -58,7 +58,7 @@ export async function libraryFor(v: Viewer) {
 export interface PortalAsset {
   id: string; original_name: string; section: Section; group: Group; width: number | null; height: number | null;
   size: number; duration: number | null; taken_at: string | null; thumbhash: string | null; renditions: Renditions;
-  capture_source: 'phone' | 'camera' | null;
+  capture_source: 'phone' | 'camera' | null; album_id?: string | null;
 }
 
 export async function projectFor(v: Viewer, projectId: string) {
@@ -70,14 +70,17 @@ export async function projectFor(v: Viewer, projectId: string) {
     where p.id = ${projectId} and p.client_id = ${v.clientId} and p.status = 'published' and p.archived_at is null
       and (p.expires_at is null or p.expires_at > now()) ${v.kind === 'guest' ? sql`and p.id = ${v.projectId}` : sql``}`;
   if (!p) return null;
-  const [people, assets] = await Promise.all([
+  const [people, assets, albums] = await Promise.all([
     sql<{ name: string }[]>`select u.name from project_members m join users u on u.id = m.user_id where m.project_id = ${projectId} order by u.name`,
     sql<PortalAsset[]>`
-      select a.id, a.original_name, a.section, a."group", a.width, a.height, a.size::float8 as size, a.duration, a.taken_at, a.thumbhash, a.renditions, a.capture_source
+      select a.id, a.original_name, a.section, a."group", a.width, a.height, a.size::float8 as size, a.duration, a.taken_at, a.thumbhash, a.renditions, a.capture_source, a.album_id
       from assets a where a.project_id = ${projectId} and ${visibleAssets(v, allowRaw)}
       order by a.sort_order, a.taken_at nulls last, a.original_name`,
+    // only albums with something this viewer can see: an empty tab is noise
+    sql<{ id: string; name: string }[]>`select al.id, al.name from project_albums al where al.project_id = ${projectId}
+      and exists (select 1 from assets a where a.album_id = al.id and ${visibleAssets(v, allowRaw)}) order by al.sort_order, al.created_at`,
   ]);
-  return { project: p, photographers: people.map((x) => x.name), assets, allowRaw };
+  return { project: p, photographers: people.map((x) => x.name), assets, albums, allowRaw };
 }
 
 /** One visible asset for this viewer (or null) — used by the viewer, the player and the downloads. */
@@ -105,7 +108,7 @@ export function toView(a: PortalAsset): ViewAsset {
   return {
     id: a.id, name: a.original_name, section: a.section, group: a.group, w: a.width ?? 0, h: a.height ?? 0, size: a.renditions.edited?.size ?? a.size,
     duration: a.duration, taken: a.taken_at, hash: a.thumbhash, widths: (a.renditions.images ?? []).map((i) => i.w),
-    web: !!(a.section === 'photos' ? a.renditions.web : a.renditions.mp4_1080), quality: qualityOf(a),
+    web: !!(a.section === 'photos' ? a.renditions.web : a.renditions.mp4_1080), quality: qualityOf(a), album: a.album_id ?? null,
   };
 }
 

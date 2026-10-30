@@ -64,6 +64,13 @@
       "when": 1793318238211,
       "tag": "0008_asset_edit",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793342863609,
+      "tag": "0009_albums",
+      "breakpoints": true
     }
   ]
 }

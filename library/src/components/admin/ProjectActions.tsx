@@ -1,12 +1,13 @@
 'use client';
-import { Archive, Link2, Pencil, Upload } from 'lucide-react';
+import { Archive, Link2, Pencil, Trash2, Upload } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { Button } from '@/components/ui';
 import { postJson } from '@/lib/client/api';
-import { ProjectDialog, type ProjectOptions, type ProjectValues } from './ProjectForm';
+import { AdminDialog } from './Dialog';
+import { fetchJson, ProjectDialog, type ProjectOptions, type ProjectValues } from './ProjectForm';
 import { RowMenu } from './RowMenu';
 import { ShareDialog } from './ShareDialog';
 import s from './admin.module.css';
@@ -14,6 +15,8 @@ import s from './admin.module.css';
 export interface ProjectInfo {
   id: string; title: string; status: string; archived: boolean; clientId: string; clientName: string;
   defaultDays: number; hasEmail: boolean; readyCount: number; timeZone: string;
+  /** every file in the project (for the delete confirmation) */
+  assetCount?: number;
 }
 
 export function ProjectActions({ admin, project, edit }: { admin: boolean; project: ProjectInfo; edit: { options: ProjectOptions; values: ProjectValues } }) {
@@ -22,6 +25,7 @@ export function ProjectActions({ admin, project, edit }: { admin: boolean; proje
   const [busy, setBusy] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function bulk(action: 'publish' | 'archive' | 'unarchive') {
     setBusy(true); setMsg(null);
@@ -47,7 +51,10 @@ export function ProjectActions({ admin, project, edit }: { admin: boolean; proje
           {project.status !== 'published' ? (
             <Button variant="primary" icon={<Upload size={16} />} isDisabled={busy || project.readyCount === 0} onPress={() => void bulk('publish')}>{t('project.publish')}</Button>
           ) : null}
+          <Button variant="ghost" icon={<Trash2 size={16} />} onPress={() => setDeleting(true)} data-testid="delete-project">{t('project.delete')}</Button>
           <ShareDialog open={shareOpen} onOpenChange={(v) => { setShareOpen(v); if (!v) router.refresh(); }} project={project} />
+          <DeleteProjectsDialog open={deleting} onOpenChange={setDeleting} ids={[project.id]} title={project.title} files={project.assetCount ?? 0}
+            onDone={() => { router.push('/admin/archive'); router.refresh(); }} />
         </>
       ) : null}
     </>
@@ -81,5 +88,45 @@ export function LinkRowActions({ id, code }: { id: string; code: string | null }
         } },
       ]} />
     </span>
+  );
+}
+
+/**
+ * The admin's «حذف المشروع» (one, or several from the archive's selection): says what goes — every file, the
+ * albums, the project's own links and the clients' notes — and asks for a tick before the red button works.
+ */
+export function DeleteProjectsDialog({ open, onOpenChange, ids, title, files, onDone }: {
+  open: boolean; onOpenChange: (v: boolean) => void; ids: string[]; title?: string; files?: number; onDone: (n: number) => void;
+}) {
+  const t = useTranslations('admin');
+  const [sure, setSure] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  async function go() {
+    setBusy(true); setErr(null);
+    const r = ids.length === 1
+      ? await fetchJson(`/api/admin/projects/${ids[0]}`, 'DELETE')
+      : await postJson<{ changed?: number }>('/api/admin/projects/bulk', { ids, action: 'delete' });
+    setBusy(false);
+    if (!r.ok) { setErr(t('common.error')); return; }
+    setSure(false);
+    onOpenChange(false);
+    onDone(ids.length === 1 ? 1 : Number((r.data as { changed?: number }).changed ?? ids.length));
+  }
+  return (
+    <AdminDialog open={open} onOpenChange={(v) => { if (!v) { setSure(false); setErr(null); } onOpenChange(v); }}
+      title={ids.length === 1 && title ? t('project.deleteTitle', { title }) : t('project.deleteTitleN', { n: ids.length })}
+      subtitle={files !== undefined && ids.length === 1 ? t('project.deleteBody', { n: files }) : t('project.deleteBodyN')}
+      closeLabel={t('common.close')} testId="delete-project-dialog">
+      <label className={s.checkRow}>
+        <input type="checkbox" className={s.checkbox} checked={sure} onChange={(e) => setSure(e.target.checked)} data-testid="delete-sure" />
+        {t('project.deleteSure')}
+      </label>
+      {err ? <p className={s.formMsg} data-kind="error" role="alert">{err}</p> : null}
+      <div className={s.actions} style={{ justifyContent: 'flex-end' }}>
+        <Button variant="secondary" onPress={() => onOpenChange(false)}>{t('common.cancel')}</Button>
+        <Button variant="danger" icon={<Trash2 size={16} />} isDisabled={!sure || busy} onPress={() => void go()}>{t('project.deleteConfirm')}</Button>
+      </div>
+    </AdminDialog>
   );
 }

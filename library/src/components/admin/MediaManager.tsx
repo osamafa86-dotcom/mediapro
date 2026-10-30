@@ -2,7 +2,7 @@
 import { closestCenter, DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { CheckCircle2, ChevronLeft, ChevronRight, Circle, Crop, Download, ImageIcon, Loader, Star, Trash2, TriangleAlert, X } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, ChevronRight, Circle, Crop, Download, FolderInput, ImageIcon, Loader, Star, Trash2, TriangleAlert, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -34,8 +34,12 @@ export interface ManagedAsset extends TileAsset {
  * elsewhere (the client sees this order), let go without moving for its menu; a right click opens the menu too.
  * «تحديد» switches the grid to selecting (a tap ticks), with the bulk actions. Keyboard users reorder from «⋯».
  */
-export function MediaManager({ projectId, section, items, coverId, digits, canReorder }: {
+export function MediaManager({ projectId, section, albumId = null, albums = [], items, coverId, digits, canReorder }: {
   projectId: string; section: 'photos' | 'videos'; items: ManagedAsset[]; coverId: string | null; digits: Digits; canReorder: boolean;
+  /** an album tab: every file in it, photos and videos together (`section` is then only the fallback for the order call) */
+  albumId?: string | null;
+  /** where «نقل إلى…» can send files: the project's albums (the main sections are always offered) */
+  albums?: { id: string; name: string }[];
 }) {
   const t = useTranslations('admin.media');
   const tc = useTranslations('admin.common');
@@ -51,6 +55,7 @@ export function MediaManager({ projectId, section, items, coverId, digits, canRe
   const [editing, setEditing] = useState<string | null>(null);
   const [selecting, setSelecting] = useState(false);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  const [moving, setMoving] = useState<string[] | null>(null);
   const justDragged = useRef(0);
   const pending = items.some((a) => a.edit?.state === 'pending');
   // an edit renders in the worker: look again every few seconds until it is swapped in
@@ -70,7 +75,10 @@ export function MediaManager({ projectId, section, items, coverId, digits, canRe
 
   const byId = useMemo(() => new Map(items.map((a) => [a.id, a])), [items]);
   const list = order.map((id) => byId.get(id)).filter((a): a is ManagedAsset => !!a);
-  const openable = list.filter((a) => a.status === 'ready' && (section === 'videos' ? !!a.renditions.hls : a.view.widths.length > 0));
+  const openable = list.filter((a) => a.status === 'ready' && (a.section === 'videos' ? !!a.renditions.hls : a.view.widths.length > 0));
+  // in an album photos and videos sit together: the photo viewer pages through the photos, the player through the videos
+  const openPhotos = openable.filter((a) => a.section === 'photos');
+  const openVideos = openable.filter((a) => a.section === 'videos');
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
@@ -80,7 +88,7 @@ export function MediaManager({ projectId, section, items, coverId, digits, canRe
 
   async function saveOrder(next: string[], before: string[]) {
     setOrder(next);
-    const r = await fetchJson(`/api/admin/projects/${projectId}/order`, 'PUT', { section, ids: next });
+    const r = await fetchJson(`/api/admin/projects/${projectId}/order`, 'PUT', { section, albumId, ids: next });
     if (r.ok) { setNote({ kind: 'ok', text: t('orderSaved') }); return; }
     setOrder(before);
     setNote({ kind: 'error', text: r.data.error === 'stale_order' ? t('stale') : tc('error') });
@@ -134,6 +142,19 @@ export function MediaManager({ projectId, section, items, coverId, digits, canRe
     router.refresh();
   }
 
+  async function moveTo(ids: string[], target: string | null) {
+    setBusy(true);
+    const r = await postJson<{ moved?: number }>('/api/admin/assets/move', { ids, albumId: target });
+    setBusy(false);
+    setMoving(null);
+    if (!r.ok) { setNote({ kind: 'error', text: tc('error') }); return; }
+    const where = target ? albums.find((x) => x.id === target)?.name ?? '' : t('mainSections');
+    setNote({ kind: 'ok', text: t('moved', { n: r.data.moved ?? ids.length, where }) });
+    setSelected(new Set());
+    setSelecting(false);
+    router.refresh();
+  }
+
   const toggle = (id: string) => setSelected((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const sel = [...selected];
   const selDeletable = sel.length > 0 && sel.every((id) => byId.get(id)?.deletable);
@@ -146,7 +167,7 @@ export function MediaManager({ projectId, section, items, coverId, digits, canRe
       ...(openable.some((x) => x.id === a.id) ? [{ id: 'open', label: t('open'), onAction: () => setViewing(a.id) }] : []),
       ...(editable(a) ? [{ id: 'edit', label: t('edit.menu'), onAction: () => setEditing(a.id) }] : []),
       { id: 'select', label: t('selectThis'), onAction: () => { setSelecting(true); setSelected((p) => new Set(p).add(a.id)); } },
-      ...(section === 'photos' && ready
+      ...(a.section === 'photos' && ready
         ? [cover === a.id ? { id: 'uncover', label: t('uncover'), onAction: () => void makeCover(null) } : { id: 'cover', label: t('makeCover'), onAction: () => void makeCover(a.id) }]
         : []),
       ...(canReorder ? [
@@ -154,13 +175,15 @@ export function MediaManager({ projectId, section, items, coverId, digits, canRe
         ...(i > 0 ? [{ id: 'start', label: t('toStart'), onAction: () => move([a.id], 'start') }, { id: 'up', label: t('stepUp'), onAction: () => move([a.id], 'up') }] : []),
         ...(i < order.length - 1 ? [{ id: 'down', label: t('stepDown'), onAction: () => move([a.id], 'down') }, { id: 'end', label: t('toEnd'), onAction: () => move([a.id], 'end') }] : []),
       ] : []),
+      ...(canReorder ? ['separator' as const, { id: 'move', label: t('moveTo'), onAction: () => setMoving([a.id]) }] : []),
       'separator' as const,
       { id: 'download', label: t('downloadOriginal'), onAction: () => download(a.id) },
       ...(a.deletable ? [{ id: 'delete', label: t('delete'), danger: true, onAction: () => setConfirm([a.id]) }] : []),
     ];
   };
 
-  const viewIndex = viewing ? openable.findIndex((a) => a.id === viewing) : -1;
+  const viewingKind = viewing ? byId.get(viewing)?.section : undefined;
+  const viewIndex = viewing ? (viewingKind === 'videos' ? openVideos : openPhotos).findIndex((a) => a.id === viewing) : -1;
   const active = dragging ? byId.get(dragging) : null;
 
   return (
@@ -169,6 +192,7 @@ export function MediaManager({ projectId, section, items, coverId, digits, canRe
         <div className={s.selectionBar} role="region" aria-label={t('selection')} data-testid="media-selection">
           <strong>{selected.size ? t('selected', { n: selected.size }) : t('pickItems')}</strong>
           {canReorder && sel.length ? <Button variant="secondary" onPress={() => move(sel, 'start')}>{t('toStart')}</Button> : null}
+          {canReorder && sel.length ? <Button variant="secondary" icon={<FolderInput size={16} />} onPress={() => setMoving(sel)} data-testid="move-selected">{t('moveTo')}</Button> : null}
           {selDeletable ? <Button variant="secondary" icon={<Trash2 size={16} />} onPress={() => setConfirm(sel)}>{t('delete')}</Button> : null}
           <button type="button" className={s.textBtn} onClick={() => setSelected(selected.size === order.length ? new Set() : new Set(order))}>
             {selected.size === order.length ? t('clear') : t('selectAll')}
@@ -205,9 +229,9 @@ export function MediaManager({ projectId, section, items, coverId, digits, canRe
         <DragOverlay>{active ? <div className={s.dragGhost}><MediaTile a={active} /></div> : null}</DragOverlay>
       </DndContext>
 
-      {viewIndex >= 0 && section === 'photos' ? (
-        <PhotoViewer items={openable.map((a) => a.view)} index={viewIndex} canDownload digits={digits} onClose={() => setViewing(null)}
-          onIndex={(i) => setViewing(openable[i]?.id ?? null)}
+      {viewIndex >= 0 && viewingKind === 'photos' ? (
+        <PhotoViewer items={openPhotos.map((a) => a.view)} index={viewIndex} canDownload digits={digits} onClose={() => setViewing(null)}
+          onIndex={(i) => setViewing(openPhotos[i]?.id ?? null)}
           extraButtons={(cur) => {
             const a = byId.get(cur.id);
             return [
@@ -227,8 +251,8 @@ export function MediaManager({ projectId, section, items, coverId, digits, canRe
             ];
           }} />
       ) : null}
-      {viewIndex >= 0 && section === 'videos' ? (
-        <VideoViewer items={openable} index={viewIndex} onIndex={(i) => setViewing(openable[i]!.id)} onClose={() => setViewing(null)}
+      {viewIndex >= 0 && viewingKind === 'videos' ? (
+        <VideoViewer items={openVideos} index={viewIndex} onIndex={(i) => setViewing(openVideos[i]!.id)} onClose={() => setViewing(null)}
           onDelete={(id) => setConfirm([id])} />
       ) : null}
 
@@ -239,6 +263,19 @@ export function MediaManager({ projectId, section, items, coverId, digits, canRe
             onSaved={(text) => { setEditing(null); setNote({ kind: 'ok', text }); router.refresh(); }} />
         );
       })() : null}
+
+      <AdminDialog open={!!moving} onOpenChange={(o) => { if (!o) setMoving(null); }} title={t('moveTitle', { n: moving?.length ?? 0 })}
+        subtitle={t('moveBody')} closeLabel={tc('close')} testId="move-dialog">
+        <ul className={s.moveList}>
+          {albumId ? (
+            <li><button type="button" disabled={busy} onClick={() => void moveTo(moving ?? [], null)}><ImageIcon size={18} aria-hidden />{t('mainSections')}</button></li>
+          ) : null}
+          {albums.filter((x) => x.id !== albumId).map((x) => (
+            <li key={x.id}><button type="button" disabled={busy} onClick={() => void moveTo(moving ?? [], x.id)}><FolderInput size={18} aria-hidden /><bdi>{x.name}</bdi></button></li>
+          ))}
+        </ul>
+        {!albums.some((x) => x.id !== albumId) && !albumId ? <p className={`${s.small} ${s.muted}`}>{t('noAlbums')}</p> : null}
+      </AdminDialog>
 
       <AdminDialog open={!!confirm} onOpenChange={(o) => { if (!o) setConfirm(null); }} title={t('confirmTitle', { n: confirm?.length ?? 0 })}
         subtitle={t('confirmBody')} closeLabel={tc('close')} testId="delete-dialog">

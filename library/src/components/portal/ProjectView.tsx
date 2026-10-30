@@ -1,6 +1,6 @@
 'use client';
 import justifiedLayout from 'justified-layout';
-import { Check, Download, Film, Heart, Image as ImageIcon, Video, X } from 'lucide-react';
+import { Check, Download, Film, Folder, Heart, Image as ImageIcon, Video, X } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
@@ -20,20 +20,25 @@ export interface ViewAsset {
   id: string; name: string; section: 'photos' | 'videos'; group: 'final' | 'raw' | 'footage';
   w: number; h: number; size: number; duration: number | null; taken: string | null; hash: string | null;
   widths: number[]; web: boolean; quality: string | null;
+  /** an album of the project («مونتاج», …); null/absent = the main «الصور»/«الفيديو» */
+  album?: string | null;
 }
 
 /** «curated» = the order the studio set by dragging (the server sends sort_order); the default */
 type Sort = 'curated' | 'newest' | 'oldest' | 'name';
 const GROUP_ORDER = ['final', 'footage', 'raw'] as const;
 
-export function ProjectView({ projectId, title, assets, canDownload, guest = false, favourites = [], digits, initial }: {
+export function ProjectView({ projectId, title, assets, canDownload, guest = false, favourites = [], digits, initial, albums = [] }: {
   projectId: string; title: string; assets: ViewAsset[]; canDownload: boolean; guest?: boolean; favourites?: string[]; digits: Digits;
-  initial: { tab: 'photos' | 'videos'; group?: string };
+  /** tab: 'photos' | 'videos' | an album id */
+  initial: { tab: string; group?: string }; albums?: { id: string; name: string }[];
 }) {
   const t = useTranslations('portal');
   const locale = useLocale() as Locale;
   const size = (b: number) => ltr(formatBytes(b, locale, digits));
-  const [tab, setTab] = useState<'photos' | 'videos'>(initial.tab);
+  const [tab, setTab] = useState<string>(initial.tab);
+  const album = albums.find((x) => x.id === tab) ?? null;
+  const inView = (a: ViewAsset, k: string) => (k === 'photos' || k === 'videos' ? a.section === k && !a.album : a.album === k);
   const [sort, setSort] = useState<Sort>('curated');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [viewing, setViewing] = useState<number | null>(null);
@@ -49,7 +54,7 @@ export function ProjectView({ projectId, title, assets, canDownload, guest = fal
   const q = useSearchParams().get('q') ?? '';
   const toks = searchTokens(q);
   const found = toks.length ? assets.filter((a) => { const k = normalizeSearch(a.name); return toks.every((tk) => k.includes(tk)); }) : assets;
-  const inTab = found.filter((a) => a.section === tab);
+  const inTab = found.filter((a) => inView(a, tab));
   const groups = GROUP_ORDER.filter((g) => inTab.some((a) => a.group === g));
   const [groupState, setGroup] = useState<string | undefined>(initial.group);
   const group = groupState && groups.includes(groupState as never) ? groupState : groups[0];
@@ -69,15 +74,19 @@ export function ProjectView({ projectId, title, assets, canDownload, guest = fal
   const total = (list: ViewAsset[]) => list.reduce((n, a) => n + a.size, 0);
   const sel = assets.filter((a) => selected.has(a.id));
   const toggle = (id: string) => setSelected((cur) => { const n = new Set(cur); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const count = (sec: 'photos' | 'videos') => found.filter((a) => a.section === sec).length;
+  const count = (k: string) => found.filter((a) => inView(a, k)).length;
+  // an album holds photos and videos: the photos in the justified grid, then the videos
+  const shownPhotos = shown.filter((a) => a.section === 'photos');
+  const shownVideos = shown.filter((a) => a.section === 'videos');
 
   return (
     <>
       <div className={s.toolbar}>
-        <SegmentTab label={t('sectionsLabel')} selected={tab} onChange={(id) => { setTab(id as 'photos' | 'videos'); setGroup(undefined); }}
+        <SegmentTab label={t('sectionsLabel')} selected={tab} onChange={(id) => { setTab(id); setGroup(undefined); setFavOnly(false); }}
           items={[
             { id: 'photos', label: <span className={s.meta} style={{ color: 'inherit' }}><ImageIcon size={16} aria-hidden />{t('photos')}</span>, count: count('photos') },
             { id: 'videos', label: <span className={s.meta} style={{ color: 'inherit' }}><Video size={16} aria-hidden />{t('videos')}</span>, count: count('videos') },
+            ...albums.map((x) => ({ id: x.id, label: <span className={s.meta} style={{ color: 'inherit' }}><Folder size={16} aria-hidden /><bdi>{x.name}</bdi></span>, count: count(x.id) })),
           ]} />
         {groups.length > 1 || (!guest && inTab.some((a) => favs.has(a.id))) ? (
           <div className={s.chips} role="group" aria-label={t('groupsLabel')}>
@@ -94,7 +103,9 @@ export function ProjectView({ projectId, title, assets, canDownload, guest = fal
         <div className={s.toolEnd}>
           {canDownload && shown.length && group && !favOnly ? (
             <button type="button" className={s.linkBtn} disabled={dl.busy} data-testid="download-group"
-              onClick={() => dl.bulk({ projectId, section: tab, group, label: `${title} - ${t(tab)} - ${t(`group.${group}`)}` })}>
+              onClick={() => dl.bulk(album
+                ? { projectId, ids: shown.map((a) => a.id), label: `${title} - ${album.name} - ${t(`group.${group}`)}` }
+                : { projectId, section: tab as 'photos' | 'videos', group, label: `${title} - ${t(tab as 'photos')} - ${t(`group.${group}`)}` })}>
               <Download size={16} aria-hidden />{t('downloadGroup', { group: t(`group.${group}`), size: size(total(shown)) })}
             </button>
           ) : null}
@@ -107,17 +118,24 @@ export function ProjectView({ projectId, title, assets, canDownload, guest = fal
 
       {shown.length === 0 ? (
         <section className={s.empty} data-testid={toks.length ? 'search-empty' : undefined}>
-          <span className={s.emptyIcon} aria-hidden>{tab === 'photos' ? <ImageIcon size={22} /> : <Film size={22} />}</span>
+          <span className={s.emptyIcon} aria-hidden>{album ? <Folder size={22} /> : tab === 'photos' ? <ImageIcon size={22} /> : <Film size={22} />}</span>
           {toks.length ? (
             <><h2 className="t-heading">{t('search.none', { q })}</h2><p className={s.muted}>{t('search.hint')}</p></>
-          ) : <p className={s.muted}>{t(tab === 'photos' ? 'emptyPhotos' : 'emptyVideos')}</p>}
+          ) : <p className={s.muted}>{t(album ? 'emptyAlbum' : tab === 'photos' ? 'emptyPhotos' : 'emptyVideos')}</p>}
         </section>
-      ) : tab === 'photos' ? (
-        <Justified items={shown} selected={selected} canSelect={canDownload} selecting={selected.size > 0} avif={!guest} favs={favs}
-          onOpen={(i) => setViewing(i)} onToggle={toggle} />
-      ) : (
+      ) : null}
+      {shownPhotos.length ? (
+        <>
+          {album && shownVideos.length ? <h2 className={s.albumPart}><ImageIcon size={16} aria-hidden />{t('photos')}</h2> : null}
+          <Justified items={shownPhotos} selected={selected} canSelect={canDownload} selecting={selected.size > 0} avif={!guest} favs={favs}
+            onOpen={(i) => setViewing(i)} onToggle={toggle} />
+        </>
+      ) : null}
+      {shownVideos.length ? (
+        <>
+        {album && shownPhotos.length ? <h2 className={s.albumPart}><Video size={16} aria-hidden />{t('videos')}</h2> : null}
         <ul className={s.vgrid} data-testid="video-grid">
-          {shown.map((a) => (
+          {shownVideos.map((a) => (
             <li key={a.id} className={`${s.vcard} ${s.cell}`} data-asset-id={a.id} data-selected={selected.has(a.id)}>
               <Link href={`/p/${projectId}/v/${a.id}`} className={s.vthumb} data-selected={selected.has(a.id)} style={bg(a.hash)} aria-label={a.name}>
                 {/* eslint-disable-next-line @next/next/no-img-element -- authorized /m route */}
@@ -131,10 +149,11 @@ export function ProjectView({ projectId, title, assets, canDownload, guest = fal
             </li>
           ))}
         </ul>
-      )}
+        </>
+      ) : null}
 
       {viewing !== null ? (
-        <PhotoViewer items={shown} index={viewing} canDownload={canDownload} canNote={!guest} favs={favs} onFav={setFav} digits={digits} onClose={() => setViewing(null)} />
+        <PhotoViewer items={shownPhotos} index={viewing} canDownload={canDownload} canNote={!guest} favs={favs} onFav={setFav} digits={digits} onClose={() => setViewing(null)} />
       ) : null}
 
       {favOnly && selected.size === 0 && canDownload && shown.length ? (
