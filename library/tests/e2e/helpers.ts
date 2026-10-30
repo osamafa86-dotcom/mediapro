@@ -30,10 +30,10 @@ export async function mails(): Promise<{ to: string; subject: string; text: stri
 }
 
 /** Upload a real file through the M3 flow (open → signed part PUT → signed complete → app complete): the browser's work, over HTTP. */
-export async function uploadFile(c: APIRequestContext, projectId: string, path: string, opts: { mime: string; group?: string }) {
+export async function uploadFile(c: APIRequestContext, projectId: string, path: string, opts: { mime: string; group?: string; albumId?: string }) {
   const bytes = await readFile(path);
   const name = path.split('/').pop()!;
-  const o = await write(c, 'POST', '/api/uploads', { projectId, filename: name, size: bytes.length, mime: opts.mime, group: opts.group, fingerprint: `fx-${name}-${Date.now()}-${Math.random()}` });
+  const o = await write(c, 'POST', '/api/uploads', { projectId, filename: name, size: bytes.length, mime: opts.mime, group: opts.group, albumId: opts.albumId, fingerprint: `fx-${name}-${Date.now()}-${Math.random()}` });
   expect(o.status(), await o.text()).toBe(200);
   const u = (await o.json()) as { id: string; key: string; uploadId: string };
   const sign = async (body: Record<string, unknown>) => ((await (await write(c, 'POST', '/api/uploads/sign', { key: u.key, uploadId: u.uploadId, ...body })).json()) as { url: string }).url;

@@ -31,7 +31,11 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const guest = viewer.kind === 'guest';
   const canDownload = !guest && viewer.allowDownload;
   const bytes = assets.reduce((n, a) => n + a.size, 0);
-  const tab = q.tab === 'videos' || (q.tab !== 'photos' && !assets.some((a) => a.section === 'photos') && assets.length) ? 'videos' : 'photos';
+  const main = assets.filter((a) => !a.album_id);
+  // the first tab with something in it: photos, then videos, then the first album
+  const tab = data.albums.some((x) => x.id === q.tab) ? q.tab!
+    : q.tab === 'videos' || q.tab === 'photos' ? q.tab
+    : main.some((a) => a.section === 'photos') ? 'photos' : main.length ? 'videos' : data.albums[0]?.id ?? 'photos';
   return (
     <div className={s.shell}>
       <PortalHeader org={org} project={{ title: p.title }} library={!guest} search="project" />
@@ -54,6 +58,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           ) : null}
         </div>
         <ProjectView projectId={p.id} title={p.title} assets={assets.map(toView)} canDownload={canDownload} guest={guest} favourites={favourites} digits={region.digits}
+          albums={data.albums}
           initial={{ tab, group: q.group }} />
       </main>
     </div>

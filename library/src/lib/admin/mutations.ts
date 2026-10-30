@@ -38,6 +38,41 @@ async function inboxClient(): Promise<string> {
   return c!.id;
 }
 
+/** What was typed into «اسم المشروع»/«نوع المشروع» joins the saved lists, offered next time. */
+async function rememberPresets(staff: Staff, title?: string | null, type?: string | null) {
+  const sql = getSql();
+  for (const [kind, value] of [['title', title], ['type', type]] as const) {
+    const v = value?.trim();
+    if (v) await sql`insert into project_presets (kind, value, created_by) values (${kind}, ${v}, ${staff.id}) on conflict do nothing`;
+  }
+}
+
+export const PresetInput = z.object({ kind: z.enum(['title', 'type']), value: z.string().trim().min(1).max(200) });
+
+/** Removes a saved choice (not from any project): the admin any, a team member only one they added. */
+export async function removePreset(staff: Staff, p: z.infer<typeof PresetInput>) {
+  const sql = getSql();
+  const rows = staff.role === 'admin'
+    ? await sql`delete from project_presets where kind = ${p.kind} and value = ${p.value} returning 1`
+    : await sql`delete from project_presets where kind = ${p.kind} and value = ${p.value} and created_by = ${staff.id} returning 1`;
+  if (!rows.length) throw new HttpError(404, 'not_found');
+}
+
+/**
+ * The saved lists for the form. Types are shared by everyone; names too for the admin, while a team member gets
+ * the names they added or that their own projects carry (a name can name a client, which team roles never see).
+ */
+export async function projectPresets(staff: Staff) {
+  const sql = getSql();
+  const rows = await sql<{ kind: 'title' | 'type'; value: string; mine: boolean }[]>`
+    select kind, value, created_by = ${staff.id} as mine from project_presets
+    where kind = 'type' or ${staff.role === 'admin'}::boolean or created_by = ${staff.id}
+      or value in (select p.title from projects p join project_members m on m.project_id = p.id where m.user_id = ${staff.id})
+    order by value`;
+  const pick = (k: 'title' | 'type') => rows.filter((r) => r.kind === k).map((r) => ({ value: r.value, removable: staff.role === 'admin' || r.mine }));
+  return { titles: pick('title'), types: pick('type') };
+}
+
 export async function createProject(staff: Staff, input: z.infer<typeof ProjectInput>) {
   if (!(await can(staff.role, 'createProject'))) throw new HttpError(403, 'forbidden');
   const sql = getSql();
@@ -51,7 +86,7 @@ export async function createProject(staff: Staff, input: z.infer<typeof ProjectI
     for (const m of members) await tx`insert into project_members (project_id, user_id) select ${p!.id}, id from users where id = ${m} and role <> 'admin' on conflict do nothing`;
     await tx`insert into audit_log (actor_type, actor_id, action, target_type, target_id) values ('user', ${staff.id}, 'project.created', 'project', ${p!.id})`;
     return p!.id;
-  });
+  }).then(async (id) => { await rememberPresets(staff, input.title, input.type); return id; });
 }
 
 export async function updateProject(staff: Staff, id: string, input: Partial<z.infer<typeof ProjectInput>>) {
@@ -71,18 +106,20 @@ export async function updateProject(staff: Staff, id: string, input: Partial<z.i
       for (const m of input.memberIds!) await tx`insert into project_members (project_id, user_id) select ${id}, id from users where id = ${m} and role <> 'admin' on conflict do nothing`;
     });
   }
+  await rememberPresets(staff, input.title, input.type);
   await audit('user', staff.id, 'project.updated', { type: 'project', id });
 }
 
 export const BulkInput = z.object({
   ids: z.array(uuid).min(1).max(500),
-  action: z.enum(['publish', 'extend', 'archive', 'unarchive']),
+  action: z.enum(['publish', 'extend', 'archive', 'unarchive', 'delete']),
   days: z.number().int().min(1).max(730).optional(),
 });
 
 /** Admin only. Returns how many projects actually changed (drafts with no media are not published). */
 export async function bulkProjects(staff: Staff, b: z.infer<typeof BulkInput>): Promise<number> {
   if (staff.role !== 'admin') throw new HttpError(403, 'forbidden');
+  if (b.action === 'delete') throw new HttpError(400, 'use_delete_projects'); // the route sends it to deleteProjects
   const sql = getSql();
   let rows: { id: string }[] = [];
   if (b.action === 'publish') {

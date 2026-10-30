@@ -21,6 +21,14 @@ describe('zipNames', () => {
     ], F);
     expect(n).toEqual(['الصور/نهائي/DSC_1.jpg', 'الصور/نهائي/dsc_1 (2).jpg', 'الصور/نهائي/DSC_1 (3).jpg', 'الصور/خام/DSC_1.jpg']);
   });
+  it('puts an album’s files under the album’s name, and its name cannot climb out either', () => {
+    expect(zipNames([
+      { section: 'photos', group: 'final', original_name: 'a.jpg', album: 'مونتاج' },
+      { section: 'videos', group: 'final', original_name: 'b.mp4', album: 'مونتاج' },
+      { section: 'photos', group: 'final', original_name: 'c.jpg', album: '../x' },
+      { section: 'photos', group: 'final', original_name: 'd.jpg', album: null },
+    ], F)).toEqual(['مونتاج/نهائي/a.jpg', 'مونتاج/نهائي/b.mp4', '_ x/نهائي/c.jpg', 'الصور/نهائي/d.jpg']);
+  });
   it('never lets a name climb out of its folder', () => {
     const [a, b, c] = zipNames([
       { section: 'photos', group: 'final', original_name: '../../etc/passwd' },

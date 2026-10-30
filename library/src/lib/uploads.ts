@@ -32,12 +32,14 @@ export const OpenInput = z.object({
   lastModified: z.number().int().optional(),
   /** «رفع نسخة معدّلة»: this file replaces that asset when it completes (same project, same section) */
   replaces: z.string().uuid().optional(),
+  /** an album of the project («مونتاج», …); absent/null = the main «الصور»/«الفيديو» */
+  albumId: z.string().uuid().nullish(),
 });
 
 interface UploadRow {
   id: string; project_id: string; user_id: string; s3_upload_id: string; key: string; filename: string; size: string;
   mime: string; section: 'photos' | 'videos'; group: 'final' | 'raw' | 'footage'; status: string; part_size: number; asset_id: string | null;
-  replaces_asset_id: string | null;
+  replaces_asset_id: string | null; album_id: string | null;
 }
 
 async function mayUpload(staff: Staff, projectId: string) {
@@ -57,11 +59,16 @@ export async function openUpload(staff: Staff, input: z.infer<typeof OpenInput>)
   let c = classify(input.filename, input.group);
   if (!c) throw new HttpError(415, 'unsupported_type');
   const sql = getSql();
+  let albumId = input.albumId ?? null;
+  if (albumId && !(await sql`select 1 from project_albums where id = ${albumId} and project_id = ${input.projectId}`).length) {
+    throw new HttpError(404, 'album_not_found');
+  }
   if (input.replaces) {
-    // a revised version lands in the old one's place: same project, same section, same group
-    const [old] = await sql<{ section: 'photos' | 'videos'; group: 'final' | 'raw' | 'footage'; replaced_by: string | null }[]>`
-      select section, "group", replaced_by from assets where id = ${input.replaces} and project_id = ${input.projectId}`;
+    // a revised version lands in the old one's place: same project, same section, same group, same album
+    const [old] = await sql<{ section: 'photos' | 'videos'; group: 'final' | 'raw' | 'footage'; replaced_by: string | null; album_id: string | null }[]>`
+      select section, "group", replaced_by, album_id from assets where id = ${input.replaces} and project_id = ${input.projectId}`;
     if (!old) throw new HttpError(404, 'not_found');
+    albumId = old.album_id;
     if (old.replaced_by) throw new HttpError(409, 'already_replaced');
     if (old.section !== c.section) throw new HttpError(415, 'section_mismatch');
     c = { ...c, group: c.raw ? 'raw' : old.group === 'raw' ? 'final' : old.group };
@@ -76,9 +83,9 @@ export async function openUpload(staff: Staff, input: z.infer<typeof OpenInput>)
   const created = await s3().send(new CreateMultipartUploadCommand({ Bucket: bucket(), Key: key, ContentType: mime }));
   if (!created.UploadId) throw new HttpError(502, 'storage_unavailable');
   const [row] = await sql<UploadRow[]>`
-    insert into uploads (project_id, user_id, s3_upload_id, key, filename, size, mime, fingerprint, section, "group", part_size, replaces_asset_id)
+    insert into uploads (project_id, user_id, s3_upload_id, key, filename, size, mime, fingerprint, section, "group", part_size, replaces_asset_id, album_id)
     values (${input.projectId}, ${staff.id}, ${created.UploadId}, ${key}, ${input.filename}, ${input.size}, ${mime}, ${input.fingerprint},
-      ${c.section}, ${c.group}, ${partSizeFor(input.size)}, ${input.replaces ?? null})
+      ${c.section}, ${c.group}, ${partSizeFor(input.size)}, ${input.replaces ?? null}, ${albumId})
     returning *`;
   await sql`update projects set status = 'uploading', updated_at = now() where id = ${input.projectId} and status = 'draft'`;
   return { ...view(row!), resumed: false };
@@ -133,15 +140,16 @@ export async function finishUpload(staff: Staff, id: string) {
   }
   return sql.begin(async (tx) => {
     const [a] = await tx<{ id: string }[]>`
-      insert into assets (project_id, section, "group", r2_key, original_name, mime, size, uploaded_by, status, sort_order)
+      insert into assets (project_id, section, "group", r2_key, original_name, mime, size, uploaded_by, status, sort_order, album_id)
       values (${row.project_id}, ${row.section}, ${row.group}, ${row.key}, ${row.filename}, ${row.mime}, ${row.size}, ${staff.id}, 'processing',
-        (select coalesce(max(sort_order), 0) + 1 from assets where project_id = ${row.project_id}))
+        (select coalesce(max(sort_order), 0) + 1 from assets where project_id = ${row.project_id}),
+        (select id from project_albums where id = ${row.album_id}))
       returning id`;
     await tx`update uploads set status = 'completed', completed_at = now(), asset_id = ${a!.id} where id = ${id}`;
     if (row.replaces_asset_id) {
       // the revised version takes the old one's place for the client; the old one stays in the record,
       // and its open notes close with a line saying why (DESIGN: «هذا هو المسار الطبيعي لإغلاق ملاحظة»)
-      await tx`update assets set sort_order = o.sort_order, tags = o.tags from assets o where assets.id = ${a!.id} and o.id = ${row.replaces_asset_id}`;
+      await tx`update assets set sort_order = o.sort_order, tags = o.tags, album_id = o.album_id from assets o where assets.id = ${a!.id} and o.id = ${row.replaces_asset_id}`;
       await tx`update assets set replaced_by = ${a!.id} where id = ${row.replaces_asset_id} and replaced_by is null`;
       const open = await tx<{ id: string }[]>`update comments set status = 'resolved', resolved_at = now()
         where asset_id = ${row.replaces_asset_id} and parent_id is null and status <> 'resolved' returning id`;

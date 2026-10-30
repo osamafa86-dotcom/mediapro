@@ -346,7 +346,15 @@
       "newPinShown": "Yeni kod: {pin} — yalnızca bir kez gösterilir.",
       "noProjectsForClient": "Henüz müşteri yok — önce bir müşteri ekleyin.",
       "moreMedia": "ve {n} medya daha.",
-      "upload": "Medya yükle"
+      "upload": "Medya yükle",
+      "delete": "Projeyi sil",
+      "deleteTitle": "«{title}» kalıcı olarak silinsin mi?",
+      "deleteTitleN": "{n, plural, one {1 proje kalıcı olarak silinsin mi?} other {# proje kalıcı olarak silinsin mi?}}",
+      "deleteBody": "{n, plural, =0 {Proje, albümleri ve kendi bağlantıları silinir; geri alınamaz.} one {1 medya depodan kalıcı olarak silinir; projenin albümleri, kendi bağlantıları ve müşteri notları da gider. Geri alınamaz.} other {# medya depodan kalıcı olarak silinir; projenin albümleri, kendi bağlantıları ve müşteri notları da gider. Geri alınamaz.}}",
+      "deleteBodyN": "Seçili projelerin tüm medyası depodan kalıcı olarak silinir; albümleri, kendi bağlantıları ve müşteri notları da gider. Geri alınamaz. Yalnızca gizlemek için «Arşivle»yi kullanın.",
+      "deleteSure": "Silmenin kalıcı olduğunu ve geri getirilemeyeceğini anlıyorum",
+      "deleteConfirm": "Kalıcı olarak sil",
+      "deletedN": "{n, plural, one {1 proje silindi.} other {# proje silindi.}}"
     },
     "share": {
       "title": "Teslim bağlantısı",
@@ -520,7 +528,11 @@
         "deleteNote": "Silme kalıcıdır: dosya depolamadan kaldırılır ve geri gelmez. Yalnızca gizlemek için yönetici projeyi arşivler.",
         "delete": "Medya silme",
         "deleteSub": "Kullanıcı kendi yüklediğini, proje yayınlanmadan önce siler",
-        "own": "Yayından önce kendisininki"
+        "own": "Yayından önce kendisininki",
+        "deleteProject": "Projeyi tamamen silme",
+        "deleteProjectSub": "Proje tüm medyasıyla, kalıcı olarak",
+        "albums": "Projeye albüm ekleme",
+        "albumsSub": "Montaj, ikinci çekim… kendi projelerinde"
       }
     },
     "settings": {
@@ -722,7 +734,45 @@
       "pickItems": "Medya seçin",
       "selectThis": "Seç",
       "notOpenableYet": "Bu medya henüz hazır değil (yükleniyor veya işleniyor); hazır olunca açılır.",
-      "notOpenableFailed": "Bu medya işlenemedi; önizlemesi yok."
+      "notOpenableFailed": "Bu medya işlenemedi; önizlemesi yok.",
+      "moveTo": "Taşı…",
+      "moveTitle": "{n, plural, one {1 medyayı taşı…} other {# medyayı taşı…}}",
+      "moveBody": "Seçtiğiniz albümün sonuna gider; başka hiçbir şey değişmez.",
+      "mainSections": "Fotoğraflar ve videolar (ana)",
+      "moved": "{n, plural, one {1 medya «{where}» albümüne taşındı.} other {# medya «{where}» albümüne taşındı.}}",
+      "noAlbums": "Projede henüz albüm yok. «Fotoğraflar» ve «Videolar»ın yanındaki «Yeni albüm» ile oluşturun."
+    },
+    "albums": {
+      "label": "Proje bölümleri",
+      "new": "Yeni albüm",
+      "newBody": "Bu projenin içinde fotoğraf ve videoları birlikte tutan bir albüm: montaj ya da aynı gün aynı kurum için ikinci bir çekim.",
+      "name": "Albüm adı",
+      "nameHelp": "Müşteri yazdığınız gibi görür.",
+      "suggestions": "Önerilen adlar",
+      "presets": [
+        "Montaj",
+        "İkinci çekim",
+        "Akşam bölümü",
+        "Röportajlar",
+        "Hava çekimleri"
+      ],
+      "create": "Albümü oluştur",
+      "exists": "Projede bu adla bir albüm var.",
+      "rename": "Yeniden adlandır",
+      "delete": "Albümü sil",
+      "deleteTitle": "«{name}» albümü silinsin mi?",
+      "deleteBodyFiles": "{n, plural, one {İçindeki 1 medya «Fotoğraflar» ya da «Videolar»a döner, silinmez.} other {İçindeki # medya «Fotoğraflar» ya da «Videolar»a döner, silinmez.}}",
+      "deleteBodyEmpty": "Albüm boş.",
+      "mixed": "Fotoğraf ve video birlikte",
+      "uploadHere": "Bu albüme yükle",
+      "empty": "Bu albümde henüz medya yok",
+      "emptyHint": "Doğrudan yükleyin ya da «Seç» → «Taşı…» ile «Fotoğraflar»/«Videolar»dan taşıyın."
+    },
+    "presets": {
+      "newValue": "Yeni ad — oluşturunca listeye kaydedilir",
+      "manage": "Listeleri düzenle",
+      "manageBody": "İstemediğiniz önerileri silin. Projelerin kendisi değişmez.",
+      "remove": "«{value}» listeden silinsin"
     }
   },
   "upload": {
@@ -776,7 +826,16 @@
       "m": "{n} dk",
       "h": "{n} sa"
     },
-    "openUpload": "Medya yükle"
+    "openUpload": "Medya yükle",
+    "album": "Albüm",
+    "albumMain": "Fotoğraflar ve videolar (ana)",
+    "albumNew": "+ Yeni albüm…",
+    "albumPlaceholder": "örn. Montaj",
+    "albumNameLabel": "Yeni albümün adı",
+    "albumCreate": "Oluştur",
+    "albumCancel": "Vazgeç",
+    "albumNote": "Fotoğraf ve videolar bu albüme birlikte yüklenir.",
+    "albumExists": "Projede bu adla bir albüm var."
   },
   "media": {
     "processing": "İşleniyor…",
@@ -916,6 +975,7 @@
       "replaced": "Öğe, düzenlenmiş sürümle değiştirildi.",
       "pinN": "Not {n}",
       "jump": "{time} anına git"
-    }
+    },
+    "emptyAlbum": "Bu albümde bir şey yok."
   }
 }

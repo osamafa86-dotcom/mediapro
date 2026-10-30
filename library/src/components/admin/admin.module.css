@@ -456,8 +456,8 @@
 /* Archive as albums: a cover, the counts on it, the title and one quiet line — the table stays one tap away */
 .barEnd { display: inline-flex; align-items: center; gap: var(--space-8); margin-inline-start: auto; }
 .barEnd button { border: 0; font: inherit; font-size: 14px; cursor: pointer; min-block-size: 36px; }
-.segmented a { display: inline-grid; place-items: center; min-inline-size: 36px; min-block-size: 30px; border-radius: calc(var(--radius-control) - 2px); color: var(--color-text-secondary); }
-.segmented a[aria-current='true'] { background: var(--color-bg-surface); color: var(--color-text-primary); box-shadow: 0 1px 2px rgb(0 0 0 / 8%); }
+.barEnd .segmented a { display: inline-grid; place-items: center; min-inline-size: 36px; min-block-size: 30px; border-radius: calc(var(--radius-control) - 2px); color: var(--color-text-secondary); }
+.barEnd .segmented a[aria-current='true'] { background: var(--color-bg-surface); color: var(--color-text-primary); box-shadow: 0 1px 2px rgb(0 0 0 / 8%); }
 .albumsWrap { display: flex; flex-direction: column; gap: var(--space-16); }
 .albumsWrap .pager { border: 0; padding-inline: 0; }
 .albums { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: var(--space-24) var(--space-20); list-style: none; margin: 0; padding: 0; }
@@ -485,3 +485,23 @@
   .albumFoot .albumLink { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .albumCover img { transition: none; } .album:hover .albumCover img { transform: none; } }
+
+/* Albums inside a project: the main sections, then each album, then «ألبوم جديد» */
+.tabsRow { display: flex; align-items: center; gap: var(--space-8); flex-wrap: wrap; }
+.albumTabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-inline-size: 100%; }
+.albumTabs::-webkit-scrollbar { display: none; }
+.albumTabs .tabLink { white-space: nowrap; flex: none; }
+.newAlbum { display: inline-flex; align-items: center; gap: 6px; min-block-size: 36px; padding-inline: var(--space-12); border: 1px dashed var(--color-border-default, var(--color-border-hairline)); border-radius: var(--radius-control); background: none; color: var(--color-text-secondary); font: inherit; font-size: 14px; cursor: pointer; white-space: nowrap; }
+.newAlbum:hover { color: var(--color-text-primary); background: var(--color-bg-component); }
+.albumHead { display: flex; align-items: center; gap: var(--space-12); flex-wrap: wrap; }
+.albumHead h2 { display: inline-flex; align-items: center; gap: var(--space-8); margin: 0; font-size: 18px; }
+.albumHeadEnd { display: inline-flex; align-items: center; gap: var(--space-8); margin-inline-start: auto; }
+.moveList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.moveList button { display: flex; align-items: center; gap: var(--space-12); inline-size: 100%; min-block-size: 44px; padding-inline: var(--space-12); border: 0; border-radius: var(--radius-control); background: var(--color-bg-component); color: var(--color-text-primary); font: inherit; font-size: 15px; cursor: pointer; text-align: start; }
+.moveList button:hover { background: var(--color-bg-component-hover); }
+.presetChip { border: var(--stroke-hairline) solid var(--color-border-hairline); background: var(--color-bg-surface); color: var(--color-text-secondary); border-radius: var(--radius-full); padding: 4px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+.presetChip:hover { color: var(--color-text-primary); background: var(--color-bg-component); }
+.presetList h3 { margin: 0 0 var(--space-8); font-size: 14px; color: var(--color-text-secondary); }
+.presetList ul { list-style: none; margin: 0 0 var(--space-16); padding: 0; display: grid; gap: 2px; max-block-size: 260px; overflow-y: auto; }
+.presetList li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); padding: 4px var(--space-8); border-radius: var(--radius-control); }
+.presetList li:hover { background: var(--color-bg-component); }

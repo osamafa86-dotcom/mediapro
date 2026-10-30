@@ -130,6 +130,28 @@ export const projects = pgTable('projects', {
   index('projects_shot_idx').on(t.shotDate),
 ]);
 
+/**
+ * Albums inside a project beyond «الصور» and «الفيديو» (which stay the files with no album): «مونتاج», a second
+ * documentation the same day, … An album holds photos and videos alike; each file keeps its section (what it is).
+ * Deleting an album returns its files to the main sections (album_id → null), never deletes them.
+ */
+export const projectAlbums = pgTable('project_albums', {
+  id: id(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  sortOrder: real('sort_order').notNull().default(0),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: created(),
+}, (t) => [index('albums_project_idx').on(t.projectId, t.sortOrder)]);
+
+/** Saved choices for the project form («اسم المشروع», «نوع المشروع»): every value saved once is offered again. */
+export const projectPresets = pgTable('project_presets', {
+  kind: text('kind', { enum: ['title', 'type'] }).notNull(),
+  value: text('value').notNull(),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: created(),
+}, (t) => [primaryKey({ columns: [t.kind, t.value] })]);
+
 export const projectMembers = pgTable('project_members', {
   projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -174,6 +196,8 @@ export const assets = pgTable('assets', {
   projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
   section: sectionEnum('section').notNull(),
   group: groupEnum('group').notNull(),
+  /** null = the main «الصور»/«الفيديو» */
+  albumId: uuid('album_id').references(() => projectAlbums.id, { onDelete: 'set null' }),
   r2Key: text('r2_key').notNull(),
   originalName: text('original_name').notNull(),
   mime: text('mime').notNull(),
@@ -216,6 +240,7 @@ export const uploads = pgTable('uploads', {
   fingerprint: text('fingerprint').notNull(),
   section: sectionEnum('section').notNull(),
   group: groupEnum('group').notNull(),
+  albumId: uuid('album_id').references(() => projectAlbums.id, { onDelete: 'set null' }),
   status: uploadStatusEnum('status').notNull().default('active'),
   /** fixed part size chosen by the server; the client must use the same split to resume */
   partSize: integer('part_size').notNull().default(16 * 1024 * 1024),

@@ -4,6 +4,6 @@ export { Chip } from './Chip';
 export { SearchField } from './SearchField';
 export { SegmentTab } from './SegmentTab';
 export { StatusBadge, type ProjectStatus } from './StatusBadge';
-export { TextField, SelectField } from './TextField';
+export { TextField, SelectField, ComboField } from './TextField';
 export { Switch } from './Switch';
 export { PinInput } from './PinInput';

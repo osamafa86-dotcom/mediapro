@@ -8,6 +8,7 @@ import { Button, StatusBadge, type ProjectStatus } from '@/components/ui';
 import { ARCHIVE_VIEW_COOKIE, type ArchiveView } from '@/lib/archive-view';
 import { postJson } from '@/lib/client/api';
 import { AdminDialog } from './Dialog';
+import { DeleteProjectsDialog } from './ProjectActions';
 import s from './admin.module.css';
 
 export interface ArchiveItem {
@@ -39,6 +40,7 @@ export function ArchiveTable({ items, summary, sort, sortHref, admin, archivedVi
   const [busy, setBusy] = useState(false);
   // albums open on a tap, like Photos; «تحديد» turns a tap into a pick
   const [selecting, setSelecting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const allOn = items.length > 0 && items.every((i) => sel.has(i.id));
   const toggle = (id: string) => setSel((x) => { const n = new Set(x); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
@@ -71,6 +73,7 @@ export function ArchiveTable({ items, summary, sort, sortHref, admin, archivedVi
                 <button type="button" disabled={busy} onClick={() => void bulk('archive')}>{t('archive.archive')}</button>
               </>
             )}
+            {admin ? <button type="button" disabled={busy} onClick={() => setDeleting(true)} data-testid="bulk-delete">{t('project.delete')}</button> : null}
             <button type="button" onClick={() => setSel(new Set())}>{t('archive.clearSelection')}</button>
           </div>
         ) : null}
@@ -208,6 +211,8 @@ export function ArchiveTable({ items, summary, sort, sortHref, admin, archivedVi
           </nav>
         ) : null}
       </section>
+      <DeleteProjectsDialog open={deleting} onOpenChange={setDeleting} ids={[...sel]}
+        onDone={(n) => { setMsg(t('project.deletedN', { n })); setSel(new Set()); setSelecting(false); router.refresh(); }} />
       <AdminDialog open={extendOpen} onOpenChange={setExtendOpen} title={t('archive.extendTitle')} subtitle={t('archive.extendBody')} closeLabel={t('common.close')}>
         <div className={s.segmented} role="group" aria-label={t('archive.extendTitle')}>
           {[7, 14, 30, 90, 180].map((d) => <button key={d} type="button" aria-pressed={days === d} onClick={() => setDays(d)}>{t('archive.days', { n: d })}</button>)}

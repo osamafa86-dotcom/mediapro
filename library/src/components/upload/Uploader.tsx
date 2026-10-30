@@ -24,8 +24,10 @@ type Row = {
  * (key, uploadId); putting that on the file as `s3Multipart` makes Uppy list the parts already in R2
  * and send only the missing ones — that is the resume, after a dropped connection or a closed tab.
  */
-export function Uploader({ projectId, counts, unfinished }: {
+export function Uploader({ projectId, counts, unfinished, albums: albumsIn = [], album: albumIn = null }: {
   projectId: string; counts: { photos: number; videos: number }; unfinished: { id: string; filename: string; size: number }[];
+  /** the project's albums («مونتاج», …); files go to the chosen one, or to the main «الصور»/«الفيديو» */
+  albums?: { id: string; name: string; n: number }[]; album?: string | null;
 }) {
   const t = useTranslations('upload');
   const locale = useLocale() as Locale;
@@ -33,6 +35,19 @@ export function Uploader({ projectId, counts, unfinished }: {
   const [section, setSection] = useState<'photos' | 'videos'>('photos');
   const [group, setGroup] = useState<'final' | 'footage'>('final');
   const groupRef = useRef(group); groupRef.current = group;
+  const [albums, setAlbums] = useState(albumsIn);
+  const [album, setAlbum] = useState<string | null>(albumIn && albumsIn.some((a) => a.id === albumIn) ? albumIn : null);
+  const albumRef = useRef(album); albumRef.current = album;
+  const [newAlbum, setNewAlbum] = useState<string | null>(null);
+  const [albumErr, setAlbumErr] = useState<string | null>(null);
+  async function createAlbum() {
+    const name = (newAlbum ?? '').trim();
+    if (!name) return;
+    const r = await postJson<{ id?: string; error?: string }>(`/api/admin/projects/${projectId}/albums`, { name });
+    if (!r.ok || !r.data.id) { setAlbumErr(r.data.error === 'album_exists' ? t('albumExists') : t('err.server')); return; }
+    setAlbums((x) => [...x, { id: r.data.id!, name, n: 0 }]);
+    setAlbum(r.data.id); setNewAlbum(null); setAlbumErr(null);
+  }
   const [rows, setRows] = useState<Row[]>([]);
   const [rejected, setRejected] = useState<{ name: string; reason: string }[]>([]);
   const [left, setLeft] = useState(unfinished);
@@ -123,6 +138,7 @@ export function Uploader({ projectId, counts, unfinished }: {
       try { id = uppy.addFile({ name: f.name, type: f.type, data: f, source: 'local' }); } catch { continue; } // duplicate in this queue
       const r = await postJson<{ id?: string; key?: string; uploadId?: string; resumed?: boolean; error?: string }>('/api/uploads', {
         projectId, filename: f.name, size: f.size, mime: f.type || 'application/octet-stream', fingerprint: await fingerprint(f), lastModified: f.lastModified, group: groupRef.current,
+        albumId: albumRef.current,
       });
       if (!r.ok || !r.data.key || !r.data.uploadId) {
         uppy.removeFile(id);
@@ -169,6 +185,25 @@ export function Uploader({ projectId, counts, unfinished }: {
 
   return (
     <div className={s.uploader} data-testid="uploader">
+      <div className={s.target}>
+        <span className={s.targetLabel} id="album-label">{t('album')}</span>
+        {newAlbum === null ? (
+          <select className={s.albumSelect} aria-labelledby="album-label" value={album ?? ''} data-testid="album-select"
+            onChange={(e) => { if (e.target.value === '__new') { setNewAlbum(''); return; } setAlbum(e.target.value || null); }}>
+            <option value="">{t('albumMain')}</option>
+            {albums.map((a) => <option key={a.id} value={a.id}>{a.name} ({a.n})</option>)}
+            <option value="__new">{t('albumNew')}</option>
+          </select>
+        ) : (
+          <form className={s.albumNew} onSubmit={(e) => { e.preventDefault(); void createAlbum(); }}>
+            <input autoFocus value={newAlbum} maxLength={60} onChange={(e) => setNewAlbum(e.target.value)} placeholder={t('albumPlaceholder')}
+              aria-label={t('albumNameLabel')} data-testid="album-name" />
+            <Button type="submit" variant="primary" isDisabled={!newAlbum.trim()}>{t('albumCreate')}</Button>
+            <Button variant="ghost" onPress={() => { setNewAlbum(null); setAlbumErr(null); }}>{t('albumCancel')}</Button>
+          </form>
+        )}
+        {albumErr ? <span className={s.note} role="alert">{albumErr}</span> : album ? <span className={s.note}>{t('albumNote')}</span> : null}
+      </div>
       <div className={s.target}>
         <span className={s.targetLabel}>{t('target')}</span>
         <div className={s.segmented} role="tablist" aria-label={t('target')}>

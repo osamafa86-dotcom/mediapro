@@ -151,6 +151,8 @@ const FIXED = [
   { key: 'viewProjects', admin: 'all', team: 'assigned' },
   { key: 'notes', admin: 'all', team: 'assigned' },
   { key: 'delete', admin: 'all', team: 'own' },
+  { key: 'deleteProject', admin: 'yes', team: 'no' },
+  { key: 'albums', admin: 'yes', team: 'yes' },
   { key: 'clients', admin: 'yes', team: 'no' },
   { key: 'users', admin: 'yes', team: 'no' },
   { key: 'settings', admin: 'yes', team: 'no' },
