@@ -45,3 +45,12 @@ describe('keyFor', () => {
     expect(keyFor({}, ['w640', 'jpg'], 'staff')).toBeNull();
   });
 });
+
+describe('keyFor: the edit dialog picture', () => {
+  it('staff only; the stored «as shot» copy when edited, else the largest WebP up to 2048', () => {
+    expect(k('source.webp', 'staff')).toBe('w2048');
+    expect(keyFor({ ...R, source: 'src' }, ['source.webp'], 'staff')).toBe('src');
+    expect(k('source.webp', 'client')).toBeNull();
+    expect(k('source.webp', 'guest')).toBeNull();
+  });
+});

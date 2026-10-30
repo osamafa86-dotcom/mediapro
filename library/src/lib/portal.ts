@@ -103,7 +103,7 @@ export const qualityOf = (a: PortalAsset) => {
 /** What the browser needs per asset (no storage keys). */
 export function toView(a: PortalAsset): ViewAsset {
   return {
-    id: a.id, name: a.original_name, section: a.section, group: a.group, w: a.width ?? 0, h: a.height ?? 0, size: a.size,
+    id: a.id, name: a.original_name, section: a.section, group: a.group, w: a.width ?? 0, h: a.height ?? 0, size: a.renditions.edited?.size ?? a.size,
     duration: a.duration, taken: a.taken_at, hash: a.thumbhash, widths: (a.renditions.images ?? []).map((i) => i.w),
     web: !!(a.section === 'photos' ? a.renditions.web : a.renditions.mp4_1080), quality: qualityOf(a),
   };

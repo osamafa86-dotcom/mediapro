@@ -1,6 +1,7 @@
 import 'server-only';
 import { z } from 'zod';
 import { getSql } from '@/db';
+import type { AssetEdit } from '@/db/schema';
 import type { Staff } from '../auth/session';
 import { isUuid, staffCanAccessProject } from '../authz';
 import { audit } from '../server/audit';
@@ -83,4 +84,38 @@ export async function deleteAssets(staff: Staff, input: z.infer<typeof DeleteInp
   });
   for (const r of rows) await audit('user', staff.id, 'asset.deleted', { type: 'asset', id: r.id }, { projectId: r.project_id });
   return { deleted: rows.length };
+}
+
+const unit = z.number().min(0).max(1);
+export const EditInput = z.union([
+  z.object({
+    rotate: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]),
+    crop: z.object({ x: unit, y: unit, w: unit.min(0.01), h: unit.min(0.01) })
+      .refine((c) => c.x + c.w <= 1.0001 && c.y + c.h <= 1.0001, 'crop_outside').nullable(),
+  }),
+  z.object({ reset: z.literal(true) }),
+]);
+
+/**
+ * Saves a photo's edit (or its reset to the original) and queues `apply_edit`. Photos only, finished and not RAW
+ * (a RAW download is the camera file itself); the admin and the project's members, like the order. The original
+ * upload is never touched: a reset just renders it again.
+ */
+export async function setEdit(staff: Staff, assetId: string, input: z.infer<typeof EditInput>) {
+  const sql = getSql();
+  const [a] = await sql<{ project_id: string; section: string; group: string; status: string; edit: AssetEdit | null }[]>`
+    select project_id, section, "group", status, edit from assets where id = ${assetId} and replaced_by is null`;
+  if (!a || !(await staffCanAccessProject(staff, a.project_id))) throw new HttpError(404, 'not_found');
+  if (a.section !== 'photos' || a.group === 'raw' || a.status !== 'ready') throw new HttpError(400, 'not_editable');
+  const reset = 'reset' in input;
+  if (reset && !a.edit) return { v: 0 }; // never edited: nothing to undo
+  const v = (a.edit?.v ?? 0) + 1;
+  const edit: AssetEdit = { v, rotate: reset ? 0 : input.rotate, crop: reset ? null : input.crop, state: 'pending' };
+  await sql.begin(async (tx) => {
+    await tx`update assets set edit = ${JSON.stringify(edit)}::jsonb where id = ${assetId}`;
+    await tx`select graphile_worker.add_job('apply_edit', ${JSON.stringify({ assetId, v })}::json, max_attempts := 3,
+      job_key := ${`edit:${assetId}`}, job_key_mode := 'replace')`;
+  });
+  await audit('user', staff.id, reset ? 'asset.edit_reset' : 'asset.edited', { type: 'asset', id: assetId }, { v, rotate: edit.rotate, crop: edit.crop });
+  return { v };
 }

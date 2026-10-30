@@ -2,7 +2,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import sharp, { type Sharp } from 'sharp';
 import { rgbaToThumbHash } from 'thumbhash';
-import type { Renditions } from '@/db/schema';
+import type { AssetEdit, Renditions } from '@/db/schema';
 import { ProcessingError } from './errors';
 import { run } from './run';
 import { putBuffer } from './s3io';
@@ -68,6 +68,8 @@ const ROT: Record<number, number> = { 3: 180, 6: 90, 8: 270 };
 
 export async function imageRenditions(opts: {
   src: string; id: string; keyPrefix: string; watermark: string; rotateFromExif?: number | null; maxWidths?: number[];
+  /** the admin's edit (quarter turns, then a crop of the turned picture), applied after EXIF orientation */
+  edit?: Pick<AssetEdit, 'rotate' | 'crop'> | null;
 }): Promise<{ renditions: Partial<Renditions>; width: number; height: number; thumbhash: string }> {
   let base: Sharp;
   try {
@@ -79,9 +81,19 @@ export async function imageRenditions(opts: {
   } catch (e) {
     throw new ProcessingError('decode_failed', (e as Error).message);
   }
+  const k = (name: string) => `${opts.keyPrefix}${opts.id}/${name}`;
+  const extra: Partial<Renditions> = {};
+  if (opts.edit) {
+    // what the edit dialog draws from: the picture as shot (oriented), never the edited one
+    extra.source = k('source.webp');
+    await putBuffer(extra.source, await base.clone().resize({ width: 2048, height: 2048, fit: 'inside', withoutEnlargement: true }).webp({ quality: 80 }).toBuffer(), 'image/webp');
+    base = await applyEdit(base, opts.edit);
+    const full = await base.clone().jpeg({ quality: 92, mozjpeg: true }).toBuffer();
+    extra.edited = { key: k('edited.jpg'), size: full.length };
+    await putBuffer(extra.edited.key, full, 'image/jpeg');
+  }
   const { width = 0, height = 0 } = await base.metadata();
   if (!width || !height) throw new ProcessingError('decode_failed', 'no dimensions');
-  const k = (name: string) => `${opts.keyPrefix}${opts.id}/${name}`;
   const widths = (opts.maxWidths ?? [...GRID, ...LARGE]).filter((w) => w <= width);
   if (!widths.length) widths.push(width);
 
@@ -119,7 +131,22 @@ export async function imageRenditions(opts: {
   const small = await base.clone().resize(100, 100, { fit: 'inside' }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const thumbhash = Buffer.from(rgbaToThumbHash(small.info.width, small.info.height, small.data)).toString('base64');
 
-  return { renditions: { images, web, wm }, width, height, thumbhash };
+  return { renditions: { images, web, wm, ...extra }, width, height, thumbhash };
+}
+
+/** Quarter turns, then the crop (0..1 of the turned picture, clamped to whole pixels inside it). Exported for tests. */
+export async function applyEdit(img: Sharp, e: Pick<AssetEdit, 'rotate' | 'crop'>): Promise<Sharp> {
+  let out = img;
+  if (e.rotate) out = sharp(await out.rotate(e.rotate).toBuffer());
+  if (e.crop) {
+    const { width = 0, height = 0 } = await out.metadata();
+    const left = Math.min(width - 1, Math.max(0, Math.round(e.crop.x * width)));
+    const top = Math.min(height - 1, Math.max(0, Math.round(e.crop.y * height)));
+    const w = Math.max(1, Math.min(width - left, Math.round(e.crop.w * width)));
+    const h = Math.max(1, Math.min(height - top, Math.round(e.crop.h * height)));
+    out = sharp(await out.extract({ left, top, width: w, height: h }).toBuffer());
+  }
+  return out;
 }
 
 /** Diagonal repeated text; Latin name so it renders with the base fonts in the worker image. */

@@ -675,7 +675,25 @@
       "confirmBody": "Projeden ve depolamadan kalıcı olarak silinir; geri alınamaz. Müşterilerin notları ve favorileri de silinir.",
       "confirmDelete": "{n, plural, one {Kalıcı olarak sil} other {# öğeyi kalıcı olarak sil}}",
       "prev": "Önceki",
-      "next": "Sonraki"
+      "next": "Sonraki",
+      "edit": {
+        "menu": "Kırp ve döndür",
+        "title": "Kırp ve döndür: {name}",
+        "rotateLeft": "Sola döndür",
+        "rotateRight": "Sağa döndür",
+        "zoom": "Yakınlaştır",
+        "ratio": "En-boy oranı",
+        "original": "Orijinal",
+        "save": "Düzenlemeyi kaydet",
+        "reset": "Orijinale dön",
+        "note": "Orijinal dosyaya dokunulmaz: düzenleme görüntüleme ve indirme kopyalarına uygulanır; orijinale her zaman dönülebilir.",
+        "queued": "Düzenleme kaydedildi; birkaç saniyede uygulanır. O zamana kadar önceki görüntü görünür.",
+        "resetQueued": "Orijinal görüntü birkaç saniyede geri gelir.",
+        "pending": "Düzenleme uygulanıyor…",
+        "failed": "Düzenleme uygulanamadı",
+        "notEditable": "Bu medya düzenlenemez: kırpma ve döndürme hazır fotoğraflar içindir, RAW için değil.",
+        "titleShort": "Kırp ve döndür"
+      }
     }
   },
   "upload": {

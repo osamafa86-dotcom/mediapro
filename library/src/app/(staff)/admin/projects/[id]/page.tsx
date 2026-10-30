@@ -7,7 +7,7 @@ import { ProjectActions, LinkRowActions } from '@/components/admin/ProjectAction
 import { projectOptions } from '@/components/admin/ProjectDialog';
 import s from '@/components/admin/admin.module.css';
 import { MediaManager, type ManagedAsset } from '@/components/admin/MediaManager';
-import type { Renditions } from '@/db/schema';
+import type { AssetEdit, Renditions } from '@/db/schema';
 import { StatusBadge, type ProjectStatus } from '@/components/ui';
 import { getSql } from '@/db';
 import type { Locale } from '@/i18n/config';
@@ -39,8 +39,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     // the whole section: reordering needs every item (2000 is far above any real shoot)
     sql<{ id: string; original_name: string; status: string; error: string | null; section: 'photos' | 'videos'; group: 'final' | 'raw' | 'footage';
       thumbhash: string | null; duration: number | null; renditions: Renditions; width: number | null; height: number | null; size: number;
-      taken_at: string | null; uploaded_by: string | null }[]>`
-      select id, original_name, status, error, section, "group", thumbhash, duration, renditions, width, height, size::float8 as size, taken_at, uploaded_by
+      taken_at: string | null; uploaded_by: string | null; edit: AssetEdit | null }[]>`
+      select id, original_name, status, error, section, "group", thumbhash, duration, renditions, width, height, size::float8 as size, taken_at, uploaded_by, edit
       from assets where project_id = ${id} and section = ${tab} and replaced_by is null order by sort_order, original_name, created_at limit 2000`,
     admin
       ? sql<{ id: string; kind: 'client' | 'guest'; project_id: string | null; code: string | null; created_at: string; expires_at: string; revoked_at: string | null; opens: number; locked_until: string | null }[]>`
@@ -138,7 +138,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
               // the admin deletes anything; a member what they uploaded, while the client cannot have it yet
               deletable: admin || (a.uploaded_by === staff.id && p.status !== 'published'),
               view: {
-                id: a.id, name: a.original_name, section: a.section, group: a.group, w: a.width ?? 0, h: a.height ?? 0, size: a.size,
+                id: a.id, name: a.original_name, section: a.section, group: a.group, w: a.width ?? 0, h: a.height ?? 0, size: a.renditions.edited?.size ?? a.size,
                 duration: a.duration, taken: a.taken_at, hash: a.thumbhash, widths: (a.renditions.images ?? []).map((i) => i.w),
                 web: !!(a.section === 'photos' ? a.renditions.web : a.renditions.mp4_1080), quality: null,
               },

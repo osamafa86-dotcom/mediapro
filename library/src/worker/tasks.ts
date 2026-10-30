@@ -3,10 +3,10 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { getSql } from '@/db';
-import type { Renditions } from '@/db/schema';
+import type { AssetEdit, Renditions } from '@/db/schema';
 import { ProcessingError } from './errors';
 import { imageRenditions, rawSource, readExif } from './image';
-import { download, head, prefix, purge, putFile } from './s3io';
+import { download, head, prefix, purge, purgeExcept, putFile } from './s3io';
 import { fits, sniff } from './sniff';
 import { driveImport } from './drive';
 import { encodeRung, plan, posterFrame, probe, putMaster, sprite, uploadRung, webMp4, type Rung } from './video';
@@ -45,6 +45,41 @@ async function guarded(assetId: string, helpers: JobHelpers, onFail: 'asset' | '
 const keyPrefix = () => `${prefix()}renditions/`;
 
 export const taskList: TaskList = {
+  /**
+   * A photo's edit (rotate, crop) from the untouched original into its own folder `<id>/e<v>/`, swapped in with one
+   * update — the previous renditions stay on screen until then, and stay if this fails. A newer save supersedes it.
+   */
+  apply_edit: async (payload, helpers) => {
+    const { assetId, v } = payload as { assetId: string; v: number };
+    const sql = getSql();
+    const [a] = await sql<{ id: string; r2_key: string; edit: AssetEdit | null }[]>`select id, r2_key, edit from assets where id = ${assetId}`;
+    if (!a || a.edit?.v !== v) return; // deleted, or a newer save took over
+    const dir = await mkdtemp(join(tmpdir(), `edit-${assetId.slice(0, 8)}-`));
+    const folder = `${keyPrefix()}${a.id}/e${v}/`;
+    try {
+      const src = join(dir, 'original');
+      await download(a.r2_key, src);
+      const prefs = await libraryPrefs();
+      const identity = !a.edit.rotate && !a.edit.crop; // a reset: plain renditions, the upload is the original again
+      const out = await imageRenditions({ src, id: `${a.id}/e${v}`, keyPrefix: keyPrefix(), watermark: prefs.watermark, edit: identity ? null : a.edit });
+      const done = await sql`update assets set renditions = ${JSON.stringify(out.renditions)}::jsonb, width = ${out.width}, height = ${out.height},
+          thumbhash = ${out.thumbhash}, edit = jsonb_set(edit, '{state}', '"done"') - 'error'
+        where id = ${a.id} and (edit->>'v')::int = ${v} returning id`;
+      if (!done.length) { await purge([], [folder]); return; } // superseded while we worked
+      helpers.logger.info(`asset ${a.id}: edit v${v} applied, ${await purgeExcept(`${keyPrefix()}${a.id}/`, [folder, `${keyPrefix()}${a.id}/raw-preview.jpg`])} old objects removed`);
+    } catch (e) {
+      const final = e instanceof ProcessingError || helpers.job.attempts >= helpers.job.max_attempts;
+      helpers.logger.error(`asset ${assetId}: edit v${v}: ${(e as Error).message}`);
+      if (!final) throw e;
+      await purge([], [folder]).catch(() => {});
+      await sql`update assets set edit = jsonb_set(jsonb_set(edit, '{state}', '"failed"'), '{error}', to_jsonb(${(e as Error).message.slice(0, 300)}::text))
+        where id = ${assetId} and (edit->>'v')::int = ${v}`;
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  },
+
+
   /** Storage of deleted assets (the rows are already gone): originals and renditions folders. */
   purge_objects: async (payload, helpers) => {
     const { keys, prefixes } = payload as { keys: string[]; prefixes: string[] };

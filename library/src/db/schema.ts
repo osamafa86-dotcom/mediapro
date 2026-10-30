@@ -152,6 +152,21 @@ export type Renditions = {
   poster?: string;
   /** 1080p MP4 download */
   mp4_1080?: string;
+  /** an edited photo: the unedited preview (≤2048px WebP) the edit dialog draws from — staff only */
+  source?: string;
+  /** an edited photo: the full-resolution JPEG every «original» download hands over (the upload stays untouched) */
+  edited?: { key: string; size: number };
+};
+
+/**
+ * A photo's edit, applied by the worker to the untouched original: rotate (quarter turns, after EXIF), then crop
+ * (0..1 of the rotated picture). `v` grows with every save, and names the renditions folder (`<id>/e<v>/`), so a
+ * browser never shows a cached copy of a previous version. A reset keeps a row with rotate 0 and no crop.
+ */
+export type AssetEdit = {
+  v: number; rotate: 0 | 90 | 180 | 270; crop: { x: number; y: number; w: number; h: number } | null;
+  /** pending until the worker swaps the renditions in one update; the previous ones stay on screen meanwhile */
+  state: 'pending' | 'done' | 'failed'; error?: string;
 };
 
 export const assets = pgTable('assets', {
@@ -173,6 +188,7 @@ export const assets = pgTable('assets', {
   error: text('error'),
   thumbhash: text('thumbhash'),
   renditions: jsonb('renditions').$type<Renditions>().notNull().default({}),
+  edit: jsonb('edit').$type<AssetEdit>(),
   sortOrder: real('sort_order').notNull().default(0),
   tags: text('tags').array().notNull().default(sql`'{}'::text[]`),
   downloads: integer('downloads').notNull().default(0),
