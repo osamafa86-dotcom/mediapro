@@ -666,7 +666,7 @@
       "select": "{name} seç",
       "selectAll": "Tümünü seç",
       "clear": "Seçimi kaldır",
-      "dragHint": "Yerini değiştirmek için sürükleyin. Müşteri bu sırayı görür.",
+      "dragHint": "Açmak için dokunun. Yerini değiştirmek için basılı tutup sürükleyin; hareket ettirmeden bırakırsanız seçenekler açılır. Müşteri bu sırayı görür.",
       "orderSaved": "Sıra kaydedildi.",
       "stale": "Sayfa açıldığından beri medya değişti (yükleme veya silme). Yeniden yüklendi; sırayı tekrar düzenleyin.",
       "cannotDelete": "Bu medyayı silemezsiniz: silme yöneticide; kullanıcı yalnızca kendi yüklediğini yayından önce siler.",
@@ -693,7 +693,13 @@
         "failed": "Düzenleme uygulanamadı",
         "notEditable": "Bu medya düzenlenemez: kırpma ve döndürme hazır fotoğraflar içindir, RAW için değil.",
         "titleShort": "Kırp ve döndür"
-      }
+      },
+      "selectMode": "Seç",
+      "done": "Bitti",
+      "pickItems": "Medya seçin",
+      "selectThis": "Seç",
+      "notOpenableYet": "Bu medya henüz hazır değil (yükleniyor veya işleniyor); hazır olunca açılır.",
+      "notOpenableFailed": "Bu medya işlenemedi; önizlemesi yok."
     }
   },
   "upload": {

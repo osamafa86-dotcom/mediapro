@@ -6,7 +6,11 @@ import s from './admin.module.css';
 export type MenuEntry = { id: string; label: string; danger?: boolean; selected?: boolean; onAction: () => void } | 'separator' | { header: string };
 
 /** The one quiet «⋯» per row (financial-tables: no row of buttons at rest). Keyboard and screen-reader complete via React Aria. */
-export function RowMenu({ label, entries }: { label: string; entries: MenuEntry[] }) {
+export function RowMenu({ label, entries, isOpen, onOpenChange }: {
+  label: string; entries: MenuEntry[];
+  /** controlled from outside: a long press or a right click on the tile opens the same menu */
+  isOpen?: boolean; onOpenChange?: (open: boolean) => void;
+}) {
   const groups: { header?: string; items: Extract<MenuEntry, { id: string }>[] }[] = [{ items: [] }];
   for (const e of entries) {
     if (e === 'separator') groups.push({ items: [] });
@@ -14,7 +18,7 @@ export function RowMenu({ label, entries }: { label: string; entries: MenuEntry[
     else groups[groups.length - 1]!.items.push(e);
   }
   return (
-    <MenuTrigger>
+    <MenuTrigger isOpen={isOpen} onOpenChange={onOpenChange}>
       <Button aria-label={label} className={s.rowMenu}><MoreHorizontal size={18} aria-hidden /></Button>
       <Popover className={s.menuPopover} placement="bottom end">
         <Menu className={s.menu} onAction={(key) => entries.find((e): e is Extract<MenuEntry, { id: string }> => typeof e === 'object' && 'id' in e && e.id === key)?.onAction()}>

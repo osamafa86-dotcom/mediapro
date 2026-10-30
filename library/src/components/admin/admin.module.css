@@ -374,16 +374,26 @@
 .mTile[data-selected] { outline: 2px solid var(--color-border-focus); outline-offset: 2px; border-radius: var(--radius-card); }
 .mOpen { display: block; inline-size: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; border-radius: var(--radius-card); }
 .mOpen:focus-visible { outline: var(--stroke-focus) solid var(--color-border-focus); outline-offset: 2px; }
-.mCheck { position: absolute; inset-block-start: 6px; inset-inline-start: 6px; inline-size: 28px; block-size: 28px; display: grid; place-items: center;
-  border-radius: var(--radius-control); background: rgb(255 255 255 / 85%); box-shadow: 0 1px 2px rgb(0 0 0 / 20%); cursor: pointer; }
-.mCheck input { inline-size: 18px; block-size: 18px; margin: 0; cursor: pointer; accent-color: var(--color-bg-accent); }
 .mMenu { position: absolute; inset-block-start: 6px; inset-inline-end: 6px; border-radius: var(--radius-control); background: rgb(255 255 255 / 85%); box-shadow: 0 1px 2px rgb(0 0 0 / 20%); }
 .mCover { position: absolute; inset-block-end: 6px; inset-inline-start: 6px; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px;
   border-radius: var(--radius-full); background: rgb(0 0 0 / 65%); color: #fff; font-size: 12px; pointer-events: none; }
-/* at rest only the checkbox of a selected tile and the menu show; hover or focus brings the rest (never hidden on touch) */
+/* selecting: a round tick in the corner, as in Photos */
+.mTick { position: absolute; inset-block-end: 6px; inset-inline-end: 6px; display: grid; place-items: center; color: #fff; pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 55%)); }
+.mTick[data-on] { color: var(--color-bg-accent); background: #fff; border-radius: var(--radius-full); }
+.grid[data-selecting] .mOpen { cursor: pointer; }
+.grid[data-selecting] .mTile:not([data-selected]) .mOpen { opacity: 0.85; }
+/* no text selection or the system's image menu under a long press: the long press is ours */
+.mTile, .mTile img { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.mBar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-12); margin-block-end: var(--space-8); flex-wrap: wrap; }
+.selDone { margin-inline-start: auto; }
+/* the «⋯» shows on hover or focus with a mouse; on touch it stays in place (the long press opens its menu there), unseen */
 @media (hover: hover) and (pointer: fine) {
-  .mTile:not([data-selected]):not(:hover):not(:focus-within) .mCheck,
   .mTile:not(:hover):not(:focus-within) .mMenu { opacity: 0; }
+}
+@media (pointer: coarse) {
+  .mMenu { opacity: 0; pointer-events: none; }
+  .mMenu:focus-within { opacity: 1; pointer-events: auto; }
 }
 .dragGhost { inline-size: 160px; box-shadow: 0 12px 28px rgb(0 0 0 / 30%); border-radius: var(--radius-card); cursor: grabbing; }
 .selectionBar { position: sticky; inset-block-start: var(--space-8); z-index: 4; display: flex; align-items: center; gap: var(--space-12); flex-wrap: wrap;

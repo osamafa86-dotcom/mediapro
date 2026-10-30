@@ -2,7 +2,7 @@
 import { closestCenter, DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ChevronLeft, ChevronRight, Crop, Download, ImageIcon, Loader, Star, Trash2, TriangleAlert, X } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, ChevronRight, Circle, Crop, Download, ImageIcon, Loader, Star, Trash2, TriangleAlert, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -29,9 +29,10 @@ export interface ManagedAsset extends TileAsset {
 }
 
 /**
- * The project's media for the admin and the project's members: open large (photos in the lightbox, videos in the
- * player, arrows move between them), drag to reorder (the client sees this order), pick the cover, select many,
- * download the original, delete. Keyboard users reorder from each item's «⋯» (to the start, one step, to the end).
+ * The project's media for the admin and the project's members, the way Photos on the iPhone works: a tap opens
+ * the item large (photos in the lightbox, videos in the player); a long press lifts it — move the finger to drag it
+ * elsewhere (the client sees this order), let go without moving for its menu; a right click opens the menu too.
+ * «تحديد» switches the grid to selecting (a tap ticks), with the bulk actions. Keyboard users reorder from «⋯».
  */
 export function MediaManager({ projectId, section, items, coverId, digits, canReorder }: {
   projectId: string; section: 'photos' | 'videos'; items: ManagedAsset[]; coverId: string | null; digits: Digits; canReorder: boolean;
@@ -48,6 +49,8 @@ export function MediaManager({ projectId, section, items, coverId, digits, canRe
   const [note, setNote] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
+  const [selecting, setSelecting] = useState(false);
+  const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const justDragged = useRef(0);
   const pending = items.some((a) => a.edit?.state === 'pending');
   // an edit renders in the worker: look again every few seconds until it is swapped in
@@ -71,8 +74,8 @@ export function MediaManager({ projectId, section, items, coverId, digits, canRe
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
-    // a held finger drags; a quick swipe still scrolls the page
-    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+    // a held finger lifts the item (then drag, or let go for the menu); a quick swipe still scrolls the page
+    useSensor(TouchSensor, { activationConstraint: { delay: 400, tolerance: 8 } }),
   );
 
   async function saveOrder(next: string[], before: string[]) {
@@ -103,7 +106,12 @@ export function MediaManager({ projectId, section, items, coverId, digits, canRe
   function onDragEnd(e: DragEndEvent) {
     setDragging(null);
     justDragged.current = Date.now();
-    const { active, over } = e;
+    const { active, over, delta } = e;
+    // a long press let go where it started: the item's menu, as on the iPhone
+    if (Math.hypot(delta.x, delta.y) < 10 && typeof TouchEvent !== 'undefined' && e.activatorEvent instanceof TouchEvent) {
+      setMenuOpen(String(active.id));
+      return;
+    }
     if (!over || active.id === over.id) return;
     const before = order;
     void saveOrder(arrayMove(order, order.indexOf(String(active.id)), order.indexOf(String(over.id))), before);
@@ -137,6 +145,7 @@ export function MediaManager({ projectId, section, items, coverId, digits, canRe
     return [
       ...(openable.some((x) => x.id === a.id) ? [{ id: 'open', label: t('open'), onAction: () => setViewing(a.id) }] : []),
       ...(editable(a) ? [{ id: 'edit', label: t('edit.menu'), onAction: () => setEditing(a.id) }] : []),
+      { id: 'select', label: t('selectThis'), onAction: () => { setSelecting(true); setSelected((p) => new Set(p).add(a.id)); } },
       ...(section === 'photos' && ready
         ? [cover === a.id ? { id: 'uncover', label: t('uncover'), onAction: () => void makeCover(null) } : { id: 'cover', label: t('makeCover'), onAction: () => void makeCover(a.id) }]
         : []),
@@ -156,28 +165,40 @@ export function MediaManager({ projectId, section, items, coverId, digits, canRe
 
   return (
     <>
-      {selected.size > 0 ? (
+      {selecting ? (
         <div className={s.selectionBar} role="region" aria-label={t('selection')} data-testid="media-selection">
-          <strong>{t('selected', { n: selected.size })}</strong>
-          {canReorder ? <Button variant="secondary" onPress={() => move(sel, 'start')}>{t('toStart')}</Button> : null}
+          <strong>{selected.size ? t('selected', { n: selected.size }) : t('pickItems')}</strong>
+          {canReorder && sel.length ? <Button variant="secondary" onPress={() => move(sel, 'start')}>{t('toStart')}</Button> : null}
           {selDeletable ? <Button variant="secondary" icon={<Trash2 size={16} />} onPress={() => setConfirm(sel)}>{t('delete')}</Button> : null}
-          <button type="button" className={s.textBtn} onClick={() => setSelected(new Set(order))}>{t('selectAll')}</button>
-          <button type="button" className={s.textBtn} onClick={() => setSelected(new Set())}>{t('clear')}</button>
+          <button type="button" className={s.textBtn} onClick={() => setSelected(selected.size === order.length ? new Set() : new Set(order))}>
+            {selected.size === order.length ? t('clear') : t('selectAll')}
+          </button>
+          <Button variant="primary" className={s.selDone} onPress={() => { setSelecting(false); setSelected(new Set()); }}>{t('done')}</Button>
         </div>
-      ) : null}
+      ) : (
+        <div className={s.mBar}>
+          {canReorder && list.length > 1 ? <p className={`${s.small} ${s.muted}`} style={{ margin: 0 }}>{t('dragHint')}</p> : <span />}
+          <Button variant="secondary" onPress={() => setSelecting(true)} data-testid="select-mode">{t('selectMode')}</Button>
+        </div>
+      )}
       {note ? <p className={s.formMsg} data-kind={note.kind} role={note.kind === 'error' ? 'alert' : 'status'} style={{ margin: '0 0 8px' }}>{note.text}</p> : null}
-      {canReorder && list.length > 1 ? <p className={`${s.small} ${s.muted}`} style={{ margin: '0 0 8px' }}>{t('dragHint')}</p> : null}
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={(e) => setDragging(String(e.active.id))} onDragEnd={onDragEnd}
         onDragCancel={() => setDragging(null)}>
         <SortableContext items={order} strategy={rectSortingStrategy} disabled={!canReorder}>
-          <ul className={s.grid} style={{ listStyle: 'none', margin: 0, padding: 0 }} data-testid="media-grid">
+          <ul className={s.grid} style={{ listStyle: 'none', margin: 0, padding: 0 }} data-testid="media-grid" data-selecting={selecting || undefined}>
             {list.map((a) => (
-              <SortableTile key={a.id} a={a} cover={cover === a.id} checked={selected.has(a.id)} onCheck={() => toggle(a.id)}
+              <SortableTile key={a.id} a={a} cover={cover === a.id} checked={selected.has(a.id)} onCheck={() => toggle(a.id)} selecting={selecting}
+                menuOpen={menuOpen === a.id} onMenuOpenChange={(o) => setMenuOpen(o ? a.id : null)}
                 coverLabel={t('cover')} checkLabel={t('select', { name: a.original_name })} menuLabel={`${tc('more')}: ${a.original_name}`}
                 editLabels={{ pending: t('edit.pending'), failed: t('edit.failed') }}
                 menu={menuFor(a)}
-                onOpen={() => { if (Date.now() - justDragged.current > 250 && openable.some((x) => x.id === a.id)) setViewing(a.id); }} />
+                onOpen={() => {
+                  if (Date.now() - justDragged.current < 250) return;
+                  if (selecting) { toggle(a.id); return; }
+                  if (openable.some((x) => x.id === a.id)) setViewing(a.id);
+                  else setNote({ kind: 'ok', text: t(a.status === 'failed' ? 'notOpenableFailed' : 'notOpenableYet') });
+                }} />
             ))}
           </ul>
         </SortableContext>
@@ -238,30 +259,34 @@ function download(id: string) {
   link.click();
 }
 
-function SortableTile({ a, cover, checked, onCheck, onOpen, menu, coverLabel, checkLabel, menuLabel, editLabels }: {
+function SortableTile({ a, cover, checked, onCheck, onOpen, menu, coverLabel, checkLabel, menuLabel, editLabels, selecting, menuOpen, onMenuOpenChange }: {
   a: ManagedAsset; cover: boolean; checked: boolean; onCheck: () => void; onOpen: () => void;
   menu: Parameters<typeof RowMenu>[0]['entries']; coverLabel: string; checkLabel: string; menuLabel: string;
-  editLabels: { pending: string; failed: string };
+  editLabels: { pending: string; failed: string }; selecting: boolean; menuOpen: boolean; onMenuOpenChange: (o: boolean) => void;
 }) {
-  const { setNodeRef, transform, transition, isDragging, listeners } = useSortable({ id: a.id });
+  const { setNodeRef, transform, transition, isDragging, listeners } = useSortable({ id: a.id, disabled: selecting });
   return (
     <li ref={setNodeRef} data-asset-id={a.id} data-selected={checked || undefined} className={s.mTile}
       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.35 : 1 }}
       // pointer and touch only: keyboard users reorder from the «⋯» menu, so Enter and Space keep their meaning
       onMouseDown={listeners?.onMouseDown as React.MouseEventHandler<HTMLLIElement> | undefined}
-      onTouchStart={listeners?.onTouchStart as React.TouchEventHandler<HTMLLIElement> | undefined}>
-      <button type="button" className={s.mOpen} onClick={onOpen} aria-label={a.original_name}>
+      onTouchStart={listeners?.onTouchStart as React.TouchEventHandler<HTMLLIElement> | undefined}
+      onContextMenu={(e) => { if (selecting) return; e.preventDefault(); onMenuOpenChange(true); }}>
+      <button type="button" className={s.mOpen} onClick={onOpen} aria-label={selecting ? checkLabel : a.original_name} aria-pressed={selecting ? checked : undefined}>
         <MediaTile a={a} favs={a.favs} />
       </button>
-      <label className={s.mCheck} onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
-        <input type="checkbox" checked={checked} onChange={onCheck} aria-label={checkLabel} value={a.id} />
-      </label>
+      {selecting ? (
+        <span className={s.mTick} aria-hidden data-on={checked || undefined}>{checked ? <CheckCircle2 size={22} /> : <Circle size={22} />}</span>
+      ) : null}
+      <input type="checkbox" className="sr-only" tabIndex={-1} checked={checked} onChange={onCheck} aria-hidden value={a.id} />
       {cover ? <span className={s.mCover}><ImageIcon size={12} aria-hidden />{coverLabel}</span> : null}
       {a.edit?.state === 'pending' ? <span className={s.mEdit} data-state="pending" role="status"><Loader size={14} aria-hidden className={s.spin} />{editLabels.pending}</span> : null}
       {a.edit?.state === 'failed' ? <span className={s.mEdit} data-state="failed" title={a.edit.error}><TriangleAlert size={14} aria-hidden />{editLabels.failed}</span> : null}
-      <span className={s.mMenu} onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
-        <RowMenu label={menuLabel} entries={menu} />
-      </span>
+      {selecting ? null : (
+        <span className={s.mMenu} onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
+          <RowMenu label={menuLabel} entries={menu} isOpen={menuOpen} onOpenChange={onMenuOpenChange} />
+        </span>
+      )}
     </li>
   );
 }
