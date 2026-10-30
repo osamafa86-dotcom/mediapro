@@ -2,7 +2,7 @@
 import { closestCenter, DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, rectSortingStrategy, SortableContext, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ChevronLeft, ChevronRight, Download, ImageIcon, Star, Trash2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Crop, Download, ImageIcon, Loader, Star, Trash2, TriangleAlert, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -13,7 +13,9 @@ import { VideoPlayer } from '@/components/portal/VideoPlayer';
 import { Button } from '@/components/ui';
 import { postJson } from '@/lib/client/api';
 import type { Digits } from '@/lib/format';
+import type { AssetEdit } from '@/db/schema';
 import { AdminDialog } from './Dialog';
+import { EditPhoto } from './EditPhoto';
 import { fetchJson } from './ProjectForm';
 import { RowMenu } from './RowMenu';
 import s from './admin.module.css';
@@ -23,6 +25,7 @@ export interface ManagedAsset extends TileAsset {
   /** this staff member may delete it (admin; or own upload before publication) */
   deletable: boolean;
   favs: number;
+  edit: AssetEdit | null;
 }
 
 /**
@@ -44,7 +47,15 @@ export function MediaManager({ projectId, section, items, coverId, digits, canRe
   const [confirm, setConfirm] = useState<string[] | null>(null);
   const [note, setNote] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
   const justDragged = useRef(0);
+  const pending = items.some((a) => a.edit?.state === 'pending');
+  // an edit renders in the worker: look again every few seconds until it is swapped in
+  useEffect(() => {
+    if (!pending) return;
+    const i = window.setInterval(() => router.refresh(), 3000);
+    return () => window.clearInterval(i);
+  }, [pending, router]);
 
   // a fresh server list (after an upload, a delete, a refresh) replaces the local order (adjusted during render)
   const [seen, setSeen] = useState({ items, coverId });
@@ -119,11 +130,13 @@ export function MediaManager({ projectId, section, items, coverId, digits, canRe
   const sel = [...selected];
   const selDeletable = sel.length > 0 && sel.every((id) => byId.get(id)?.deletable);
 
+  const editable = (a: ManagedAsset) => canReorder && a.section === 'photos' && a.status === 'ready' && a.view.group !== 'raw' && a.view.widths.length > 0;
   const menuFor = (a: ManagedAsset) => {
     const i = order.indexOf(a.id);
     const ready = a.status === 'ready';
     return [
       ...(openable.some((x) => x.id === a.id) ? [{ id: 'open', label: t('open'), onAction: () => setViewing(a.id) }] : []),
+      ...(editable(a) ? [{ id: 'edit', label: t('edit.menu'), onAction: () => setEditing(a.id) }] : []),
       ...(section === 'photos' && ready
         ? [cover === a.id ? { id: 'uncover', label: t('uncover'), onAction: () => void makeCover(null) } : { id: 'cover', label: t('makeCover'), onAction: () => void makeCover(a.id) }]
         : []),
@@ -162,6 +175,7 @@ export function MediaManager({ projectId, section, items, coverId, digits, canRe
             {list.map((a) => (
               <SortableTile key={a.id} a={a} cover={cover === a.id} checked={selected.has(a.id)} onCheck={() => toggle(a.id)}
                 coverLabel={t('cover')} checkLabel={t('select', { name: a.original_name })} menuLabel={`${tc('more')}: ${a.original_name}`}
+                editLabels={{ pending: t('edit.pending'), failed: t('edit.failed') }}
                 menu={menuFor(a)}
                 onOpen={() => { if (Date.now() - justDragged.current > 250 && openable.some((x) => x.id === a.id)) setViewing(a.id); }} />
             ))}
@@ -176,6 +190,10 @@ export function MediaManager({ projectId, section, items, coverId, digits, canRe
           extraButtons={(cur) => {
             const a = byId.get(cur.id);
             return [
+              ...(a && editable(a) ? [
+                <button key="edit" type="button" className="yarl__button" aria-label={t('edit.menu')} title={t('edit.menu')} data-testid="viewer-edit"
+                  onClick={() => { setViewing(null); setEditing(cur.id); }}><Crop size={22} aria-hidden /></button>,
+              ] : []),
               <button key="cover" type="button" className="yarl__button" aria-pressed={cover === cur.id} data-testid="viewer-cover"
                 aria-label={cover === cur.id ? t('uncover') : t('makeCover')} title={cover === cur.id ? t('uncover') : t('makeCover')}
                 onClick={() => void makeCover(cover === cur.id ? null : cur.id)}>
@@ -192,6 +210,14 @@ export function MediaManager({ projectId, section, items, coverId, digits, canRe
         <VideoViewer items={openable} index={viewIndex} onIndex={(i) => setViewing(openable[i]!.id)} onClose={() => setViewing(null)}
           onDelete={(id) => setConfirm([id])} />
       ) : null}
+
+      {editing && byId.get(editing) ? (() => {
+        const a = byId.get(editing)!;
+        return (
+          <EditPhoto id={a.id} name={a.original_name} w={a.view.w} h={a.view.h} edit={a.edit} onClose={() => setEditing(null)}
+            onSaved={(text) => { setEditing(null); setNote({ kind: 'ok', text }); router.refresh(); }} />
+        );
+      })() : null}
 
       <AdminDialog open={!!confirm} onOpenChange={(o) => { if (!o) setConfirm(null); }} title={t('confirmTitle', { n: confirm?.length ?? 0 })}
         subtitle={t('confirmBody')} closeLabel={tc('close')} testId="delete-dialog">
@@ -212,9 +238,10 @@ function download(id: string) {
   link.click();
 }
 
-function SortableTile({ a, cover, checked, onCheck, onOpen, menu, coverLabel, checkLabel, menuLabel }: {
+function SortableTile({ a, cover, checked, onCheck, onOpen, menu, coverLabel, checkLabel, menuLabel, editLabels }: {
   a: ManagedAsset; cover: boolean; checked: boolean; onCheck: () => void; onOpen: () => void;
   menu: Parameters<typeof RowMenu>[0]['entries']; coverLabel: string; checkLabel: string; menuLabel: string;
+  editLabels: { pending: string; failed: string };
 }) {
   const { setNodeRef, transform, transition, isDragging, listeners } = useSortable({ id: a.id });
   return (
@@ -230,6 +257,8 @@ function SortableTile({ a, cover, checked, onCheck, onOpen, menu, coverLabel, ch
         <input type="checkbox" checked={checked} onChange={onCheck} aria-label={checkLabel} value={a.id} />
       </label>
       {cover ? <span className={s.mCover}><ImageIcon size={12} aria-hidden />{coverLabel}</span> : null}
+      {a.edit?.state === 'pending' ? <span className={s.mEdit} data-state="pending" role="status"><Loader size={14} aria-hidden className={s.spin} />{editLabels.pending}</span> : null}
+      {a.edit?.state === 'failed' ? <span className={s.mEdit} data-state="failed" title={a.edit.error}><TriangleAlert size={14} aria-hidden />{editLabels.failed}</span> : null}
       <span className={s.mMenu} onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
         <RowMenu label={menuLabel} entries={menu} />
       </span>

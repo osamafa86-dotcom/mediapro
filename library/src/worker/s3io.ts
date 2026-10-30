@@ -63,3 +63,15 @@ export async function purge(keys: string[], prefixes: string[]): Promise<number>
   }
   return all.length;
 }
+
+/** Everything under `prefix` except what starts with one of `keep`: an edited photo's previous renditions. */
+export async function purgeExcept(prefix: string, keep: string[]): Promise<number> {
+  const drop: string[] = [];
+  let token: string | undefined;
+  do {
+    const r = await s3().send(new ListObjectsV2Command({ Bucket: bucket(), Prefix: prefix, ContinuationToken: token }));
+    for (const o of r.Contents ?? []) if (o.Key && !keep.some((k) => o.Key!.startsWith(k))) drop.push(o.Key);
+    token = r.IsTruncated ? r.NextContinuationToken : undefined;
+  } while (token);
+  return drop.length ? purge(drop, []) : 0;
+}

@@ -56,13 +56,17 @@ export async function downloadable(r: Requester, projectId: string, f: { section
     if (!p) throw new HttpError(404, 'not_found');
     scope = visibleAssets(v, await clientAllowsRaw(v.clientId));
   }
-  return sql<DlAsset[]>`
+  const rows = await sql<DlAsset[]>`
     select a.id, a.project_id, a.r2_key, a.original_name, a.section, a."group", a.size::float8 as size, a.renditions, a.taken_at
     from assets a where a.project_id = ${projectId} and ${scope}
       ${f.section ? sql`and a.section = ${f.section}` : sql``}
       ${f.group ? sql`and a."group" = ${f.group}` : sql``}
       ${f.ids ? sql`and a.id = any(${f.ids}::uuid[])` : sql``}
     order by a.section, a."group", a.sort_order, a.original_name`;
+  // an edited photo's «original» is the full-resolution edit (the upload stays in storage for a reset)
+  return rows.map((a) => (a.renditions.edited
+    ? { ...a, r2_key: a.renditions.edited.key, size: a.renditions.edited.size, original_name: `${stem(a.original_name)}.jpg` }
+    : a));
 }
 
 /** Book-keeping for every download: a row, the per-asset counter, and the first-download mail. */

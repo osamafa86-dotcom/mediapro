@@ -29,6 +29,11 @@ export function keyFor(r: Renditions, variant: string[], who: Audience): string 
   if (v === 'poster') return who === 'guest' ? (r.wm?.at(-1)?.jpeg ?? null) : (r.poster ?? null);
   if (v === 'web') return who === 'guest' ? null : (r.web ?? r.mp4_1080 ?? null);
   if (v === 'raw') return who === 'guest' ? null : (r.rawPreview ?? null);
+  // the edit dialog's picture: as shot, before any edit (staff only; unedited photos use their largest ≤2048 WebP)
+  if (v === 'source.webp') {
+    if (who !== 'staff') return null;
+    return r.source ?? [...(r.images ?? [])].reverse().find((i) => i.w <= 2048 && i.webp)?.webp ?? null;
+  }
   if (v === 'sprite.vtt') return r.sprite?.vtt ?? null;
   if (v === 'sprite.jpg') return r.sprite?.image ?? null;
   if (v === 'hls/master.m3u8') return r.hls?.master ?? null;
