@@ -1,5 +1,6 @@
 import { Film } from 'lucide-react';
-import { getTranslations } from 'next-intl/server';
+import { getLocale, getTranslations } from 'next-intl/server';
+import { systemName } from '@/lib/settings';
 import { cookies } from 'next/headers';
 import { getSql } from '@/db';
 import { navCounts } from '@/lib/admin/queries';
@@ -43,7 +44,7 @@ export async function AdminShell({ staff, children }: { staff: Staff; children: 
             {logo ? <img src="/api/branding/logo" alt="" width={20} height={20} /> : <Film size={18} />}
           </span>
           <span className={s.brandText}>
-            <strong>{(await getTranslations('app'))('name')}</strong>
+            <strong>{await systemName(await getLocale())}</strong>
             <span className={s.mono} dir="ltr">media.emdatra.org</span>
           </span>
           <SidebarToggle initial={collapsed} collapseLabel={t('nav.collapse')} expandLabel={t('nav.expand')} />

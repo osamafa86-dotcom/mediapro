@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { E2E_ENV } from './env';
 import { makeFixtures } from './fixtures/media';
 import { csrf, ctx, login, mails, uploadFile, write } from './helpers';
-import { seed, sql, type Seed } from './seed';
+import { PASSWORD, seed, sql, type Seed } from './seed';
 
 /*
  * M5 — the client portal on real processed media: «مكتبتي», the project grid, the viewer, the player,
@@ -329,3 +329,94 @@ test('Turkish: LTR, Turkish words, same data', async ({ page }, info) => {
   await shot(page, 'player-tr', info);
 });
 
+
+test('player: stays in view while the list scrolls, and a video picked from the list plays in it at once', async ({ page }, info) => {
+  test.setTimeout(180_000);
+  const admin = await login('admin@e2e.test');
+  const second = await uploadFile(admin, S.p1, FX.clip, { mime: 'video/mp4' });
+  await ready(second, (r) => !!(r.renditions as { hls?: { master?: string } }).hls?.master);
+  await openAs(page);
+  await page.goto(`/p/${S.p1}/v/${ids.clip}`);
+  await page.evaluate(() => { (window as unknown as { stay: number }).stay = 1; }); // gone if the page reloads
+  const item = page.locator(`[data-video-id="${second}"]`);
+  await expect(item).not.toHaveAttribute('aria-current', 'page');
+
+  // a tap: the same player takes the new video and starts — no page load, the address follows
+  await item.click();
+  await expect(page).toHaveURL(new RegExp(`/p/${S.p1}/v/${second}$`));
+  await expect(item).toHaveAttribute('aria-current', 'page');
+  expect(await page.evaluate(() => (window as unknown as { stay?: number }).stay)).toBe(1);
+  await expect.poll(() => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentTime), { timeout: 20_000 }).toBeGreaterThan(0.3);
+  await expect(page.getByRole('link', { name: /تنزيل الأصل/ })).toHaveAttribute('href', `/api/download/${second}`);
+
+  // scrolling: a long list moves, the player does not
+  await page.locator('[data-testid=client-video] aside ul').evaluate((ul) => { ul.append(Object.assign(document.createElement('li'), { style: 'height:2400px' })); });
+  const player = page.getByTestId('player');
+  const top0 = (await player.boundingBox())!.y;
+  const listTop0 = (await item.boundingBox())!.y;
+  await page.mouse.wheel(0, 900);
+  await expect.poll(async () => (await item.boundingBox())!.y).toBeLessThan(listTop0 - 300);
+  const top1 = (await player.boundingBox())!.y;
+  const header = (await page.locator('header').first().boundingBox())!;
+  expect(top1).toBeGreaterThanOrEqual(header.y + header.height - 1); // never under the header
+  if (info.project.name === 'desktop') expect(Math.abs(top1 - top0)).toBeLessThan(40);
+  else expect(top1).toBeLessThan(header.height + 24); // pinned right under the header on the phone
+  await shot(page, 'player-sticky', info);
+});
+
+test('videos: tall cards, 4 to a row (3 on a phone), a silent preview under the mouse, a tall player for upright clips', async ({ page, browser }, info) => {
+  test.setTimeout(180_000);
+  const admin = await login('admin@e2e.test');
+  const upright = await uploadFile(admin, S.p1, FX.upright, { mime: 'video/mp4' });
+  await ready(upright, (r) => !!(r.renditions as { hls?: { master?: string } }).hls?.master);
+  await openAs(page);
+  await page.goto(`/p/${S.p1}?tab=videos`);
+  const grid = page.getByTestId('video-grid');
+  await expect(grid.locator(`[data-asset-id="${upright}"]`)).toBeVisible();
+  const cols = await grid.evaluate((g) => getComputedStyle(g).gridTemplateColumns.split(' ').length);
+  expect(cols).toBe(info.project.name === 'desktop' ? 4 : 3);
+  const thumb = grid.locator(`[data-asset-id="${upright}"] a`).first();
+  const box = (await thumb.boundingBox())!;
+  expect(box.height / box.width).toBeGreaterThan(1.7); // 9:16
+  // a wide clip in a tall card keeps its whole frame
+  await expect(grid.locator(`[data-asset-id="${ids.clip}"] a`).first()).toHaveAttribute('data-orient', 'landscape');
+
+  if (info.project.name === 'desktop') {
+    // the mouse rests on a card: it plays there, silently; no click, no navigation
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    const prev = grid.locator(`[data-asset-id="${upright}"] [data-testid=hover-preview]`);
+    await expect(prev).toHaveCount(1);
+    await expect.poll(() => prev.evaluate((v: HTMLVideoElement) => v.currentTime), { timeout: 20_000 }).toBeGreaterThan(0.2);
+    expect(await prev.evaluate((v: HTMLVideoElement) => v.muted)).toBe(true);
+    expect(page.url()).not.toContain('/v/'); // still the grid
+    await page.mouse.move(2, 2); // away: gone
+    await expect(prev).toHaveCount(0);
+
+    // the studio's own grid does the same
+    const staff = await (await browser.newContext({ baseURL: E2E_ENV.APP_ORIGIN })).newPage();
+    expect((await staff.request.post('/api/auth/login', { headers: H, data: { email: 'admin@e2e.test', password: PASSWORD } })).status()).toBe(200);
+    await staff.goto(`/admin/projects/${S.p1}?tab=videos`);
+    const mg = staff.getByTestId('media-grid');
+    await expect(mg).toHaveAttribute('data-portrait', 'true');
+    expect(await mg.evaluate((g) => getComputedStyle(g).gridTemplateColumns.split(' ').length)).toBe(4);
+    const tile = mg.locator(`[data-asset-id="${upright}"]`);
+    // (re-entered until the page has hydrated: an early pointer move has no handler yet)
+    await expect(async () => {
+      await staff.mouse.move(2, 2);
+      await tile.hover();
+      await expect(tile.getByTestId('hover-preview')).toHaveCount(1, { timeout: 1000 });
+    }).toPass({ timeout: 15_000 });
+    await expect.poll(() => tile.getByTestId('hover-preview').evaluate((v: HTMLVideoElement) => v.currentTime), { timeout: 20_000 }).toBeGreaterThan(0.2);
+    await expect(staff.getByTestId('video-viewer')).toHaveCount(0);
+    await staff.context().close();
+  }
+
+  // the player: tall for an upright clip, and not taller than the screen
+  await page.goto(`/p/${S.p1}/v/${upright}`);
+  await expect(page.getByTestId('player')).toBeVisible(); // (still streaming in: the page's content waits in a hidden slot)
+  await expect(page.getByTestId('player')).toHaveAttribute('data-portrait', 'true');
+  const pb = (await page.getByTestId('player').boundingBox())!;
+  expect(pb.height).toBeGreaterThan(pb.width * 1.5);
+  expect(pb.height).toBeLessThanOrEqual(page.viewportSize()!.height * 0.8);
+  await shot(page, 'player-upright', info);
+});

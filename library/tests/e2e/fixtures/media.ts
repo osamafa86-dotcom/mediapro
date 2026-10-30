@@ -26,6 +26,11 @@ export async function makeFixtures() {
     execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=1920x1080:rate=25:duration=6', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=6',
       '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', p('clip.mp4')]);
   }
+  // an upright phone clip (most footage now): 720×1280, no sound
+  if (!existsSync(p('upright.mp4'))) {
+    execFileSync('ffmpeg', ['-v', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=720x1280:rate=25:duration=4',
+      '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', p('upright.mp4')]);
+  }
   // a shell script renamed to .jpg: the extension says photo, the bytes say otherwise
   if (!existsSync(p('holiday.jpg'))) writeFileSync(p('holiday.jpg'), '#!/bin/sh\necho not a photo\n'.repeat(40));
   // more photos of different shapes, so the justified grid has real rows to justify
@@ -39,7 +44,7 @@ export async function makeFixtures() {
     await sharp(Buffer.from(svg)).jpeg({ quality: 85 }).toFile(p(name));
   }
   return {
-    cam: p('cam.jpg'), raw: p('IMG_0042.DNG'), clip: p('clip.mp4'), fakeJpg: p('holiday.jpg'),
+    cam: p('cam.jpg'), raw: p('IMG_0042.DNG'), clip: p('clip.mp4'), upright: p('upright.mp4'), fakeJpg: p('holiday.jpg'),
     photos: shapes.map(([n]) => p(n)),
   };
 }

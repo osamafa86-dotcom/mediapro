@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { rm } from 'node:fs/promises';
 import { E2E_ENV } from './env';
-import { ctx, H, mails } from './helpers';
+import { ctx, H, login, mails, write } from './helpers';
 import { ORIGIN, PASSWORD, seed, sql, type Seed } from './seed';
 
 /* M2 screens in a real browser: archive, project + share link, clients, team, settings, first run. */
@@ -93,32 +93,55 @@ test('archive as albums: the default; a tap opens the project; «تحديد» pi
   await expect(page.getByTestId('archive-cards')).toBeVisible();
 });
 
-test('project → share dialog → short link + PIN → the client gets in', async ({ page, browser }, info) => {
+test('project → «رابط المشروع»: one permanent link, no PIN — the client goes straight in; revoked, a new one', async ({ page, browser }, info) => {
   test.skip(info.project.name !== 'desktop', 'admin flow');
   await signIn(page);
   await page.goto(`/admin/projects/${S.p1}`);
-  await page.getByRole('button', { name: 'إنشاء رابط' }).click();
+  await page.getByRole('button', { name: 'رابط المشروع' }).click();
   const dlg = page.getByTestId('share-dialog');
-  await expect(dlg.getByRole('heading', { name: 'رابط التسليم' })).toBeVisible();
-  await dlg.getByRole('button', { name: 'إنشاء الرابط' }).click();
+  await expect(dlg.getByRole('heading', { name: 'رابط المشروع' })).toBeVisible();
+  await expect(dlg.getByTestId('share-url')).toHaveText(/\/c\/[2-9a-zA-Z]{5}-[2-9a-zA-Z]{5}$/);
   const url = (await dlg.getByTestId('share-url').innerText()).trim();
-  expect(url).toMatch(/\/c\/[2-9a-zA-Z]{5}-[2-9a-zA-Z]{5}$/);
-  const pin = (await dlg.getByTestId('share-pin').getAttribute('aria-label'))!.replace(/\D/g, '');
-  expect(pin).toMatch(/^\d{4}$/);
-  // PIN digits are laid out left to right even in the Arabic dialog
-  const xs = await dlg.getByTestId('share-pin').locator('span').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().x));
-  expect([...xs].sort((a, b) => a - b)).toEqual(xs);
+  await expect(dlg.getByTestId('share-pin')).toHaveCount(0); // no PIN, no expiry choice
+  await expect(dlg.getByText('ينتهي في')).toHaveCount(0);
   await dlg.getByRole('button', { name: 'إرسال بالبريد…' }).click();
-  await expect(dlg.getByRole('status')).toBeVisible();
-  expect((await mails()).some((m) => m.to === 'heba@alnoor.test')).toBe(true);
-  await page.keyboard.press('Escape');
-  await expect(page.getByTestId('project-links').locator('li')).toHaveCount(1);
+  await expect(dlg.getByRole('status')).toHaveText('أُرسل الرابط إلى بريد العميل.');
+  const mail = (await mails()).filter((m) => m.to === 'heba@alnoor.test').at(-1)!;
+  expect(mail.text).toContain(url);
+  expect(mail.text).not.toContain('رمز'); // nothing about a code
+  await dlg.getByRole('button', { name: 'إغلاق' }).click();
+  await expect(dlg).toHaveCount(0);
 
+  // asking again gives the same link: one per project
+  await page.getByRole('button', { name: 'رابط المشروع' }).click();
+  await expect(dlg.getByTestId('share-url')).toHaveText(url);
+  await page.keyboard.press('Escape');
+  const row = page.getByTestId('project-links').locator('li');
+  await expect(row).toHaveCount(1);
+  await expect(row).toContainText('رابط المشروع · دائم');
+  await expect(row).toContainText('بلا رمز ولا تاريخ انتهاء');
+
+  // the client: straight to the project, no PIN screen
   const client = await (await browser.newContext()).newPage();
   await client.goto(`http://${url}`);
-  await client.locator('[data-testid=pin-gate] input').first().click();
-  await client.keyboard.type(pin);
   await client.waitForURL(`**/p/${S.p1}`);
+  await expect(client.getByTestId('client-project')).toBeVisible();
+  // and once more later (the session cookie gone): still straight in
+  await client.context().clearCookies();
+  await client.goto(`http://${url}`);
+  await client.waitForURL(`**/p/${S.p1}`);
+
+  // revoked: it stops; «رابط المشروع» then makes a new one
+  const id = await row.getAttribute('data-link-id');
+  const admin = await login('admin@e2e.test');
+  expect((await write(admin, 'POST', `/api/admin/links/${id}/revoke`, {})).status()).toBe(200);
+  await client.context().clearCookies();
+  await client.goto(`http://${url}`);
+  await expect(client.locator('[data-gate=expired]')).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'رابط المشروع' }).click();
+  await expect(dlg.getByTestId('share-url')).toHaveText(/\/c\//);
+  expect((await dlg.getByTestId('share-url').innerText()).trim()).not.toBe(url);
 });
 
 test('clients: create in the side panel, edit, archive', async ({ page }, info) => {
@@ -252,6 +275,31 @@ test('settings: one save, persisted; date preview follows digits', async ({ page
   await page.reload();
   await expect(page.getByRole('group', { name: 'مدة الصلاحية الافتراضية' }).getByRole('button', { name: '14 يومًا' })).toHaveAttribute('aria-pressed', 'true');
   const db = sql(); await db`delete from settings where key in ('linkDefaults', 'region')`; await db.end();
+});
+
+test('settings: the language and the system name apply at once', async ({ page, browser }, info) => {
+  test.skip(info.project.name !== 'desktop', 'admin flow');
+  await signIn(page);
+  await page.goto('/admin/settings');
+  await page.getByLabel('الاسم بالعربية').fill('أرشيف إمداترا المرئي');
+  await page.getByLabel('لغة الواجهة الافتراضية').selectOption('tr');
+  await page.getByRole('button', { name: 'حفظ التغييرات' }).click();
+  // the page itself turns Turkish (LTR), no reload, no language switch
+  await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Ayarlar');
+  // a browser that never chose a language follows the library's, even when it asks for Arabic
+  const fresh = await (await browser.newContext({ locale: 'ar-PS', baseURL: ORIGIN })).newPage();
+  await fresh.goto('/login');
+  await expect(fresh.locator('html')).toHaveAttribute('lang', 'tr');
+  await fresh.context().close();
+  // back to Arabic: the new name in the sidebar and the tab title
+  await page.getByLabel('Varsayılan arayüz dili').selectOption('ar');
+  await page.getByRole('button', { name: 'Değişiklikleri kaydet' }).click();
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await expect(page.locator('aside strong').first()).toHaveText('أرشيف إمداترا المرئي');
+  await page.goto('/admin/archive');
+  await expect(page).toHaveTitle(/أرشيف إمداترا المرئي$/);
+  const db = sql(); await db`delete from settings where key in ('identity', 'region', 'linkDefaults')`; await db.end();
 });
 
 test('Turkish admin: LTR, Arabic names keep their order', async ({ page }, info) => {

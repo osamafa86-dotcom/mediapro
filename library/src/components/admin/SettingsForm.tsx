@@ -1,7 +1,7 @@
 'use client';
 import { Bell, Film, Globe, HardDrive, KeyRound, Link2, Lock, Upload } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useRef, useState } from 'react';
 import { Button, TextField } from '@/components/ui';
 import type { Settings } from '@/lib/settings';
@@ -22,6 +22,7 @@ export function SettingsForm({ initial, logoVersion, storage, ssoEnabled }: {
   const router = useRouter();
   const [v, setV] = useState<Editable>({ identity: initial.identity, linkDefaults: initial.linkDefaults, region: initial.region, notifications: initial.notifications, storage: initial.storage });
   const [custom, setCustom] = useState(!PRESETS.includes(initial.linkDefaults.days));
+  const locale = useLocale();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [logo, setLogo] = useState(logoVersion);
@@ -35,6 +36,8 @@ export function SettingsForm({ initial, logoVersion, storage, ssoEnabled }: {
       if (!r.ok) { setBusy(false); setMsg({ kind: 'error', text: t('common.error') }); return; }
     }
     setBusy(false); setMsg({ kind: 'ok', text: t('common.saved') });
+    // the new language shows at once here too: this browser's language choice follows the saved setting
+    if (v.region.locale !== locale) document.cookie = `locale=${v.region.locale}; path=/; max-age=31536000; samesite=lax`;
     router.refresh();
   }
 

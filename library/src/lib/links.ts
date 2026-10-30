@@ -61,6 +61,14 @@ export function endOfStudioDay(daysFromNow: number, now = new Date(), tz = 'Asia
   return new Date(guess.getTime() - mins * 60_000);
 }
 
+/**
+ * A project's delivery link (the owner's rule, 2026-10-30): one link per project, no PIN, no expiry date —
+ * it works until an admin revokes it. «No expiry» is stored as this far date so every check that reads
+ * expires_at keeps working unchanged; the pages show «دائم» instead of the date.
+ */
+export const PERMANENT_UNTIL = new Date('2099-12-31T21:59:59Z');
+export const isPermanent = (expiresAt: string | Date) => new Date(expiresAt).getUTCFullYear() >= 2099;
+
 /** Arabic-Indic and Eastern Arabic-Indic digits → ASCII; anything else is rejected later. */
 export function normalizePin(raw: string): string {
   return raw.replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).trim();

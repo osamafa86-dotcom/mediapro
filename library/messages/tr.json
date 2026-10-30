@@ -324,7 +324,7 @@
       "videos": "Video",
       "publish": "Müşteriye yayınla",
       "published": "Yayında",
-      "createLink": "Bağlantı oluştur",
+      "createLink": "Proje bağlantısı",
       "archive": "Projeyi arşivle",
       "unarchive": "Projeyi geri al",
       "emptyMedia": "Bu bölümde henüz medya yok.",
@@ -334,14 +334,15 @@
       "linkKind": {
         "client": "Müşteri bağlantısı",
         "guest": "Misafir bağlantısı",
-        "library": "Müşteri kütüphanesi"
+        "library": "Müşteri kütüphanesi",
+        "permanent": "Proje bağlantısı · kalıcı"
       },
       "linkMeta": "{created} oluşturuldu · {opens} · {expires} bitiyor",
       "linkLocked": "{time} saatine kadar durduruldu",
       "linkRevoked": "İptal edildi",
       "linkExpired": "Süresi doldu",
       "revoke": "İptal et",
-      "revokeConfirm": "Bağlantı hemen durur ve oturumları kapanır. Devam edilsin mi?",
+      "revokeConfirm": "Bağlantı hemen durur ve oturumları kapanır; ardından «Proje bağlantısı» açılırsa yeni bir bağlantı oluşur. Devam edilsin mi?",
       "newPin": "Yeni kod",
       "newPinShown": "Yeni kod: {pin} — yalnızca bir kez gösterilir.",
       "noProjectsForClient": "Henüz müşteri yok — önce bir müşteri ekleyin.",
@@ -354,10 +355,11 @@
       "deleteBodyN": "Seçili projelerin tüm medyası depodan kalıcı olarak silinir; albümleri, kendi bağlantıları ve müşteri notları da gider. Geri alınamaz. Yalnızca gizlemek için «Arşivle»yi kullanın.",
       "deleteSure": "Silmenin kalıcı olduğunu ve geri getirilemeyeceğini anlıyorum",
       "deleteConfirm": "Kalıcı olarak sil",
-      "deletedN": "{n, plural, one {1 proje silindi.} other {# proje silindi.}}"
+      "deletedN": "{n, plural, one {1 proje silindi.} other {# proje silindi.}}",
+      "linkMetaPermanent": "{created} oluşturuldu · {opens} · kodsuz, süresiz"
     },
     "share": {
-      "title": "Teslim bağlantısı",
+      "title": "Proje bağlantısı",
       "opens": "Bağlantı neyi açar?",
       "scopeProject": "Yalnızca bu proje",
       "scopeProjectSub": "Müşteri kütüphanesinde doğrudan projeyi açar",
@@ -385,7 +387,10 @@
       "tz": {
         "Asia/Hebron": "Gazze",
         "Europe/Istanbul": "İstanbul"
-      }
+      },
+      "permanentNote": "Bu proje için tek ve sabit bir bağlantı: kod istemeden açılır, iptal edene kadar geçerlidir. Bağlantıya sahip olan projeyi görür.",
+      "sentPermanent": "Bağlantı müşterinin e-postasına gönderildi.",
+      "copyLink": "Bağlantıyı kopyala"
     },
     "clients": {
       "subtitle": "Faydalanıcı ve ortak kurumlar · her müşterinin kendi kütüphanesi ve bağlantıları",

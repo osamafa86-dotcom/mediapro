@@ -1,5 +1,5 @@
 /* Client portal (M5) — Figma 14:63 (library), 14:2xx (project), player and viewer. Dark by default. */
-.shell { min-block-size: 100dvh; background: var(--color-bg-app); color: var(--color-text-primary); }
+.shell { --hdr: 68px; min-block-size: 100dvh; background: var(--color-bg-app); color: var(--color-text-primary); }
 
 /* header */
 .header { position: sticky; inset-block-start: 0; z-index: 20; display: flex; align-items: center; gap: var(--space-16);
@@ -65,9 +65,16 @@
 @media (hover: none) { .check { opacity: 1; } .tileScrim { opacity: .35; } .over { inline-size: var(--size-touch); block-size: var(--size-touch); } }
 
 /* video cards */
-.vgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: var(--space-24) var(--space-16); list-style: none; margin: 0; padding: 0; }
-.vcard { position: relative; display: flex; flex-direction: column; gap: var(--space-8); }
-.vthumb { position: relative; aspect-ratio: 16 / 9; border-radius: var(--radius-card); overflow: hidden; background: var(--color-bg-component) center / cover no-repeat; display: block; }
+/* most footage is shot upright now (the owner, 2026-10-30): tall 9:16 cards, four to a row, three on narrower screens */
+.vgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-24) var(--space-16); list-style: none; margin: 0; padding: 0; }
+@media (max-width: 1100px) { .vgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-16) var(--space-12); } }
+@media (max-width: 700px) { .vgrid { gap: var(--space-12) var(--space-8); } .vcard .meta { display: none; } .vtitle { font-size: 13px; } }
+.vcard { position: relative; display: flex; flex-direction: column; gap: var(--space-8); min-inline-size: 0; }
+.vthumb { position: relative; aspect-ratio: 9 / 16; border-radius: var(--radius-card); overflow: hidden; background: var(--color-bg-component) center / cover no-repeat; display: block; }
+/* a landscape video in a tall card: the whole frame, letterboxed — never cropped to a sliver */
+.vthumb[data-orient='landscape'] { background: #000; }
+.vthumb[data-orient='landscape'] img { object-fit: contain; }
+.vthumb .dur, .vthumb .tileScrim { z-index: 2; }
 .vthumb img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
 .vthumb[data-selected='true'] { box-shadow: 0 0 0 2px var(--color-bg-app), 0 0 0 4px var(--color-border-focus); }
 .dur { position: absolute; inset-block-end: var(--space-8); inset-inline-start: var(--space-8); padding: 2px 6px; border-radius: 6px; background: rgb(0 0 0 / .6); color: #fff; font-family: var(--font-mono); font-size: 12px; direction: ltr; }
@@ -96,6 +103,7 @@
 .banner { margin: 0; padding: var(--space-12) var(--space-16); border-radius: var(--radius-control); background: var(--color-bg-warning-subtle); color: var(--color-text-warning); font-size: 14px; }
 
 @media (max-width: 700px) {
+  .shell { --hdr: 56px; }
   .header { padding-inline: var(--space-16); gap: var(--space-8); block-size: 56px; }
   .crumbs { display: none; }
   .brandName { max-inline-size: 45vw; }
@@ -119,7 +127,10 @@
 
 /* player page: the list at the inline start, the stage at the end (Figma player frame) */
 .watch { display: grid; grid-template-columns: 360px minmax(0, 1fr); align-items: start; }
-.watchMain { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; gap: var(--space-16); min-inline-size: 0; }
+/* the player column stays in view while the list beside it scrolls (the owner's ask, 2026-10-30) */
+.watchMain { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; gap: var(--space-16); min-inline-size: 0;
+  position: sticky; inset-block-start: calc(var(--hdr) + var(--space-16)); }
+.watchPlayer { min-inline-size: 0; }
 .watchInfo { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: var(--space-16); }
 .side { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; gap: var(--space-12); }
 .sideTitle { margin: 0; font-size: 17px; font-weight: 600; }
@@ -136,7 +147,12 @@
 .sideName { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 1000px) {
   .watch { grid-template-columns: minmax(0, 1fr); }
-  .watchMain, .side { grid-column: 1; grid-row: auto; }
+  .side { grid-column: 1; grid-row: auto; }
+  /* one column: only the player sticks, under the header; the title, downloads and the list scroll beneath it */
+  .watchMain { display: contents; }
+  .watchPlayer { position: sticky; inset-block-start: var(--hdr); z-index: 10; margin-inline: calc(-1 * var(--space-16)); padding: var(--space-8) var(--space-16);
+    background: var(--color-bg-app); }
+  .watchInfo, .keysHint { grid-column: 1; }
 }
 
 @media (hover: none) { .keysHint { display: none; } }
@@ -183,3 +199,5 @@
 .side[hidden] { display: none; }
 .albumPart { display: flex; align-items: center; gap: var(--space-8); margin: var(--space-24) 0 var(--space-12); font-size: 15px; font-weight: 600; color: var(--color-text-secondary); }
 .albumPart:first-child { margin-block-start: 0; }
+/* a phone on its side: a sticky 16:9 player would fill the screen and hide the list — it scrolls away there */
+@media (max-width: 1000px) and (orientation: landscape) and (max-height: 500px) { .watchPlayer { position: static; } }

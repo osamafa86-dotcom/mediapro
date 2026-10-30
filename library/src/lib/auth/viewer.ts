@@ -1,9 +1,10 @@
 import 'server-only';
 // Raw postgres.js queries take ISO strings for timestamps: drizzle replaces the shared client's Date serializer.
 import { cookies } from 'next/headers';
+import type { TransactionSql } from 'postgres';
 import { getSql } from '@/db';
 import { randomCode, randomPin, randomToken, safeEqual, sha256 } from '../crypto';
-import { endOfStudioDay, signLink, verifyLink, type LinkScope } from '../links';
+import { endOfStudioDay, PERMANENT_UNTIL, signLink, verifyLink, type LinkScope } from '../links';
 import { cookieName, cookieOpts } from '../server/cookies';
 import { HttpError, requireSameOrigin } from '../server/http';
 import { hashSecret, verifySecret } from './password';
@@ -33,6 +34,33 @@ export async function issueLink(o: IssueOpts) {
   const token = await signLink({ cid: o.clientId, scope: o.kind, pid: o.projectId ?? undefined, jti }, expiresAt);
   // The PIN is returned once, to the admin who created the link; only its hash is stored.
   return { id: row!.id, token, path: `/l/${token}`, shortPath: `/c/${code}`, pin, expiresAt };
+}
+
+/**
+ * The project's one delivery link: the newest live client link of the project, made permanent and PIN-free,
+ * or a new one. Asking again returns the same link — the client keeps one address for the project.
+ */
+export async function projectLink(o: { clientId: string; projectId: string; createdBy: string; allowDownload?: boolean }) {
+  return getSql().begin(async (tx) => {
+    // one at a time per project, so two clicks cannot make two links
+    await tx`select id from projects where id = ${o.projectId} for update`;
+    const [cur] = await tx<{ id: string }[]>`select id from links
+      where project_id = ${o.projectId} and kind = 'client' and revoked_at is null and expires_at > now()
+      order by created_at desc limit 1`;
+    if (cur) {
+      const [row] = await tx<{ id: string; code: string | null; allow_download: boolean }[]>`
+        update links set pin_hash = null, expires_at = ${PERMANENT_UNTIL.toISOString()}, failed_attempts = 0, locked_until = null,
+          allow_download = coalesce(${o.allowDownload ?? null}::boolean, allow_download), code = coalesce(code, ${randomCode()})
+        where id = ${cur.id} returning id, code, allow_download`;
+      return { id: row!.id, shortPath: `/c/${row!.code}`, allowDownload: row!.allow_download, created: false };
+    }
+    const code = randomCode();
+    const [row] = await tx<{ id: string; allow_download: boolean }[]>`
+      insert into links (client_id, project_id, kind, jti, code, pin_hash, expires_at, created_by, allow_download)
+      values (${o.clientId}, ${o.projectId}, 'client', ${randomToken(16)}, ${code}, null, ${PERMANENT_UNTIL.toISOString()}, ${o.createdBy}, ${o.allowDownload ?? true})
+      returning id, allow_download`;
+    return { id: row!.id, shortPath: `/c/${code}`, allowDownload: row!.allow_download, created: true };
+  });
 }
 
 /** The signed URL behind a short code (re-signed from the row: the row, not the token, holds the truth). */
@@ -110,18 +138,33 @@ export async function attemptPin(token: string, pin: string): Promise<PinResult>
       return { ok: false, status: 401, remaining: MAX_FAILURES - failures } as const;
     }
 
-    await tx`update links set failed_attempts = 0, locked_until = null, opens = opens + 1, last_opened_at = now() where id = ${link.id}`;
-    await tx`insert into audit_log (actor_type, actor_id, action, target_type, target_id) values ('link', ${link.id}, 'link.opened', 'link', ${link.id})`;
-    const vt = randomToken();
-    const csrf = randomToken();
-    const expiresAt = new Date(Math.min(new Date(link.expires_at).getTime(), Date.now() + VIEWER_MAX_DAYS * 86_400_000));
-    await tx`insert into viewer_sessions (token_hash, link_id, csrf_token, expires_at) values (${sha256(vt)}, ${link.id}, ${csrf}, ${expiresAt.toISOString()})`;
-    const jar = await cookies();
-    jar.set(cookieName('viewer'), vt, cookieOpts(expiresAt));
-    jar.set(cookieName('vcsrf'), csrf, cookieOpts(expiresAt, false));
-    const next = link.kind === 'guest' || link.project_id ? `/p/${link.project_id}` : '/library';
-    return { ok: true, next } as const;
+    return { ok: true, next: await startSession(tx, link) } as const;
   });
+}
+
+/** A PIN-free link (the project's permanent link) opens straight away: same session as after a right PIN. */
+export async function openLink(token: string): Promise<{ ok: true; next: string } | { ok: false }> {
+  const v = await verifyLink(token);
+  if (!v.ok) return { ok: false };
+  return getSql().begin(async (tx) => {
+    const [link] = await tx<LinkRow[]>`select * from links where jti = ${v.claims.jti} for update`;
+    if (!link || link.client_id !== v.claims.cid || link.pin_hash) return { ok: false } as const;
+    if (link.revoked_at || new Date(link.expires_at) <= new Date()) return { ok: false } as const;
+    return { ok: true, next: await startSession(tx, link) } as const;
+  });
+}
+
+async function startSession(tx: TransactionSql, link: LinkRow) {
+  await tx`update links set failed_attempts = 0, locked_until = null, opens = opens + 1, last_opened_at = now() where id = ${link.id}`;
+  await tx`insert into audit_log (actor_type, actor_id, action, target_type, target_id) values ('link', ${link.id}, 'link.opened', 'link', ${link.id})`;
+  const vt = randomToken();
+  const csrf = randomToken();
+  const expiresAt = new Date(Math.min(new Date(link.expires_at).getTime(), Date.now() + VIEWER_MAX_DAYS * 86_400_000));
+  await tx`insert into viewer_sessions (token_hash, link_id, csrf_token, expires_at) values (${sha256(vt)}, ${link.id}, ${csrf}, ${expiresAt.toISOString()})`;
+  const jar = await cookies();
+  jar.set(cookieName('viewer'), vt, cookieOpts(expiresAt));
+  jar.set(cookieName('vcsrf'), csrf, cookieOpts(expiresAt, false));
+  return link.kind === 'guest' || link.project_id ? `/p/${link.project_id}` : '/library';
 }
 
 export interface Viewer { linkId: string; clientId: string; projectId: string | null; kind: LinkScope; csrf: string; linkExpiresAt: Date; allowDownload: boolean }

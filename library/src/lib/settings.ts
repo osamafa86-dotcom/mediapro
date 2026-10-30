@@ -94,3 +94,13 @@ export async function can(role: string, p: Permission): Promise<boolean> {
   const perms = (await getSettings()).rolePermissions as Record<string, Record<Permission, boolean>>;
   return perms[role]?.[p] ?? false;
 }
+
+/** The system's name as the settings say («اسم النظام»), in the page's language — shown in the sidebar, titles and sign-in. */
+export async function systemName(locale: string): Promise<string> {
+  try {
+    const { identity } = await getSettings();
+    return locale === 'tr' ? identity.nameTr : identity.nameAr;
+  } catch {
+    return locale === 'tr' ? DEFAULTS.identity.nameTr : DEFAULTS.identity.nameAr; // no database (build time)
+  }
+}

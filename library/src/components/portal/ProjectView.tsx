@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { thumbHashToDataURL } from 'thumbhash';
+import { HoverVideo, hoverHandlers } from '@/components/media/HoverVideo';
 import { SegmentTab, Chip } from '@/components/ui';
 import type { Locale } from '@/i18n/config';
 import { postJson } from '@/lib/client/api';
@@ -22,6 +23,8 @@ export interface ViewAsset {
   widths: number[]; web: boolean; quality: string | null;
   /** an album of the project («مونتاج», …); null/absent = the main «الصور»/«الفيديو» */
   album?: string | null;
+  /** videos: streamable yet (HLS master written), and its rungs — the player switches in place from these */
+  hls?: boolean; rungs?: number[];
 }
 
 /** «curated» = the order the studio set by dragging (the server sends sort_order); the default */
@@ -45,6 +48,7 @@ export function ProjectView({ projectId, title, assets, canDownload, guest = fal
   const dl = useDownloads();
   const [favs, setFavs] = useState(() => new Set(favourites));
   const [favOnly, setFavOnly] = useState(false);
+  const [hovered, setHovered] = useState<string | null>(null);
   const setFav = async (id: string, on: boolean) => {
     setFavs((cur) => { const n = new Set(cur); if (on) n.add(id); else n.delete(id); return n; });
     const r = await postJson('/api/favourites', { assetId: id, on }, 'vcsrf');
@@ -136,10 +140,12 @@ export function ProjectView({ projectId, title, assets, canDownload, guest = fal
         {album && shownPhotos.length ? <h2 className={s.albumPart}><Video size={16} aria-hidden />{t('videos')}</h2> : null}
         <ul className={s.vgrid} data-testid="video-grid">
           {shownVideos.map((a) => (
-            <li key={a.id} className={`${s.vcard} ${s.cell}`} data-asset-id={a.id} data-selected={selected.has(a.id)}>
-              <Link href={`/p/${projectId}/v/${a.id}`} className={s.vthumb} data-selected={selected.has(a.id)} style={bg(a.hash)} aria-label={a.name}>
+            <li key={a.id} className={`${s.vcard} ${s.cell}`} data-asset-id={a.id} data-selected={selected.has(a.id)} {...hoverHandlers(a.id, setHovered)}>
+              <Link href={`/p/${projectId}/v/${a.id}`} className={s.vthumb} data-selected={selected.has(a.id)} style={bg(a.hash)} aria-label={a.name}
+                data-orient={a.w > a.h && a.h > 0 ? 'landscape' : 'portrait'}>
                 {/* eslint-disable-next-line @next/next/no-img-element -- authorized /m route */}
-                <img src={`/m/${a.id}/w640.webp`} srcSet={`/m/${a.id}/w640.webp 640w, /m/${a.id}/w1280.webp 1280w`} sizes="(max-width: 700px) 100vw, 320px" alt="" loading="lazy" decoding="async" />
+                <img src={`/m/${a.id}/w640.webp`} srcSet={`/m/${a.id}/w640.webp 640w, /m/${a.id}/w1280.webp 1280w`} sizes="(max-width: 700px) 34vw, 320px" alt="" loading="lazy" decoding="async" />
+                {a.hls ? <HoverVideo assetId={a.id} active={hovered === a.id} fit={a.w > a.h && a.h > 0 ? 'contain' : 'cover'} /> : null}
                 {a.duration ? <span className={s.dur}>{clock(a.duration)}</span> : null}
                 <span className={s.tileScrim} />
               </Link>
