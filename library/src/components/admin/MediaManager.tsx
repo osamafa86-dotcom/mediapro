@@ -6,6 +6,7 @@ import { CheckCircle2, ChevronLeft, ChevronRight, Circle, Crop, Download, Folder
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { HoverVideo, hoverHandlers } from '@/components/media/HoverVideo';
 import { MediaTile, type TileAsset } from '@/components/media/MediaTile';
 import { PhotoViewer } from '@/components/portal/PhotoViewer';
 import type { ViewAsset } from '@/components/portal/ProjectView';
@@ -48,6 +49,9 @@ export function MediaManager({ projectId, section, albumId = null, albums = [], 
   const [cover, setCover] = useState(coverId);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [viewing, setViewing] = useState<string | null>(null);
+  const [hovered, setHovered] = useState<string | null>(null);
+  // the videos tab: tall 9:16 tiles, 3–4 to a row — most footage is shot upright now (the owner, 2026-10-30)
+  const portrait = section === 'videos' && !albumId;
   const [dragging, setDragging] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<string[] | null>(null);
   const [note, setNote] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
@@ -210,13 +214,16 @@ export function MediaManager({ projectId, section, albumId = null, albums = [], 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={(e) => setDragging(String(e.active.id))} onDragEnd={onDragEnd}
         onDragCancel={() => setDragging(null)}>
         <SortableContext items={order} strategy={rectSortingStrategy} disabled={!canReorder}>
-          <ul className={s.grid} style={{ listStyle: 'none', margin: 0, padding: 0 }} data-testid="media-grid" data-selecting={selecting || undefined}>
+          <ul className={s.grid} style={{ listStyle: 'none', margin: 0, padding: 0 }} data-testid="media-grid" data-selecting={selecting || undefined}
+            data-portrait={portrait || undefined}>
             {list.map((a) => (
               <SortableTile key={a.id} a={a} cover={cover === a.id} checked={selected.has(a.id)} onCheck={() => toggle(a.id)} selecting={selecting}
                 menuOpen={menuOpen === a.id} onMenuOpenChange={(o) => setMenuOpen(o ? a.id : null)}
                 coverLabel={t('cover')} checkLabel={t('select', { name: a.original_name })} menuLabel={`${tc('more')}: ${a.original_name}`}
                 editLabels={{ pending: t('edit.pending'), failed: t('edit.failed') }}
                 menu={menuFor(a)}
+                preview={a.section === 'videos' && !!a.renditions.hls && !selecting && hovered === a.id} portrait={portrait}
+                hover={hoverHandlers(a.id, setHovered)}
                 onOpen={() => {
                   if (Date.now() - justDragged.current < 250) return;
                   if (selecting) { toggle(a.id); return; }
@@ -296,8 +303,9 @@ function download(id: string) {
   link.click();
 }
 
-function SortableTile({ a, cover, checked, onCheck, onOpen, menu, coverLabel, checkLabel, menuLabel, editLabels, selecting, menuOpen, onMenuOpenChange }: {
+function SortableTile({ a, cover, checked, onCheck, onOpen, menu, coverLabel, checkLabel, menuLabel, editLabels, selecting, menuOpen, onMenuOpenChange, preview, portrait, hover }: {
   a: ManagedAsset; cover: boolean; checked: boolean; onCheck: () => void; onOpen: () => void;
+  /** play the silent hover preview now */ preview: boolean; portrait: boolean; hover: ReturnType<typeof hoverHandlers>;
   menu: Parameters<typeof RowMenu>[0]['entries']; coverLabel: string; checkLabel: string; menuLabel: string;
   editLabels: { pending: string; failed: string }; selecting: boolean; menuOpen: boolean; onMenuOpenChange: (o: boolean) => void;
 }) {
@@ -308,9 +316,13 @@ function SortableTile({ a, cover, checked, onCheck, onOpen, menu, coverLabel, ch
       // pointer and touch only: keyboard users reorder from the «⋯» menu, so Enter and Space keep their meaning
       onMouseDown={listeners?.onMouseDown as React.MouseEventHandler<HTMLLIElement> | undefined}
       onTouchStart={listeners?.onTouchStart as React.TouchEventHandler<HTMLLIElement> | undefined}
-      onContextMenu={(e) => { if (selecting) return; e.preventDefault(); onMenuOpenChange(true); }}>
+      onContextMenu={(e) => { if (selecting) return; e.preventDefault(); onMenuOpenChange(true); }} {...hover}>
       <button type="button" className={s.mOpen} onClick={onOpen} aria-label={selecting ? checkLabel : a.original_name} aria-pressed={selecting ? checked : undefined}>
-        <MediaTile a={a} favs={a.favs} />
+        <MediaTile a={a} favs={a.favs} sizes={portrait ? '(max-width: 700px) 34vw, 260px' : undefined}>
+          {a.section === 'videos' ? (
+            <HoverVideo assetId={a.id} active={preview && !isDragging} fit={portrait && orientOf(a) === 'landscape' ? 'contain' : 'cover'} />
+          ) : null}
+        </MediaTile>
       </button>
       {selecting ? (
         <span className={s.mTick} aria-hidden data-on={checked || undefined}>{checked ? <CheckCircle2 size={22} /> : <Circle size={22} />}</span>
@@ -327,6 +339,9 @@ function SortableTile({ a, cover, checked, onCheck, onOpen, menu, coverLabel, ch
     </li>
   );
 }
+
+/** From the poster's size: a wide frame is letterboxed in a tall tile, never cropped. */
+const orientOf = (a: TileAsset) => { const i = a.renditions.images?.at(-1); return i?.h && i.w > i.h ? 'landscape' : 'portrait'; };
 
 /** Videos large: the same player the client has, with previous/next and the admin's actions. Esc and the arrows work. */
 function VideoViewer({ items, index, onIndex, onClose, onDelete }: {

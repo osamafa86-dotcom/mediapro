@@ -52,7 +52,7 @@ export function ProjectActions({ admin, project, edit }: { admin: boolean; proje
             <Button variant="primary" icon={<Upload size={16} />} isDisabled={busy || project.readyCount === 0} onPress={() => void bulk('publish')}>{t('project.publish')}</Button>
           ) : null}
           <Button variant="ghost" icon={<Trash2 size={16} />} onPress={() => setDeleting(true)} data-testid="delete-project">{t('project.delete')}</Button>
-          <ShareDialog open={shareOpen} onOpenChange={(v) => { setShareOpen(v); if (!v) router.refresh(); }} project={project} />
+          {shareOpen ? <ShareDialog open onOpenChange={(v) => { setShareOpen(v); if (!v) router.refresh(); }} project={project} /> : null}
           <DeleteProjectsDialog open={deleting} onOpenChange={setDeleting} ids={[project.id]} title={project.title} files={project.assetCount ?? 0}
             onDone={() => { router.push('/admin/archive'); router.refresh(); }} />
         </>
@@ -61,8 +61,8 @@ export function ProjectActions({ admin, project, edit }: { admin: boolean; proje
   );
 }
 
-/** Per-link actions on the project page, in one «⋯»: copy the short link, new PIN (also unlocks), e-mail the link, revoke. */
-export function LinkRowActions({ id, code }: { id: string; code: string | null }) {
+/** Per-link actions on the project page, in one «⋯»: copy the short link, new PIN (older PIN links only), e-mail the link, revoke. */
+export function LinkRowActions({ id, code, hasPin = true }: { id: string; code: string | null; hasPin?: boolean }) {
   const t = useTranslations('admin');
   const router = useRouter();
   const [note, setNote] = useState<string | null>(null);
@@ -71,11 +71,12 @@ export function LinkRowActions({ id, code }: { id: string; code: string | null }
       {note ? <span className={`${s.small} ${s.muted}`} role="status" data-testid="link-note">{note}</span> : null}
       <RowMenu label={t('common.more')} entries={[
         ...(code ? [{ id: 'copy', label: t('common.copy'), onAction: async () => { await navigator.clipboard.writeText(`${location.origin}/c/${code}`); setNote(t('common.copied')); } }] : []),
-        { id: 'pin', label: t('project.newPin'), onAction: async () => {
+        // the project's permanent link has no PIN to renew
+        ...(hasPin ? [{ id: 'pin', label: t('project.newPin'), onAction: async () => {
           const r = await postJson<{ pin?: string }>(`/api/admin/links/${id}/pin`, {});
           setNote(r.ok && r.data.pin ? t('project.newPinShown', { pin: r.data.pin }) : t('common.error'));
           router.refresh();
-        } },
+        } }] : []),
         { id: 'send', label: t('share.send'), onAction: async () => {
           const r = await postJson<{ error?: string }>(`/api/admin/links/${id}/send`, {});
           setNote(r.ok ? t('common.saved') : r.data.error === 'client_has_no_email' ? t('share.noEmail') : t('common.error'));

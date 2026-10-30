@@ -1,6 +1,7 @@
 import { Film } from 'lucide-react';
 import Link from 'next/link';
-import { getTranslations } from 'next-intl/server';
+import { getLocale, getTranslations } from 'next-intl/server';
+import { systemName } from '@/lib/settings';
 import { LogoutButton } from '@/components/auth/LogoutButton';
 import s from '@/components/upload/upload.module.css';
 import { requireStaffPage } from '@/lib/auth/session';
@@ -14,7 +15,7 @@ export default async function UploadLayout({ children }: { children: React.React
       <header className={s.top}>
         <Link href="/upload" className={s.brand}>
           <span className={s.mark} aria-hidden><Film size={18} /></span>
-          <strong>{t('app.name')}</strong>
+          <strong>{await systemName(await getLocale())}</strong>
         </Link>
         <nav aria-label={t('upload.nav')} className={s.topNav}>
           <Link href="/upload">{t('upload.nav')}</Link>

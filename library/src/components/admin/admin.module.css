@@ -219,6 +219,13 @@
 .meta span { display: inline-flex; align-items: center; gap: var(--space-4); }
 .titleRow { display: flex; align-items: center; gap: var(--space-12); flex-wrap: wrap; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--space-8); }
+/* videos: tall tiles, four to a row (three on narrower screens) */
+.grid[data-portrait] { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-12); }
+.grid[data-portrait] [data-status] { aspect-ratio: 9 / 16; }
+/* a landscape video in a tall tile: the whole frame, letterboxed — never cropped to a sliver */
+.grid[data-portrait] [data-orient='landscape'] { background-color: #000; }
+.grid[data-portrait] [data-orient='landscape'] img { object-fit: contain; }
+@media (max-width: 1100px) { .grid[data-portrait] { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-8); } }
 .tile { aspect-ratio: 4 / 3; border-radius: var(--radius-control); background: var(--color-bg-component); display: flex; flex-direction: column; justify-content: flex-end; padding: var(--space-8); font-size: 12px; color: var(--color-text-secondary); overflow: hidden; }
 .tile span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .linksList { list-style: none; margin: 0; padding: 0; }

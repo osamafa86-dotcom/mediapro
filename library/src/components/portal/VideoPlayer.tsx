@@ -37,8 +37,10 @@ function parseVtt(text: string): Cue[] {
  */
 export interface Marker { t: number; resolved: boolean; label: string }
 
-export function VideoPlayer({ assetId, poster, duration, rungs, markers = [], jump, onTime, onNotes, notesOpen, notesLabel }: {
+export function VideoPlayer({ assetId, poster, duration, rungs, markers = [], jump, onTime, onNotes, notesOpen, notesLabel, autoPlay = false, portrait = false }: {
   assetId: string; poster: string; duration: number; rungs: number[];
+  /** start as soon as the source is attached — set when the viewer picked this video from the list (a tap) */ autoPlay?: boolean;
+  /** an upright video: a tall player (capped in height) instead of a 16:9 box with wide black bars */ portrait?: boolean;
   /** notes on the timeline (resolved ones grey) */ markers?: Marker[];
   /** seek here whenever it changes (k makes repeated jumps to the same time count) */ jump?: { t: number; k: number } | null;
   onTime?: (t: number) => void; onNotes?: () => void; notesOpen?: boolean; notesLabel?: string;
@@ -63,6 +65,12 @@ export function VideoPlayer({ assetId, poster, duration, rungs, markers = [], ju
   const [chrome, setChrome] = useState(true);
   const idle = useRef<number | undefined>(undefined);
   const src = `/m/${assetId}/hls/master.m3u8`;
+  // another video in the same <video> element (picked from the list): forget the last one's state now,
+  // during render — the element itself stays, so a browser that let it play once lets it play again
+  const [shown, setShown] = useState(assetId);
+  if (shown !== assetId) {
+    setShown(assetId); setTime(0); setBuffered(0); setError(false); setLevels([]); setLevel(-1); setCurrent(null); setCues([]); setHover(null); setDur(0);
+  }
   const pipOk = useSyncExternalStore(noop, () => !!document.pictureInPictureEnabled, () => false);
 
   useEffect(() => {
@@ -72,21 +80,23 @@ export function VideoPlayer({ assetId, poster, duration, rungs, markers = [], ju
     // hls.js wherever MSE exists (quality choice, capped to the player size); native HLS otherwise (older iOS)
     void import('hls.js').then(({ default: H }) => {
       if (destroyed) return;
+      const start = () => { if (autoPlay) v.play().catch(() => {}); }; // refused autoplay: the play button is still there
       if (!H.isSupported()) {
-        if (v.canPlayType('application/vnd.apple.mpegurl')) v.src = src; else setError(true);
+        if (v.canPlayType('application/vnd.apple.mpegurl')) { v.src = src; start(); } else setError(true);
         return;
       }
       const h = new H({ capLevelToPlayerSize: true, startLevel: -1 });
       hls.current = h;
       h.loadSource(src);
       h.attachMedia(v);
+      start();
       h.on(H.Events.MANIFEST_PARSED, (_e, d) => setLevels(d.levels.map((l, index) => ({ index, height: l.height })).sort((a, b) => b.height - a.height)));
       h.on(H.Events.LEVEL_SWITCHED, (_e, d) => setCurrent(h.levels[d.level]?.height ?? null));
       h.on(H.Events.ERROR, (_e, d) => { if (d.fatal) setError(true); });
     });
     void fetch(`/m/${assetId}/sprite.vtt`).then((r) => (r.ok ? r.text() : '')).then((txt) => { if (!destroyed && txt) setCues(parseVtt(txt)); }).catch(() => {});
     return () => { destroyed = true; hls.current?.destroy(); hls.current = null; };
-  }, [assetId, src]);
+  }, [assetId, src, autoPlay]);
 
   const toggle = useCallback(() => { const v = video.current; if (!v) return; if (v.paused) void v.play(); else v.pause(); }, []);
   const seekBy = useCallback((d: number) => { const v = video.current; if (v) v.currentTime = Math.min(Math.max(0, v.currentTime + d), v.duration || duration); }, [duration]);
@@ -137,7 +147,7 @@ export function VideoPlayer({ assetId, poster, duration, rungs, markers = [], ju
   const label = (h: number) => (h >= 2160 ? '4K' : `${h}p`);
 
   return (
-    <div ref={box} className={s.player} data-chrome={chrome || !playing} dir="ltr" onMouseMove={poke} onMouseLeave={() => playing && setChrome(false)} data-testid="player">
+    <div ref={box} className={s.player} data-chrome={chrome || !playing} data-portrait={portrait || undefined} dir="ltr" onMouseMove={poke} onMouseLeave={() => playing && setChrome(false)} data-testid="player">
       <video
         ref={video} className={s.video} poster={poster} playsInline preload="metadata" crossOrigin="anonymous"
         onClick={toggle}

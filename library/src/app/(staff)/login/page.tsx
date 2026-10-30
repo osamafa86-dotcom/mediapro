@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
-import { getTranslations } from 'next-intl/server';
+import { getLocale, getTranslations } from 'next-intl/server';
+import { systemName } from '@/lib/settings';
 import { BrandMark } from '@/components/auth/BrandMark';
 import { LocaleSwitch } from '@/components/auth/LocaleSwitch';
 import { LoginForm } from '@/components/auth/LoginForm';
@@ -21,7 +22,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <main className={s.page}>
       <div className={s.column}>
         <BrandMark />
-        <p className={s.kicker}>{t('brand.kicker')}</p>
+        <p className={s.kicker}>{await systemName(await getLocale())}</p>
         <h1 className={`t-title ${s.title}`}>{t('auth.title')}</h1>
         <p className={s.body}>{t('auth.subtitle')}</p>
         {why ? <p className={s.ssoError} role="alert" data-testid="sso-error">{t('auth.ssoRefused', { why: t(`auth.ssoWhy.${why}`) })}</p> : null}

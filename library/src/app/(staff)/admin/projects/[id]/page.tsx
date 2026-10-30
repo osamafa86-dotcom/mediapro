@@ -5,6 +5,7 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { PageHead } from '@/components/admin/AdminShell';
 import { AlbumMenu, NewAlbumButton } from '@/components/admin/Albums';
 import { ProjectActions, LinkRowActions } from '@/components/admin/ProjectActions';
+import { isPermanent } from '@/lib/links';
 import { projectOptions } from '@/components/admin/ProjectDialog';
 import s from '@/components/admin/admin.module.css';
 import { MediaManager, type ManagedAsset } from '@/components/admin/MediaManager';
@@ -53,8 +54,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         and ${album ? sql`album_id = ${album.id}` : sql`section = ${tab} and album_id is null`}
       order by sort_order, original_name, created_at limit 2000`,
     admin
-      ? sql<{ id: string; kind: 'client' | 'guest'; project_id: string | null; code: string | null; created_at: string; expires_at: string; revoked_at: string | null; opens: number; locked_until: string | null }[]>`
-        select id, kind, project_id, code, created_at, expires_at, revoked_at, opens, locked_until from links
+      ? sql<{ id: string; kind: 'client' | 'guest'; project_id: string | null; code: string | null; created_at: string; expires_at: string; revoked_at: string | null; opens: number; locked_until: string | null; has_pin: boolean }[]>`
+        select id, kind, project_id, code, created_at, expires_at, revoked_at, opens, locked_until, pin_hash is not null as has_pin from links
         where project_id = ${id} or (project_id is null and client_id = (select client_id from projects where id = ${id}))
         order by created_at desc limit 20`
       : Promise.resolve([]),
@@ -106,16 +107,18 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                   return (
                     <li key={l.id} data-link-id={l.id}>
                       <span className={s.itemText}>
-                        <strong>{t(`project.linkKind.${kind}`)}</strong>
+                        <strong>{isPermanent(l.expires_at) && kind === 'client' ? t('project.linkKind.permanent') : t(`project.linkKind.${kind}`)}</strong>
                         <span className={`${s.small} ${s.tertiary}`}>
-                          {t('project.linkMeta', { created: formatRelative(l.created_at, locale), opens: t('archive.link.opened', { n: l.opens }), expires: formatDay(l.expires_at, locale, region.timeZone) })}
+                          {isPermanent(l.expires_at)
+                            ? t('project.linkMetaPermanent', { created: formatRelative(l.created_at, locale), opens: t('archive.link.opened', { n: l.opens }) })
+                            : t('project.linkMeta', { created: formatRelative(l.created_at, locale), opens: t('archive.link.opened', { n: l.opens }), expires: formatDay(l.expires_at, locale, region.timeZone) })}
                         </span>
                       </span>
                       {l.revoked_at ? <span className={`${s.small} ${s.tertiary}`}>{t('project.linkRevoked')}</span>
                         : expired ? <span className={`${s.small} ${s.tertiary}`}>{t('project.linkExpired')}</span>
                         : <>
                             {locked ? <span className={`${s.small} ${s.linkWarn}`}>{t('project.linkLocked', { time: new Intl.DateTimeFormat('en-GB', { timeStyle: 'short', timeZone: region.timeZone }).format(new Date(l.locked_until!)) })}</span> : null}
-                            <LinkRowActions id={l.id} code={l.code} />
+                            <LinkRowActions id={l.id} code={l.code} hasPin={l.has_pin} />
                           </>}
                     </li>
                   );

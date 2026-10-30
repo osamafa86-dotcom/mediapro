@@ -14,8 +14,9 @@ import { getSettings } from '@/lib/settings';
 export const metadata = { referrer: 'no-referrer' as const };
 
 /** Client/guest entry: PIN gate, locked, expired or invalid — all decided on the server from the link row. */
-export default async function LinkGate({ params }: { params: Promise<{ token: string }> }) {
+export default async function LinkGate({ params, searchParams }: { params: Promise<{ token: string }>; searchParams: Promise<{ pin?: string }> }) {
   const { token } = await params;
+  const { pin: backFromOpen } = await searchParams;
   const t = await getTranslations();
   const locale = (await getLocale()) as Locale;
   const g = await gateState(token);
@@ -55,6 +56,8 @@ export default async function LinkGate({ params }: { params: Promise<{ token: st
   if (g.state === 'open' && viewer?.linkId === g.link.id) {
     redirect(g.link.kind === 'guest' || g.link.project_id ? `/p/${g.link.project_id}` : '/library');
   }
+  // the project's permanent link: no PIN — straight in (the session cookie is set by a route, not by this page)
+  if (g.state === 'open' && !g.link.pin_hash && !backFromOpen) redirect(`/api/link/open?t=${encodeURIComponent(token)}`);
 
   return (
     <Shell testState={g.state}>

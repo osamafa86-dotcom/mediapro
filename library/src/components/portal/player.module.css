@@ -38,3 +38,7 @@
 }
 .marker { position: absolute; inline-size: 10px; block-size: 10px; margin-inline-start: -5px; border-radius: 50%; background: #2dd4bf; border: 2px solid #000; pointer-events: none; }
 .marker[data-resolved='true'] { background: #a3a3a3; }
+/* an upright video: a tall player, centred, never taller than the screen allows (on a phone the list stays visible under it) */
+.player[data-portrait] { aspect-ratio: 9 / 16; inline-size: min(100%, calc(78vh * 9 / 16)); margin-inline: auto; }
+@media (max-width: 1000px) { .player[data-portrait] { inline-size: min(100%, calc(52dvh * 9 / 16)); } }
+.player[data-portrait]:fullscreen { inline-size: 100%; }

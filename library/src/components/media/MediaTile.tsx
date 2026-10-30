@@ -23,7 +23,7 @@ const clock = (sec: number) => {
  * AVIF → WebP → JPEG at the grid widths, over a ThumbHash placeholder so nothing jumps while it loads.
  * Not async: the admin's interactive grid renders it on the client too.
  */
-export function MediaTile({ a, sizes = '(max-width: 600px) 50vw, 220px', favs = 0 }: { a: TileAsset; sizes?: string; favs?: number }) {
+export function MediaTile({ a, sizes = '(max-width: 600px) 50vw, 220px', favs = 0, children }: { a: TileAsset; sizes?: string; favs?: number; children?: React.ReactNode }) {
   const t = useTranslations('media');
   const grid = (a.renditions.images ?? []).filter((i) => i.w <= 1280);
   const set = (ext: 'avif' | 'webp' | 'jpg') => grid.filter((i) => (ext === 'avif' ? i.avif : true)).map((i) => `/m/${a.id}/w${i.w}.${ext} ${i.w}w`).join(', ');
@@ -55,7 +55,8 @@ export function MediaTile({ a, sizes = '(max-width: 600px) 50vw, 220px', favs = 
   }
   const largest = grid[grid.length - 1]!;
   return (
-    <div className={s.tile} data-status="ready" style={bg ? { backgroundImage: `url(${bg})` } : undefined}>
+    <div className={s.tile} data-status="ready" data-orient={largest.h && largest.w > largest.h ? 'landscape' : 'portrait'}
+      style={bg ? { backgroundImage: `url(${bg})` } : undefined}>
       <picture>
         <source type="image/avif" srcSet={set('avif')} sizes={sizes} />
         <source type="image/webp" srcSet={set('webp')} sizes={sizes} />
@@ -63,6 +64,7 @@ export function MediaTile({ a, sizes = '(max-width: 600px) 50vw, 220px', favs = 
           width={largest.w} height={largest.h} loading="lazy" decoding="async" className={s.img} />
       </picture>
       {favs ? <span className={s.fav} data-testid="client-fav" title={t('favs', { n: favs })}><Heart size={12} fill="currentColor" aria-hidden /><span className={s.num}>{favs}</span></span> : null}
+      {children}
       {a.section === 'videos' && a.duration ? (
         <span className={s.badge}><Film size={12} aria-hidden /><span className={s.num}>{ltr(clock(a.duration))}</span></span>
       ) : null}

@@ -286,8 +286,8 @@ export async function revokeLink(staff: Staff, id: string) {
 
 export async function sendLinkMail(staff: Staff, id: string) {
   if (staff.role !== 'admin') throw new HttpError(403, 'forbidden');
-  const [l] = await getSql()<{ code: string; email: string | null; locale: 'ar' | 'tr'; name_ar: string; name_tr: string | null; expires_at: string; title: string | null }[]>`
-    select l.code, c.contact_email as email, c.locale, c.name_ar, c.name_tr, l.expires_at, p.title
+  const [l] = await getSql()<{ code: string; email: string | null; locale: 'ar' | 'tr'; name_ar: string; name_tr: string | null; expires_at: string; title: string | null; has_pin: boolean }[]>`
+    select l.code, c.contact_email as email, c.locale, c.name_ar, c.name_tr, l.expires_at, p.title, l.pin_hash is not null as has_pin
     from links l join clients c on c.id = l.client_id left join projects p on p.id = l.project_id
     where l.id = ${id} and l.revoked_at is null`;
   if (!l) throw new HttpError(404, 'not_found');
@@ -295,6 +295,14 @@ export async function sendLinkMail(staff: Staff, id: string) {
   const url = `${env.appOrigin}/c/${l.code}`;
   const { formatDay } = await import('../format');
   const until = formatDay(l.expires_at, l.locale);
+  if (!l.has_pin) {
+    // the project's permanent link: no code to send, no end date to announce
+    await sendMail(l.locale === 'ar'
+      ? { to: l.email, subject: l.title ? `موادكم جاهزة: ${l.title}` : 'مكتبتكم في إمداترا', text: `السلام عليكم،\n\nموادكم جاهزة للمشاهدة والتنزيل:\n${url}\n\nإمداترا` }
+      : { to: l.email, subject: l.title ? `Dosyalarınız hazır: ${l.title}` : 'EMDATRA kütüphaneniz', text: `Merhaba,\n\nDosyalarınız görüntülemeye ve indirmeye hazır:\n${url}\n\nEMDATRA` });
+    await audit('user', staff.id, 'link.sent', { type: 'link', id });
+    return;
+  }
   // The PIN never travels with the link (DESIGN.md): this mail carries the URL only.
   await sendMail(l.locale === 'ar'
     ? { to: l.email, subject: l.title ? `موادكم جاهزة: ${l.title}` : 'مكتبتكم في إمداترا', text: `السلام عليكم،\n\nموادكم جاهزة للمشاهدة والتنزيل:\n${url}\n\nيصلكم رمز الدخول في رسالة منفصلة. الرابط صالح حتى ${until}.\n\nإمداترا` }
