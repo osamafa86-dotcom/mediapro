@@ -435,3 +435,53 @@
 .eChip[aria-pressed='true'] { background: #fff; color: #111; border-color: #fff; font-weight: 600; }
 .eGhost { color: #fff !important; }
 .eNote { margin: 0; font-size: 12px; color: rgb(255 255 255 / 60%); }
+
+/* ── the archive's date filter ── */
+.dateChip { display: inline-flex; align-items: center; gap: 6px; min-block-size: 36px; padding: 0 var(--space-12); border-radius: var(--radius-full);
+  border: var(--stroke-hairline) solid var(--color-border-strong); background: var(--color-bg-surface); color: var(--color-text-primary); font: inherit; font-size: 14px; cursor: pointer; }
+.dateChip[data-active='true'] { border-color: var(--color-bg-accent); box-shadow: 0 0 0 1px var(--color-bg-accent) inset; }
+.dateChip[data-focus-visible] { outline: var(--stroke-focus) solid var(--color-border-focus); outline-offset: 2px; }
+.datePop { background: var(--color-bg-surface); border: var(--stroke-hairline) solid var(--color-border-hairline); border-radius: var(--radius-card);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 16%); max-inline-size: min(420px, calc(100vw - 24px)); }
+.datePanel { display: flex; flex-direction: column; gap: var(--space-12); padding: var(--space-16); outline: none; }
+.dateQuick { display: flex; flex-wrap: wrap; gap: 6px; }
+.dateQuick button { min-block-size: 36px; padding: 0 var(--space-12); border-radius: var(--radius-full); border: var(--stroke-hairline) solid var(--color-border-strong);
+  background: none; font: inherit; font-size: 14px; color: var(--color-text-primary); cursor: pointer; }
+.dateQuick button[aria-pressed='true'] { background: var(--color-bg-accent); border-color: var(--color-bg-accent); color: var(--color-text-on-accent); }
+.dateRow { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--color-text-secondary); }
+.dateInline { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.dateRow input, .dateRow select { min-block-size: 40px; padding: 0 var(--space-8); border-radius: var(--radius-control); border: var(--stroke-hairline) solid var(--color-border-strong);
+  background: var(--color-bg-surface); color: var(--color-text-primary); font: inherit; font-size: 14px; }
+
+/* Archive as albums: a cover, the counts on it, the title and one quiet line — the table stays one tap away */
+.barEnd { display: inline-flex; align-items: center; gap: var(--space-8); margin-inline-start: auto; }
+.barEnd button { border: 0; font: inherit; font-size: 14px; cursor: pointer; min-block-size: 36px; }
+.segmented a { display: inline-grid; place-items: center; min-inline-size: 36px; min-block-size: 30px; border-radius: calc(var(--radius-control) - 2px); color: var(--color-text-secondary); }
+.segmented a[aria-current='true'] { background: var(--color-bg-surface); color: var(--color-text-primary); box-shadow: 0 1px 2px rgb(0 0 0 / 8%); }
+.albumsWrap { display: flex; flex-direction: column; gap: var(--space-16); }
+.albumsWrap .pager { border: 0; padding-inline: 0; }
+.albums { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: var(--space-24) var(--space-20); list-style: none; margin: 0; padding: 0; }
+.album { display: flex; flex-direction: column; gap: 6px; inline-size: 100%; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: start; text-decoration: none; cursor: pointer; border-radius: var(--radius-card); -webkit-touch-callout: none; }
+.album:focus-visible { outline: 2px solid var(--color-border-focus, var(--color-bg-accent)); outline-offset: 4px; }
+.albumCover { position: relative; display: block; aspect-ratio: 4 / 3; border-radius: var(--radius-card); overflow: hidden; background: var(--color-bg-component) center / cover no-repeat; margin-block-end: 4px; }
+.albumCover img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; transition: transform var(--dur-slow, 300ms) var(--ease-standard, ease); }
+.album:hover .albumCover img { transform: scale(1.02); }
+.albumNone { position: absolute; inset: 0; display: grid; place-items: center; color: var(--color-icon-secondary); }
+.albumPlay { position: absolute; inset-block-start: 8px; inset-inline-start: 8px; display: grid; place-items: center; inline-size: 30px; block-size: 30px; border-radius: var(--radius-full); background: rgb(0 0 0 / 50%); color: #fff; }
+.albumCounts { position: absolute; inset-block-end: 8px; inset-inline-start: 8px; display: inline-flex; gap: var(--space-8); padding: 3px 8px; border-radius: var(--radius-full); background: rgb(0 0 0 / 55%); color: #fff; font-size: 12px; font-variant-numeric: tabular-nums; }
+.albumCounts > span { display: inline-flex; align-items: center; gap: 4px; }
+.albumTick { position: absolute; inset-block-start: 8px; inset-inline-end: 8px; display: grid; place-items: center; color: #fff; filter: drop-shadow(0 1px 2px rgb(0 0 0 / 50%)); }
+.albumTick[data-on] { color: var(--color-bg-accent); background: #fff; border-radius: var(--radius-full); filter: none; }
+.albums li[data-selected] .albumCover { outline: 3px solid var(--color-bg-accent); outline-offset: -3px; }
+.albums li[data-selected] .albumCover img { transform: scale(0.94); border-radius: calc(var(--radius-card) - 4px); }
+.albumTitle { font-size: 16px; font-weight: 600; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.albumMeta { display: flex; gap: 6px; flex-wrap: wrap; font-size: 13px; color: var(--color-text-secondary); }
+.albumMeta .num { white-space: nowrap; }
+.albumFoot { display: flex; align-items: center; gap: var(--space-8); flex-wrap: wrap; font-size: 12px; color: var(--color-text-tertiary); }
+.albumLink { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-inline-size: 0; flex: 1; }
+@media (max-width: 700px) {
+  .albums { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-16) var(--space-12); }
+  .albumTitle { font-size: 14px; }
+  .albumFoot .albumLink { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .albumCover img { transition: none; } .album:hover .albumCover img { transform: none; } }

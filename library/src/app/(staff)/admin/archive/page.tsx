@@ -1,5 +1,6 @@
 import { Archive, Camera, Check, ChevronLeft, CloudDownload, Users } from 'lucide-react';
 import Link from 'next/link';
+import { cookies } from 'next/headers';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { PageHead } from '@/components/admin/AdminShell';
 import { ArchiveFilters } from '@/components/admin/ArchiveFilters';
@@ -8,12 +9,14 @@ import { NewProjectButton } from '@/components/admin/ProjectDialog';
 import s from '@/components/admin/admin.module.css';
 import { getSql } from '@/db';
 import type { Locale } from '@/i18n/config';
-import { archive, archiveFacets, PERIODS, STATUSES, type ArchiveFilters as F } from '@/lib/admin/queries';
+import { ARCHIVE_VIEW_COOKIE, type ArchiveView } from '@/lib/archive-view';
+import { archive, archiveFacets, isoDay, isoMonth, PERIODS, STATUSES, type ArchiveFilters as F } from '@/lib/admin/queries';
 import { requireStaffPage } from '@/lib/auth/session';
 import { isUuid } from '@/lib/authz';
 import { daysUntil, formatBytes, formatDay, formatNumber, formatPct, joinNames, ltr } from '@/lib/format';
 import { can, getSettings } from '@/lib/settings';
 import { storageStatus } from '@/lib/storage';
+import { placeholder } from '@/lib/thumb';
 
 type SP = Record<string, string | string[] | undefined>;
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
@@ -27,6 +30,7 @@ function parseFilters(sp: SP): F {
     client: id(one(sp.client)), photographer: id(one(sp.photographer)),
     type: one(sp.type)?.slice(0, 60) || undefined, tag: one(sp.tag)?.slice(0, 60) || undefined,
     media: pick(one(sp.media), ['photos', 'videos'] as const), status: pick(one(sp.status), STATUSES), period: pick(one(sp.period), PERIODS),
+    day: isoDay(one(sp.day)), month: isoMonth(one(sp.month)), from: isoDay(one(sp.from)), to: isoDay(one(sp.to)),
     archived: one(sp.archived) === '1', sort: one(sp.sort) === 'date_asc' ? 'date_asc' : 'date_desc',
     page: Math.min(10_000, Math.max(1, Number(one(sp.page)) || 1)),
   };
@@ -45,6 +49,9 @@ export default async function ArchivePage({ searchParams }: { searchParams: Prom
   const admin = staff.role === 'admin';
   const filtered = Object.entries(f).some(([k, v]) => !['sort', 'page'].includes(k) && v !== undefined && v !== false);
   const canCreate = await can(staff.role, 'createProject');
+  // albums unless the address or the last choice says table
+  const asked = one(sp.view);
+  const view: ArchiveView = asked === 'table' || asked === 'cards' ? asked : (await cookies()).get(ARCHIVE_VIEW_COOKIE)?.value === 'table' ? 'table' : 'cards';
 
   const actions = (
     <>
@@ -75,6 +82,8 @@ export default async function ArchivePage({ searchParams }: { searchParams: Prom
       counts: `${formatNumber(r.photos, locale, region.digits)} · ${formatNumber(r.videos, locale, region.digits)}`,
       size: formatBytes(Number(r.bytes), locale, region.digits), status: r.status, statusLabel: tStatus(r.status as 'draft'),
       link, archived: !!r.archived_at,
+      photos: formatNumber(r.photos, locale, region.digits), videos: formatNumber(r.videos, locale, region.digits), hasPhotos: r.photos > 0, hasVideos: r.videos > 0,
+      cover: r.cover_id && r.cover_kind ? { id: r.cover_id, kind: r.cover_kind, bg: placeholder(r.cover_hash) } : null,
     };
   });
 
@@ -89,7 +98,7 @@ export default async function ArchivePage({ searchParams }: { searchParams: Prom
     <>
       <PageHead title={t('nav.archive')} subtitle={t('archive.subtitle')} actions={actions} />
       <ArchiveFilters
-        values={{ q: f.q ?? '', period: f.period ?? '', client: f.client ?? '', photographer: f.photographer ?? '', type: f.type ?? '', media: f.media ?? '', status: f.status ?? '', tag: f.tag ?? '', archived: f.archived ? '1' : '' }}
+        values={{ q: f.q ?? '', period: f.period ?? '', day: f.day ?? '', month: f.month ?? '', from: f.from ?? '', to: f.to ?? '', client: f.client ?? '', photographer: f.photographer ?? '', type: f.type ?? '', media: f.media ?? '', status: f.status ?? '', tag: f.tag ?? '', archived: f.archived ? '1' : '' }}
         facets={{
           clients: facets.clients.map((c) => ({ value: c.id, label: locale === 'tr' ? c.name_tr || c.name_ar : c.name_ar })),
           people: facets.people.map((p) => ({ value: p.id, label: p.name })),
@@ -105,6 +114,8 @@ export default async function ArchivePage({ searchParams }: { searchParams: Prom
         admin={admin}
         archivedView={!!f.archived}
         emptyFiltered={filtered && data.total === 0}
+        view={view}
+        viewHref={{ cards: qs({ view: 'cards' }), table: qs({ view: 'table' }) }}
         pager={data.pages > 1 ? { text: t('archive.page', { page: data.page, pages: data.pages }), prev: data.page > 1 ? qs({ page: String(data.page - 1) }) : null, next: data.page < data.pages ? qs({ page: String(data.page + 1) }) : null } : null}
       />
     </>

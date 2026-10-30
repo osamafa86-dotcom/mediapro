@@ -220,6 +220,11 @@
         "archived": "المؤرشفة"
       },
       "periods": {
+        "today": "اليوم",
+        "yesterday": "أمس",
+        "7d": "آخر 7 أيام",
+        "thisMonth": "هذا الشهر",
+        "lastMonth": "الشهر الماضي",
         "3m": "آخر 3 أشهر",
         "6m": "آخر 6 أشهر",
         "12m": "آخر سنة"
@@ -283,7 +288,25 @@
       "prev": "السابق",
       "next": "التالي",
       "setupR2Err": "تعذّر الوصول إلى {bucket} — راجع المفاتيح وسياسة CORS",
-      "clearSearch": "مسح البحث"
+      "clearSearch": "مسح البحث",
+      "dateQuick": "فترات سريعة",
+      "dateDay": "يوم محدّد",
+      "dateMonth": "شهر محدّد",
+      "dateYear": "السنة",
+      "dateRange": "من تاريخ إلى تاريخ",
+      "dateFrom": "من",
+      "dateTo": "إلى",
+      "dateApply": "تطبيق",
+      "dateClear": "مسح التاريخ",
+      "view": {
+        "label": "طريقة العرض",
+        "cards": "ألبومات",
+        "table": "جدول"
+      },
+      "cards": {
+        "photos": "صور",
+        "videos": "فيديو"
+      }
     },
     "project": {
       "new": "مشروع جديد",

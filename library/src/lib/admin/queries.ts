@@ -3,6 +3,7 @@ import type { PendingQuery, Row } from 'postgres';
 import { getSql } from '@/db';
 import type { Staff } from '../auth/session';
 import { searchTokens } from '../format';
+import { getSettings } from '../settings';
 
 /* Read models for the admin panel. Team roles (photographer/editor/contributor) only ever see member projects. */
 
@@ -40,12 +41,24 @@ function scope(staff: Staff): Frag {
 }
 
 export const STATUSES = ['draft', 'uploading', 'review', 'published', 'expired'] as const;
-export const PERIODS = ['3m', '6m', '12m'] as const;
+export const PERIODS = ['today', 'yesterday', '7d', 'thisMonth', 'lastMonth', '3m', '6m', '12m'] as const;
 
 export interface ArchiveFilters {
   q?: string; client?: string; photographer?: string; type?: string; media?: 'photos' | 'videos';
   status?: (typeof STATUSES)[number]; period?: (typeof PERIODS)[number]; tag?: string;
+  /** one day (YYYY-MM-DD), one month (YYYY-MM), or a range (either end may be open) — checked before SQL */
+  day?: string; month?: string; from?: string; to?: string;
   archived?: boolean; sort?: 'date_desc' | 'date_asc'; page?: number;
+}
+
+/** A real calendar day as YYYY-MM-DD (2026-02-30 is not), else undefined. */
+export function isoDay(v: string | undefined): string | undefined {
+  if (!v || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return undefined;
+  const d = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v ? v : undefined;
+}
+export function isoMonth(v: string | undefined): string | undefined {
+  return v && /^\d{4}-(0[1-9]|1[0-2])$/.test(v) ? v : undefined;
 }
 
 export const PAGE_SIZE = 50;
@@ -55,6 +68,7 @@ export interface ArchiveRow {
   client_id: string; client_name_ar: string; client_name_tr: string | null; photographers: string[] | null;
   photos: number; videos: number; bytes: string; archived_at: string | null; expires_at: string | null;
   link_expires_at: string | null; link_opens: number | null; downloads: number; uploads_total: number; uploads_done: number;
+  cover_id: string | null; cover_kind: 'photos' | 'videos' | null; cover_hash: string | null;
 }
 
 export async function archive(staff: Staff, f: ArchiveFilters) {
@@ -70,9 +84,23 @@ export async function archive(staff: Staff, f: ArchiveFilters) {
   if (f.media) conds.push(sql`exists (select 1 from assets a where a.project_id = p.id and a.section = ${f.media})`);
   if (f.status) conds.push(sql`p.status = ${f.status}`);
   if (f.tag) conds.push(sql`exists (select 1 from assets a where a.project_id = p.id and ${f.tag} = any(a.tags))`);
-  if (f.period) {
-    const months = { '3m': 3, '6m': 6, '12m': 12 }[f.period];
-    conds.push(sql`coalesce(p.shot_date, p.created_at::date) >= (now() - make_interval(months => ${months}))::date`);
+  // the project's day: its shoot date, else the day it was created in the library's time zone
+  const { region } = await getSettings();
+  const day = sql`coalesce(p.shot_date, (p.created_at at time zone ${region.timeZone})::date)`;
+  const today = sql`(now() at time zone ${region.timeZone})::date`;
+  if (f.day) conds.push(sql`${day} = ${f.day}::date`);
+  else if (f.month) conds.push(sql`${day} >= ${`${f.month}-01`}::date and ${day} < (${`${f.month}-01`}::date + interval '1 month')`);
+  else if (f.from || f.to) {
+    if (f.from) conds.push(sql`${day} >= ${f.from}::date`);
+    if (f.to) conds.push(sql`${day} <= ${f.to}::date`);
+  } else if (f.period) {
+    const p = f.period;
+    if (p === 'today') conds.push(sql`${day} = ${today}`);
+    else if (p === 'yesterday') conds.push(sql`${day} = ${today} - 1`);
+    else if (p === '7d') conds.push(sql`${day} > ${today} - 7 and ${day} <= ${today}`);
+    else if (p === 'thisMonth') conds.push(sql`${day} >= date_trunc('month', ${today})::date`);
+    else if (p === 'lastMonth') conds.push(sql`${day} >= (date_trunc('month', ${today}) - interval '1 month')::date and ${day} < date_trunc('month', ${today})::date`);
+    else conds.push(sql`${day} >= (${today} - make_interval(months => ${({ '3m': 3, '6m': 6, '12m': 12 } as const)[p]}))::date`);
   }
   const where = conds.reduce((a, b) => sql`${a} and ${b}`);
   const order = f.sort === 'date_asc' ? sql`coalesce(p.shot_date, p.created_at::date) asc, p.created_at asc` : sql`coalesce(p.shot_date, p.created_at::date) desc, p.created_at desc`;
@@ -86,7 +114,8 @@ export async function archive(staff: Staff, f: ArchiveFilters) {
         coalesce(s.photos, 0)::int as photos, coalesce(s.videos, 0)::int as videos, coalesce(s.bytes, 0)::text as bytes,
         l.expires_at as link_expires_at, l.opens as link_opens,
         (select count(*) from downloads d where d.project_id = p.id)::int as downloads,
-        coalesce(u.total, 0)::int as uploads_total, coalesce(u.done, 0)::int as uploads_done
+        coalesce(u.total, 0)::int as uploads_total, coalesce(u.done, 0)::int as uploads_done,
+        cv.id as cover_id, cv.section as cover_kind, cv.thumbhash as cover_hash
       from projects p
       join clients c on c.id = p.client_id
       left join lateral (select count(*) filter (where a.section = 'photos') photos, count(*) filter (where a.section = 'videos') videos,
@@ -94,6 +123,12 @@ export async function archive(staff: Staff, f: ArchiveFilters) {
       left join lateral (select expires_at, opens from links where (project_id = p.id or (project_id is null and client_id = p.client_id))
         and revoked_at is null order by created_at desc limit 1) l on true
       left join lateral (select count(*) total, count(*) filter (where status = 'completed') done from uploads where project_id = p.id) u on true
+      -- the album's face: the chosen cover if it is ready, else the first ready photo in the curated order, else a video's poster
+      left join lateral (select a.id, a.section, a.thumbhash from assets a
+        where a.project_id = p.id and a.status = 'ready' and a.replaced_by is null
+          and ((a.section = 'photos' and a.renditions ? 'images') or (a.section = 'videos' and a.renditions ? 'poster'))
+        order by (a.id = p.cover_asset_id) desc nulls last, (a.section = 'photos') desc, a."group" = 'final' desc, a.sort_order, a.created_at
+        limit 1) cv on true
       where ${where}
       order by ${order}
       limit ${PAGE_SIZE} offset ${(page - 1) * PAGE_SIZE}`,

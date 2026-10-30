@@ -28,7 +28,7 @@ async function admin(page: Page) {
 }
 const rows = (page: Page) => page.getByTestId('archive-table').locator('tbody tr[data-id]');
 async function archiveIds(page: Page, q: string) {
-  await page.goto(`/admin/archive?q=${encodeURIComponent(q)}`);
+  await page.goto(`/admin/archive?view=table&q=${encodeURIComponent(q)}`);
   await expect(page.getByTestId('archive-summary')).toBeVisible();
   return (await rows(page).evaluateAll((trs) => trs.map((t) => t.getAttribute('data-id')))).sort();
 }
