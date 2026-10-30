@@ -13,6 +13,7 @@
 .ghost:hover { background: var(--color-bg-subtle); color: var(--color-text-primary); }
 .link { border: 0; padding: 0; background: none; color: var(--color-text-accent); font: inherit; font-size: 13px; cursor: pointer; text-decoration: none; }
 .link:hover { text-decoration: underline; }
+.cancel { color: var(--color-text-danger); }
 .account { display: inline-flex; align-items: center; gap: var(--space-8); flex-wrap: wrap; }
 .trail { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); font-size: 13px; margin-block-end: var(--space-12); color: var(--color-text-secondary); }
 .trailItem { display: inline-flex; align-items: center; gap: var(--space-4); }

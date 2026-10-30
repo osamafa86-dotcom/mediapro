@@ -653,9 +653,14 @@
         "drive_not_connected": "الحساب غير مربوط",
         "drive_reconnect": "انتهى تفويض Google",
         "drive_unavailable": "Drive غير متاح",
-        "folder_not_found": "المجلد لم يعد موجودًا"
+        "folder_not_found": "المجلد لم يعد موجودًا",
+        "cancelled": "أُلغي"
       },
-      "openProject": "فتح المشروع"
+      "openProject": "فتح المشروع",
+      "cancel": "إلغاء",
+      "confirmCancel": "إيقاف استيراد «{name}»؟ ما وصل من ملفات يبقى في المشروع.",
+      "cancelFailed": "تعذّر الإلغاء — ربما انتهى الاستيراد للتو.",
+      "scanning": "يحصي الملفات…"
     },
     "notes": {
       "title": "ملاحظات العملاء",
