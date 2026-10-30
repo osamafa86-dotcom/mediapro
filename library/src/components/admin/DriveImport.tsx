@@ -68,6 +68,13 @@ export function DriveImport({ notice, connection, imports, clients, projects }: 
     router.refresh();
   }
 
+  async function cancel(i: ImportRow) {
+    if (!window.confirm(t('confirmCancel', { name: i.folder_name }))) return;
+    const r = await postJson(`/api/admin/drive/imports/${i.id}/cancel`, {});
+    if (!r.ok) setMsg({ text: t('cancelFailed'), warn: true });
+    router.refresh();
+  }
+
   return (
     <div className={d.stack}>
       {msg ? <p className={d.notice} data-warn={msg.warn || undefined} role="status">{msg.text}</p> : null}
@@ -184,9 +191,14 @@ export function DriveImport({ notice, connection, imports, clients, projects }: 
                       <span className={`${s.small} ${s.muted}`}>{[i.client_name, i.project_title].filter(Boolean).join(' · ')}</span>
                     </span>
                     <span className={d.state} data-state={i.status}>{t(`status.${i.status}`)}</span>
-                    <span className={`${s.num} ${s.small}`}>{t('progress', { done: i.done, total: i.total })}</span>
+                    <span className={`${s.num} ${s.small}`}>
+                      {i.status === 'running' && !i.total ? t('scanning') : t('progress', { done: i.done, total: i.total })}
+                    </span>
                     {i.failed ? <span className={d.failed}>{t('failedN', { n: i.failed })}</span> : null}
                     {i.project_id ? <Link className={d.link} href={`/admin/projects/${i.project_id}`}>{t('openProject')}</Link> : null}
+                    {i.status === 'queued' || i.status === 'running'
+                      ? <button type="button" className={`${d.link} ${d.cancel}`} data-testid="drive-cancel" onClick={() => void cancel(i)}>{t('cancel')}</button>
+                      : null}
                   </div>
                   {i.total ? <progress className={d.bar} max={i.total} value={i.done + i.failed} /> : null}
                   {i.error ? <p className={d.error}>{t(`reason.${i.error}`)}</p> : null}

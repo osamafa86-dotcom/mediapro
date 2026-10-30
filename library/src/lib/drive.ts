@@ -83,6 +83,20 @@ export async function startImports(staff: Staff, items: ImportItem[]) {
   });
 }
 
+/**
+ * Stop an import that has not finished. The row is marked first (the worker checks it before every file and
+ * writes nothing once it is no longer «running»), then the queued job is removed — a job already running is
+ * kept from any retry and ends at its next check. Files that already arrived stay in the project.
+ */
+export async function cancelImport(id: string) {
+  return getSql().begin(async (tx) => {
+    const [row] = await tx<{ id: string }[]>`update drive_imports set status = 'failed', error = 'cancelled', finished_at = now()
+      where id = ${id} and status in ('queued', 'running') returning id`;
+    if (!row) throw new HttpError(409, 'not_cancellable');
+    await tx`select graphile_worker.remove_job(${`drive:${id}`})`;
+  });
+}
+
 export interface ImportRow {
   id: string; folder_name: string; status: string; total: number; done: number; failed: number; error: string | null;
   created_at: string; finished_at: string | null; project_id: string | null; project_title: string | null; client_name: string | null;

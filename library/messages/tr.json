@@ -658,9 +658,14 @@
         "drive_not_connected": "Hesap bağlı değil",
         "drive_reconnect": "Google yetkisinin süresi doldu",
         "drive_unavailable": "Drive kullanılamıyor",
-        "folder_not_found": "Klasör artık yok"
+        "folder_not_found": "Klasör artık yok",
+        "cancelled": "İptal edildi"
       },
-      "openProject": "Projeyi aç"
+      "openProject": "Projeyi aç",
+      "cancel": "İptal",
+      "confirmCancel": "«{name}» içe aktarımı durdurulsun mu? Gelen dosyalar projede kalır.",
+      "cancelFailed": "İptal edilemedi — içe aktarım az önce bitmiş olabilir.",
+      "scanning": "Dosyalar sayılıyor…"
     },
     "notes": {
       "title": "Müşteri notları",
