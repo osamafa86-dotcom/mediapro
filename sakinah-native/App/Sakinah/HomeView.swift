@@ -18,12 +18,14 @@ struct HomeView: View {
   @State private var showSettings = ScreenshotMode.settings
   @State private var showKhatmah = false
   @State private var hadithShare: ShareItems?
+  /// أوّل آية في صفحة الورد التالية — تُقرأ خارج الخيط الرئيس (نصّ المصحف يُحمَّل كسولًا وقد لا يكون جاهزًا عند أوّل رسم)
+  @State private var wirdAyah: Ayah?
   @State private var weather = SkyWeatherService()
-  /// «ليس الآن» في بطاقة «الآن»: يُخفيها حتى الفترة التالية (المفتاح: الفترة ولحظة بدايتها)
-  @AppStorage("today.now.dismissed") private var nowDismissed = ""
+  /// «ليس الآن» في بطاقة «الآن»: يُخفيها حتى الفترة التالية (المفتاح: الفترة ولحظة بدايتها) — يُحفظ في UserDefaults
+  @State private var nowDismissed = UserDefaults.standard.string(forKey: "today.now.dismissed") ?? ""
 
   /// أعمدة بطاقة المواقيت: الخمس وحدها (الشروق ليس عمودًا)
-  private let cardPrayers: [Prayer] = [.fajr, .dhuhr, .asr, .maghrib, .isha]
+  private static let cardPrayers: [Prayer] = [.fajr, .dhuhr, .asr, .maghrib, .isha]
 
   var body: some View {
     NavigationStack {
@@ -297,7 +299,7 @@ struct HomeView: View {
       .accessibilityElement(children: .combine)
       .accessibilityLabel(elapsedText)
       HStack(spacing: 4) {
-        ForEach(cardPrayers, id: \.self) { p in prayerColumn(p, t, now: now) }
+        ForEach(Self.cardPrayers, id: \.self) { p in prayerColumn(p, t, now: now) }
       }
       HStack(spacing: 8) {
         guardLine(t)
@@ -448,7 +450,10 @@ struct HomeView: View {
       HStack(spacing: 12) {
         action()
         Spacer(minLength: 8)
-        Button { withAnimation(.snappy(duration: 0.25)) { nowDismissed = ctx.key } } label: {
+        Button {
+          UserDefaults.standard.set(ctx.key, forKey: "today.now.dismissed")
+          withAnimation(.snappy(duration: 0.25)) { nowDismissed = ctx.key }
+        } label: {
           Text("ليس الآن").font(DS.F.labelMd).foregroundStyle(DS.C.textSecondary)
             .padding(.horizontal, 8).frame(minHeight: 44).contentShape(Rectangle())
         }
@@ -506,10 +511,10 @@ struct HomeView: View {
   /// بخطة ختمة: سورة الموضع التالي، جزؤه وآيته، وما بقي من ورد اليوم، ونسبة الختمة — «تابع القراءة» على صفحة الورد
   private func khatmahCard(_ plan: KhatmahPlan, _ stt: KhatmahStatus) -> some View {
     let next = ((plan.startPage - 1 + stt.done) % Khatmah.total) + 1
-    let first = QuranText.shared.pageAyahs(next).first
+    let first: Ayah? = wirdAyah.flatMap { $0.page == next ? $0 : nil }
     let surah = first.map { QuranMeta.surah($0.surah).name } ?? QuranMeta.firstSurah(onPage: next).name
     let left = max(0, stt.todayTarget - stt.todayPages)
-    let place = first.map { "الجزء \(num($0.juz))، من الآية \(num($0.ayah))" } ?? "الصفحة \(num(next))"
+    let place = first.map { "الجزء \(num($0.juz))، من الآية \(num($0.ayah))" } ?? "الجزء \(num(QuranMeta.juz(ofPage: next)))، الصفحة \(num(next))"
     let today = left > 0 ? "باقٍ \(counted(left, one: "صفحة واحدة", two: "صفحتان", few: "صفحات", many: "صفحة"))" : "أتممتَ ورد اليوم ✓"
     return VStack(alignment: .leading, spacing: 12) {
       HStack(alignment: .top, spacing: 12) {
@@ -528,6 +533,11 @@ struct HomeView: View {
       .buttonStyle(.plain)
     }
     .todayCard()
+    .task(id: next) {
+      let page = next
+      let a = await Task.detached(priority: .utility) { QuranText.shared.pageAyahs(page).first }.value
+      wirdAyah = a
+    }
   }
 
   /// بلا خطة (أو بعد إتمامها): متابعة القراءة من آخر صفحة، بلا نسبة، ورابطٌ هادئ لبدء ختمة

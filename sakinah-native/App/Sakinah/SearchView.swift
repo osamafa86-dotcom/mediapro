@@ -23,8 +23,7 @@ enum SearchText {
     out.reserveCapacity(s.unicodeScalars.count)
     for sc in s.unicodeScalars {
       let v = sc.value
-      if (0x0610...0x061A).contains(v) || (0x064B...0x065F).contains(v) || v == 0x0670 || (0x06D6...0x06ED).contains(v) || v == 0x0640
-        || (0x200B...0x200F).contains(v) || (0x2066...0x2069).contains(v) { continue }
+      if ignorable(v) { continue }
       switch v {
       case 0x0671, 0x0623, 0x0625, 0x0622: out.append("ا")
       case 0x0629: out.append("ه")
@@ -33,6 +32,16 @@ enum SearchText {
       }
     }
     return String(String.UnicodeScalarView(out)).lowercased()
+  }
+  /// التشكيل وعلامات المصحف (والألف الخنجرية) والتطويل ومحارف الاتجاه غير المرئية
+  private static func ignorable(_ v: UInt32) -> Bool {
+    if v >= 0x0610 && v <= 0x061A { return true }
+    if v >= 0x064B && v <= 0x065F { return true }
+    if v == 0x0670 || v == 0x0640 { return true }
+    if v >= 0x06D6 && v <= 0x06ED { return true }
+    if v >= 0x200B && v <= 0x200F { return true }
+    if v >= 0x2066 && v <= 0x2069 { return true }
+    return false
   }
   /// كلمات الاستعلام بعد التطبيع (حرفان فأكثر)
   static func tokens(_ q: String) -> [String] {
@@ -331,11 +340,11 @@ struct SearchView: View {
   @State private var sheet: SearchSheet?
   @State private var showQibla = false
   @FocusState private var focused: Bool
-  /// آخر عمليات البحث (على الجهاز وحده)
-  @AppStorage("search.recent") private var recentRaw = ""
+  /// آخر عمليات البحث (على الجهاز وحده، في UserDefaults)
+  @State private var recentRaw = UserDefaults.standard.string(forKey: "search.recent") ?? ""
 
-  private struct SearchReaderTarget: Identifiable { let page: Int; let ayah: Int?; var id: String { "\(page)-\(ayah ?? 0)" } }
-  private enum SearchSheet: Int, Identifiable { case method, khatmah, reciter, display, legend; var id: Int { rawValue } }
+  struct SearchReaderTarget: Identifiable { let page: Int; let ayah: Int?; var id: String { "\(page)-\(ayah ?? 0)" } }
+  enum SearchSheet: Int, Identifiable { case method, khatmah, reciter, display, legend; var id: Int { rawValue } }
 
   var body: some View {
     NavigationStack(path: $path) {
@@ -446,6 +455,9 @@ struct SearchView: View {
     let all = scope == .all
     if q.isEmpty {
       emptyState
+    } else if SearchText.fold(q).count < 2 {
+      Text("اكتب حرفين على الأقل").font(DS.F.bodySm).foregroundStyle(DS.C.textTertiary)
+        .frame(maxWidth: .infinity).padding(.top, 40)
     } else if resultsQuery.isEmpty {
       ProgressView().frame(maxWidth: .infinity).padding(.top, 40)
     } else if !hasResults(r, in: scope) {
@@ -595,7 +607,7 @@ struct SearchView: View {
         HStack {
           Text("عمليات بحث سابقة").font(DS.F.labelSm).foregroundStyle(DS.C.textTertiary)
           Spacer()
-          Button { recentRaw = "" } label: {
+          Button { saveRecent("") } label: {
             Text("مسح").font(DS.F.labelSm).foregroundStyle(DS.C.brandPrimary).frame(minHeight: 44).contentShape(Rectangle())
           }
           .buttonStyle(.plain).accessibilityLabel("مسح عمليات البحث السابقة")
@@ -713,7 +725,11 @@ struct SearchView: View {
     let t = q.trimmingCharacters(in: .whitespacesAndNewlines)
     guard t.count >= 2 else { return }
     let list = [t] + recent.filter { $0 != t }
-    recentRaw = list.prefix(6).joined(separator: "\n")
+    saveRecent(list.prefix(6).joined(separator: "\n"))
+  }
+  private func saveRecent(_ raw: String) {
+    recentRaw = raw
+    UserDefaults.standard.set(raw, forKey: "search.recent")
   }
   private func num(_ v: Int) -> String { Fmt.number(v, numerals: model.settings.numerals) }
 }

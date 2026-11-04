@@ -1,163 +1,329 @@
 import SwiftUI
 import UserNotifications
+import StoreKit
 import SakinahCore
 
-/// شاشة الإعدادات (تصميم Figma 13): مجموعات ببطاقات، صفوف بقيمة على اليسار، ومبدّلات مضمّنة
+/// الإعدادات (المرحلة الثانية — تصميم «الإعدادات — iOS»): رأسٌ بـ«‹ اليوم» وعنوانٍ كوفي كبير، ثم خمس مجموعات:
+/// الصلاة، التنبيهات، القرآن والتلاوة، المظهر، عن سكينة. كل صفّ: أيقونة في مربّع ناعم (يمين)، عنوان، قيمة وسهم (يسار).
+/// ما كان في الإعدادات القديمة ولم يعد صفًّا هنا انتقل إلى شاشةٍ فرعية: الأذان وتنبيهاته («الأذان»)، والأرقام والساعة
+/// والتاريخ الهجري والاهتزاز («الأرقام والوقت والتاريخ»)، وخطوط العرض العالية (ورقة «طريقة الحساب»).
+/// ملاحظة اتجاه: البيئة RTL، فأوّل عنصر في HStack يقع يمينًا، و`.leading` هو اليمين.
 struct SettingsView: View {
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss
-  @State private var showAdhanPicker = false
-  @State private var showPrePicker = false
-  @State private var showNumerals = false
-  @State private var denied = false
+  @Environment(\.openURL) private var openURL
+  @Environment(\.requestReview) private var requestReview
+  @Environment(\.colorScheme) private var scheme
+  /// اسم الشاشة التي فُتحت منها (للرابط «‹ اليوم»)
+  var backTitle = "اليوم"
+  @State private var sheet: SettingsSheet?
+  @State private var showAsr = false
+  @State private var showTextScale = false
+
+  enum SettingsSheet: Int, Identifiable { case methods, adhkarReminders, khatmah, display, legend, reciter; var id: Int { rawValue } }
+  private struct TextScaleOption: Hashable { let value: Double; let label: String }
+  private static let textScales: [TextScaleOption] = [
+    TextScaleOption(value: 0.8, label: "صغير"), TextScaleOption(value: 1.0, label: "عادي"), TextScaleOption(value: 1.2, label: "كبير"),
+    TextScaleOption(value: 1.4, label: "أكبر"), TextScaleOption(value: 1.6, label: "الأكبر"),
+  ]
   private var version: String { (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "—" }
-  private var build: String { (Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? "—" }
 
   var body: some View {
-    @Bindable var settings = model.settings
     ScrollView {
-      VStack(spacing: DS.Space.s4) {
-        locationGroup(settings)
-        notificationsGroup(settings)
-        appearanceGroup(settings)
-        dataGroup
+      VStack(alignment: .leading, spacing: 22) {
+        SettingsHeader(title: "الإعدادات", backTitle: backTitle) { dismiss() }
+        prayerGroup
+        alertsGroup
+        quranGroup
+        appearanceGroup
         aboutGroup
+        Text("سكينة \u{2066}\(version)\u{2069} — بلا إعلانات ولا تتبّع")
+          .font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).frame(maxWidth: .infinity)
       }
       .padding(.horizontal, DS.Space.s4).padding(.top, DS.Space.s2).padding(.bottom, DS.Space.s8)
     }
     .background(DS.C.bgCanvas)
-    .safeAreaInset(edge: .top, spacing: 0) {
-      HStack {
-        Spacer()
-        Text("الإعدادات").font(DS.F.headingLg).foregroundStyle(DS.C.textPrimary)
-        Spacer()
-        DSIconButton(systemName: "chevron.forward", label: "رجوع") { dismiss() }
-      }
-      .padding(.horizontal, DS.Space.s4).padding(.vertical, DS.Space.s3).background(DS.C.bgCanvas)
-    }
     .navigationBarHidden(true)
-    .onChange(of: settings.highLatitudeRule) { model.rescheduleNotifications() }
-    .onChange(of: settings.hour12) { model.rescheduleNotifications() }
-    .onChange(of: settings.numerals) { model.rescheduleNotifications() }
-  }
-
-  // MARK: الموقع والحساب
-
-  @ViewBuilder private func locationGroup(_ settings: Settings) -> some View {
-    let s = model.settings
-    SettingsGroup("الموقع والحساب") {
-      NavigationLink { CityPickerView().environment(model).tabBarClearance() } label: {
-        SettingsRow(title: "الموقع", subtitle: model.location.placeName ?? "غير محدد", value: model.location.mode == .gps ? "تلقائي" : "تغيير")
-      }.buttonStyle(.plain)
-      SettingsDivider()
-      NavigationLink { MethodPicker().environment(model) } label: {
-        SettingsRow(title: "طريقة الحساب", subtitle: s.methodIsAutomatic ? "تُختار حسب الدولة" : "اختيار يدوي", value: Methods.method(s.methodId).nameAr)
-      }.buttonStyle(.plain)
-      SettingsDivider()
-      HStack {
-        Text("مذهب العصر").font(DS.F.bodyMd).foregroundStyle(DS.C.textPrimary)
-        Spacer()
-        DSSegmented(items: ["حنفي", "الجمهور"], selection: Binding(
-          get: { s.madhab == .hanafi ? 0 : 1 },
-          set: { model.settings.madhab = $0 == 0 ? .hanafi : .shafi; model.rescheduleNotifications() }))
-          .frame(width: 168)
+    .sheet(item: $sheet) { s in sheetView(s) }
+    .confirmationDialog("وقت العصر", isPresented: $showAsr, titleVisibility: .visible) {
+      Button("الجمهور (مثل الظل)") { model.settings.madhab = .shafi; model.rescheduleNotifications() }
+      Button("الحنفي (مثلا الظل)") { model.settings.madhab = .hanafi; model.rescheduleNotifications() }
+      Button("إلغاء", role: .cancel) {}
+    }
+    .confirmationDialog("حجم خط القراءة", isPresented: $showTextScale, titleVisibility: .visible) {
+      ForEach(Self.textScales, id: \.self) { o in
+        Button(o.label) { model.content.textScale = o.value }
       }
-      .padding(.vertical, DS.Space.s2).padding(.horizontal, DS.Space.s3)
-      SettingsDivider()
-      HStack {
-        Text("خطوط العرض العالية").font(DS.F.bodyMd).foregroundStyle(DS.C.textPrimary)
-        Spacer()
-        Picker("", selection: Binding(get: { s.highLatitudeRule }, set: { model.settings.highLatitudeRule = $0 })) {
-          ForEach(HighLatitudeRule.allCases, id: \.self) { r in Text(r == .auto ? "تلقائي" : r.nameAr).tag(r) }
-        }
-        .labelsHidden().tint(DS.C.brandPrimary)
-      }
-      .padding(.vertical, DS.Space.s2).padding(.horizontal, DS.Space.s3)
-      SettingsDivider()
-      NavigationLink { MonthTableView().environment(model).tabBarClearance() } label: {
-        SettingsRow(title: "الجدول الشهري", subtitle: "تصدير إلى التقويم (ICS)", value: nil)
-      }.buttonStyle(.plain)
+      Button("إلغاء", role: .cancel) {}
+    } message: {
+      Text("لنصوص الأذكار والأحاديث")
     }
   }
 
-  // MARK: الإشعارات
+  // MARK: ١ · الصلاة
+  private var prayerGroup: some View {
+    let s = model.settings
+    return SettingsSection("الصلاة") {
+      NavigationLink { CityPickerView().environment(model).tabBarClearance() } label: {
+        SettingsItemRow(icon: "mappin.and.ellipse", title: "الموقع", value: model.location.placeName ?? "غير محدّد")
+      }
+      .buttonStyle(.plain)
+      SettingsRowDivider()
+      Button { sheet = .methods } label: {
+        SettingsItemRow(icon: "calendar", title: "طريقة الحساب", value: Methods.method(s.methodId).nameAr)
+      }
+      .buttonStyle(.plain)
+      SettingsRowDivider()
+      Button { showAsr = true } label: {
+        SettingsItemRow(icon: "sun.max", title: "وقت العصر", value: s.madhab == .hanafi ? "الحنفي" : "الجمهور")
+      }
+      .buttonStyle(.plain)
+    }
+  }
 
-  @ViewBuilder private func notificationsGroup(_ settings: Settings) -> some View {
+  // MARK: ٢ · التنبيهات
+  private var alertsGroup: some View {
+    SettingsSection("التنبيهات") {
+      NavigationLink { NotificationSettingsView().environment(model).tabBarClearance() } label: {
+        SettingsItemRow(icon: "bell", title: "الأذان", value: adhanValue)
+      }
+      .buttonStyle(.plain)
+      SettingsRowDivider()
+      Button { sheet = .adhkarReminders } label: {
+        SettingsItemRow(icon: "sparkles", title: "تذكير الأذكار", value: adhkarValue)
+      }
+      .buttonStyle(.plain)
+      SettingsRowDivider()
+      Button { sheet = .khatmah } label: {
+        SettingsItemRow(icon: "book", title: "تذكير الورد", value: wirdValue)
+      }
+      .buttonStyle(.plain)
+    }
+  }
+  private var adhanValue: String {
+    let r = model.settings.reminders
+    guard r.enabled else { return "مطفأ" }
+    if model.notifications.authorization == .denied { return "الإذن مرفوض" }
+    let c = r.prayers.filter { $0 != .sunrise }.count
+    switch c {
+    case 0: return "لا صلاة"
+    case 1: return "صلاة واحدة"
+    case 2: return "صلاتان"
+    default: return "\(num(c)) صلوات"
+    }
+  }
+  private var adhkarValue: String {
+    let x = model.content.extraReminders
+    switch (x.adhkarMorning, x.adhkarEvening) {
+    case (true, true): return "الصباح والمساء"
+    case (true, false): return "الصباح"
+    case (false, true): return "المساء"
+    default: return "مطفأ"
+    }
+  }
+  /// تذكير الختمة: بعد صلاة، أو في ساعةٍ ثابتة «HH:mm»، أو مطفأ (ولا خطة = مطفأ)
+  private var wirdValue: String {
+    guard let plan = model.quran.khatmah, let r = plan.reminder else { return "مطفأ" }
+    if let p = Reminders.afterPrayer(r) { return "بعد \(p.nameAr)" }
+    let hm = r.split(separator: ":").compactMap { Int($0) }
+    guard hm.count == 2, let d = Calendar.current.date(bySettingHour: hm[0], minute: hm[1], second: 0, of: Date()) else { return "مطفأ" }
+    return Fmt.time(d, tz: .current, hour12: model.settings.hour12, numerals: model.settings.numerals)
+  }
+
+  // MARK: ٣ · القرآن والتلاوة
+  private var quranGroup: some View {
+    let q = model.quran
+    let bytes = model.downloads.totalBytes()
+    return SettingsSection("القرآن والتلاوة") {
+      Button { sheet = .display } label: {
+        SettingsItemRow(icon: "book.closed", title: "المصحف والخط", value: q.isTextMode ? "نص متدفق" : "مصحف المدينة")
+      }
+      .buttonStyle(.plain)
+      SettingsRowDivider()
+      Button { sheet = .reciter } label: {
+        SettingsItemRow(icon: "headphones", title: "القارئ", value: Catalog.shared.reciter(q.reciter).name)
+      }
+      .buttonStyle(.plain)
+      SettingsRowDivider()
+      NavigationLink { DownloadsView().environment(model) } label: {
+        SettingsItemRow(icon: "arrow.down.circle", title: "التنزيلات", value: bytes > 0 ? AudioDownloads.fmtBytes(bytes, numerals: model.settings.numerals) : "لا تنزيلات")
+      }
+      .buttonStyle(.plain)
+    }
+  }
+
+  // MARK: ٤ · المظهر
+  /// لا صفّ «الوضع»: التطبيق يتبع وضع النظام ولا إعداد له
+  private var appearanceGroup: some View {
+    SettingsSection("المظهر") {
+      NavigationLink { SkySettingsView().environment(model).tabBarClearance() } label: {
+        SettingsItemRow(icon: "sun.horizon", title: "السماء", value: skyValue)
+      }
+      .buttonStyle(.plain)
+      SettingsRowDivider()
+      Button { showTextScale = true } label: {
+        SettingsItemRow(icon: "textformat.size", title: "حجم خط القراءة", value: scaleLabel(model.content.textScale))
+      }
+      .buttonStyle(.plain)
+      SettingsRowDivider()
+      NavigationLink { FormatsSettingsView().environment(model).tabBarClearance() } label: {
+        SettingsItemRow(icon: "textformat.123", title: "الأرقام والوقت والتاريخ", value: formatsValue)
+      }
+      .buttonStyle(.plain)
+    }
+  }
+  private var skyValue: String {
+    let sky = model.settings.sky
+    switch sky.mode {
+    case .auto: return sky.weather ? "حيّة مع الوقت والطقس" : "حيّة مع الوقت"
+    case .fixed: return "ثابتة"
+    case .custom: return "بلونك"
+    }
+  }
+  private func scaleLabel(_ v: Double) -> String {
+    let nearest = Self.textScales.min(by: { abs($0.value - v) < abs($1.value - v) })
+    return nearest?.label ?? "عادي"
+  }
+  private var formatsValue: String {
+    let s = model.settings
+    return "\(num(123))، \(num(s.hour12 ? 12 : 24)) ساعة"
+  }
+
+  // MARK: ٥ · عن سكينة
+  private var aboutGroup: some View {
+    SettingsSection("عن سكينة") {
+      NavigationLink { PrivacyAboutView().environment(model).tabBarClearance() } label: {
+        SettingsItemRow(icon: "hand.raised", title: "الخصوصية")
+      }
+      .buttonStyle(.plain)
+      SettingsRowDivider()
+      // قناة التواصل القائمة نفسها في صفحة المتجر وسياسة الخصوصية (صفحة المسائل على GitHub)
+      Button { if let u = URL(string: SakinahLinks.support) { openURL(u) } } label: {
+        SettingsItemRow(icon: "envelope", title: "تواصل معنا")
+      }
+      .buttonStyle(.plain)
+      .accessibilityHint("يفتح صفحة المسائل على GitHub")
+      SettingsRowDivider()
+      Button { requestReview() } label: {
+        SettingsItemRow(icon: "star", title: "قيّم التطبيق")
+      }
+      .buttonStyle(.plain)
+      SettingsRowDivider()
+      NavigationLink { BackupView().environment(model).tabBarClearance() } label: {
+        SettingsItemRow(icon: "externaldrive", title: "النسخة الاحتياطية")
+      }
+      .buttonStyle(.plain)
+    }
+  }
+
+  // MARK: الأوراق
+  @ViewBuilder private func sheetView(_ s: SettingsSheet) -> some View {
+    switch s {
+    case .methods: MethodPicker().environment(model).environment(\.tabBarInset, 0)
+    case .adhkarReminders: AdhkarRemindersSheet().environment(model)
+    case .khatmah: KhatmahSheet().environment(model)
+    case .display: DisplaySheet(onLegend: { sheet = .legend }).environment(model)
+    case .legend: TajweedLegendSheet(dark: scheme == .dark)
+    case .reciter: ReciterPickerSheet().environment(model)
+    }
+  }
+
+  private func num(_ v: Int) -> String { Fmt.number(v, numerals: model.settings.numerals) }
+}
+
+/// روابط قائمة (من بيانات المتجر: privacy_url وsupport_url) — لا عناوين مخترعة
+enum SakinahLinks {
+  static let privacy = "https://osamafa86-dotcom.github.io/mediapro/privacy.html"
+  static let support = "https://github.com/osamafa86-dotcom/mediapro/issues"
+}
+
+// MARK: - الأذان والتنبيهات (شاشة فرعية — كل ما كان في مجموعة «الإشعارات» القديمة)
+struct NotificationSettingsView: View {
+  @Environment(AppModel.self) private var model
+  @Environment(\.dismiss) private var dismiss
+  @State private var showAdhanPicker = false
+  @State private var showPrePicker = false
+  @State private var denied = false
+  @State private var testSent = false
+
+  var body: some View {
     let n = model.notifications
     let prefs = Binding<ReminderPrefs>(get: { model.settings.reminders }, set: { model.settings.reminders = $0; model.rescheduleNotifications() })
-    SettingsGroup("الإشعارات") {
-      NavigationLink { AdhanGuardView().environment(model).tabBarClearance() } label: {
-        let issues = AdhanGuard.issues(model, includeSnoozed: true).count
-        SettingsRow(title: "ضمان الأذان", subtitle: issues == 0 ? "كل الفحوص سليمة" : "\(Fmt.number(issues, numerals: settings.numerals)) \(issues == 1 ? "بندٌ يحتاج" : "بنود تحتاج") إصلاحاً", value: nil)
-      }.buttonStyle(.plain)
-      SettingsDivider()
-      Toggle(isOn: Binding(get: { prefs.wrappedValue.enabled }, set: { on in
-        if on { Task { let ok = await n.requestAuthorization(); await MainActor.run { denied = !ok; prefs.wrappedValue.enabled = ok } } }
-        else { prefs.wrappedValue.enabled = false }
-      })) {
-        VStack(alignment: .trailing, spacing: 2) {
-          Text("إشعارات الصلاة").font(DS.F.bodyMd).foregroundStyle(DS.C.textPrimary)
-          Text(statusText).font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary).lineLimit(1).minimumScaleFactor(0.7)
+    let issues = AdhanGuard.issues(model, includeSnoozed: true).count
+    ScrollView {
+      VStack(alignment: .leading, spacing: 22) {
+        SettingsHeader(title: "الأذان والتنبيهات", backTitle: "الإعدادات") { dismiss() }
+        SettingsSection("الضمان") {
+          NavigationLink { AdhanGuardView().environment(model).tabBarClearance() } label: {
+            SettingsItemRow(icon: "checkmark.shield", title: "ضمان الأذان",
+                            value: issues == 0 ? "كل الفحوص سليمة" : (issues == 1 ? "بندٌ يحتاج إصلاحًا" : "\(num(issues)) بنود تحتاج إصلاحًا"))
+          }
+          .buttonStyle(.plain)
         }
-      }
-      .toggleStyle(DSToggleStyle()).padding(.vertical, DS.Space.s2).padding(.horizontal, DS.Space.s3)
-      if denied || n.authorization == .denied {
-        Text("الإذن مرفوض — فعّل الإشعارات للتطبيق من إعدادات النظام")
-          .font(DS.F.labelXs).foregroundStyle(DS.C.danger)
-          .frame(maxWidth: .infinity, alignment: .trailing).padding(.horizontal, DS.Space.s3).padding(.bottom, DS.Space.s2)
-      }
-      if prefs.wrappedValue.enabled {
-        SettingsDivider()
-        Button { showAdhanPicker = true } label: {
-          SettingsRow(title: "صوت الأذان", subtitle: nil, value: soundLabel(prefs.wrappedValue.sound))
-        }.buttonStyle(.plain)
-        SettingsDivider()
-        Button { showPrePicker = true } label: {
-          SettingsRow(title: "تنبيه قبل الصلاة", subtitle: nil, value: prefs.wrappedValue.preMinutes == 0 ? "لا" : "\(Fmt.number(prefs.wrappedValue.preMinutes, numerals: model.settings.numerals)) د")
-        }.buttonStyle(.plain)
-        SettingsDivider()
-        NavigationLink { PrayerTogglesView().environment(model).tabBarClearance() } label: {
-          SettingsRow(title: "الصلوات المُنبَّه لها", subtitle: nil, value: "\(Fmt.number(prefs.wrappedValue.prayers.count, numerals: model.settings.numerals)) من \(Fmt.number(Prayer.allCases.count, numerals: model.settings.numerals))")
-        }.buttonStyle(.plain)
-        SettingsDivider()
-        Toggle(isOn: Binding(get: { model.settings.fullAdhanInApp }, set: { model.settings.fullAdhanInApp = $0 })) {
-          VStack(alignment: .trailing, spacing: 2) {
-            Text("الأذان الكامل داخل التطبيق").font(DS.F.bodyMd).foregroundStyle(DS.C.textPrimary)
-            Text("في الإشعار يُسمع ٢٨ ثانية — حدّ النظام").font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary)
+        SettingsSection("الأذان") {
+          SettingsToggleRow(icon: "bell", title: "إشعارات الصلاة", subtitle: statusText, isOn: Binding(get: { prefs.wrappedValue.enabled }, set: { on in
+            if on { Task { let ok = await n.requestAuthorization(); await MainActor.run { denied = !ok; prefs.wrappedValue.enabled = ok } } }
+            else { prefs.wrappedValue.enabled = false }
+          }))
+          if denied || n.authorization == .denied {
+            Text("الإذن مرفوض — فعّل الإشعارات للتطبيق من إعدادات النظام")
+              .font(DS.F.labelXs).foregroundStyle(DS.C.danger)
+              .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).padding(.bottom, DS.Space.s2)
+          }
+          // مجموعتان (Group) كي لا تتجاوز الكتلة عشرة عناصر في ViewBuilder
+          if prefs.wrappedValue.enabled {
+            Group {
+              SettingsRowDivider()
+              Button { showAdhanPicker = true } label: {
+                SettingsItemRow(icon: "speaker.wave.2", title: "صوت الأذان", value: soundLabel(prefs.wrappedValue.sound))
+              }
+              .buttonStyle(.plain)
+              SettingsRowDivider()
+              Button { showPrePicker = true } label: {
+                SettingsItemRow(icon: "clock", title: "تنبيه قبل الصلاة", value: prefs.wrappedValue.preMinutes == 0 ? "لا" : "\(num(prefs.wrappedValue.preMinutes)) د")
+              }
+              .buttonStyle(.plain)
+              SettingsRowDivider()
+              NavigationLink { PrayerTogglesView().environment(model).tabBarClearance() } label: {
+                SettingsItemRow(icon: "list.bullet", title: "الصلوات المُنبَّه لها", value: "\(num(prefs.wrappedValue.prayers.count)) من \(num(Prayer.allCases.count))")
+              }
+              .buttonStyle(.plain)
+            }
+            Group {
+              SettingsRowDivider()
+              SettingsToggleRow(icon: "speaker.wave.3", title: "الأذان الكامل داخل التطبيق", subtitle: "في الإشعار يُسمع ٢٨ ثانية — حدّ النظام",
+                                isOn: Binding(get: { model.settings.fullAdhanInApp }, set: { model.settings.fullAdhanInApp = $0 }))
+              SettingsRowDivider()
+              Button { model.adhan.isPlaying ? model.adhan.stop() : model.adhan.play(sound: prefs.wrappedValue.sound) } label: {
+                SettingsItemRow(icon: model.adhan.isPlaying ? "stop.fill" : "play.fill", title: model.adhan.isPlaying ? "إيقاف الأذان" : "تجربة الأذان", tint: DS.C.brandPrimary, chevron: false)
+              }
+              .buttonStyle(.plain)
+              SettingsRowDivider()
+              Button {
+                AdhanGuard.test(sound: prefs.wrappedValue.sound); testSent = true
+                Task { try? await Task.sleep(for: .seconds(12)); testSent = false }
+              } label: {
+                SettingsItemRow(icon: "bell.badge", title: testSent ? "أُرسل الاختبار: انتظر ١٠ ثوانٍ" : "اختبر إشعار الأذان", tint: DS.C.brandPrimary, chevron: false)
+              }
+              .buttonStyle(.plain)
+              .disabled(testSent)
+            }
           }
         }
-        .toggleStyle(DSToggleStyle()).padding(.vertical, DS.Space.s2).padding(.horizontal, DS.Space.s3)
-        SettingsDivider()
-        Button { model.adhan.isPlaying ? model.adhan.stop() : model.adhan.play(sound: prefs.wrappedValue.sound) } label: {
-          SettingsRow(title: model.adhan.isPlaying ? "إيقاف الأذان" : "تجربة الأذان", subtitle: nil, value: nil, tint: DS.C.brandPrimary)
-        }.buttonStyle(.plain)
-      }
-      SettingsDivider()
-      Toggle(isOn: adhkarBinding) {
-        VStack(alignment: .trailing, spacing: 2) {
-          Text("أذكار الصباح والمساء").font(DS.F.bodyMd).foregroundStyle(DS.C.textPrimary)
-          Text("بعد الفجر والعصر بـ\(Fmt.number(model.content.extraReminders.morningAfter, numerals: model.settings.numerals)) دقيقة")
-            .font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary)
+        SettingsSection("تنبيهات أخرى") {
+          SettingsToggleRow(icon: "text.book.closed", title: "حديث اليوم", subtitle: "يوميًا \u{2066}\(model.content.extraReminders.hadithTime)\u{2069}",
+                            isOn: Binding(get: { model.content.extraReminders.hadithDaily }, set: { var x = model.content.extraReminders; x.hadithDaily = $0; model.content.extraReminders = x; model.rescheduleNotifications() }))
+          SettingsRowDivider()
+          SettingsToggleRow(icon: "bolt", title: "نشاط مباشر للصلاة القادمة", subtitle: "عدّ تنازلي على شاشة القفل والجزيرة الديناميكية",
+                            isOn: Binding(get: { model.settings.liveActivity }, set: { model.settings.liveActivity = $0; LiveActivityManager.sync(model) }))
         }
+        Text("تذكير الأذكار ووقت حديث اليوم من صفّ «تذكير الأذكار» في الإعدادات.")
+          .font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).fixedSize(horizontal: false, vertical: true)
       }
-      .toggleStyle(DSToggleStyle()).padding(.vertical, DS.Space.s2).padding(.horizontal, DS.Space.s3)
-      SettingsDivider()
-      Toggle(isOn: Binding(get: { model.content.extraReminders.hadithDaily }, set: { var x = model.content.extraReminders; x.hadithDaily = $0; model.content.extraReminders = x; model.rescheduleNotifications() })) {
-        VStack(alignment: .trailing, spacing: 2) {
-          Text("حديث اليوم").font(DS.F.bodyMd).foregroundStyle(DS.C.textPrimary)
-          Text(model.content.extraReminders.hadithTime).font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary)
-        }
-      }
-      .toggleStyle(DSToggleStyle()).padding(.vertical, DS.Space.s2).padding(.horizontal, DS.Space.s3)
-      SettingsDivider()
-      Toggle(isOn: Binding(get: { model.settings.liveActivity }, set: { model.settings.liveActivity = $0; LiveActivityManager.sync(model) })) {
-        VStack(alignment: .trailing, spacing: 2) {
-          Text("نشاط مباشر للصلاة القادمة").font(DS.F.bodyMd).foregroundStyle(DS.C.textPrimary)
-          Text("عدّ تنازلي على شاشة القفل والجزيرة الديناميكية").font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary)
-        }
-      }
-      .toggleStyle(DSToggleStyle()).padding(.vertical, DS.Space.s2).padding(.horizontal, DS.Space.s3)
+      .padding(.horizontal, DS.Space.s4).padding(.top, DS.Space.s2).padding(.bottom, DS.Space.s8)
     }
+    .background(DS.C.bgCanvas)
+    .navigationBarHidden(true)
     .confirmationDialog("صوت الأذان", isPresented: $showAdhanPicker, titleVisibility: .visible) {
       Button("أذان — الشيخ عبد الباسط فخري") { var p = prefs.wrappedValue; p.sound = "adhan-fakhry"; prefs.wrappedValue = p }
       Button("أذان — عزيز") { var p = prefs.wrappedValue; p.sound = "adhan-azeez"; prefs.wrappedValue = p }
@@ -167,114 +333,223 @@ struct SettingsView: View {
     }
     .confirmationDialog("تنبيه قبل الصلاة", isPresented: $showPrePicker, titleVisibility: .visible) {
       ForEach([0, 5, 10, 15, 20, 30], id: \.self) { m in
-        Button(m == 0 ? "لا تنبيه" : "\(Fmt.number(m, numerals: model.settings.numerals)) دقيقة") { var p = prefs.wrappedValue; p.preMinutes = m; prefs.wrappedValue = p }
+        Button(m == 0 ? "لا تنبيه" : "\(num(m)) دقيقة") { var p = prefs.wrappedValue; p.preMinutes = m; prefs.wrappedValue = p }
       }
       Button("إلغاء", role: .cancel) {}
     }
   }
 
-  private var adhkarBinding: Binding<Bool> {
-    Binding(get: { model.content.extraReminders.adhkarMorning || model.content.extraReminders.adhkarEvening },
-            set: { on in var x = model.content.extraReminders; x.adhkarMorning = on; x.adhkarEvening = on; model.content.extraReminders = x; model.rescheduleNotifications() })
-  }
   private func soundLabel(_ id: String) -> String {
-    switch id { case "adhan-fakhry": return "فخري · كامل"; case "adhan-azeez": return "عزيز · كامل"; case "chime": return "نغمة"; default: return "صامت" }
+    switch id { case "adhan-fakhry": return "فخري، كامل"; case "adhan-azeez": return "عزيز، كامل"; case "chime": return "نغمة"; default: return "صامت" }
   }
   private var statusText: String {
     let n = model.notifications
     guard model.settings.reminders.enabled else { return "تصل حتى والتطبيق مغلق" }
-    if let until = n.scheduledUntil { return "\(Fmt.number(n.pendingCount, numerals: model.settings.numerals)) موعدًا حتى \(Fmt.gregorian(until, tz: model.timeZone, numerals: model.settings.numerals))" }
+    if let until = n.scheduledUntil { return "\(num(n.pendingCount)) موعدًا حتى \(Fmt.gregorian(until, tz: model.timeZone, numerals: model.settings.numerals))" }
     return "قيد الجدولة…"
   }
+  private func num(_ v: Int) -> String { Fmt.number(v, numerals: model.settings.numerals) }
+}
 
-  // MARK: المظهر
+// MARK: - الأرقام والوقت والتاريخ (شاشة فرعية — كانت في «المظهر» القديمة)
+struct FormatsSettingsView: View {
+  @Environment(AppModel.self) private var model
+  @Environment(\.dismiss) private var dismiss
 
-  @ViewBuilder private func appearanceGroup(_ settings: Settings) -> some View {
-    SettingsGroup("المظهر") {
-      NavigationLink { SkySettingsView().environment(model).tabBarClearance() } label: {
-        SettingsRow(title: "مظهر السماء", subtitle: "تتبدّل مع الوقت والطقس، أو ثابتة، أو بلونك", value: model.settings.sky.mode.nameAr)
-      }.buttonStyle(.plain)
-      SettingsDivider()
-      HStack {
-        Text("الأرقام").font(DS.F.bodyMd).foregroundStyle(DS.C.textPrimary)
-        Spacer()
-        DSSegmented(items: ["١٢٣", "123"], selection: Binding(
-          get: { model.settings.numerals == "arab" ? 0 : 1 },
-          set: { model.settings.numerals = $0 == 0 ? "arab" : "latn" }))
-          .frame(width: 140)
-      }
-      .padding(.vertical, DS.Space.s2).padding(.horizontal, DS.Space.s3)
-      SettingsDivider()
-      HStack {
-        Text("نظام ١٢ ساعة").font(DS.F.bodyMd).foregroundStyle(DS.C.textPrimary)
-        Spacer()
-        Toggle("", isOn: Binding(get: { model.settings.hour12 }, set: { model.settings.hour12 = $0 })).labelsHidden().toggleStyle(DSToggleStyle())
-      }
-      .padding(.vertical, DS.Space.s2).padding(.horizontal, DS.Space.s3)
-      SettingsDivider()
-      HStack {
-        VStack(alignment: .trailing, spacing: 2) {
-          Text("تعديل التاريخ الهجري").font(DS.F.bodyMd).foregroundStyle(DS.C.textPrimary)
-          Text("\(Fmt.number(model.settings.hijriOffset, numerals: model.settings.numerals)) يوم").font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary)
+  var body: some View {
+    let s = model.settings
+    let h = model.hijri(now: Date())
+    let off = s.hijriOffset
+    let offText = off == 0 ? "بلا تعديل" : "تعديل \u{2066}\(off > 0 ? "+" : "−")\(num(abs(off)))\u{2069} \(abs(off) == 1 ? "يوم" : "يومان")"
+    ScrollView {
+      VStack(alignment: .leading, spacing: 22) {
+        SettingsHeader(title: "الأرقام والوقت والتاريخ", backTitle: "الإعدادات") { dismiss() }
+        SettingsSection("العرض") {
+          HStack(spacing: 12) {
+            SettingsIcon(name: "textformat.123")
+            Text("الأرقام").font(DS.F.bodyMd).foregroundStyle(DS.C.textPrimary)
+            Spacer(minLength: 8)
+            DSSegmented(items: ["١٢٣", "123"], selection: Binding(
+              get: { model.settings.numerals == "arab" ? 0 : 1 },
+              set: { model.settings.numerals = $0 == 0 ? "arab" : "latn"; model.rescheduleNotifications() }))
+              .frame(width: 150)
+          }
+          .padding(.horizontal, 14).frame(minHeight: 60)
+          SettingsRowDivider()
+          SettingsToggleRow(icon: "clock", title: "نظام ١٢ ساعة", subtitle: nil,
+                            isOn: Binding(get: { model.settings.hour12 }, set: { model.settings.hour12 = $0; model.rescheduleNotifications() }))
+          SettingsRowDivider()
+          HStack(spacing: 12) {
+            SettingsIcon(name: "moon")
+            VStack(alignment: .leading, spacing: 2) {
+              Text("تعديل التاريخ الهجري").font(DS.F.bodyMd).foregroundStyle(DS.C.textPrimary)
+              Text("اليوم \(num(h.day)) \(h.monthName) \(num(h.year))هـ — \(offText)").font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary)
+                .lineLimit(2).minimumScaleFactor(0.85)
+            }
+            Spacer(minLength: 8)
+            Stepper("تعديل التاريخ الهجري", value: Binding(get: { model.settings.hijriOffset }, set: { model.settings.hijriOffset = $0; model.rescheduleNotifications() }), in: -2...2)
+              .labelsHidden()
+          }
+          .padding(.horizontal, 14).padding(.vertical, 8).frame(minHeight: 60)
         }
-        Spacer()
-        Stepper("", value: Binding(get: { model.settings.hijriOffset }, set: { model.settings.hijriOffset = $0 }), in: -2...2).labelsHidden()
-      }
-      .padding(.vertical, DS.Space.s2).padding(.horizontal, DS.Space.s3)
-      SettingsDivider()
-      HStack {
-        VStack(alignment: .trailing, spacing: 2) {
-          Text("حجم نص الأذكار والأحاديث").font(DS.F.bodyMd).foregroundStyle(DS.C.textPrimary)
-          Text("\(Int(model.content.textScale * 100))٪").font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary)
-        }
-        Spacer()
-        HStack(spacing: DS.Space.s2) {
-          DSIconButton(systemName: "minus", style: .soft, size: 34, iconSize: 13, label: "تصغير") { model.content.textScale = max(0.8, model.content.textScale - 0.1) }
-          DSIconButton(systemName: "plus", style: .soft, size: 34, iconSize: 13, label: "تكبير") { model.content.textScale = min(1.6, model.content.textScale + 0.1) }
+        SettingsSection("العدّ") {
+          SettingsToggleRow(icon: "iphone.radiowaves.left.and.right", title: "الاهتزاز عند العدّ", subtitle: "في المسبحة والأذكار",
+                            isOn: Binding(get: { model.settings.haptics }, set: { model.settings.haptics = $0 }))
         }
       }
-      .padding(.vertical, DS.Space.s2).padding(.horizontal, DS.Space.s3)
-      SettingsDivider()
-      Toggle(isOn: Binding(get: { model.settings.haptics }, set: { model.settings.haptics = $0 })) {
-        Text("الاهتزاز عند العدّ").font(DS.F.bodyMd).foregroundStyle(DS.C.textPrimary)
-      }
-      .toggleStyle(DSToggleStyle()).padding(.vertical, DS.Space.s2).padding(.horizontal, DS.Space.s3)
+      .padding(.horizontal, DS.Space.s4).padding(.top, DS.Space.s2).padding(.bottom, DS.Space.s8)
     }
+    .background(DS.C.bgCanvas)
+    .navigationBarHidden(true)
   }
+  private func num(_ v: Int) -> String { Fmt.number(v, numerals: model.settings.numerals) }
+}
 
-  // MARK: البيانات وعن التطبيق
+// MARK: - الخصوصية (شاشة فرعية — نصّ «عن التطبيق» القائم والإصدار، ورابط السياسة الكاملة)
+struct PrivacyAboutView: View {
+  @Environment(\.dismiss) private var dismiss
+  @Environment(\.openURL) private var openURL
+  private var version: String { (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "—" }
+  private var build: String { (Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? "—" }
 
-  private var dataGroup: some View {
-    SettingsGroup("البيانات") {
-      NavigationLink { BackupView().environment(model).tabBarClearance() } label: {
-        SettingsRow(title: "النسخ الاحتياطي", subtitle: "تصدير واستيراد إعداداتك وعلاماتك", value: nil)
-      }.buttonStyle(.plain)
-      SettingsDivider()
-      NavigationLink { DownloadsView().environment(model) } label: {
-        SettingsRow(title: "التلاوات دون اتصال", subtitle: "تنزيل السور وحذفها", value: nil)
-      }.buttonStyle(.plain)
-    }
-  }
-
-  private var aboutGroup: some View {
-    VStack(alignment: .trailing, spacing: DS.Space.s2) {
-      Text("عن التطبيق").font(DS.F.labelSm).foregroundStyle(DS.C.textTertiary)
-        .frame(maxWidth: .infinity, alignment: .trailing).padding(.horizontal, DS.Space.s1)
-      VStack(alignment: .trailing, spacing: DS.Space.s2) {
-        HStack {
-          Text("الإصدار").font(DS.F.bodyMd).foregroundStyle(DS.C.textPrimary)
-          Spacer()
-          Text("\(version) (بناء \(build))").font(DS.F.labelSm).foregroundStyle(DS.C.textSecondary).monospacedDigit()
+  var body: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 22) {
+        SettingsHeader(title: "الخصوصية", backTitle: "الإعدادات") { dismiss() }
+        VStack(alignment: .leading, spacing: 10) {
+          Text("كل الحسابات على جهازك").font(DS.F.headingSm).foregroundStyle(DS.C.textPrimary)
+          Text("تطبيق أصلي بالكامل (Swift وSwiftUI) على نواة SakinahCore المُختبرة رقمًا برقم ضد محرّك سكينة المُتحقَّق منه. كل الحسابات تجري على جهازك؛ لا حساب ولا تتبّع.")
+            .font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary).fixedSize(horizontal: false, vertical: true)
+          Text("الشبكة تُستعمل فقط عند الطلب: لجلب التلاوات وخطوط صفحات المصحف، وتلاوة الأذكار، والمساجد القريبة، والطقس إن فعّلته.")
+            .font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary).fixedSize(horizontal: false, vertical: true)
         }
-        Text("تطبيق أصلي بالكامل (Swift وSwiftUI) على نواة SakinahCore المُختبرة رقمًا برقم ضد محرّك سكينة المُتحقَّق منه. كل الحسابات تجري على جهازك؛ لا حساب ولا تتبّع.")
-          .font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary)
-          .frame(maxWidth: .infinity, alignment: .trailing)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(DS.C.bgSurface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(DS.C.borderSubtle, lineWidth: 1))
+        SettingsSection("المزيد") {
+          Button { if let u = URL(string: SakinahLinks.privacy) { openURL(u) } } label: {
+            SettingsItemRow(icon: "doc.text", title: "سياسة الخصوصية كاملة")
+          }
+          .buttonStyle(.plain)
+          SettingsRowDivider()
+          SettingsItemRow(icon: "info.circle", title: "الإصدار", value: "\u{2066}\(version) (\(build))\u{2069}", chevron: false)
+        }
       }
-      .dsCard(padding: DS.Space.s4)
+      .padding(.horizontal, DS.Space.s4).padding(.top, DS.Space.s2).padding(.bottom, DS.Space.s8)
+    }
+    .background(DS.C.bgCanvas)
+    .navigationBarHidden(true)
+  }
+}
+
+// MARK: - مكوّنات الإعدادات الجديدة
+/// رأس شاشةٍ فرعية: رابط رجوع «‹ اليوم» (يمين) ثم عنوان كوفي كبير
+struct SettingsHeader: View {
+  let title: String
+  var backTitle: String? = nil
+  var onBack: () -> Void = {}
+  var body: some View {
+    VStack(alignment: .leading, spacing: 2) {
+      if let backTitle {
+        Button(action: onBack) {
+          HStack(spacing: 4) {
+            Image(systemName: "chevron.backward").font(.system(size: 15, weight: .semibold))
+            Text(backTitle).font(DS.F.labelMd)
+          }
+          .foregroundStyle(DS.C.brandPrimary)
+          .frame(minHeight: 44).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("رجوع إلى \(backTitle)")
+      }
+      Text(title).font(DS.kufi(32, .bold)).foregroundStyle(DS.C.textPrimary).lineLimit(1).minimumScaleFactor(0.7)
+        .accessibilityAddTraits(.isHeader)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+}
+
+/// مجموعة: عنوانٌ صغير (يمين) فوق بطاقةٍ بحدٍّ خفيف تضمّ الصفوف
+struct SettingsSection<Content: View>: View {
+  let title: String
+  @ViewBuilder var content: () -> Content
+  init(_ title: String, @ViewBuilder content: @escaping () -> Content) { self.title = title; self.content = content }
+  var body: some View {
+    VStack(alignment: .leading, spacing: DS.Space.s2) {
+      Text(title).font(DS.F.labelSm).foregroundStyle(DS.C.textTertiary).padding(.horizontal, DS.Space.s1)
+        .accessibilityAddTraits(.isHeader)
+      VStack(spacing: 0) { content() }
+        .frame(maxWidth: .infinity)
+        .background(DS.C.bgSurface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(DS.C.borderSubtle, lineWidth: 1))
     }
   }
 }
 
+/// أيقونة الصفّ في مربّع ناعم
+struct SettingsIcon: View {
+  let name: String
+  var body: some View {
+    Image(systemName: name).font(.system(size: 15, weight: .medium)).foregroundStyle(DS.C.brandPrimary)
+      .frame(width: 34, height: 34)
+      .background(DS.C.brandSoft, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+      .accessibilityHidden(true)
+  }
+}
+
+/// صفّ: أيقونة (يمين)، عنوان، ثم القيمة والسهم (يسار) — يُقرأ جملةً واحدة
+struct SettingsItemRow: View {
+  let icon: String
+  let title: String
+  var value: String? = nil
+  var tint: Color? = nil
+  var chevron = true
+  var body: some View {
+    HStack(spacing: 12) {
+      SettingsIcon(name: icon)
+      Text(title).font(DS.F.bodyMd).foregroundStyle(tint ?? DS.C.textPrimary).lineLimit(1).minimumScaleFactor(0.85)
+      Spacer(minLength: 8)
+      if let value {
+        Text(value).font(DS.F.labelSm).foregroundStyle(DS.C.textSecondary).lineLimit(1).minimumScaleFactor(0.75)
+      }
+      if chevron { DSChevron() }
+    }
+    .padding(.horizontal, 14).frame(minHeight: 54)
+    .contentShape(Rectangle())
+    .accessibilityElement(children: .combine)
+  }
+}
+
+/// صفّ مفتاح: أيقونة وعنوان ووصف اختياري (يمين)، والمفتاح (يسار)
+struct SettingsToggleRow: View {
+  let icon: String
+  let title: String
+  var subtitle: String? = nil
+  @Binding var isOn: Bool
+  var body: some View {
+    Toggle(isOn: $isOn) {
+      HStack(spacing: 12) {
+        SettingsIcon(name: icon)
+        VStack(alignment: .leading, spacing: 2) {
+          Text(title).font(DS.F.bodyMd).foregroundStyle(DS.C.textPrimary)
+          if let subtitle {
+            Text(subtitle).font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary).fixedSize(horizontal: false, vertical: true)
+          }
+        }
+      }
+    }
+    .toggleStyle(DSToggleStyle())
+    .padding(.horizontal, 14).padding(.vertical, 8).frame(minHeight: 54)
+  }
+}
+
+/// فاصلٌ يبدأ بعد الأيقونة
+struct SettingsRowDivider: View {
+  var body: some View { Divider().overlay(DS.C.borderSubtle).padding(.leading, 60) }
+}
+
+// MARK: - مكوّنات قديمة تستعملها شاشات أخرى (مظهر السماء، ضمان الأذان، الصلوات المنبَّه لها)
 /// مجموعة إعدادات: عنوان صغير فوق بطاقة تضمّ الصفوف
 struct SettingsGroup<Content: View>: View {
   let title: String

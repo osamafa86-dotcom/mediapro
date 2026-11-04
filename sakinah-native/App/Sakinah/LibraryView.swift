@@ -46,7 +46,9 @@ struct LibraryView: View {
             NavigationLink { MonthTableView().environment(model).tabBarClearance() } label: {
               DSRow(icon: "calendar", title: "الجدول الشهري", subtitle: "تصدير ICS") { DSChevron() }
             }.buttonStyle(.plain)
-            Divider().overlay(DS.C.borderSubtle)
+          }
+          // مجموعة ثالثة لا Group: كتلة ViewBuilder لا تتجاوز عشرة عناصر
+          group("التطبيق") {
             NavigationLink { WidgetsHelpView().environment(model).tabBarClearance() } label: {
               DSRow(icon: "bolt", title: "الودجت والنشاط المباشر", subtitle: "شاشة القفل والجزيرة الديناميكية") { DSChevron() }
             }.buttonStyle(.plain)
