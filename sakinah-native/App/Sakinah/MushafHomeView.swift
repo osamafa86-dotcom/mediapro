@@ -12,6 +12,8 @@ struct MushafHomeView: View {
   @State private var sheet: HomeSheet? = ScreenshotMode.librarySheet ? .khatmah : nil
   @State private var editBookmark: Ayah?
   @FocusState private var searchFocused: Bool
+  /// الجذر ظاهر: وحده يستهلك صفحةً معلّقة وصلت والتبويب ظاهرٌ أصلًا (رابط «اقرأ حصّتك» من النشاط المباشر)
+  @State private var rootVisible = false
 
   struct ReaderTarget: Identifiable { let page: Int; var ayah: Int? = nil; var autoplay = false; var hifz = false; var id: String { "\(page)-\(ayah ?? 0)-\(autoplay)-\(hifz)" } }
   enum HomeSheet: Identifiable { case khatmah, reciter; var id: Int { self == .khatmah ? 1 : 2 } }
@@ -40,6 +42,8 @@ struct MushafHomeView: View {
           }
         }
       }
+      // عرضٌ مقروء على الآيباد (لا أثر له على الهاتف)
+      .readableWidth(760)
       .background(DS.C.bgCanvas)
       .toolbar(.hidden, for: .navigationBar)
       .safeAreaInset(edge: .bottom) { if model.player.current != nil { AudioBarView(onPickReciter: { sheet = .reciter }, onGoToPage: { p in DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { target = ReaderTarget(page: p) } }) } }
@@ -47,6 +51,7 @@ struct MushafHomeView: View {
       .fullScreenCover(item: $target) { t in MushafReaderView(startPage: t.page, ayah: t.ayah, autoplay: t.autoplay, hifz: t.hifz).environment(model) }
       // «تابع القراءة» من الرئيسية: تُفتح الصفحة حين يظهر التبويب (بعد لحظة كي يكون العرض قد استقرّ)
       .onAppear {
+        rootVisible = true
         if let p = model.pendingReaderPage { model.pendingReaderPage = nil; Task { @MainActor in try? await Task.sleep(for: .milliseconds(80)); target = ReaderTarget(page: p) } }
         // لقطة تحقّق: تبديل التبويب بعد الظهور بالمسار نفسه الذي يسلكه النقر على المقسّم
         if ScreenshotMode.switchLibraryTab { DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { tab = 1 } }
@@ -58,6 +63,12 @@ struct MushafHomeView: View {
         }
       }
       .sheet(item: $editBookmark) { a in BookmarkSheet(ayah: a, onDone: { _ in }).environment(model).presentationDetents([.medium]) }
+      .onDisappear { rootVisible = false }
+      .onChange(of: model.pendingReaderPage) { _, p in
+        guard rootVisible, let p else { return }
+        model.pendingReaderPage = nil
+        target = ReaderTarget(page: p)
+      }
     }
   }
 

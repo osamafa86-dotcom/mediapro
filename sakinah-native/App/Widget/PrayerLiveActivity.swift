@@ -73,10 +73,18 @@ struct PrayerActivityBanner: View {
   let context: ActivityViewContext<PrayerActivityAttributes>
 
   var body: some View {
+    if context.state.iftar == true {
+      IftarBanner(context: context)
+    } else {
+      regular
+    }
+  }
+
+  private var regular: some View {
     let s = context.state
     let phase = s.skyPhase
     let ink = WidgetInk(phase)
-    VStack(alignment: .leading, spacing: 5) {
+    return VStack(alignment: .leading, spacing: 5) {
       HStack(spacing: 6) {
         SkyDot(phase: phase, size: 12)
         Text("وقت \(s.currentName ?? "")").font(.system(size: 12, weight: .semibold)).foregroundStyle(ink.soft).lineLimit(1)
@@ -114,6 +122,58 @@ struct PrayerActivityBanner: View {
   }
 
   /// «الخليل ١٨°» — الحرارة إن مرّرها التطبيق من ذاكرته (لا شبكة هنا)
+  private func placeLine(_ s: PrayerActivityAttributes.ContentState) -> String {
+    let place = context.attributes.placeName
+    guard let t = s.temperature else { return place }
+    return "\(place) \(WFmt.temperature(t, s.numeralsValue))"
+  }
+}
+
+/// طبعة رمضان على شاشة القفل (iftar-live-activity.png): «١٢ رمضان، صائم» والمدينة، «الإفطار بعد» وعدٌّ تنازليّ كبير
+/// ووقت المغرب، ثم «دعاء الإفطار» و«اقرأ حصّتك» — فوق سماء الغروب
+struct IftarBanner: View {
+  let context: ActivityViewContext<PrayerActivityAttributes>
+
+  var body: some View {
+    let s = context.state
+    let ink = WidgetInk(.ghurub)
+    let n = s.numeralsValue
+    let day = s.ramadanDay.map { "\(WFmt.number($0, n)) رمضان، صائم" } ?? "رمضان، صائم"
+    return VStack(alignment: .leading, spacing: 6) {
+      HStack(spacing: 6) {
+        Text(day).font(.system(size: 12, weight: .semibold)).foregroundStyle(ink.soft).lineLimit(1)
+        Spacer(minLength: 6)
+        Text(placeLine(s)).font(.system(size: 12, weight: .medium)).foregroundStyle(ink.soft).lineLimit(1)
+      }
+      if context.isStale {
+        VStack(alignment: .leading, spacing: 2) {
+          Text("حان وقت الإفطار").font(.system(size: 24, weight: .semibold)).foregroundStyle(ink.text).lineLimit(1)
+          Text("ذهب الظمأ وابتلّت العروق، وثبت الأجر إن شاء الله").font(.system(size: 12)).foregroundStyle(ink.muted).lineLimit(1).minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      } else {
+        VStack(alignment: .leading, spacing: 0) {
+          Text("الإفطار بعد").font(.system(size: 14, weight: .semibold)).foregroundStyle(ink.text).lineLimit(1)
+          HStack(alignment: .lastTextBaseline, spacing: 8) {
+            Text(timerInterval: s.countdownRange, countsDown: true)
+              .font(.system(size: 38, weight: .light)).monospacedDigit().foregroundStyle(ink.text)
+              .multilineTextAlignment(.leading)
+              .frame(maxWidth: 200, alignment: .leading)
+            Spacer(minLength: 4)
+            Text(WFmt.time(s.time, tz: s.timeZone, numerals: n, hour12: s.hour12 ?? true, suffix: true))
+              .font(.system(size: 13, weight: .medium)).foregroundStyle(ink.soft).lineLimit(1)
+          }
+        }
+      }
+      ActivityButtons(state: s, style: .banner)
+    }
+    .padding(.horizontal, 16)
+    .padding(.vertical, 12)
+    .background { WidgetSkyBackground(phase: .ghurub, discAt: UnitPoint(x: 0.42, y: 0.72), discDiameter: 34) }
+    .environment(\.layoutDirection, .rightToLeft)
+    .environment(\.locale, WFmt.locale(n))
+  }
+
   private func placeLine(_ s: PrayerActivityAttributes.ContentState) -> String {
     let place = context.attributes.placeName
     guard let t = s.temperature else { return place }
@@ -166,12 +226,22 @@ struct ActivityButtons: View {
 
   var body: some View {
     HStack(spacing: 8) {
-      if let p = state.adhkarPeriod {
-        Link(destination: SakinahURL.adhkar(p)) {
-          pill(icon: "sparkles", title: state.adhkarTitle ?? AdhkarNowRule.title(p), primary: true, done: false)
+      if state.iftar == true {
+        // رمضان: «دعاء الإفطار» (باب حصن المسلم) و«اقرأ حصّتك» (المصحف على صفحة الختمة) — رابطان عميقان
+        Link(destination: SakinahURL.dua(SakinahURL.iftarDuaChapter)) {
+          pill(icon: "moon.stars.fill", title: "دعاء الإفطار", primary: true, done: false)
         }
+        Link(destination: SakinahURL.quran(state.readPage ?? 0)) {
+          pill(icon: "book.fill", title: "اقرأ حصّتك", primary: false, done: false)
+        }
+      } else {
+        if let p = state.adhkarPeriod {
+          Link(destination: SakinahURL.adhkar(p)) {
+            pill(icon: "sparkles", title: state.adhkarTitle ?? AdhkarNowRule.title(p), primary: true, done: false)
+          }
+        }
+        prayedButton
       }
-      prayedButton
     }
   }
 
@@ -201,6 +271,12 @@ struct ActivityButtons: View {
   }
 
   private func colors(primary: Bool, done: Bool) -> (bg: Color, fg: Color) {
+    // رمضان فوق سماء الغروب: الدعاء ذهبيّ فاتح بنصٍّ داكن، والحصّة زجاجٌ داكن بنصٍّ فاتح
+    if state.iftar == true {
+      if primary { return (WDS.accentGoldSoft, WDS.textPrimary) }
+      if style == .island { return (Color.white.opacity(0.14), WDS.textOnDark) }
+      return (Color.black.opacity(0.28), WDS.textOnDark)
+    }
     switch style {
     case .banner:
       if primary { return (WDS.hex(0x22302B).opacity(0.92), WDS.hex(0xFBF9F4)) }

@@ -175,6 +175,7 @@ struct AdhanGuardView: View {
           .font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).multilineTextAlignment(.center).frame(maxWidth: .infinity)
       }
       .padding(.horizontal, DS.Space.s4).padding(.top, DS.Space.s2).padding(.bottom, DS.Space.s8)
+      .readableWidth()
     }
     .background(DS.C.bgCanvas)
     .safeAreaInset(edge: .top, spacing: 0) {

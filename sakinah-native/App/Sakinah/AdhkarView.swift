@@ -33,6 +33,7 @@ struct AdhkarHomeView: View {
           }
         }
         .padding(.horizontal, DS.Space.s4).padding(.top, DS.Space.s2).padding(.bottom, DS.Space.s8)
+        .readableWidth()
       }
       .background(DS.C.bgCanvas)
       .tabBarClearance()
@@ -85,6 +86,7 @@ struct AdhkarHomeView: View {
       Text("الأذكار").font(DS.F.displaySm).foregroundStyle(DS.C.textPrimary)
     }
     .padding(.horizontal, DS.Space.s4).padding(.vertical, DS.Space.s3)
+    .readableWidth()
     .background(DS.C.bgCanvas)
   }
 
@@ -615,6 +617,7 @@ struct TasbihView: View {
         Text("الإحصاءات تُحفظ على جهازك فقط.").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary)
       }
       .padding(.horizontal, DS.Space.s4).padding(.top, DS.Space.s2).padding(.bottom, DS.Space.s8)
+      .readableWidth()
     }
     .background(DS.C.bgCanvas)
     .safeAreaInset(edge: .top, spacing: 0) { navBar(st) }

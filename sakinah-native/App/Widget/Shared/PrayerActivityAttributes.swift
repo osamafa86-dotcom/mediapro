@@ -36,6 +36,11 @@ struct PrayerActivityAttributes: ActivityAttributes {
     var numerals: String?
     var hour12: Bool?
     var tz: String?
+    /// طبعة رمضان (المرحلة الرابعة): العدّ إلى «الإفطار» نهارَ الصوم (prayer/time هما المغرب حينها)، ويوم الشهر،
+    /// وصفحة «اقرأ حصّتك» (الصفحة التالية في الختمة أو آخر موضع قراءة)
+    var iftar: Bool?
+    var ramadanDay: Int?
+    var readPage: Int?
   }
   var placeName: String
 }
@@ -46,16 +51,24 @@ enum SakinahURL {
   static var today: URL { URL(string: "sakinah://today")! }
   /// sakinah://adhkar/<morning|evening|sleep>
   static func adhkar(_ period: String) -> URL { URL(string: "sakinah://adhkar/\(period)") ?? today }
+  /// sakinah://quran/<صفحة> — يفتح المصحف على الصفحة (٠ = آخر موضع قراءة)
+  static func quran(_ page: Int) -> URL { URL(string: "sakinah://quran/\(page)") ?? today }
+  /// sakinah://dua/<باب حصن المسلم> — يفتح الباب فوق التطبيق
+  static func dua(_ chapter: Int) -> URL { URL(string: "sakinah://dua/\(chapter)") ?? today }
+  /// باب «الدعاء عند إفطار الصائم» في حصن المسلم (زرّ «دعاء الإفطار» في النشاط المباشر وبطاقة «الآن»)
+  static let iftarDuaChapter = 68
 
-  enum Route { case today, adhkar(String) }
+  enum Route { case today, adhkar(String), quran(Int), dua(Int) }
   static func route(_ url: URL) -> Route? {
     guard url.scheme?.lowercased() == scheme, let c = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
     let host = (c.host ?? "").lowercased()
+    let first = c.path.split(separator: "/").first.map(String.init) ?? ""
     if host == "adhkar" {
-      let p = c.path.split(separator: "/").first.map(String.init) ?? ""
-      let known = ["morning", "evening", "sleep"].contains(p)
-      return Route.adhkar(known ? p : "")
+      let known = ["morning", "evening", "sleep"].contains(first)
+      return Route.adhkar(known ? first : "")
     }
+    if host == "quran" { return Route.quran(Int(first) ?? 0) }
+    if host == "dua", let id = Int(first) { return Route.dua(id) }
     return Route.today
   }
 }

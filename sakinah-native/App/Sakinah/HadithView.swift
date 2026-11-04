@@ -55,6 +55,7 @@ struct HadithView: View {
         }
       }
       .padding(.horizontal, DS.Space.s4).padding(.top, DS.Space.s2).padding(.bottom, DS.Space.s8)
+      .readableWidth()
     }
     .background(DS.C.bgCanvas)
     .safeAreaInset(edge: .top, spacing: 0) { navBar }
@@ -238,8 +239,10 @@ struct WidgetsHelpView: View {
         }
         DSCardBlock("ودجت سكينة", "«مواقيت الصلاة» بثلاثة مقاسات وعلى شاشة القفل، و«أذكار الوقت»، و«التاريخ الهجري» لشاشة القفل: المس الشاشة مطوّلًا ← زر + ← ابحث عن «سكينة». تعمل بموقع الجهاز أو بمدينة تختارها من إعدادات الودجت، ومنها تختار الأرقام العربية أو اللاتينية.") { EmptyView() }
         DSCardBlock("كيف يبقى الودجت صحيحًا بلا اتصال؟", "يحسب الودجت مواقيت اليوم وأطوار السماء على جهازك مسبقًا، فيتبدّل عند كل صلاة وكل طور ويعدّ الدقائق بنفسه، بلا اتصال ولا فتحٍ للتطبيق.") { EmptyView() }
+        DSCardBlock("ودجت رمضان", "«السحور حتى» و«الإفطار» وعدٌّ إليه ويوم الشهر، وفي رمضان يعدّ النشاط المباشر نهارَ الصوم إلى الإفطار بزرّي «دعاء الإفطار» و«اقرأ حصّتك». يحسب الودجت الشهر بتقويم أمّ القرى دون تعديل التاريخ الهجري في الإعدادات، والإمساك فيه قبل الفجر بعشر دقائق.") { EmptyView() }
       }
       .padding(DS.Space.s4)
+      .readableWidth()
     }
     .background(DS.C.bgCanvas)
     .navigationTitle("الودجت والنشاط المباشر").navigationBarTitleDisplayMode(.inline)

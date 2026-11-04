@@ -359,6 +359,8 @@ struct SearchView: View {
         }
         .scrollDismissesKeyboard(.interactively)
       }
+      // عرضٌ مقروء على الآيباد (لا أثر له على الهاتف)
+      .readableWidth(760)
       .background(DS.C.bgCanvas)
       .toolbar(.hidden, for: .navigationBar)
       .navigationDestination(for: SearchRoute.self) { route in destination(route) }

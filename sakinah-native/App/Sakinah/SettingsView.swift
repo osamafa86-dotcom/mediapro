@@ -19,6 +19,8 @@ struct SettingsView: View {
   @State private var sheet: SettingsSheet?
   @State private var showAsr = false
   @State private var showTextScale = false
+  /// طبعة رمضان: «الإمساك قبل الفجر» (يظهر الصفّ في رمضان وحده)
+  @State private var showImsak = false
 
   enum SettingsSheet: Int, Identifiable { case methods, adhkarReminders, khatmah, display, legend, reciter; var id: Int { rawValue } }
   private struct TextScaleOption: Hashable { let value: Double; let label: String }
@@ -41,6 +43,7 @@ struct SettingsView: View {
           .font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).frame(maxWidth: .infinity)
       }
       .padding(.horizontal, DS.Space.s4).padding(.top, DS.Space.s2).padding(.bottom, DS.Space.s8)
+      .readableWidth()
     }
     .background(DS.C.bgCanvas)
     .navigationBarHidden(true)
@@ -57,6 +60,14 @@ struct SettingsView: View {
       Button("إلغاء", role: .cancel) {}
     } message: {
       Text("لنصوص الأذكار والأحاديث")
+    }
+    .confirmationDialog("الإمساك قبل الفجر", isPresented: $showImsak, titleVisibility: .visible) {
+      ForEach(RamadanEdition.imsakChoices, id: \.self) { m in
+        Button(RamadanEdition.imsakLabel(m, numerals: model.settings.numerals)) { model.settings.imsakOffset = m; LiveActivityManager.sync(model) }
+      }
+      Button("إلغاء", role: .cancel) {}
+    } message: {
+      Text("موعد الإمساك في «اليوم» وبطاقة المواقيت خلال رمضان")
     }
   }
 
@@ -78,6 +89,14 @@ struct SettingsView: View {
         SettingsItemRow(icon: "sun.max", title: "وقت العصر", value: s.madhab == .hanafi ? "الحنفي" : "الجمهور")
       }
       .buttonStyle(.plain)
+      // طبعة رمضان: صفٌّ صغير يظهر في الشهر وحده (وفي لقطة `ramadan`)
+      if RamadanEdition.day(model, now: Date()) != nil {
+        SettingsRowDivider()
+        Button { showImsak = true } label: {
+          SettingsItemRow(icon: "moon.stars", title: "الإمساك قبل الفجر", value: RamadanEdition.imsakLabel(s.imsakOffset, numerals: s.numerals))
+        }
+        .buttonStyle(.plain)
+      }
     }
   }
 
@@ -321,6 +340,7 @@ struct NotificationSettingsView: View {
           .font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).fixedSize(horizontal: false, vertical: true)
       }
       .padding(.horizontal, DS.Space.s4).padding(.top, DS.Space.s2).padding(.bottom, DS.Space.s8)
+      .readableWidth()
     }
     .background(DS.C.bgCanvas)
     .navigationBarHidden(true)
@@ -398,6 +418,7 @@ struct FormatsSettingsView: View {
         }
       }
       .padding(.horizontal, DS.Space.s4).padding(.top, DS.Space.s2).padding(.bottom, DS.Space.s8)
+      .readableWidth()
     }
     .background(DS.C.bgCanvas)
     .navigationBarHidden(true)
@@ -437,6 +458,7 @@ struct PrivacyAboutView: View {
         }
       }
       .padding(.horizontal, DS.Space.s4).padding(.top, DS.Space.s2).padding(.bottom, DS.Space.s8)
+      .readableWidth()
     }
     .background(DS.C.bgCanvas)
     .navigationBarHidden(true)

@@ -61,7 +61,11 @@ struct ShareCardSheet: View {
     NavigationStack {
       ScrollView {
         VStack(spacing: 14) {
-          ShareCardView(request: request, theme: theme).frame(width: 1080).scaleEffect(0.3, anchor: .top).frame(width: 324, height: 420, alignment: .top).clipped()
+          // معاينة بثلث الحجم؛ وفي نافذةٍ أضيق (ثلث Split View، ٣٢٠ نقطة) بربعه كي لا تفيض أفقيًّا
+          ViewThatFits(in: .horizontal) {
+            ShareCardView(request: request, theme: theme).frame(width: 1080).scaleEffect(0.3, anchor: .top).frame(width: 324, height: 420, alignment: .top).clipped()
+            ShareCardView(request: request, theme: theme).frame(width: 1080).scaleEffect(0.25, anchor: .top).frame(width: 270, height: 350, alignment: .top).clipped()
+          }
           HStack(spacing: 8) { ForEach(ShareCardTheme.allCases) { t in Button(t.name) { theme = t; model.content.shareTheme = t.rawValue }.buttonStyle(.bordered).tint(theme == t ? Theme.primary : .secondary) } }
           Button { if let img = ShareCard.render(request, theme: theme) { share = ShareItems(items: [img]) } } label: { Label("مشاركة الصورة", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity) }.buttonStyle(.borderedProminent)
           Button { share = ShareItems(items: [request.shareText]) } label: { Label("مشاركة النص", systemImage: "text.quote").frame(maxWidth: .infinity) }.buttonStyle(.bordered)

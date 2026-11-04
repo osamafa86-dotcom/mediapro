@@ -68,8 +68,9 @@ targets:
         UILaunchScreen:
           UIColorName: AccentColor
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        # الآيباد بالاتجاهات الأربعة وبلا UIRequiresFullScreen (المرحلة الرابعة): Split View وStage Manager يعملان،
+        # والتخطيط يتبع عرض النافذة (Adaptive.swift) — والهاتف عموديّ وحده كما كان
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
-        UIRequiresFullScreen: true
         ITSAppUsesNonExemptEncryption: false
         NSLocationWhenInUseUsageDescription: "لحساب مواقيت الصلاة واتجاه القبلة حسب موقعك"
         # الاتجاهات إلى المسجد تُفتح في خرائط غوغل إن كانت مثبّتة (canOpenURL يرفض المخطّط ما لم يُعلَن هنا)

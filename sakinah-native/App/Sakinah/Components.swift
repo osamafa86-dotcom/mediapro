@@ -254,7 +254,10 @@ struct DSTabBar: View {
     .background(DS.C.bgSurface.opacity(0.85), in: Capsule())
     .overlay(Capsule().stroke(DS.C.bgSurface.opacity(0.9), lineWidth: 1))
     .shadow(color: DS.C.shadowFloat, radius: 20, x: 0, y: 10)
+    // على الآيباد (المتوسّط) كبسولةٌ متوسّطة لا شريطٌ بعرض الشاشة (ipad-portrait.png)؛ أعرض هاتف أضيق من الحدّ فلا يتغيّر
+    .frame(maxWidth: 440)
     .padding(.horizontal, 20).padding(.top, 6).padding(.bottom, 4)
+    .frame(maxWidth: .infinity)
     // تلاشٍ بلون الورق خلف الشريط: بعض الشاشات تمدّ محتواها تحت المنطقة الآمنة فكان يظهر تحت الكبسولة
     .background {
       LinearGradient(colors: [DS.C.bgCanvas.opacity(0), DS.C.bgCanvas, DS.C.bgCanvas], startPoint: .top, endPoint: .bottom)

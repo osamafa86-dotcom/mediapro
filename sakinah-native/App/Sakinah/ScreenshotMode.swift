@@ -21,8 +21,8 @@ enum ScreenshotMode {
   /// التبويب الذي يُفتح عليه التطبيق
   static var tab: AppTab? {
     switch route {
-    case "prayer", "qibla", "home", "home-bottom", "sky-settings", "search", "settings": return .home
-    case "mushaf", "mushaf-juz", "mushaf-switch", "mushaf-bookmarks", "mushaf-ayah-bookmark", "mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-khatmah", "mushaf-display", "mushaf-hifz": return .mushaf
+    case "prayer", "qibla", "home", "home-bottom", "sky-settings", "search", "settings", "ramadan", "ramadan-iftar", "ramadan-suhoor": return .home
+    case "mushaf", "mushaf-juz", "mushaf-switch", "mushaf-bookmarks", "mushaf-ayah-bookmark", "mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-khatmah", "mushaf-display", "mushaf-hifz", "mushaf-spread": return .mushaf
     case "adhkar", "hisn", "tasbih": return .adhkar
     // «more» يبقى اسمًا للمسار القديم في سير اللقطات — التبويب صار «المكتبة»
     case "hadith", "more", "library": return .library
@@ -31,7 +31,11 @@ enum ScreenshotMode {
   }
 
   /// الصفحة التي يُفتح عليها قارئ المصحف، إن كان المسار يطلب القارئ
-  static var readerPage: Int? { ["mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-ayah-bookmark", "mushaf-nav", "mushaf-display", "mushaf-hifz"].contains(route ?? "") ? 270 : nil }
+  static var readerPage: Int? {
+    // «mushaf-spread» (المرحلة الرابعة): الفاتحة وأول البقرة متقابلتين على الآيباد أفقيًّا (mushaf-ipad-spread-v3.png)
+    if route == "mushaf-spread" { return 1 }
+    return ["mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-ayah-bookmark", "mushaf-nav", "mushaf-display", "mushaf-hifz"].contains(route ?? "") ? 270 : nil
+  }
 
   /// يُبقى الشريط ظاهرًا: القارئ يخفيه بعد ثوانٍ، فلا يلتقطه انتظارُ تحميل الخطوط
   static var keepChrome: Bool { route == "mushaf-bar" || route == "mushaf-ayah" || route == "mushaf-ayah-bookmark" }
@@ -58,6 +62,12 @@ enum ScreenshotMode {
   /// مسار «home-bottom» (تشخيصي لا للمتجر): يمرّر الرئيسية إلى آخرها كي تُرى آخر بطاقة فوق الشريط العائم
   /// — لقطة أعلى الصفحة لا تكشف تغطية الشريط لآخر بطاقة (قِيس في ثلاثة بناءات على جهاز المالك)
   static var scrollToBottom: Bool { route == "home-bottom" }
+  /// طبعة رمضان مفروضة (المرحلة الرابعة): اليوم ليس رمضان، فتُفرض «١٢ رمضان» بمواقيت اليوم الحقيقية
+  /// — `ramadan` بالساعة الحقيقية، و`ramadan-iftar` قبل المغرب بـ٢٣ دقيقة (دعاء الإفطار)، و`ramadan-suhoor` قبل الإمساك بأربعين
+  static var ramadan: Bool { route == "ramadan" || route == "ramadan-iftar" || route == "ramadan-suhoor" }
+  static var ramadanClock: String? { route == "ramadan-iftar" ? "iftar" : (route == "ramadan-suhoor" ? "suhoor" : nil) }
+  /// إزاحة ساعة «اليوم» في مساري الساعة المفروضة — تُحسب مرّةً من أوّل رسم ثم تتقدّم الساعة طبيعيًّا
+  static var clockOffset: TimeInterval?
   /// لقطات التحقّق من نظام السماء: فرض طور (`-sakinahSky dhuhr`) وطقس (`-sakinahWeather rain`) — لا أثر لهما في التشغيل العادي
   static let skyPhase: SkyPhase? = UserDefaults.standard.string(forKey: "sakinahSky").flatMap { SkyPhase(rawValue: $0) }
   static let skyWeather: SkyWeather? = UserDefaults.standard.string(forKey: "sakinahWeather").flatMap { SkyWeather(rawValue: $0) }
@@ -78,6 +88,19 @@ enum ScreenshotMode {
     // لقطة تحقّق العلامات: علامتان تُحفظان بالمسار نفسه الذي يسلكه زرّ «علامة» وورقة الملاحظة
     if route == "mushaf-bookmarks", let a1 = QuranText.shared.ayah(surah: 2, ayah: 255), let a2 = QuranText.shared.ayah(surah: 16, ayah: 27) {
       model.quran.setBookmark(a1, note: "آية الكرسي", color: "gold"); model.quran.setBookmark(a2, note: nil, color: "green")
+    }
+    // ختمة رمضان: خطة ثلاثين يومًا بدأت قبل أحد عشر يومًا (اليوم ١٢)، ٢١ صفحة في كل يومٍ مضى و١٢ اليوم (ثلاث شرائح من خمس)
+    if ramadan {
+      let today = model.todayKey
+      let plan = KhatmahPlan(startPage: 1, startedAt: DayKey.adding(today, days: -11), days: 30, reminder: "after:isha")
+      var log: WirdLog = [:]
+      var page = 0
+      for d in -11...0 {
+        for _ in 0..<(d == 0 ? 12 : 21) { page += 1; log = Wird.mark(log, today: DayKey.adding(today, days: d), page: page, startPage: 1) }
+      }
+      RamadanEdition.markRamadanPlan(plan)
+      model.quran.khatmah = plan
+      model.quran.wird = log
     }
     if route == "mushaf-khatmah" || route == "mushaf" {
       let today = model.todayKey

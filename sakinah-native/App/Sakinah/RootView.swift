@@ -17,23 +17,15 @@ struct RootView: View {
   @State private var shotPage: Int?
   /// ارتفاع الشريط العائم يُقاس ويُمرَّر لكل تبويب كمنطقة آمنة سفلية
   @State private var barHeight: CGFloat = 84
+  /// البحث والإعدادات من الشريط الجانبي (الوضع الموسّع وحده — هيرو «اليوم» الموسّع بلا زرّيهما)
+  @State private var railSearch = false
+  @State private var railSettings = false
+  /// باب حصن المسلم من رابط «دعاء الإفطار» في النشاط المباشر (sakinah://dua/<باب>)
+  @State private var duaChapter: HisnChapter?
 
   var body: some View {
-    // ⚠️ safeAreaInset على TabView (بناء ٣٩) أو على كل تبويب خارج NavigationStack (بناء ٤٠–٤٢) لم يصل إلى
-    // ScrollView: كلاهما UIKit خلف الستار. فالشريط طبقة فوق الحاوية، وارتفاعه يُمرَّر بالبيئة، وكل شاشة
-    // داخل التبويب (الجذر ووجهات الدفع) تطبّق `.tabBarClearance()` على محتواها مباشرة.
-    TabView(selection: $tab) {
-      HomeView().hiddenSystemTabBar().tag(AppTab.home)
-      MushafHomeView().hiddenSystemTabBar().tag(AppTab.mushaf)
-      AdhkarHomeView().hiddenSystemTabBar().tag(AppTab.adhkar)
-      LibraryView().hiddenSystemTabBar().tag(AppTab.library)
-    }
-    .environment(\.tabBarInset, barHeight)
-    .overlay(alignment: .bottom) {
-      DSTabBar(selection: $tab)
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
-    }
-    .environment(\.switchTab, { t in withAnimation(.snappy(duration: 0.2)) { tab = t } })
+    // فئة العرض من عرض النافذة نفسها (Split View وStage Manager) لا من نوع الجهاز — GeometryReader يعطيها من أوّل إطار
+    GeometryReader { geo in shell(WidthClass.of(geo.size.width)) }
     .background(DS.C.bgCanvas)
     .fullScreenCover(isPresented: $showOnboarding) { OnboardingView().environment(model) }
     // لقطات المتجر وحدها: يُفتح القارئ على صفحةٍ بعينها بلا قيادة واجهة
@@ -64,7 +56,66 @@ struct RootView: View {
       case .adhkar(let p):
         if !p.isEmpty { model.pendingAdhkarPeriod = p }
         tab = .adhkar
+      case .quran(let p):
+        // «اقرأ حصّتك» من النشاط المباشر: الصفحة المرسلة، أو آخر موضع قراءة
+        let page = p > 0 ? p : (model.settings.lastRead?.page ?? 1)
+        model.pendingReaderPage = min(max(page, 1), 604)
+        tab = .mushaf
+      case .dua(let id):
+        if let ch = Hisn.chapter(id) { duaChapter = ch }
       }
     }
+    // الوضع الموسّع: البحث الشامل والإعدادات من الشريط الجانبي (على الهاتف والمتوسّط يفتحهما رأس «اليوم» كما كان)
+    .fullScreenCover(isPresented: $railSearch) {
+      SearchView(openTab: { t in
+        railSearch = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { withAnimation(.snappy(duration: 0.2)) { tab = t } }
+      })
+      .environment(model)
+      .environment(\.tabBarInset, 0)
+      .environment(\.layoutDirection, .rightToLeft)
+    }
+    .sheet(isPresented: $railSettings) {
+      NavigationStack { SettingsView(backTitle: "إغلاق").environment(model) }
+        .environment(\.tabBarInset, 0)
+        .environment(\.layoutDirection, .rightToLeft)
+    }
+    .sheet(item: $duaChapter) { ch in
+      NavigationStack {
+        HisnChapterView(chapter: ch).environment(model)
+          .toolbar { ToolbarItem(placement: .cancellationAction) { Button("إغلاق") { duaChapter = nil } } }
+      }
+      .environment(\.tabBarInset, 0)
+      .environment(\.layoutDirection, .rightToLeft)
+    }
+  }
+
+  /// الحاوية: التبويبات الأربعة وشريطها — عائمٌ أسفل الشاشة في المضغوط والمتوسّط، وجانبيٌّ في بداية الشاشة في الموسّع.
+  /// TabView في الموضع البنيويّ نفسه في الحالين كي لا تُفقد حالة التبويبات (والتنقّل داخلها) حين يتغيّر عرض النافذة.
+  private func shell(_ widthClass: WidthClass) -> some View {
+    let wide = widthClass == .expanded
+    // ⚠️ safeAreaInset على TabView (بناء ٣٩) أو على كل تبويب خارج NavigationStack (بناء ٤٠–٤٢) لم يصل إلى
+    // ScrollView: كلاهما UIKit خلف الستار. فالشريط طبقة فوق الحاوية، وارتفاعه يُمرَّر بالبيئة، وكل شاشة
+    // داخل التبويب (الجذر ووجهات الدفع) تطبّق `.tabBarClearance()` على محتواها مباشرة.
+    return HStack(spacing: 0) {
+      if wide {
+        DSSideRail(selection: $tab, onSearch: { railSearch = true }, onSettings: { railSettings = true })
+      }
+      TabView(selection: $tab) {
+        HomeView().hiddenSystemTabBar().tag(AppTab.home)
+        MushafHomeView().hiddenSystemTabBar().tag(AppTab.mushaf)
+        AdhkarHomeView().hiddenSystemTabBar().tag(AppTab.adhkar)
+        LibraryView().hiddenSystemTabBar().tag(AppTab.library)
+      }
+      .environment(\.tabBarInset, wide ? 0 : barHeight)
+      .overlay(alignment: .bottom) {
+        if !wide {
+          DSTabBar(selection: $tab)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
+        }
+      }
+    }
+    .environment(\.widthClass, widthClass)
+    .environment(\.switchTab, { t in withAnimation(.snappy(duration: 0.2)) { tab = t } })
   }
 }

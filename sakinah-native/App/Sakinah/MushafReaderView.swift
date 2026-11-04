@@ -14,13 +14,15 @@ struct MushafReaderView: View {
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss
   @Environment(\.colorScheme) private var scheme
-  @Environment(\.horizontalSizeClass) private var hSize
   let startPage: Int
   let startAyah: Int?
   @State private var rs: MushafReaderState?
   @State private var page: Int?
   /// وضع الصفحتين (iPad): فهرس الزوج، الصفحة الفردية يمينًا والزوجية يسارًا كالكتاب المفتوح
+  /// — يُبقى مطابقًا للصفحة دائمًا كي لا يبدأ المقلّب من أول المصحف حين يتبدّل الوضع
   @State private var pair: Int?
+  /// مقاس نافذة القارئ (Split View وStage Manager والتدوير): الصفحتان في الموسّع الأفقي وحده
+  @State private var stageSize: CGSize = .zero
   @State private var chrome = true
   @State private var chromeTask: Task<Void, Never>?
   /// صفحة انتقلنا إليها بقصد (لا بتقليب) — لا يُخفى الشريط عند بلوغها
@@ -42,12 +44,17 @@ struct MushafReaderView: View {
     let p = min(max(startPage, 1), MushafLayout.totalPages)
     self.startPage = p; startAyah = ayah; self.autoplay = autoplay; hifzOnAppear = hifz
     _page = State(initialValue: p)
+    _pair = State(initialValue: (p + 1) / 2)
   }
 
   private var prefs: QuranPrefs { model.quran }
   private var current: Int { page ?? startPage }
   private var vertical: Bool { prefs.scroll == "vertical" }
-  private var spread: Bool { hSize == .regular && !vertical && !prefs.isTextMode }
+  /// صفحتان متقابلتان (المرحلة الرابعة — mushaf-ipad-spread-v3.png): نافذةٌ موسّعة (≥ ٨٤٠ نقطة) وأفقية، بتقليبٍ أفقيّ
+  /// وصفحات المطبوع؛ وفيما سواها صفحةٌ واحدة (الآيباد عموديًّا، ونصف Split View، والهاتف)
+  private var spread: Bool {
+    WidthClass.of(stageSize.width) == .expanded && stageSize.width > stageSize.height && !vertical && !prefs.isTextMode
+  }
 
   var body: some View {
     stage
@@ -64,7 +71,8 @@ struct MushafReaderView: View {
   /// المسرح: الصفحات والخلفية والتعتيم والأزرار مع مراقبي الصفحة والسمة
   private var stage: some View {
     ZStack {
-      if let rs {
+      // المقلّب لا يُبنى قبل قياس النافذة: وضع الصفحة أو الصفحتين يُعرف من مقاسها، فلا يُبنى مرّتين عند الفتح
+      if let rs, stageSize.width > 0 {
         Rectangle().fill(MushafPalette.background(for: rs.theme)).ignoresSafeArea()
         pager(rs).environment(rs)
           // اللوحات التي تبقى (الحفظ والمشغّل) تُزيح الصفحة لأن وجودها حالٌ مقصود يطول.
@@ -79,6 +87,7 @@ struct MushafReaderView: View {
     }
     .statusBarHidden(!chrome)
     .persistentSystemOverlays(chrome ? .automatic : .hidden)
+    .onGeometryChange(for: CGSize.self) { $0.size } action: { stageSize = $0 }
     .onAppear(perform: setup)
     .onDisappear(perform: teardown)
     .onChange(of: page) { _, p in pageDidChange(p) }
@@ -117,10 +126,12 @@ struct MushafReaderView: View {
         .scrollTargetBehavior(.paging)
         .scrollPosition(id: spread ? $pair : $page)
         .scrollIndicators(.hidden)
-        .onAppear { if spread { pair = (startPage + 1) / 2; proxy.scrollTo((startPage + 1) / 2, anchor: .center) } else { proxy.scrollTo(startPage, anchor: .center) } }
+        .onAppear { let p = current; if spread { pair = (p + 1) / 2; proxy.scrollTo((p + 1) / 2, anchor: .center) } else { proxy.scrollTo(p, anchor: .center) } }
         .onChange(of: prefs.scroll) { DispatchQueue.main.async { proxy.scrollTo(spread ? (current + 1) / 2 : current, anchor: .center) } }
-        .onChange(of: spread) { DispatchQueue.main.async { proxy.scrollTo(spread ? (current + 1) / 2 : current, anchor: .center) } }
         .onChange(of: pair) { _, k in guard spread, let k else { return }; let p = 2 * k - 1; if page != p && page != p + 1 { page = p } }
+        // يُبنى المقلّب من جديد حين يتبدّل الوضع (صفحة ↔ صفحتان: التدوير وSplit View) فلا تُقرأ إزاحةُ وضعٍ بفهارس الآخر،
+        // ويُفتح على الصفحة الحالية لا صفحة البداية (onAppear أعلاه)
+        .id(spread)
       }
     }
     .environment(\.layoutDirection, .rightToLeft)
@@ -132,16 +143,25 @@ struct MushafReaderView: View {
         .id(p)
     }
   }
-  /// أزواج الصفحات على iPad: (1,2)، (3,4)… الفردية يمينًا
+  /// أزواج الصفحات على iPad: (1,2)، (3,4)… الفردية يمينًا والزوجية يسارًا، والتقليب بالزوج — بلا إطار صفحة،
+  /// وبينهما ظلّ كعبٍ خفيف كالمصحف المفتوح (mushaf-ipad-spread-v3.png)
   private func spreads(_ geo: GeometryProxy, _ rs: MushafReaderState) -> some View {
     ForEach(1...(MushafLayout.totalPages / 2), id: \.self) { k in
       HStack(spacing: 0) {
         pageView(2 * k - 1, geo, rs).frame(maxWidth: .infinity)
         pageView(2 * k, geo, rs).frame(maxWidth: .infinity)
       }
+      .overlay { spine(rs) }
       .containerRelativeFrame(.horizontal)
       .id(k)
     }
+  }
+  private func spine(_ rs: MushafReaderState) -> some View {
+    let ink = Color(hex: rs.theme.ink)
+    return LinearGradient(colors: [ink.opacity(0), ink.opacity(0.10), ink.opacity(0)], startPoint: .leading, endPoint: .trailing)
+      .frame(width: 28)
+      .allowsHitTesting(false)
+      .accessibilityHidden(true)
   }
   private func pageView(_ p: Int, _ geo: GeometryProxy, _ rs: MushafReaderState) -> some View {
     Group {

@@ -7,6 +7,7 @@ struct SakinahWidgetBundle: WidgetBundle {
     PrayerWidget()
     AdhkarWidget()
     HijriWidget()
+    RamadanWidget()
     PrayerLiveActivity()
   }
 }

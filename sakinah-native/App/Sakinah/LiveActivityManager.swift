@@ -16,7 +16,9 @@ enum LiveActivityManager {
       for a in existing { Task { await a.end(nil, dismissalPolicy: .immediate) } }
       return
     }
-    let content = ActivityContent(state: makeState(model, tl: tl, now: now), staleDate: tl.next.time)
+    let state = makeState(model, tl: tl, now: now)
+    // نهاية العدّ: الأذان القادم، أو الإفطار نهارَ الصوم في رمضان (state.time هو المغرب حينها)
+    let content = ActivityContent(state: state, staleDate: state.time)
     let place = model.location.placeName ?? "موقعك"
     // اسم المكان من سمات النشاط (لا تتغيّر طوال عمره): إن تبدّلت المدينة يُعاد إنشاؤه
     if let a = existing.first, a.attributes.placeName == place {
@@ -24,7 +26,9 @@ enum LiveActivityManager {
       for extra in existing.dropFirst() { Task { await extra.end(nil, dismissalPolicy: .immediate) } }
     } else {
       for a in existing { Task { await a.end(nil, dismissalPolicy: .immediate) } }
-      if tl.next.time.timeIntervalSince(now) < 6 * 3600 {
+      // العدّ إلى الإفطار قد يطول نهارَ الصوم: يبدأ من ثماني ساعات قبله (حدّ النشاط المباشر الفعّال)، والأذان من ست
+      let horizon: TimeInterval = state.iftar == true ? 8 * 3600 : 6 * 3600
+      if state.time.timeIntervalSince(now) < horizon {
         _ = try? Activity.request(attributes: PrayerActivityAttributes(placeName: place), content: content, pushType: nil)
       }
     }
@@ -74,7 +78,7 @@ enum LiveActivityManager {
     let adhkar = AdhkarNowRule.period(now: now, fajr: t.fajr, dhuhr: t.dhuhr, asr: t.asr, isha: t.isha)
     let sky = SkyEngine.state(at: now, inputs: SkyInputs(tl, tz: tz), prefs: model.settings.sky, weather: nil).dominant
 
-    return PrayerActivityAttributes.ContentState(
+    var state = PrayerActivityAttributes.ContentState(
       prayer: next.key.rawValue, prayerName: next.key.nameAr, time: next.time,
       followingName: following?.0, followingTime: following?.1, startTime: currentStart,
       currentName: tl.current == .sunrise ? "الضحى" : tl.current.nameAr,
@@ -82,6 +86,23 @@ enum LiveActivityManager {
       adhkarPeriod: adhkar?.period, adhkarTitle: adhkar.map { AdhkarNowRule.title($0.period) },
       sky: sky.rawValue, segment: segment, segmentStart: segStart, segmentEnd: segEnd,
       temperature: cachedTemperature(model), numerals: model.settings.numerals, hour12: model.settings.hour12, tz: tz.identifier)
+
+    // طبعة رمضان (iftar-live-activity.png): نهارَ الصوم يعدّ النشاط إلى «الإفطار» بسماء الغروب،
+    // وزرّاه «دعاء الإفطار» و«اقرأ حصّتك» بدل أذكار الوقت و«صلّيتُ»
+    let ramadan = RamadanEdition.day(model, now: now)
+    if let ramadan, case .fasting(let start, let iftar) = RamadanEdition.phase(tl, now: now, model: model, today: ramadan) {
+      state.prayer = Prayer.maghrib.rawValue
+      state.prayerName = "الإفطار"
+      state.time = iftar
+      state.startTime = start
+      state.followingName = Prayer.isha.nameAr
+      state.followingTime = t.isha
+      state.sky = SkyPhase.ghurub.rawValue
+      state.iftar = true
+      state.ramadanDay = ramadan.day
+      state.readPage = RamadanEdition.readPage(model)
+    }
+    return state
   }
 
   /// الحرارة من ذاكرة طقس الرئيسية وحدها (لا طلب شبكة هنا): إن فعّل المستخدم الطقس، وللخلية نفسها، ولم تتجاوز ثلاث ساعات

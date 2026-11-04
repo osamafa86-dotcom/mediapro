@@ -48,6 +48,7 @@ struct MosquesView: View {
         }
       }
       .padding(.horizontal, DS.Space.s4).padding(.top, DS.Space.s2).padding(.bottom, DS.Space.s8)
+      .readableWidth()
     }
     .background(DS.C.bgCanvas)
     .navigationTitle("المساجد القريبة").navigationBarTitleDisplayMode(.inline)

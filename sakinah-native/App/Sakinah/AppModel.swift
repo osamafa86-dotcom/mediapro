@@ -32,6 +32,8 @@ final class Settings {
   var lastRead: LastRead? { didSet { if let v = lastRead, let data = try? JSONEncoder().encode(v) { d.set(data, forKey: "quran.lastRead") } else { d.removeObject(forKey: "quran.lastRead") } } }
   /// سماء الرئيسية: تلقائي/ثابت/مخصّص، الطقس (اختياري)، تقليل الحركة — Figma «٧ · نظام السماء والطقس»
   var sky: SkyPrefs { didSet { if let data = try? JSONEncoder().encode(sky) { d.set(data, forKey: "sky.prefs") } } }
+  /// طبعة رمضان: الإمساك قبل الفجر بالدقائق (٠ / ٥ / ١٠ / ١٥ — الافتراضي ١٠)
+  var imsakOffset: Int { didSet { d.set(imsakOffset, forKey: "ramadan.imsakOffset") } }
 
   init() {
     methodId = d.string(forKey: "prayer.method") ?? "MuslimWorldLeague"
@@ -50,6 +52,7 @@ final class Settings {
     nearbyMosques = d.bool(forKey: "mosques.enabled")
     lastRead = d.data(forKey: "quran.lastRead").flatMap { try? JSONDecoder().decode(LastRead.self, from: $0) }
     sky = d.data(forKey: "sky.prefs").flatMap { try? JSONDecoder().decode(SkyPrefs.self, from: $0) } ?? .default
+    imsakOffset = d.object(forKey: "ramadan.imsakOffset") as? Int ?? 10
   }
 
   func params(tz: TimeZone) -> PrayerParams {
