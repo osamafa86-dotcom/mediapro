@@ -90,6 +90,9 @@ private val SUB_SCREENS = setOf("sky", "guard", "notifications", "numbers", "pri
         SettingsLink(Icons.Outlined.CalendarMonth, "طريقة الحساب", Methods.method(Store.methodId).nameAr) { sheet = "method" }
         DSDivider()
         SettingsLink(Icons.Outlined.WbSunny, "وقت العصر", if (Store.madhab == "hanafi") "الحنفي" else "الجمهور") { sheet = "asr" }
+        DSDivider()
+        // طبعة رمضان (المرحلة الرابعة): الإمساك = الفجر ناقص هذه الدقائق — في الهيرو وبطاقة المواقيت وويدجت رمضان
+        SettingsLink(Icons.Outlined.Bedtime, "الإمساك قبل الفجر", imsakLabel(Store.imsakMinutes)) { sheet = "imsak" }
       }
       SettingsGroup("التنبيهات") {
         SettingsLink(Icons.Outlined.Notifications, "الأذان", adhanValue()) { stack.add("notifications") }
@@ -131,6 +134,7 @@ private val SUB_SCREENS = setOf("sky", "guard", "notifications", "numbers", "pri
     "city" -> CityPickerSheet(onDismiss = close, onDevice = { sheet = null; locPermission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) })
     "method" -> MethodSheet(close)
     "asr" -> AsrSheet(close)
+    "imsak" -> ImsakSheet(close)
     "adhkar-reminders" -> AdhkarRemindersSheet(ctx, close)
     "khatmah" -> KhatmahSheet(onDismiss = close)
     "display" -> PlainSheet(close) { DisplaySheet() }
@@ -142,6 +146,7 @@ private val SUB_SCREENS = setOf("sky", "guard", "notifications", "numbers", "pri
 }
 
 // MARK: قيم الصفوف
+private fun imsakLabel(n: Int) = when (n) { 0 -> "مع أذان الفجر"; 15 -> "${Fmt.number(15)} دقيقة"; else -> "${Fmt.number(n)} دقائق" }
 private fun adhanValue(): String {
   val r = Store.reminders; if (!r.enabled) return "مطفأ"
   val n = r.prayers.count { it != Prayer.SUNRISE.id }
@@ -200,6 +205,26 @@ private fun rateApp(ctx: Context) {
         if (i > 0) DSDivider()
         val on = Store.madhab == id
         DSRow(Icons.Outlined.WbSunny, name, sub, iconStyle = if (on) IconStyle.Brand else IconStyle.Soft, onClick = { Store.madhab = id; Store.save(); Notify.schedule(ctx); onDismiss() }) {
+          if (on) Icon(Icons.Filled.Check, "مختار", Modifier.size(18.dp), tint = c.brandPrimary)
+        }
+      }
+    }
+  }
+}
+
+/** «الإمساك قبل الفجر»: ٠ أو ٥ أو ١٠ (الافتراضي) أو ١٥ دقيقة — يُعرض في رمضان مكان الفجر */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable private fun ImsakSheet(onDismiss: () -> Unit) {
+  val ctx = LocalContext.current; val c = DS.c
+  ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.bgSurface) {
+    Column(Modifier.fillMaxWidth().padding(16.dp, 0.dp, 16.dp, 32.dp)) {
+      Text("الإمساك قبل الفجر", style = DSType.headingMd, color = c.textPrimary)
+      Text("في رمضان يُعرض وقت الإمساك مكان الفجر، ويعدّ إليه السحور.", style = DSType.labelXs, color = c.textSecondary)
+      Spacer(Modifier.height(8.dp))
+      listOf(0, 5, 10, 15).forEachIndexed { i, n ->
+        if (i > 0) DSDivider()
+        val on = Store.imsakMinutes == n
+        DSRow(Icons.Outlined.Bedtime, imsakLabel(n), if (n == 10) "الافتراضي" else null, iconStyle = if (on) IconStyle.Brand else IconStyle.Soft, onClick = { Store.imsakMinutes = n; Store.save(); LiveDay.refresh(ctx); onDismiss() }) {
           if (on) Icon(Icons.Filled.Check, "مختار", Modifier.size(18.dp), tint = c.brandPrimary)
         }
       }

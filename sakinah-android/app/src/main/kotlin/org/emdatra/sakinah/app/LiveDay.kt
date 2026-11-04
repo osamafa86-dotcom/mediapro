@@ -25,6 +25,7 @@ import kotlinx.coroutines.launch
 import org.emdatra.sakinah.R
 import org.emdatra.sakinah.app.widget.PrayerWidget
 import org.emdatra.sakinah.app.widget.PrayerWidgetReceiver
+import org.emdatra.sakinah.app.widget.RamadanWidgetReceiver
 import org.emdatra.sakinah.core.*
 import java.time.Instant
 import java.time.ZoneId
@@ -52,12 +53,18 @@ object LiveDay {
     val prayer: Prayer?, val prayerDay: String?,
     val period: Period?, val phase: SkyPhase, val palette: SkyPalette,
     val city: String?, val temperature: Double?,
+    /** طبعة رمضان (المرحلة الرابعة): يوم الشهر أو null خارجه، والإفطار (مغرب اليوم) ما دام الصوم قائماً، والإمساك القادم */
+    val ramadanDay: Int? = null, val iftar: Instant? = null, val imsak: Instant? = null,
   ) {
     /** العمود المميّز في شريط الصلوات الخمس (كبطاقة المواقيت في «اليوم») — ولا عمود للشروق */
     val highlight: Prayer? get() = when { tl.next.isTomorrow -> Prayer.FAJR; tl.next.isYesterday -> Prayer.ISHA; tl.next.key == Prayer.SUNRISE -> null; else -> tl.next.key }
     fun timeOf(p: Prayer): Instant? = if (p == highlight) nextTime else tl.times[p]
     val secondsLeft: Long get() = nextTime.epochSecond - now.epochSecond
     val prayed: Boolean get() { val p = prayer ?: return false; val d = prayerDay ?: return false; return Store.hasPrayed(d, p) }
+    /** ما يعدّ إليه الإشعار الحيّ: الإفطار طوال الصوم، وإلا الصلاة القادمة */
+    val liveName: String get() = if (iftar != null) "الإفطار" else nextName
+    val liveTime: Instant get() = iftar ?: nextTime
+    val liveSecondsLeft: Long get() = liveTime.epochSecond - now.epochSecond
   }
   val FIVE = listOf(Prayer.FAJR, Prayer.DHUHR, Prayer.ASR, Prayer.MAGHRIB, Prayer.ISHA)
 
@@ -76,10 +83,12 @@ object LiveDay {
     val start = t[tl.current]?.takeIf { !it.isAfter(now) } ?: tl.yesterdayIsha
     val reading = SkyWeatherService.cachedReading()
     val (phase, palette) = sky(now, tl, zone, reading?.first)
+    val rDay = if (Ramadan.active(now, zone)) Ramadan.hijri(now, zone).day else null
     return Model(now, zone, tl, if (tl.next.key == Prayer.SUNRISE) "الشروق" else tl.next.key.nameAr, tl.next.time,
       if (tl.current == Prayer.SUNRISE) "الضحى" else tl.current.nameAr, start,
       tl.current.takeIf { it != Prayer.SUNRISE }, start?.let { DayKey.key(it, zone) },
-      period, phase, palette, Store.locName, reading?.second)
+      period, phase, palette, Store.locName, reading?.second,
+      rDay, if (rDay != null && Ramadan.fasting(tl, now)) t.maghrib else null, if (rDay != null) Ramadan.nextImsak(tl) else null)
   }
 
   /** طور السماء الغالب الآن بلوحته (بلا مزجٍ: تتبدّل السماء عند حدود الأطوار وحدها) — ويحترم وضع السماء في الإعدادات */
@@ -118,7 +127,7 @@ object LiveDay {
   fun placeLine(m: Model): String {
     val temp = m.temperature?.let { "⁦${Fmt.number(Math.round(it).toInt())}°⁩" }
     val place = listOfNotNull(m.city, temp).joinToString(" ").ifEmpty { null }
-    return listOfNotNull(Fmt.time(m.nextTime), place).joinToString("، ")
+    return listOfNotNull(Fmt.time(m.liveTime), place).joinToString("، ")
   }
 
   // ---- فتح التطبيق: «اليوم» أو جلسة أذكار الوقت (MainActivity تقرأ الرابط وتوجّه التبويب)
@@ -127,6 +136,9 @@ object LiveDay {
       .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
   fun todayUri() = "sakinah://today"
   fun adhkarUri(p: Period) = "sakinah://adhkar/${p.id}"
+  /** دعاء الإفطار: باب «الدعاء عند إفطار الصائم» من حصن المسلم (٦٨)، وحصّة الختمة في القارئ */
+  fun iftarDuaUri() = "sakinah://hisn/68"
+  fun wirdUri() = "sakinah://wird"
 
   // ---- التجديد والمنبّهات
   const val ACTION_BOUNDARY = "org.emdatra.sakinah.LIVE_BOUNDARY"
@@ -137,11 +149,14 @@ object LiveDay {
   private const val LIVE_ID = 0x5A_4C_01
   private const val RC_BOUNDARY = 0x5A_4C_10; private const val RC_TICK = 0x5A_4C_11; private const val RC_REPEAT = 0x5A_4C_12
   private const val RC_PRAYED = 0x5A_4C_13; private const val RC_DISMISS = 0x5A_4C_14; private const val RC_OPEN = 0x5A_4C_15; private const val RC_ADHKAR = 0x5A_4C_16
+  private const val RC_IFTAR = 0x5A_4C_17; private const val RC_WIRD = 0x5A_4C_18
   private const val BRAND = 0xFF0E5C55.toInt()
   private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-  fun hasWidgets(ctx: Context): Boolean =
-    runCatching { AppWidgetManager.getInstance(ctx).getAppWidgetIds(ComponentName(ctx, PrayerWidgetReceiver::class.java)).isNotEmpty() }.getOrDefault(false)
+  fun hasWidgets(ctx: Context): Boolean = runCatching {
+    val am = AppWidgetManager.getInstance(ctx)
+    am.getAppWidgetIds(ComponentName(ctx, PrayerWidgetReceiver::class.java)).isNotEmpty() || am.getAppWidgetIds(ComponentName(ctx, RamadanWidgetReceiver::class.java)).isNotEmpty()
+  }.getOrDefault(false)
 
   /**
    * يجدّد ما يعرض اليوم خارج التطبيق: الإشعار الحيّ (يُنشر أو يُزال)، والويدجت (إن طُلب وكان منها شيء في الشاشة)،
@@ -172,13 +187,15 @@ object LiveDay {
     val now = m.now
     val c = arrayListOf(m.nextTime, m.now.atZone(m.zone).toLocalDate().plusDays(1).atStartOfDay(m.zone).toInstant())
     SkyEngine.schedule(SkyInputs.of(m.tl, m.zone))?.map { it.second }?.firstOrNull { it.isAfter(now) }?.let { c.add(it) }
+    // رمضان: الإمساك حدٌّ أيضاً (ينتهي عدّ السحور في ويدجت رمضان)
+    m.imsak?.let { c.add(it) }
     if (Store.liveHiddenUntil > now.toEpochMilli()) c.add(Instant.ofEpochMilli(Store.liveHiddenUntil))
     val at = c.filter { it.isAfter(now) }.minOrNull() ?: now.plusSeconds(1800)
     // يوقظ الجهاز عند الحدّ متى كان الإشعار الحيّ مفعّلاً (يُرى على شاشة القفل)؛ أمّا الويدجت وحده فيكفيه أول استيقاظ
     setAlarm(ctx, am, if (live) AlarmManager.RTC_WAKEUP else AlarmManager.RTC, at.toEpochMilli() + 1000, boundary)
     // نبضة الدقيقة لعنوان الإشعار («بعد ٤٢ دقيقة») وشريحته ومؤشّر الشريط — عند تبدّل الدقيقة الباقية، ولا توقظ الجهاز
     if (shown) {
-      val r = m.secondsLeft % 60
+      val r = m.liveSecondsLeft % 60
       val delay = (if (r < 5) r + 60 else r) + 1
       setAlarm(ctx, am, AlarmManager.RTC, System.currentTimeMillis() + delay * 1000, tick)
     } else am.cancel(tick)
@@ -210,11 +227,24 @@ object LiveDay {
   }
   fun cancelLive(ctx: Context) { ctx.getSystemService(NotificationManager::class.java).cancel(LIVE_ID) }
 
-  private fun title(m: Model) = "${m.nextName} ${afterLabel(m.secondsLeft)}"
+  private fun title(m: Model) = "${m.liveName} ${afterLabel(m.liveSecondsLeft)}"
+  /** «وقت العصر»، وفي رمضان «١٢ رمضان، صائم» طوال الصوم */
+  private fun subText(m: Model) = m.ramadanDay?.let { d -> "${Fmt.number(d)} رمضان، " + if (m.iftar != null) "صائم" else "وقت ${m.currentName}" } ?: "وقت ${m.currentName}"
   private fun prayedLabel(m: Model): String? = m.prayer?.let { if (m.prayed) "✓ صلّيتَ ${it.nameAr}" else "صلّيتُ ${it.nameAr}" }
 
   private fun openPI(ctx: Context) = PendingIntent.getActivity(ctx, RC_OPEN, openIntent(ctx, todayUri()), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
   private fun adhkarPI(ctx: Context, p: Period) = PendingIntent.getActivity(ctx, RC_ADHKAR, openIntent(ctx, adhkarUri(p)), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+  private fun iftarPI(ctx: Context) = PendingIntent.getActivity(ctx, RC_IFTAR, openIntent(ctx, iftarDuaUri()), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+  private fun wirdPI(ctx: Context) = PendingIntent.getActivity(ctx, RC_WIRD, openIntent(ctx, wirdUri()), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+  /** أزرار الإشعار (ثلاثة على الأكثر): في الصوم «دعاء الإفطار» و«اقرأ حصّتك» (iftar-live-activity.png) ثم «صلّيتُ»؛ وإلا أذكار الوقت و«صلّيتُ» */
+  private class Act(val title: String, val pi: PendingIntent)
+  private fun actions(ctx: Context, m: Model): List<Act> {
+    val out = ArrayList<Act>()
+    if (m.iftar != null) { out.add(Act("دعاء الإفطار", iftarPI(ctx))); if (Store.khatmah != null) out.add(Act("اقرأ حصّتك", wirdPI(ctx))) }
+    else m.period?.let { out.add(Act(it.title, adhkarPI(ctx, it))) }
+    prayedLabel(m)?.let { out.add(Act(it, prayedPI(ctx, m))) }
+    return out.take(3)
+  }
   private fun prayedPI(ctx: Context, m: Model) = PendingIntent.getBroadcast(ctx, RC_PRAYED,
     Intent(ctx, LiveDayReceiver::class.java).setAction(ACTION_PRAYED).putExtra("day", m.prayerDay).putExtra("prayer", m.prayer?.id), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
   /** إزاحة الإشعار تُخفيه حتى أذان الصلاة القادمة، ثم يعود */
@@ -226,9 +256,9 @@ object LiveDay {
     val icon = Icon.createWithResource(ctx, R.drawable.ic_stat_sakinah)
     val b = Notification.Builder(ctx, SakinahApp.CH_LIVE)
       .setSmallIcon(R.drawable.ic_stat_sakinah).setColor(BRAND)
-      .setContentTitle(title(m)).setContentText(placeLine(m)).setSubText("وقت ${m.currentName}")
-      .setWhen(m.nextTime.toEpochMilli()).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true)
-      .setShortCriticalText(chipLabel(m.secondsLeft))
+      .setContentTitle(title(m)).setContentText(placeLine(m)).setSubText(subText(m))
+      .setWhen(m.liveTime.toEpochMilli()).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true)
+      .setShortCriticalText(chipLabel(m.liveSecondsLeft))
       .setOngoing(true).setOnlyAlertOnce(true).setCategory(Notification.CATEGORY_PROGRESS).setVisibility(Notification.VISIBILITY_PUBLIC)
       .setContentIntent(openPI(ctx)).setDeleteIntent(dismissPI(ctx, m))
       // EXTRA_REQUEST_PROMOTED_ONGOING (لا ثابت له في android.jar للمستوى ٣٦ — القيمة نفسها التي يضعها NotificationCompat)
@@ -240,8 +270,7 @@ object LiveDay {
         .setProgress(bar.progress)
         .setProgressTrackerIcon(Icon.createWithBitmap(tracker())))
     }
-    m.period?.let { b.addAction(Notification.Action.Builder(icon, it.title, adhkarPI(ctx, it)).build()) }
-    prayedLabel(m)?.let { b.addAction(Notification.Action.Builder(icon, it, prayedPI(ctx, m)).build()) }
+    actions(ctx, m).forEach { b.addAction(Notification.Action.Builder(icon, it.title, it.pi).build()) }
     return b.build()
   }
 
@@ -249,13 +278,12 @@ object LiveDay {
   private fun buildCompat(ctx: Context, m: Model): Notification {
     val b = NotificationCompat.Builder(ctx, SakinahApp.CH_LIVE)
       .setSmallIcon(R.drawable.ic_stat_sakinah).setColor(BRAND)
-      .setContentTitle(title(m)).setContentText(placeLine(m)).setSubText("وقت ${m.currentName}")
-      .setWhen(m.nextTime.toEpochMilli()).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true)
+      .setContentTitle(title(m)).setContentText(placeLine(m)).setSubText(subText(m))
+      .setWhen(m.liveTime.toEpochMilli()).setShowWhen(true).setUsesChronometer(true).setChronometerCountDown(true)
       .setOngoing(true).setOnlyAlertOnce(true).setSilent(true).setPriority(NotificationCompat.PRIORITY_LOW)
       .setCategory(NotificationCompat.CATEGORY_PROGRESS).setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
       .setContentIntent(openPI(ctx)).setDeleteIntent(dismissPI(ctx, m))
-    m.period?.let { b.addAction(R.drawable.ic_stat_sakinah, it.title, adhkarPI(ctx, it)) }
-    prayedLabel(m)?.let { b.addAction(R.drawable.ic_stat_sakinah, it, prayedPI(ctx, m)) }
+    actions(ctx, m).forEach { b.addAction(R.drawable.ic_stat_sakinah, it.title, it.pi) }
     return b.build()
   }
 

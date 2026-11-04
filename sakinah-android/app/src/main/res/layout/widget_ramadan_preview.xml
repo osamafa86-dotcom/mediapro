@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- معاينة ثابتة لويدجت رمضان في منتقي الويدجت (أندرويد ١٢ فما فوق) — بحبر ويدجت «الصلاة القادمة» نفسه -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_preview_bg"
+    android:gravity="end|bottom"
+    android:layoutDirection="rtl"
+    android:orientation="vertical"
+    android:padding="14dp">
+  <TextView
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="@string/widget_ramadan_preview_day"
+      android:textColor="#FF16211F"
+      android:textSize="13sp"
+      android:textStyle="bold" />
+  <TextView
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="@string/widget_ramadan_preview_iftar"
+      android:textColor="#FF16211F"
+      android:textSize="20sp"
+      android:textStyle="bold" />
+  <TextView
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="@string/widget_ramadan_preview_after"
+      android:textColor="#FF16211F"
+      android:textSize="12sp" />
+</LinearLayout>

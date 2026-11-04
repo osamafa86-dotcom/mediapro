@@ -62,6 +62,8 @@ dependencies {
   implementation("androidx.core:core-ktx:1.13.1")
   // ويدجت الشاشة الرئيسية (المرحلة الثالثة «اليوم الحيّ»): Glance فوق RemoteViews
   implementation("androidx.glance:glance-appwidget:1.1.1")
+  // الشاشات الكبيرة والأجهزة المطوية (المرحلة الرابعة): وضعية المفصل (FoldingFeature) — كتاب، طاولة، شاشتان
+  implementation("androidx.window:window:1.3.0")
   implementation("androidx.media3:media3-exoplayer:1.4.1")
   implementation("com.google.android.play:asset-delivery-ktx:2.3.0")
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")

@@ -7,4 +7,10 @@
   <string name="widget_preview_name">المغرب</string>
   <string name="widget_preview_time">٤:٥٢</string>
   <string name="widget_preview_after">بعد ٤٢ د</string>
+  <!-- ويدجت رمضان (المرحلة الرابعة) -->
+  <string name="widget_ramadan_label">إفطار رمضان</string>
+  <string name="widget_ramadan_desc">الإفطار والسحور ويوم الشهر وعدٌّ حيّ إلى الإفطار — يُحسب على جهازك بلا اتصال</string>
+  <string name="widget_ramadan_preview_day">١٢ رمضان</string>
+  <string name="widget_ramadan_preview_iftar">الإفطار ٥:٢٢</string>
+  <string name="widget_ramadan_preview_after">بعد ٢٣ د</string>
 </resources>

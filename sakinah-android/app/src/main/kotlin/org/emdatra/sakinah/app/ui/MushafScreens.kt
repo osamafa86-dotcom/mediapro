@@ -26,6 +26,8 @@ import android.view.accessibility.AccessibilityManager
 import androidx.core.content.ContextCompat
 import java.time.Instant
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import kotlin.math.roundToInt
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.input.pointer.pointerInput
@@ -94,7 +96,8 @@ data class ReaderTarget(val page: Int, val ayah: Int? = null, val autoplay: Bool
   }
   val last = Store.lastRead
   val lastN = last?.let { QuranText.shared.ayah(it.surah, it.ayah)?.n }
-  Column(Modifier.fillMaxSize()) {
+  // المكتبة بعرضٍ مقروء في الشاشات الكبيرة (المرحلة الرابعة)؛ القارئ وحده يملأ النافذة (صفحتان متقابلتان)
+  ReadableBox { Column(Modifier.fillMaxSize()) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 6.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
       Text("المصحف", style = DSType.displayLg, color = c.textPrimary); Spacer(Modifier.weight(1f))
       DSIconButton(if (searching) Icons.Filled.Close else Icons.Outlined.Search, contentDescription = if (searching) "إغلاق البحث" else "بحث", onClick = { searching = !searching; if (!searching) q = "" })
@@ -131,7 +134,7 @@ data class ReaderTarget(val page: Int, val ayah: Int? = null, val autoplay: Bool
         }
       }
     }
-  }
+  } }
   when (sheet) {
     "khatmah" -> KhatmahSheet(onDismiss = { sheet = null }, onGo = { p -> sheet = null; reader = ReaderTarget(p) })
     "reciters" -> ModalBottomSheet(onDismissRequest = { sheet = null }, containerColor = c.bgSurface) { ReciterList { sheet = null } }
@@ -291,7 +294,18 @@ private fun Modifier.frosted(on: Boolean) = if (on && canBlur) this.blur(5.dp) e
 @Composable fun MushafReader(startPage: Int, startAyah: Int?, autoplay: Boolean = false, hifz: Boolean = false, onClose: () -> Unit) {
   val ctx = LocalContext.current; val scope = rememberCoroutineScope(); val c = DS.c
   val shots = org.emdatra.sakinah.app.ScreenshotMode
-  val pager = rememberPagerState(initialPage = startPage - 1) { 604 }
+  // المرحلة الرابعة: صفحتان متقابلتان (الفردية يميناً والزوجية يساراً كالمطبوع) في الموسّع الأفقيّ ووضع الكتاب والشاشتين —
+  // والتقليب بالأزواج؛ وإلا صفحة واحدة. `spreadMode` هو ما يعمل به المقلّب الآن، ويتبع التخطيط حين يتغيّر مع حفظ الموضع.
+  val adaptive = LocalAdaptive.current
+  val spreadWanted = adaptive.mushafSpread
+  var spreadMode by remember { mutableStateOf(spreadWanted) }
+  val pager = rememberPagerState(initialPage = if (spreadWanted) (startPage - 1) / 2 else startPage - 1) { if (spreadMode) 302 else 604 }
+  fun idxOf(p: Int) = if (spreadMode) (p - 1) / 2 else p - 1
+  /** هل الصفحة ظاهرة الآن (في الزوج المعروض أو هي الصفحة نفسها) */
+  fun shows(p: Int) = idxOf(p) == pager.currentPage
+  fun go(p: Int) { scope.launch { pager.scrollToPage(idxOf(p)) } }
+  /** الصفحة التي يُعرف بها الموضع بعد الانتقال إلى [p]: اليمنى من زوجها */
+  fun anchorOf(p: Int) = if (spreadMode) idxOf(p) * 2 + 1 else p
   var chrome by remember { mutableStateOf(true) }
   var selected by remember { mutableStateOf<Int?>(if (shots.readerSelectsAyah) QuranText.shared.pageAyahs(startPage).firstOrNull()?.n else null) }
   var flash by remember { mutableStateOf(startAyah) }
@@ -302,41 +316,57 @@ private fun Modifier.frosted(on: Boolean) = if (on && canBlur) this.blur(5.dp) e
   val theme = Store.effectiveTheme(dark); val paper = hex(theme.paper); val ink = hex(theme.ink)
   val brand = if (theme.isDark) Color(0xFF2DD4BF) else Color(0xFF0F766E)
   val gold = if (theme.isDark) Color(0xFFB8993F) else Color(0xFFA98A3A)
-  val page = pager.currentPage + 1
+  // الصفحة الجارية: اليمنى (الفردية) في الزوج
+  val page = if (spreadMode) pager.currentPage * 2 + 1 else pager.currentPage + 1
+  /** الصفحة اليسرى المرافقة في الزوج، إن وُجدت */
+  val pageLeft: Int? = if (spreadMode && page < 604) page + 1 else null
+  // موضع المفصل داخل حاوية المقلّب: نسبة الصفحة اليمنى (بعد الهامش) وعرض الكعب
+  var readerBox by remember { mutableStateOf<Pair<Float, Int>?>(null) }
+  val density = LocalDensity.current
+  val spine: Pair<Float, androidx.compose.ui.unit.Dp>? = adaptive.verticalFold?.let { hg -> readerBox?.let { (x, w) ->
+    val pad = with(density) { 8.dp.toPx() }
+    val l = hg.left - x - pad; val r = hg.right - x - pad; val inner = w - 2 * pad
+    if (l > 0 && r < inner) { val right = inner - r; (right / (right + l)) to with(density) { (r - l).toDp() } } else null
+  } }
+  LaunchedEffect(spreadWanted) { if (spreadWanted != spreadMode) { val p = page; spreadMode = spreadWanted; pager.scrollToPage(if (spreadWanted) (p - 1) / 2 else p - 1) } }
   val a11y = remember { (ctx.getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager)?.isTouchExplorationEnabled == true }
   fun startHifz(from: Int, veil: Boolean) {
     Recitation.stop()
-    hifzSession = HifzSession(page, from, veil).also { s -> if (!veil && ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) s.toggleSpeech(ctx) }
+    hifzSession = HifzSession(QuranText.shared.ayah(from)?.page ?: page, from, veil).also { s -> if (!veil && ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) s.toggleSpeech(ctx) }
     selected = null
   }
   fun playFrom(n: Int, wholeSurah: Boolean) {
     val a = QuranText.shared.ayah(n) ?: return
     Recitation.reciter = Store.reciter; Recitation.repeatAyah = Store.repeatAyah; Recitation.useRepeatRange(Store.repeatRange); Recitation.words = Store.wordHighlight
     hifzSession?.stopSpeech(); hifzSession = null
-    Recitation.play(ctx, if (wholeSurah) QuranText.shared.surahAyahs(a.surah).filter { it.n >= n }.map { it.n } else QuranText.shared.pageAyahs(a.page).map { it.n })
+    // في الزوج تُتلى الصفحتان معاً (اليمنى ثم اليسرى)
+    val pages = if (spreadMode && a.page % 2 == 1 && a.page < 604) listOf(a.page, a.page + 1) else listOf(a.page)
+    Recitation.play(ctx, if (wholeSurah) QuranText.shared.surahAyahs(a.surah).filter { it.n >= n }.map { it.n } else pages.flatMap { QuranText.shared.pageAyahs(it) }.map { it.n })
   }
   // الورد يُحتسب بتقدّم الموضع داخل الخطة بعد سكون قصير يستبعد التقليب السريع؛ وسجلّ القراءة للإحصاء على مهلته الأطول
-  LaunchedEffect(page) {
+  LaunchedEffect(page, pageLeft) {
     QuranText.shared.pageAyahs(page).firstOrNull()?.let { Store.remember(it) }
-    hifzSession?.let { h -> if (h.page != page) { h.stopSpeech(); hifzSession = null } }
-    selected?.let { s -> if (QuranText.shared.ayah(s)?.page != page) selected = null }
-    kotlinx.coroutines.delay(3000); if (pager.currentPage + 1 != page) return@LaunchedEffect
+    hifzSession?.let { h -> if (!shows(h.page)) { h.stopSpeech(); hifzSession = null } }
+    selected?.let { s -> if (QuranText.shared.ayah(s)?.page?.let { shows(it) } != true) selected = null }
+    val shown = listOfNotNull(page, pageLeft)
+    kotlinx.coroutines.delay(3000); if (!shows(page)) return@LaunchedEffect
     QuranText.shared.pageAyahs(page).firstOrNull()?.let { Store.pushRecent(it) }
-    Store.khatmah?.let { plan -> Store.wird = Wird.mark(Store.wird, Store.todayKey, page, plan.startPage) }
+    // الزوج يُحتسب صفحتين في الورد بترتيبهما (اليمنى ثم اليسرى)
+    Store.khatmah?.let { plan -> for (p in shown) Store.wird = Wird.mark(Store.wird, Store.todayKey, p, plan.startPage) }
     Store.save()
-    kotlinx.coroutines.delay(5000); if (pager.currentPage + 1 == page) { Store.readLog = Khatmah.log(Store.readLog, Store.todayKey, page); Store.save() }
+    kotlinx.coroutines.delay(5000); if (shows(page)) { for (p in shown) Store.readLog = Khatmah.log(Store.readLog, Store.todayKey, p); Store.save() }
   }
   LaunchedEffect(startAyah) { if (startAyah != null) { kotlinx.coroutines.delay(1600); flash = null } }
   LaunchedEffect(Unit) {
     if (shots.readerHifz) { kotlinx.coroutines.delay(300); QuranText.shared.pageAyahs(startPage).firstOrNull()?.let { startHifz(it.n, veil = true) } }
     else if (autoplay || hifz) { kotlinx.coroutines.delay(600); val a = startAyah?.let { QuranText.shared.ayah(it) } ?: QuranText.shared.pageAyahs(startPage).firstOrNull() ?: return@LaunchedEffect; if (autoplay) playFrom(a.n, wholeSurah = true) else startHifz(a.n, veil = false) }
   }
-  LaunchedEffect(Recitation.current) { val n = Recitation.current ?: return@LaunchedEffect; val a = QuranText.shared.ayah(n) ?: return@LaunchedEffect; if (Store.follow && hifzSession == null && a.page != pager.currentPage + 1) pager.scrollToPage(a.page - 1) }
+  LaunchedEffect(Recitation.current) { val n = Recitation.current ?: return@LaunchedEffect; val a = QuranText.shared.ayah(n) ?: return@LaunchedEffect; if (Store.follow && hifzSession == null && !shows(a.page)) pager.scrollToPage(idxOf(a.page)) }
   DisposableEffect(Unit) { onDispose { hifzSession?.stopSpeech() } }
   BackHandler { if (sheet != null) sheet = null else if (selected != null) selected = null else onClose() }
   val first = QuranText.shared.pageAyahs(page).firstOrNull()
   var chromeNonce by remember { mutableIntStateOf(0) }
-  var lastPage by remember { mutableIntStateOf(startPage) }
+  var lastPage by remember { mutableIntStateOf(anchorOf(startPage)) }
   fun showChrome() { chrome = true; chromeNonce++ }
   LaunchedEffect(page) { if (page != lastPage) { lastPage = page; chrome = false } }
   var hint by remember { mutableStateOf(false) }
@@ -351,9 +381,8 @@ private fun Modifier.frosted(on: Boolean) = if (on && canBlur) this.blur(5.dp) e
 
   Column(Modifier.fillMaxSize().background(paper).statusBarsPadding().navigationBarsPadding()) {
     if (Store.view != "text" && MushafFontPack.phase != MushafFontPack.Phase.READY) FontPackCard(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), ink = ink, paper = paper)
-    Box(Modifier.weight(1f).fillMaxWidth()) {
-      HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, key = { it }) { i ->
-        val p = i + 1
+    Box(Modifier.weight(1f).fillMaxWidth().onGloballyPositioned { readerBox = it.positionInWindow().x to it.size.width }) {
+      val pageView: @Composable (Int) -> Unit = { p ->
         Box(Modifier.fillMaxSize().clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { val h = hifzSession; if (h != null) { if (h.veil) h.revealAyah() else h.hint() } else if (chrome) chrome = false else showChrome() }
           // سحبة رأسية على الصفحة (من أعلى أو أسفل) تُظهر الشريط؛ التقليب الأفقي يبقى للمقلّب
           .pointerInput(Unit) { detectVerticalDragGestures { _, dy -> if (kotlin.math.abs(dy) > 3f) showChrome() } }) {
@@ -361,8 +390,13 @@ private fun Modifier.frosted(on: Boolean) = if (on && canBlur) this.blur(5.dp) e
           val onLong: (Ayah) -> Unit = { a -> selected = a.n; chromeNonce++; ayahSheet = a }
           // بلا خط الصفحة (حزمة الخطوط لم تُنزَّل بعد) يُعرض النص المتدفق؛ قراءة phase تعيد التركيب حين تجهز
           val pageFont = if (Store.view == "text") null else { MushafFontPack.phase; Fonts.page(p) }
-          if (pageFont == null) TextPage(p, ink, paper, highlight, hifzSession, onTap, onLong) else MushafPage(p, ink, paper, highlight, hifzSession, onTap, onLong)
+          // جلسة الحفظ لصفحتها وحدها، فالصفحة المرافقة في الزوج تُعرض بلا ستر
+          val h = if (spreadMode) hifzSession?.takeIf { it.page == p } else hifzSession
+          if (pageFont == null) TextPage(p, ink, paper, highlight, h, onTap, onLong) else MushafPage(p, ink, paper, highlight, h, onTap, onLong)
         }
+      }
+      HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, key = { it }) { i ->
+        if (spreadMode) MushafSpread(i * 2 + 1, ink, paper, spine, pageView) else pageView(i + 1)
       }
       if (!chrome && hifzSession == null) {
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) { JuzHairline(page, ink); Spacer(Modifier.height(18.dp)) }
@@ -370,13 +404,13 @@ private fun Modifier.frosted(on: Boolean) = if (on && canBlur) this.blur(5.dp) e
       if (hint && hifzSession == null) Text("انقر كلمةً لتحديد آيتها، واضغط مطوّلًا لكل خياراتها", Modifier.align(Alignment.BottomCenter).padding(bottom = 34.dp).clip(CircleShape).background(c.bgInverse.copy(alpha = 0.9f)).padding(horizontal = 16.dp, vertical = 10.dp), style = DSType.labelMd, color = c.bgCanvas)
       androidx.compose.animation.AnimatedVisibility(chrome, Modifier.align(Alignment.TopCenter), enter = slideInVertically { -it } + fadeIn(), exit = slideOutVertically { -it } + fadeOut()) {
         UnifiedBar(
-          page = page, ink = ink, paper = paper, dark = theme.isDark, hifzOn = hifzSession != null,
-          marked = Store.bookmarks.any { it.page == page },
+          page = page, pageLeft = pageLeft, ink = ink, paper = paper, dark = theme.isDark, hifzOn = hifzSession != null,
+          marked = Store.bookmarks.any { it.page == page || it.page == pageLeft },
           onClose = onClose,
           onIndex = { chromeNonce++; sheet = "nav" },
           onPlay = { chromeNonce++; first?.let { playFrom(it.n, wholeSurah = false) } },
           onHifz = { chromeNonce++; val h = hifzSession; if (h != null) { h.stopSpeech(); hifzSession = null } else first?.let { startHifz(it.n, veil = false) } },
-          onBookmark = { chromeNonce++; (selected?.let { QuranText.shared.ayah(it) } ?: Store.bookmarks.firstOrNull { it.page == page }?.let { QuranText.shared.ayah(it.surah, it.ayah) } ?: first)?.let { Store.toggleBookmark(it) } },
+          onBookmark = { chromeNonce++; (selected?.let { QuranText.shared.ayah(it) } ?: Store.bookmarks.firstOrNull { it.page == page || it.page == pageLeft }?.let { QuranText.shared.ayah(it.surah, it.ayah) } ?: first)?.let { Store.toggleBookmark(it) } },
           onSearch = { chromeNonce++; sheet = "nav" },
           onDisplay = { chromeNonce++; sheet = "display" },
           onVeil = { chromeNonce++; first?.let { startHifz(it.n, veil = true) } },
@@ -384,7 +418,7 @@ private fun Modifier.frosted(on: Boolean) = if (on && canBlur) this.blur(5.dp) e
           onKhatmah = { chromeNonce++; sheet = "khatmah" },
           onOptions = { chromeNonce++; sheet = "options" },
           onMenuOpen = { chromeNonce++ },
-          onGoToPage = { p -> chromeNonce++; lastPage = p; scope.launch { pager.scrollToPage(p - 1) } },
+          onGoToPage = { p -> chromeNonce++; lastPage = anchorOf(p); go(p) },
         )
       }
     }
@@ -392,7 +426,8 @@ private fun Modifier.frosted(on: Boolean) = if (on && canBlur) this.blur(5.dp) e
     // الرصيف السفلي الواحد: الحفظ، وإلا الآية المحدّدة، وإلا التلاوة الجارية
     Column(Modifier.fillMaxWidth()) {
       val h = hifzSession; val sel = selected?.let { QuranText.shared.ayah(it) }
-      if (h != null) HifzPanel(h, theme = theme, onExit = { h.stopSpeech(); hifzSession = null }, onNextPage = { if (page < 604) { val veil = h.veil; scope.launch { pager.scrollToPage(page); kotlinx.coroutines.delay(400); QuranText.shared.pageAyahs(page + 1).firstOrNull()?.let { a -> hifzSession = HifzSession(page + 1, a.n, veil).also { s -> if (!veil && ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) s.toggleSpeech(ctx) } } } } })
+      // الصفحة التالية لصفحة الجلسة: في الزوج قد تكون اليسرى الظاهرة فلا تقليب
+      if (h != null) HifzPanel(h, theme = theme, onExit = { h.stopSpeech(); hifzSession = null }, onNextPage = { val np = h.page + 1; if (np <= 604) { val veil = h.veil; scope.launch { if (!shows(np)) { pager.scrollToPage(idxOf(np)); kotlinx.coroutines.delay(400) }; QuranText.shared.pageAyahs(np).firstOrNull()?.let { a -> hifzSession = HifzSession(np, a.n, veil).also { s -> if (!veil && ContextCompat.checkSelfPermission(ctx, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) s.toggleSpeech(ctx) } } } } })
       else if (sel != null) AyahDock(sel, ink = ink, paper = paper, brand = brand, gold = gold, marked = Store.isBookmarked(sel),
         onTafsir = { ayahSheet = sel }, onListen = { playFrom(sel.n, wholeSurah = true); selected = null }, onBookmark = { Store.toggleBookmark(sel) },
         onShare = { ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "${sel.text} ﴿${sel.ayah}﴾\n[${QuranSearch.refLabel(sel)}]"), "مشاركة")) },
@@ -403,11 +438,33 @@ private fun Modifier.frosted(on: Boolean) = if (on && canBlur) this.blur(5.dp) e
   ayahSheet?.let { a -> AyahSheet(a, onDismiss = { ayahSheet = null }, onHifz = { ayahSheet = null; startHifz(a.n, veil = false) }, onRepeat3 = { ayahSheet = null; Recitation.reciter = Store.reciter; Recitation.words = Store.wordHighlight; Recitation.repeatAyah = 3; Recitation.play(ctx, listOf(a.n)); selected = null }) }
   if (downloads) ModalBottomSheet(onDismissRequest = { downloads = false }, containerColor = c.bgSurface) { DownloadsSheet(first?.surah) }
   when (sheet) {
-    "index", "nav" -> NavSheet(page, onDismiss = { sheet = null }) { p, n -> sheet = null; lastPage = p; scope.launch { pager.scrollToPage(p - 1) }; if (n != null) { flash = n; scope.launch { kotlinx.coroutines.delay(1600); if (flash == n) flash = null } } }
+    "index", "nav" -> NavSheet(page, onDismiss = { sheet = null }) { p, n -> sheet = null; lastPage = anchorOf(p); go(p); if (n != null) { flash = n; scope.launch { kotlinx.coroutines.delay(1600); if (flash == n) flash = null } } }
     "display" -> ModalBottomSheet(onDismissRequest = { sheet = null }, containerColor = c.bgSurface) { DisplaySheet() }
-    "khatmah" -> KhatmahSheet(onDismiss = { sheet = null }, onGo = { p -> sheet = null; lastPage = p; scope.launch { pager.scrollToPage(p - 1) } })
+    "khatmah" -> KhatmahSheet(onDismiss = { sheet = null }, onGo = { p -> sheet = null; lastPage = anchorOf(p); go(p) })
     "options" -> ModalBottomSheet(onDismissRequest = { sheet = null }, containerColor = c.bgSurface) { Column { PlaybackOptions(); OptionsSheet(page) { sheet = null } } }
   }
+}
+
+/**
+ * صفحتان متقابلتان (المرحلة الرابعة — mushaf-ipad-spread-v3.png): الفردية يميناً والزوجية يساراً كالمطبوع، كلٌّ على ورقها
+ * بزاويةٍ لطيفة وبلا إطار، وظلّ كعبٍ خفيف عند الحافّة الداخلية؛ ومع المفصل (وضع الكتاب أو الشاشتين) يقع الكعب عليه بالضبط.
+ * الألوان من سمة الورق نفسها (حبرٌ شفيف) لا ألوان جديدة. [page] هي اليمنى (الفردية).
+ */
+@Composable private fun MushafSpread(page: Int, ink: Color, paper: Color, spine: Pair<Float, androidx.compose.ui.unit.Dp>?, pageView: @Composable (Int) -> Unit) {
+  val shape = RoundedCornerShape(12.dp)
+  @Composable fun sheet(p: Int, innerOnLeft: Boolean) {
+    Box(Modifier.fillMaxSize().padding(vertical = 6.dp).clip(shape).background(paper)) {
+      if (p <= 604) pageView(p)
+      // ظلّ الكعب: من الحافّة الداخلية إلى الورق (بإحداثياتٍ فعلية، والتدرّج يُرسم من اليسار دائماً)
+      Box(Modifier.fillMaxHeight().width(18.dp).align(if (innerOnLeft) AbsoluteAlignment.CenterLeft else AbsoluteAlignment.CenterRight)
+        .background(Brush.horizontalGradient(if (innerOnLeft) listOf(ink.copy(alpha = 0.08f), Color.Transparent) else listOf(Color.Transparent, ink.copy(alpha = 0.08f)))))
+    }
+  }
+  // الحافّة الداخلية لليمنى يسارها، ولليسرى يمينها
+  // الانقسام عند المفصل إن وُجد (محسوباً من حاوية المقلّب الثابتة كي لا يتزحزح الكعب أثناء التقليب)، وإلا في الوسط
+  TwoPane(Modifier.fillMaxSize().background(ink.copy(alpha = 0.05f)).padding(horizontal = 8.dp), startFraction = spine?.first ?: 0.5f,
+    gap = maxOf(8.dp, spine?.second ?: 8.dp), useHinge = false,
+    start = { sheet(page, innerOnLeft = true) }, end = { sheet(page + 1, innerOnLeft = false) })
 }
 
 /** رصيف الآية المحدّدة: صفّ واحد على سطح الورق — تفسير · استماع · علامة · مشاركة · المزيد، و✕ */
@@ -447,7 +504,7 @@ private fun Modifier.frosted(on: Boolean) = if (on && canBlur) this.blur(5.dp) e
  * الارتفاع ٥٥ نقطة: ٤٦ للصفّ و٩ للشريحة التي تحمل الخطّ وتستقبل السحب.
  */
 @Composable private fun UnifiedBar(
-  page: Int, ink: Color, paper: Color, dark: Boolean, hifzOn: Boolean, marked: Boolean,
+  page: Int, pageLeft: Int? = null, ink: Color, paper: Color, dark: Boolean, hifzOn: Boolean, marked: Boolean,
   onClose: () -> Unit, onIndex: () -> Unit, onPlay: () -> Unit, onHifz: () -> Unit,
   onBookmark: () -> Unit, onSearch: () -> Unit, onDisplay: () -> Unit, onVeil: () -> Unit,
   onDownloads: () -> Unit, onKhatmah: () -> Unit, onOptions: () -> Unit, onMenuOpen: () -> Unit, onGoToPage: (Int) -> Unit,
@@ -479,7 +536,8 @@ private fun Modifier.frosted(on: Boolean) = if (on && canBlur) this.blur(5.dp) e
         }
         // سطر التفاصيل: سطرٌ واحد لا يُقصّ ولا يلتفّ — يصغر عند الضرورة وحدها
         AutoShrinkText(
-          l?.let { "صفحة ${Fmt.number(page)} · الجزء ${Fmt.number(it.juz)} · الحزب ${Fmt.number(it.hizb)} · ${QuranMeta.surah(it.surah).type}" } ?: "",
+          l?.let { if (pageLeft != null) "صفحتا ${Fmt.number(page)} و${Fmt.number(pageLeft)}، الجزء ${Fmt.number(it.juz)}، الحزب ${Fmt.number(it.hizb)}، ${QuranMeta.surah(it.surah).type}"
+            else "صفحة ${Fmt.number(page)}، الجزء ${Fmt.number(it.juz)}، الحزب ${Fmt.number(it.hizb)}، ${QuranMeta.surah(it.surah).type}" } ?: "",
           DSType.labelXs, ink.copy(alpha = 0.6f),
         )
       }

@@ -97,6 +97,8 @@ import kotlin.math.sin
   val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { if (it.values.any { g -> g }) scope.launch { Loc.current(ctx)?.let { l -> Loc.apply(ctx, l); Notify.schedule(ctx) } } }
   LaunchedEffect(Unit) { if (Store.coords == null && Store.locMode == "gps") { if (Loc.granted(ctx)) Loc.current(ctx)?.let { Loc.apply(ctx, it); Notify.schedule(ctx) } else permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) } }
   BackHandler(stack.isNotEmpty()) { pop() }
+  // ما يطلبه الشريط الجانبيّ (البحث، الإعدادات) أو رابط الإشعار الحيّ (دعاء الإفطار) يُفتح فوق «اليوم» مرّة
+  LaunchedEffect(HomeRoute.request) { HomeRoute.request?.let { r -> HomeRoute.request = null; if (stack.lastOrNull() != r) push(r) } }
   fun openReader(page: Int, ayah: Int?) { Store.pendingReaderPage = page; Store.pendingReaderAyah = ayah; switchTab(AppTab.Mushaf) }
   /** وجهات البحث والأدوات: شاشة تُدفع فوق «اليوم»، أو ورقة، أو تبويب آخر */
   fun open(action: String) {
@@ -111,7 +113,8 @@ import kotlin.math.sin
   val top = stack.lastOrNull()
   if (top != null) {
     // الشاشات المدفوعة تحت شريط الحالة لا خلفه (الهيرو وحده يمدّ سماءه تحته)، والبحث يحشو نفسه لأنه يملأ الشاشة
-    Box(Modifier.fillMaxSize().background(DS.c.bgCanvas).then(if (top == "search") Modifier else Modifier.statusBarsPadding())) {
+    // في الشاشات الكبيرة عمودٌ مقروء في الوسط (ولوحٌ واحد مع المفصل الفاصل) — والهاتف كما كان
+    Box(Modifier.fillMaxSize().background(DS.c.bgCanvas).then(if (top == "search") Modifier else Modifier.statusBarsPadding())) { ReadableBox {
       when {
         top == "search" -> SearchScreen(
           query = searchQuery, onQuery = { searchQuery = it }, scope = SearchScope.valueOf(searchScope), onScope = { searchScope = it.name },
@@ -132,12 +135,14 @@ import kotlin.math.sin
         top == "hadith" || top == "nawawi" -> HadithScreen(if (top == "nawawi") "nawawi" else "sahih", initialQuery = hadithQuery) { pop() }
         else -> LaunchedEffect(top) { pop() }
       }
-    }
+    } }
     if (showKhatmah) KhatmahSheet(onDismiss = { showKhatmah = false }, onGo = { p -> showKhatmah = false; openReader(p, null) })
     return
   }
 
-  val tl = Store.timeline(now); val h = Hijri.date(now, Store.zone, Store.hijriOffset); val coords = Store.coords
+  // طبعة رمضان (المرحلة الرابعة): الهيرو والبطاقة و«الآن» وختمة رمضان — بحساب الشهر الهجريّ نفسه (أو مسار اللقطات)
+  val ramadan = Ramadan.active(now)
+  val tl = Store.timeline(now); val h = Ramadan.hijri(now); val coords = Store.coords
   val compass = rememberCompass(enabled = coords != null)
   val prefs = Store.skyPrefs
   val sky = homeSkyState(now, tl, prefs, SkyWeatherService.current)
@@ -146,22 +151,80 @@ import kotlin.math.sin
   LaunchedEffect(prefs.weather, prefs.mode, cell) { if (prefs.weather && prefs.mode == SkyMode.AUTO && !ScreenshotMode.active && coords != null) SkyWeatherService.refreshIfNeeded(coords.latitude, coords.longitude) }
   // أيقونات شريط الحالة تتبع السماء: فاتحة على الداكنة، وتعود لسمة التطبيق عند مغادرة «اليوم»
   val view = LocalView.current; val appDark = DS.c.isDark
-  DisposableEffect(sky.palette.isDark) {
+  val a = LocalAdaptive.current
+  // في الموسّع والمطويّ السماءُ بطاقةٌ داخل لوحها فشريط الحالة فوق سطح التطبيق لا فوقها
+  val statusOnSky = a.compact || a.tabletop || !(a.expanded || a.verticalFold != null)
+  DisposableEffect(sky.palette.isDark, statusOnSky) {
     val ic = view.context.findActivity()?.let { WindowCompat.getInsetsController(it.window, view) }
-    ic?.isAppearanceLightStatusBars = !sky.palette.isDark
+    ic?.isAppearanceLightStatusBars = if (statusOnSky) !sky.palette.isDark else !appDark
     onDispose { ic?.isAppearanceLightStatusBars = !appDark }
   }
-  Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-    Hero(sky, prefs.reduceMotion, h, now, tl, coords, compass,
+  val hero: @Composable (Modifier, HeroStyle, Boolean) -> Unit = { m, style, tools ->
+    Hero(sky, prefs.reduceMotion, h, now, tl, coords, compass, ramadan, style, tools, m,
       onCity = { showCity = true }, onSearch = { push("search") }, onSettings = { push("settings") },
       onQibla = { push("qibla") }, onGuard = { push("guard") }, onMonth = { push("month") })
-    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-      if (tl == null || coords == null) LocationPrompt(onDevice = { permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) }, onCity = { showCity = true })
-      else NowCard(tl, now, onAdhkar = { period -> Store.pendingAdhkarPeriod = period; switchTab(AppTab.Adhkar) }, onChapter = { id -> push("hisn:$id") })
-      QuickTools(onMonth = { push("month") }, onTasbih = { push("tasbih") }, onHisn = { push("hisn") }, onMosques = { push("mosques") })
-      WirdSection(onRead = { p, n -> openReader(p, n) }, onKhatmah = { showKhatmah = true })
-      HadithSection(onNawawi = { open("nawawi") }, onOpen = { open("hadith") })
-      Text("يعمل دون اتصال، لا حساب ولا تتبّع", Modifier.fillMaxWidth(), style = DSType.labelXs, color = DS.c.textTertiary, textAlign = TextAlign.Center)
+  }
+  val nowBlock: @Composable () -> Unit = {
+    if (tl == null || coords == null) LocationPrompt(onDevice = { permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) }, onCity = { showCity = true })
+    else NowCard(tl, now, ramadan, onAdhkar = { period -> Store.pendingAdhkarPeriod = period; switchTab(AppTab.Adhkar) }, onChapter = { id -> push("hisn:$id") })
+  }
+  // في الشاشات الكبيرة بلاطةٌ خامسة لـ«ضمان الأذان» (ipad-portrait.png) — وعلى الهاتف يبقى سطره في بطاقة المواقيت
+  val tools: @Composable (Boolean) -> Unit = { guard -> QuickTools(onMonth = { push("month") }, onTasbih = { push("tasbih") }, onHisn = { push("hisn") }, onMosques = { push("mosques") }, onGuard = if (guard) ({ push("guard") }) else null) }
+  // «ختمة رمضان» تحلّ محلّ «ورد اليوم» طوال الشهر
+  val wird: @Composable () -> Unit = {
+    if (ramadan) RamadanKhatmahSection(now, onRead = { p, n -> openReader(p, n) }, onPlan = { showKhatmah = true })
+    else WirdSection(onRead = { p, n -> openReader(p, n) }, onKhatmah = { showKhatmah = true })
+  }
+  val hadith: @Composable () -> Unit = { HadithSection(onNawawi = { open("nawawi") }, onOpen = { open("hadith") }) }
+  val footer: @Composable () -> Unit = { Text("يعمل دون اتصال، لا حساب ولا تتبّع", Modifier.fillMaxWidth(), style = DSType.labelXs, color = DS.c.textTertiary, textAlign = TextAlign.Center) }
+  when {
+    // وضع الطاولة (tabletop.png): النصف الأعلى ساعة الصلاة بسمائها وعدّها، والنصف الأسفل «الآن» والأدوات وبقيّة اليوم
+    a.tabletop -> TopBottomPane(Modifier.fillMaxSize(),
+      top = { hero(Modifier.fillMaxSize(), HeroStyle.Fill, true) },
+      bottom = {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(top = 8.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+          nowBlock(); tools(!a.compact); wird(); hadith(); footer()
+        }
+      })
+    // الهاتف: كما كان تماماً
+    a.compact -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+      hero(Modifier, HeroStyle.Bleed, true)
+      Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        nowBlock(); tools(false); wird(); hadith(); footer()
+      }
+    }
+    // الموسّع، والمطويّ مفتوحاً (fold-unfolded.png): السماء عمودٌ ثابت بجانب البطاقات، ومع الطيّ لوحان يفصلهما خطّه
+    a.expanded || a.verticalFold != null -> TwoPane(Modifier.fillMaxSize(), startFraction = 0.42f, minStart = 320.dp, maxStart = 480.dp, gap = 20.dp,
+      start = {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding().padding(start = 16.dp, top = 12.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+          // البحث والإعدادات في الشريط الجانبيّ متى ظهر، وإلا في رأس السماء
+          hero(Modifier.fillMaxWidth(), HeroStyle.Card, !a.expanded)
+          if (tl != null && coords != null) DayPlanCard(tl, now, ramadan)
+        }
+      },
+      end = {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding().padding(end = 20.dp, top = 12.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+          Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("اليوم", style = DSType.displayLg, color = DS.c.textPrimary)
+            Spacer(Modifier.weight(1f))
+            Text(Fmt.gregorian(now), style = DSType.labelSm, color = DS.c.textSecondary, maxLines = 1)
+          }
+          nowBlock(); tools(true)
+          BoxWithConstraints(Modifier.fillMaxWidth()) {
+            if (maxWidth >= 560.dp) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) { Box(Modifier.weight(1f)) { wird() }; Box(Modifier.weight(1f)) { hadith() } }
+            else Column(verticalArrangement = Arrangement.spacedBy(20.dp)) { wird(); hadith() }
+          }
+          footer()
+        }
+      })
+    // المتوسط (ipad-portrait.png): السماء بعرضٍ كامل وتحتها شبكة عمودين
+    else -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+      hero(Modifier, HeroStyle.Bleed, true)
+      Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(top = 20.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        nowBlock(); tools(true)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) { Box(Modifier.weight(1f)) { wird() }; Box(Modifier.weight(1f)) { hadith() } }
+        footer()
+      }
     }
   }
   if (showCity) CityPickerSheet(onDismiss = { showCity = false }, onDevice = { showCity = false; permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) })
@@ -200,21 +263,31 @@ class CompassReading(val heading: Float?, val accuracy: Int)
 }
 
 // MARK: الهيرو
+/** شكل الهيرو: ممتدٌّ تحت شريط الحالة (الهاتف والمتوسط)، بطاقةٌ مستديرة في لوحها (الموسّع والمطويّ)، أو يملأ النصف الأعلى (الطاولة) */
+enum class HeroStyle { Bleed, Card, Fill }
+
 @Composable private fun Hero(sky: SkyState, reduceMotion: Boolean, h: HijriDate, now: Instant, tl: PrayerTimes.DayTimeline?, coords: Coordinates?, compass: CompassReading,
+                             ramadan: Boolean, style: HeroStyle, showTools: Boolean, modifier: Modifier,
                              onCity: () -> Unit, onSearch: () -> Unit, onSettings: () -> Unit, onQibla: () -> Unit, onGuard: () -> Unit, onMonth: () -> Unit) {
   val p = sky.palette
-  val shape = RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)
-  Box(Modifier.fillMaxWidth().clip(shape)) {
+  val shape = when (style) { HeroStyle.Bleed -> RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp); HeroStyle.Card -> RoundedCornerShape(28.dp); HeroStyle.Fill -> RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp) }
+  Box(modifier.fillMaxWidth().clip(shape)) {
     SkyBackdrop(sky, reduceMotion, Modifier.matchParentSize())
-    Column(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 20.dp)) {
-      TopRow(p, h, onCity, onSearch, onSettings)
+    val inner = when (style) {
+      HeroStyle.Bleed -> Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 20.dp)
+      HeroStyle.Card -> Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 20.dp)
+      // النصف الأعلى محدود الارتفاع: يتمرّر إن ضاق
+      HeroStyle.Fill -> Modifier.fillMaxSize().verticalScroll(rememberScrollState()).windowInsetsPadding(WindowInsets.statusBars).padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 16.dp)
+    }
+    Column(inner) {
+      TopRow(p, h, showTools, onCity, onSearch, onSettings)
       if (tl != null && coords != null) {
         Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.Top) {
-          NextPrayerBlock(Modifier.weight(1f), tl, now, p)
+          NextPrayerBlock(Modifier.weight(1f), tl, now, p, ramadan)
           Spacer(Modifier.width(8.dp))
           MedallionColumn(coords, compass, p, onQibla)
         }
-        PrayerCard(tl, now, Modifier.fillMaxWidth().padding(top = 16.dp), onGuard, onMonth)
+        PrayerCard(tl, now, ramadan, Modifier.fillMaxWidth().padding(top = 16.dp), onGuard, onMonth)
       } else {
         Column(Modifier.padding(top = 24.dp, bottom = 40.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
           Text("حدّد موقعك", style = DSType.displayHero, color = p.text)
@@ -226,7 +299,7 @@ class CompassReading(val heading: Float?, val accuracy: Int)
 }
 
 /** المدينة والحرارة ثم التاريخ الهجري (يمين)، وزرّا البحث والإعدادات الزجاجيان (يسار) — بلا جرس: التنبيهات في الإعدادات */
-@Composable private fun TopRow(p: SkyPalette, h: HijriDate, onCity: () -> Unit, onSearch: () -> Unit, onSettings: () -> Unit) {
+@Composable private fun TopRow(p: SkyPalette, h: HijriDate, showTools: Boolean, onCity: () -> Unit, onSearch: () -> Unit, onSettings: () -> Unit) {
   Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
       // الحرارة بجانب المدينة متى فعّل المستخدم الطقس (القراءة نفسها التي تلوّن السماء — لا طلب إضافي)
@@ -243,8 +316,11 @@ class CompassReading(val heading: Float?, val accuracy: Int)
       }
       Text("${h.weekday}، ${Fmt.number(h.day)} ${h.monthName} ${Fmt.number(h.year)}هـ", style = DSType.labelSm.copy(fontSize = 12.5.sp, fontWeight = FontWeight.Normal), color = p.textMuted, maxLines = 1)
     }
-    GlassIcon(Icons.Outlined.Search, "البحث", p, onSearch)
-    GlassIcon(Icons.Outlined.Tune, "الإعدادات", p, onSettings)
+    // في الموسّع يحملهما الشريط الجانبيّ
+    if (showTools) {
+      GlassIcon(Icons.Outlined.Search, "البحث", p, onSearch)
+      GlassIcon(Icons.Outlined.Tune, "الإعدادات", p, onSettings)
+    }
   }
 }
 @Composable private fun GlassIcon(icon: ImageVector, label: String, p: SkyPalette, onClick: () -> Unit) {
@@ -268,14 +344,23 @@ private fun remainingLabel(secs: Long): String {
 }
 
 /** الصلاة القادمة: عنوان ذهبي صغير، اسمها بالكوفي، وقت أذانها بأرقام كبيرة خفيفة، ثم حبّة ذهبية بما بقي — العدّاد بالثواني لم يعد بطل الهيرو */
-@Composable private fun NextPrayerBlock(modifier: Modifier, tl: PrayerTimes.DayTimeline, now: Instant, p: SkyPalette) {
+@Composable private fun NextPrayerBlock(modifier: Modifier, tl: PrayerTimes.DayTimeline, now: Instant, p: SkyPalette, ramadan: Boolean) {
   val next = tl.next
-  val time = clock(next.time)
+  // رمضان: بين الفجر والمغرب يُسمّى الحدث القادم للصوم («يكتمل الصوم بعد — الإفطار» بوقت المغرب)، وبعد العشاء «السحور حتى — الإمساك»
+  val fast = ramadan && Ramadan.fasting(tl, now)
+  val suhoor = ramadan && !fast && Ramadan.suhoor(tl, now)
+  val label: String; val name: String; val at: Instant
+  when {
+    fast -> { label = "يكتمل الصوم بعد"; name = "الإفطار"; at = tl.times.maghrib ?: next.time }
+    suhoor -> { label = "السحور حتى"; name = "الإمساك"; at = Ramadan.nextImsak(tl) ?: next.time }
+    else -> { label = if (next.key == Prayer.SUNRISE) "الوقت القادم" else "الصلاة القادمة"; name = if (next.isTomorrow) "فجر الغد" else next.key.nameAr; at = next.time }
+  }
+  val time = clock(at)
   Column(modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-    Text(if (next.key == Prayer.SUNRISE) "الوقت القادم" else "الصلاة القادمة", style = DSType.labelSm.copy(fontSize = 13.sp, letterSpacing = 0.4.sp), color = p.gold)
-    Text(if (next.isTomorrow) "فجر الغد" else next.key.nameAr, Modifier.padding(top = 2.dp), style = DSType.displayLg.copy(fontSize = 30.sp, lineHeight = 40.sp), color = p.text, maxLines = 1)
+    Text(label, style = DSType.labelSm.copy(fontSize = 13.sp, letterSpacing = 0.4.sp), color = p.gold)
+    Text(name, Modifier.padding(top = 2.dp), style = DSType.displayLg.copy(fontSize = 30.sp, lineHeight = 40.sp), color = p.text, maxLines = 1)
     Text(time, style = DSType.numericHero.copy(fontSize = if (time.length > 4) 52.sp else 64.sp, lineHeight = 70.sp), color = p.text, maxLines = 1, softWrap = false)
-    Text(remainingLabel(next.time.epochSecond - now.epochSecond), Modifier.padding(top = 4.dp).clip(CircleShape).background(CardInk.gold).padding(horizontal = 12.dp, vertical = 5.dp),
+    Text(remainingLabel(at.epochSecond - now.epochSecond), Modifier.padding(top = 4.dp).clip(CircleShape).background(CardInk.gold).padding(horizontal = 12.dp, vertical = 5.dp),
       style = DSType.labelSm.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold), color = LightDS.textPrimary, maxLines = 1)
   }
 }
@@ -322,32 +407,47 @@ private fun weatherGlyph(w: SkyWeather?, dark: Boolean): ImageVector = when (w) 
 private val CardInk: SkyPalette = SkyPalette.of(SkyPhase.SHAFAQ)
 private val CardPrayers = listOf(Prayer.FAJR, Prayer.DHUHR, Prayer.ASR, Prayer.MAGHRIB, Prayer.ISHA)
 
-/** شريط «مضى ٧٢٪ من وقت العصر»، والصلوات الخمس بأوقاتها (القادمة في مستطيلٍ أفتح)، ثم سطر ضمان الأذان (يمين) و«جدول الشهر» (يسار) */
-@Composable private fun PrayerCard(tl: PrayerTimes.DayTimeline, now: Instant, modifier: Modifier, onGuard: () -> Unit, onMonth: () -> Unit) {
+/** عمودٌ في بطاقة المواقيت: الاسم والوقت، والقادم مميّز */
+private class CardCol(val name: String, val time: Instant?, val on: Boolean)
+
+/**
+ * شريط «مضى ٧٢٪ من وقت العصر»، والصلوات الخمس بأوقاتها (القادمة في مستطيلٍ أفتح)، ثم سطر ضمان الأذان (يمين) و«جدول الشهر» (يسار).
+ * في رمضان: «مضى ٩٠٪ من صيام اليوم» من الفجر إلى المغرب، والأعمدة الإمساك والظهر والعصر والإفطار والعشاء.
+ */
+@Composable private fun PrayerCard(tl: PrayerTimes.DayTimeline, now: Instant, ramadan: Boolean, modifier: Modifier, onGuard: () -> Unit, onMonth: () -> Unit) {
   val k = CardInk; val shape = RoundedCornerShape(22.dp)
-  // نسبة ما مضى من وقت الصلاة الحالية: من دخولها إلى دخول التالية
-  val start = tl.times[tl.current]?.takeIf { !it.isAfter(now) } ?: tl.yesterdayIsha
-  val total = start?.let { (tl.next.time.epochSecond - it.epochSecond).toDouble() } ?: 0.0
+  val fast = ramadan && Ramadan.fasting(tl, now)
+  // نسبة ما مضى من وقت الصلاة الحالية: من دخولها إلى دخول التالية — وفي الصوم من الفجر إلى المغرب
+  val start = if (fast) tl.times.fajr else tl.times[tl.current]?.takeIf { !it.isAfter(now) } ?: tl.yesterdayIsha
+  val endAt = if (fast) tl.times.maghrib ?: tl.next.time else tl.next.time
+  val total = start?.let { (endAt.epochSecond - it.epochSecond).toDouble() } ?: 0.0
   val pct = if (start != null && total > 0) ((now.epochSecond - start.epochSecond) / total).coerceIn(0.0, 1.0) else 0.0
   val currentName = if (tl.current == Prayer.SUNRISE) "الضحى" else tl.current.nameAr
   // العمود المميّز: القادمة (فجر الغد بعد العشاء، وعشاء الأمس حين يتأخر بعد منتصف الليل) — ولا عمود للشروق
   val highlight: Prayer? = when { tl.next.isTomorrow -> Prayer.FAJR; tl.next.isYesterday -> Prayer.ISHA; tl.next.key == Prayer.SUNRISE -> null; else -> tl.next.key }
+  fun timeOf(pr: Prayer) = if (pr == highlight) tl.next.time else tl.times[pr]
+  val cols = if (ramadan) {
+    // الإمساك مكان الفجر (القادم بعد العشاء)، والمغرب «الإفطار»؛ والمميّز الإمساك ما دام السحور قائماً
+    val suhoor = Ramadan.suhoor(tl, now)
+    listOf(CardCol("الإمساك", Ramadan.nextImsak(tl), suhoor),
+      CardCol(Prayer.DHUHR.nameAr, timeOf(Prayer.DHUHR), highlight == Prayer.DHUHR), CardCol(Prayer.ASR.nameAr, timeOf(Prayer.ASR), highlight == Prayer.ASR),
+      CardCol("الإفطار", timeOf(Prayer.MAGHRIB), highlight == Prayer.MAGHRIB), CardCol(Prayer.ISHA.nameAr, timeOf(Prayer.ISHA), highlight == Prayer.ISHA))
+  } else CardPrayers.map { pr -> CardCol(pr.nameAr, timeOf(pr), pr == highlight) }
   Column(modifier.clip(shape).background(k.stops.first().toColor().copy(alpha = 0.58f)).border(1.dp, k.glassStroke, shape).padding(horizontal = 14.dp, vertical = 12.dp)) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-      Text("مضى ${Fmt.number((pct * 100).toInt())}٪ من وقت $currentName", style = DSType.labelXs.copy(fontSize = 11.5.sp), color = k.textSoft, maxLines = 1)
+      Text(if (fast) "مضى ${Fmt.number((pct * 100).toInt())}٪ من صيام اليوم" else "مضى ${Fmt.number((pct * 100).toInt())}٪ من وقت $currentName", style = DSType.labelXs.copy(fontSize = 11.5.sp), color = k.textSoft, maxLines = 1)
       ProgressTrack(pct.toFloat(), Modifier.weight(1f), tint = k.text, track = k.glassStroke, height = 3.dp)
     }
     Spacer(Modifier.height(10.dp))
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-      CardPrayers.forEach { pr ->
-        val on = pr == highlight
-        val t = if (on) tl.next.time else tl.times[pr]
+      cols.forEach { col ->
+        val on = col.on
         val cellShape = RoundedCornerShape(14.dp)
         Column(Modifier.weight(1f).clip(cellShape).background(if (on) k.glassStroke else Color.Transparent).then(if (on) Modifier.border(1.dp, k.glassStroke, cellShape) else Modifier)
-          .clearAndSetSemantics { contentDescription = "${pr.nameAr} ${Fmt.time(t)}" + (if (on) "، القادمة" else "") }
+          .clearAndSetSemantics { contentDescription = "${col.name} ${Fmt.time(col.time)}" + (if (on) "، القادمة" else "") }
           .padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-          Text(pr.nameAr, style = DSType.labelXs.copy(fontSize = 11.5.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium), color = if (on) k.text else k.textMuted, maxLines = 1)
-          Text(clock(t), style = DSType.numericSm.copy(fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium), color = k.text, maxLines = 1)
+          Text(col.name, style = DSType.labelXs.copy(fontSize = 11.5.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium), color = if (on) k.text else k.textMuted, maxLines = 1)
+          Text(clock(col.time), style = DSType.numericSm.copy(fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium), color = k.text, maxLines = 1)
         }
       }
     }
@@ -388,12 +488,24 @@ private val CardPrayers = listOf(Prayer.FAJR, Prayer.DHUHR, Prayer.ASR, Prayer.M
 }
 
 // MARK: «الآن» — ما يناسب هذا الوقت: أذكار الصباح بعد الفجر، والمساء بعد العصر، والنوم بعد العشاء
-private class NowInfo(val key: String, val period: String?, val since: String, val hint: String, val title: String, val total: Int, val done: Int, val chapter: HisnChapter?)
+private class NowInfo(val key: String, val period: String?, val since: String, val hint: String, val title: String, val total: Int, val done: Int, val chapter: HisnChapter?,
+                      /** نصٌّ بدل سطر العدد (دعاء الإفطار، تذكير السحور) وعنوان الزرّ */ val body: String? = null, val cta: String? = null)
 
-private fun nowInfo(tl: PrayerTimes.DayTimeline, now: Instant): NowInfo? {
+private fun nowInfo(tl: PrayerTimes.DayTimeline, now: Instant, ramadan: Boolean = false): NowInfo? {
   val t = tl.times; val today = Store.todayKey; val pr = Store.adhkarProgress; val day = tl.date.key
   fun after(x: Instant?) = x != null && !now.isBefore(x)
   fun before(x: Instant?) = x != null && now.isBefore(x)
+  // رمضان: آخر نصف ساعة قبل المغرب «دعاء الإفطار»، وآخر ساعة قبل الإمساك «السحور»؛ وإلا أذكار الوقت كالمعتاد
+  if (ramadan) {
+    val maghrib = t.maghrib
+    if (Ramadan.fasting(tl, now) && maghrib != null && !now.isBefore(maghrib.minusSeconds(30 * 60)))
+      return NowInfo("$day:iftar", null, "الآن، قبل الإفطار", "دعوة الصائم لا تُردّ", "دعاء الإفطار", 0, 0, Hisn.chapter(68),
+        body = "«ذهب الظمأ وابتلّت العروق، وثبت الأجر إن شاء الله» — يُعرض لك عند الأذان", cta = "افتح الأدعية")
+    val imsak = Ramadan.nextImsak(tl)
+    if (imsak != null && Ramadan.suhoor(tl, now) && !now.isBefore(imsak.minusSeconds(60 * 60)))
+      return NowInfo("${DayKey.key(imsak, Store.zone)}:suhoor", null, "الآن، قبل الإمساك", "الإمساك ${clock(imsak)}", "السحور", 0, 0, Hisn.chapter(69),
+        body = "«تسحّروا فإنّ في السَّحور بركة» — متفق عليه", cta = "أدعية الطعام")
+  }
   fun adhkar(period: String, map: Map<String, Int>, since: String, hint: String): NowInfo? {
     val items = Adhkar.items(period); val done = items.count { (map[it.id] ?: 0) >= it.target(period) }
     if (items.isEmpty() || done >= items.size) return null  // أُتمّت: لا شيء يُقترح الآن
@@ -417,11 +529,11 @@ private fun adhkarCount(n: Int) = when { n == 1 -> "ذكر واحد"; n == 2 -> 
 /** تقدير جلسة الأذكار نفسه (خمسة أذكار في الدقيقة) كي يتّفق مع ما تعرضه الجلسة */
 private fun aboutMinutes(n: Int) = when { n == 1 -> "نحو دقيقة"; n == 2 -> "نحو دقيقتين"; n in 3..10 -> "نحو ${Fmt.number(n)} دقائق"; else -> "نحو ${Fmt.number(n)} دقيقة" }
 
-@Composable private fun NowCard(tl: PrayerTimes.DayTimeline, now: Instant, onAdhkar: (String) -> Unit, onChapter: (Int) -> Unit) {
+@Composable private fun NowCard(tl: PrayerTimes.DayTimeline, now: Instant, ramadan: Boolean, onAdhkar: (String) -> Unit, onChapter: (Int) -> Unit) {
   val c = DS.c
-  val info = nowInfo(tl, now) ?: return
+  val info = nowInfo(tl, now, ramadan) ?: return
   if (Store.nowHidden == info.key) return
-  val subtitle = if (info.chapter != null) "${adhkarCount(info.total)}، من حصن المسلم"
+  val subtitle = if (info.body != null) info.body else if (info.chapter != null) "${adhkarCount(info.total)}، من حصن المسلم"
     else "${adhkarCount(info.total)}، ${aboutMinutes(maxOf(1, (info.total - info.done) / 5))}" + (if (info.done > 0) " — أتممتَ ${Fmt.number(info.done)} منها" else "")
   DSCard(Modifier.fillMaxWidth(), padding = 18.dp) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -433,11 +545,11 @@ private fun aboutMinutes(n: Int) = when { n == 1 -> "نحو دقيقة"; n == 2 
     }
     Spacer(Modifier.height(8.dp))
     Text(info.title, style = DSType.displayMd, color = c.textPrimary, maxLines = 1)
-    Text(subtitle, style = DSType.bodySm, color = c.textSecondary, maxLines = 2)
+    Text(subtitle, style = DSType.bodySm, color = c.textSecondary, maxLines = if (info.body != null) 3 else 2)
     if (info.done > 0) { Spacer(Modifier.height(10.dp)); ProgressTrack(info.done.toFloat() / info.total, tint = c.accentGold, track = c.bgSubtle, height = 6.dp) }
     Spacer(Modifier.height(14.dp))
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-      PillButton(when { info.chapter != null -> "اقرأ الأذكار"; info.done > 0 -> "أكمِل الأذكار"; else -> "ابدأ الأذكار" }, bg = c.accentGold, fg = LightDS.textPrimary) {
+      PillButton(info.cta ?: when { info.chapter != null -> "اقرأ الأذكار"; info.done > 0 -> "أكمِل الأذكار"; else -> "ابدأ الأذكار" }, bg = c.accentGold, fg = LightDS.textPrimary) {
         val ch = info.chapter; if (ch != null) onChapter(ch.id) else info.period?.let(onAdhkar)
       }
       Spacer(Modifier.weight(1f))
@@ -458,12 +570,13 @@ private fun aboutMinutes(n: Int) = when { n == 1 -> "نحو دقيقة"; n == 2 
 }
 
 // MARK: الأدوات السريعة
-@Composable private fun QuickTools(onMonth: () -> Unit, onTasbih: () -> Unit, onHisn: () -> Unit, onMosques: () -> Unit) {
+@Composable private fun QuickTools(onMonth: () -> Unit, onTasbih: () -> Unit, onHisn: () -> Unit, onMosques: () -> Unit, onGuard: (() -> Unit)? = null) {
   Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
     ToolTile(Icons.Outlined.CalendarMonth, "التقويم", Modifier.weight(1f), onMonth)
     ToolTile(Icons.Outlined.Grain, "المسبحة", Modifier.weight(1f), onTasbih)
     ToolTile(Icons.Outlined.Shield, "حصن المسلم", Modifier.weight(1f), onHisn)
     ToolTile(Icons.Outlined.Mosque, "المساجد", Modifier.weight(1f), onMosques)
+    if (onGuard != null) ToolTile(Icons.Outlined.NotificationsActive, "ضمان الأذان", Modifier.weight(1f), onGuard)
   }
 }
 @Composable private fun ToolTile(icon: ImageVector, label: String, modifier: Modifier, onClick: () -> Unit) {
@@ -516,6 +629,155 @@ private fun pagesLeft(n: Int) = when { n == 1 -> "صفحة واحدة"; n == 2 -
         }
         Text(if (stt?.finished == true) "ابدأ ختمة جديدة" else "ابدأ خطة ختمة", Modifier.align(Alignment.CenterHorizontally).padding(top = 6.dp).heightIn(min = 44.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onKhatmah).padding(horizontal = 14.dp, vertical = 12.dp),
           style = DSType.labelSm, color = c.brandPrimary)
+      }
+    }
+  }
+}
+
+// MARK: ختمة رمضان (المرحلة الرابعة — ramadan-today.png): تحلّ محلّ «ورد اليوم» طوال الشهر، فوق محرّك الختمة نفسه
+private fun daysCount(n: Int) = when { n == 1 -> "يوم واحد"; n == 2 -> "يومان"; n in 3..10 -> "${Fmt.number(n)} أيام"; else -> "${Fmt.number(n)} يوماً" }
+/** «أربعٌ بعد كلّ صلاة» — العدد مع «صفحة» محذوفةً بعده كما يُقال */
+private fun perPrayerLabel(n: Int) = when (n) {
+  1 -> "صفحةٌ"; 2 -> "صفحتان"; 3 -> "ثلاثٌ"; 4 -> "أربعٌ"; 5 -> "خمسٌ"; 6 -> "ستٌّ"; 7 -> "سبعٌ"; 8 -> "ثمانٍ"; 9 -> "تسعٌ"; 10 -> "عشرٌ"
+  else -> pagesLeft(n)
+} + " بعد كلّ صلاة"
+private fun behindLabel(days: Int) = when { days == 1 -> "متأخر يوماً"; days == 2 -> "متأخر يومين"; days in 3..10 -> "متأخر ${Fmt.number(days)} أيام"; else -> "متأخر ${Fmt.number(days)} يوماً" }
+
+@Composable private fun RamadanKhatmahSection(now: Instant, onRead: (Int, Int?) -> Unit, onPlan: () -> Unit) {
+  val c = DS.c; val ctx = LocalContext.current; val today = Store.todayKey
+  val plan = Store.khatmah
+  Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    DSSectionHead("ختمة رمضان", link = "الخطة", onLink = onPlan)
+    if (plan == null || !Ramadan.isPlan(plan, today, now)) {
+      // عرضُ الختمة: المصحف كاملاً على ما بقي من الشهر — خطّة ختمةٍ عادية في المحرّك القائم
+      val left = Ramadan.daysLeft(now); val perDay = Math.ceil(Khatmah.TOTAL.toDouble() / maxOf(1, left)).toInt()
+      DSCard(Modifier.fillMaxWidth(), padding = 18.dp) {
+        Text("ختمةٌ واحدة في الشهر", style = DSType.headingLg.copy(fontSize = 20.sp), color = c.textPrimary)
+        Spacer(Modifier.height(4.dp))
+        Text("يُقسَم المصحف على ما بقي من رمضان: ${daysCount(left)}، نحو ${pagesLeft(perDay)} كلّ يوم — ${perPrayerLabel(Math.ceil(perDay / 5.0).toInt())}.", style = DSType.labelSm.copy(fontWeight = FontWeight.Normal), color = c.textSecondary)
+        val active = plan != null && Khatmah.status(plan, Store.wird, today).finished.not()
+        if (active) { Spacer(Modifier.height(4.dp)); Text("تحلّ محلّ خطّة الختمة الحالية، ويبقى تذكيرها", style = DSType.labelXs, color = c.textTertiary) }
+        Spacer(Modifier.height(14.dp))
+        PillButton("ابدأ ختمة رمضان", bg = c.brandPrimary, fg = c.textOnBrand, modifier = Modifier.fillMaxWidth()) { Ramadan.startPlan(ctx, now) }
+      }
+      return@Column
+    }
+    val stt = Khatmah.status(plan, Store.wird, today)
+    val nextPage = ((plan.startPage - 1 + stt.done) % Khatmah.TOTAL) + 1
+    val first = QuranText.shared.pageAyahs(nextPage).firstOrNull()
+    val rDay = Ramadan.day(now) ?: 1; val length = Ramadan.length(now); val firstKey = Ramadan.firstDayKey(today, now)
+    DSCard(Modifier.fillMaxWidth(), padding = 18.dp, onClick = if (stt.finished) null else ({ onRead(nextPage, first?.n) })) {
+      Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+          Text(if (stt.finished) "تقبّل الله ✦ أتممتَ ختمة رمضان" else "الجزء ${Fmt.number(first?.juz ?: QuranMeta.juzOfPage(nextPage))} من ${Fmt.number(30)}", style = DSType.headingLg.copy(fontSize = 20.sp), color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+          Text("الهدف: ختمةٌ واحدة في الشهر", style = DSType.labelSm.copy(fontWeight = FontWeight.Normal), color = c.textSecondary, maxLines = 1)
+        }
+        if (!stt.finished) {
+          val behindDays = if (stt.behind > 0) Math.ceil(stt.behind.toDouble() / maxOf(1, plan.dailyPages)).toInt() else 0
+          Text(if (behindDays == 0) "في موعده" else behindLabel(behindDays),
+            Modifier.clip(CircleShape).background(if (behindDays == 0) c.brandSoft else c.accentGoldSoft).padding(horizontal = 12.dp, vertical = 5.dp),
+            style = DSType.labelSm.copy(fontWeight = FontWeight.SemiBold), color = if (behindDays == 0) c.brandStrong else c.accentGoldStrong, maxLines = 1)
+        }
+      }
+      Spacer(Modifier.height(12.dp))
+      // شريط الشهر: يومٌ لكل خانة — ما قُرئ فيه ممتلئ، واليوم ذهبيّ، والعشر الأواخر بلونٍ ذهبيّ خفيف
+      val doneDays = (1..length).map { d -> d < rDay && Wird.pages(Store.wird, DayKey.adding(firstKey, d - 1)) > 0 }
+      Row(Modifier.fillMaxWidth().height(22.dp).semantics { contentDescription = doneDays.count { it }.let { n -> if (n == 0) "لا قراءة فيما مضى من الشهر" else "قرأتَ في ${daysCount(n)} مما مضى من الشهر" } + "، واليوم ${Fmt.number(rDay)} من ${Fmt.number(length)}" },
+        horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+        for (d in 1..length) {
+          val bg = when { d == rDay -> c.accentGold; doneDays[d - 1] -> c.brandPrimary; d > length - 10 -> c.accentGoldSoft; else -> c.bgSubtle }
+          Box(Modifier.weight(1f).height(if (d == rDay) 22.dp else 16.dp).clip(RoundedCornerShape(4.dp)).background(bg))
+        }
+      }
+      Spacer(Modifier.height(6.dp))
+      Row(Modifier.fillMaxWidth()) {
+        Text("اليوم ${Fmt.number(rDay)}", style = DSType.labelXs, color = c.accentGoldStrong)
+        Spacer(Modifier.weight(1f))
+        Text("العشر الأواخر", style = DSType.labelXs, color = c.textTertiary)
+      }
+      if (!stt.finished) {
+        // حصّة اليوم بإعادة التوزيع (الباقي على الأيام الباقية)، مقسومةً على الصلوات الخمس ومعلَّمةً بما قُرئ فعلاً اليوم
+        val share = Ramadan.share(stt); val per = maxOf(1, Math.ceil(share / 5.0).toInt())
+        Spacer(Modifier.height(12.dp))
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(c.accentGoldSoft.copy(alpha = 0.7f)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+          Text("حصّة اليوم: ${pagesLeft(share)}، ${perPrayerLabel(per)}", style = DSType.labelMd.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary)
+          Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            CardPrayers.forEachIndexed { i, pr ->
+              val ticked = stt.todayPages >= per * (i + 1)
+              val shape = RoundedCornerShape(12.dp)
+              Column(Modifier.weight(1f).clip(shape).background(if (ticked) c.brandPrimary else c.bgSurface).then(if (ticked) Modifier else Modifier.border(1.dp, c.borderSubtle, shape))
+                .clearAndSetSemantics { contentDescription = "${pr.nameAr}: " + if (ticked) "قُرئت حصّتها" else pagesLeft(per) }
+                .padding(vertical = 7.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(pr.nameAr, style = DSType.labelXs, color = if (ticked) c.textOnBrand else c.textSecondary, maxLines = 1)
+                if (ticked) Icon(Icons.Filled.Check, null, Modifier.size(15.dp), tint = c.textOnBrand)
+                else Text(pagesLeft(per), style = DSType.labelXs.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, maxLines = 1)
+              }
+            }
+          }
+        }
+        Spacer(Modifier.height(10.dp))
+        Text("فاتك يوم؟ لا بأس — يُوزَّع الباقي على ما بقي من الشهر دون لوم.", style = DSType.labelSm.copy(fontWeight = FontWeight.Normal), color = c.textSecondary)
+      }
+    }
+  }
+}
+
+// MARK: خطّ اليوم (الموسّع — ipad-landscape.png): عبادة كلّ وقت تحت السماء في عمودها، والآن مميّز بين أوقاته
+private class PlanRow(val name: String, val time: Instant?, val note: String, val done: Boolean = false, val state: Int /* ٠ مضى، ١ الآن، ٢ القادم، ٣ لاحقاً */)
+
+@Composable private fun DayPlanCard(tl: PrayerTimes.DayTimeline, now: Instant, ramadan: Boolean) {
+  val c = DS.c; val t = tl.times; val day = tl.date.key; val today = Store.todayKey
+  fun past(x: Instant?) = x != null && !now.isBefore(x)
+  val nextKey = tl.next.key.takeIf { !tl.next.isTomorrow && !tl.next.isYesterday }
+  val pr = Store.adhkarProgress
+  val morningDone = pr.date == today && Adhkar.items("morning").let { items -> items.isNotEmpty() && items.all { (pr.morning?.get(it.id) ?: 0) >= it.target("morning") } }
+  val eveningDone = pr.eveningDate == today && Adhkar.items("evening").let { items -> items.isNotEmpty() && items.all { (pr.evening?.get(it.id) ?: 0) >= it.target("evening") } }
+  val wirdLeft = Store.khatmah?.let { plan -> val stt = Khatmah.status(plan, Store.wird, today); if (stt.finished) 0 else maxOf(0, (if (ramadan) Ramadan.share(stt) else stt.todayTarget) - stt.todayPages) } ?: 0
+  fun prayed(p: Prayer) = Store.hasPrayed(day, p)
+  val entries = listOf(
+    Triple(Prayer.FAJR, Prayer.FAJR.nameAr, if (ramadan) "الإمساك ${clock(Ramadan.imsak(t.fajr))}" else "أذكار الصباح"),
+    Triple(Prayer.SUNRISE, "الضحى", "صلاة الضحى"),
+    Triple(Prayer.DHUHR, Prayer.DHUHR.nameAr, ""),
+    Triple(Prayer.ASR, Prayer.ASR.nameAr, if (eveningDone) "أذكار المساء" else ""),
+    Triple(Prayer.MAGHRIB, if (ramadan) "الإفطار" else Prayer.MAGHRIB.nameAr, ""),
+    Triple(Prayer.ISHA, Prayer.ISHA.nameAr, if (wirdLeft > 0) "${if (ramadan) "حصّة الختمة" else "ورد الختمة"}: ${pagesLeft(wirdLeft)}" else ""),
+  )
+  val rows = ArrayList<PlanRow>()
+  var nowPlaced = false
+  val nowTitle = nowInfo(tl, now, ramadan)?.title ?: ""
+  for ((p, name, note0) in entries) {
+    val time = t[p]
+    if (!nowPlaced && !past(time)) { rows.add(PlanRow("الآن", now, nowTitle, state = 1)); nowPlaced = true }
+    val isPrayed = p != Prayer.SUNRISE && prayed(p)
+    val done = when (p) { Prayer.FAJR -> morningDone && !ramadan; Prayer.ASR -> eveningDone; else -> isPrayed }
+    val note = when {
+      p == nextKey -> LiveDay.afterLabel(tl.next.time.epochSecond - now.epochSecond)
+      isPrayed && note0.isEmpty() -> "صلّيتَ"
+      else -> note0
+    }
+    rows.add(PlanRow(name, time, note, done, if (past(time)) 0 else if (p == nextKey) 2 else 3))
+  }
+  if (!nowPlaced) rows.add(PlanRow("الآن", now, nowTitle, state = 1))
+  rows.add(PlanRow("قبل النوم", null, "أذكار النوم وسورة الملك", state = if (past(t.isha)) 2 else 3))
+  DSCard(Modifier.fillMaxWidth(), padding = 16.dp) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+      Text("خطّ اليوم", style = DSType.headingMd, color = c.textPrimary)
+      Spacer(Modifier.weight(1f))
+      Text("عبادة كلّ وقت", style = DSType.labelXs, color = c.textSecondary)
+    }
+    Spacer(Modifier.height(8.dp))
+    rows.forEach { r ->
+      val on = r.state == 1
+      Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (on) c.accentGoldSoft else Color.Transparent).heightIn(min = 40.dp).padding(horizontal = 8.dp, vertical = 6.dp)
+        .semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
+        val dot = when (r.state) { 0 -> c.brandPrimary; 1 -> c.accentGold; else -> Color.Transparent }
+        Box(Modifier.size(9.dp).clip(CircleShape).background(dot).then(if (r.state >= 2) Modifier.border(1.5.dp, if (r.state == 2) c.brandPrimary else c.borderStrong, CircleShape) else Modifier))
+        Spacer(Modifier.width(10.dp))
+        Text(r.name, style = DSType.labelMd.copy(fontWeight = if (on || r.state == 2) FontWeight.SemiBold else FontWeight.Medium), color = c.textPrimary, maxLines = 1)
+        if (r.time != null) { Spacer(Modifier.width(8.dp)); Text(clock(r.time), style = DSType.numericSm, color = c.textSecondary, maxLines = 1) }
+        Spacer(Modifier.weight(1f))
+        if (r.done) { Icon(Icons.Filled.Check, null, Modifier.size(14.dp), tint = c.brandPrimary); Spacer(Modifier.width(4.dp)) }
+        Text(r.note, style = DSType.labelXs.copy(fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium), color = when { on -> c.accentGoldStrong; r.state == 2 -> c.brandPrimary; else -> c.textSecondary }, maxLines = 1, overflow = TextOverflow.Ellipsis)
       }
     }
   }

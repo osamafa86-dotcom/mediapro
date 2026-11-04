@@ -143,10 +143,11 @@ enum class AppTab(val title: String, val icon: ImageVector, val iconSelected: Im
   Home("اليوم", Icons.Outlined.WbTwilight, Icons.Filled.WbTwilight), Mushaf("القرآن", Icons.Outlined.MenuBook, Icons.Filled.MenuBook), Adhkar("الذكر", Icons.Outlined.AutoAwesome, Icons.Filled.AutoAwesome), Library("المكتبة", Icons.Outlined.LocalLibrary, Icons.Filled.LocalLibrary)
 }
 /** شريط تبويبات عائم: كبسولة بظلّ ناعم، والمختار في حبّة نعناعية */
-@Composable fun DSTabBar(selected: AppTab, onSelect: (AppTab) -> Unit) {
+@Composable fun DSTabBar(selected: AppTab, maxWidth: Dp? = null, onSelect: (AppTab) -> Unit) {
   val c = DS.c
-  Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 6.dp)) {
-    Row(Modifier.fillMaxWidth().shadow(20.dp, CircleShape, ambientColor = c.shadow.copy(alpha = 0.12f), spotColor = c.shadow.copy(alpha = 0.16f)).clip(CircleShape).background(c.bgSurface.copy(alpha = 0.96f)).border(1.dp, c.bgSurface, CircleShape).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+  // في الشاشات غير المضغوطة كبسولةٌ في الوسط بعرضٍ أقصى (ipad-portrait.png) بدل أن تمتدّ على العرض كلّه
+  Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
+    Row((if (maxWidth != null) Modifier.widthIn(max = maxWidth) else Modifier).fillMaxWidth().shadow(20.dp, CircleShape, ambientColor = c.shadow.copy(alpha = 0.12f), spotColor = c.shadow.copy(alpha = 0.16f)).clip(CircleShape).background(c.bgSurface.copy(alpha = 0.96f)).border(1.dp, c.bgSurface, CircleShape).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
       AppTab.entries.forEach { tab ->
         val on = tab == selected
         val tint by animateColorAsState(if (on) c.brandStrong else c.textTertiary, label = "tab")

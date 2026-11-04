@@ -96,11 +96,18 @@ class PrayerWidgetReceiver : GlanceAppWidgetReceiver() {
 }
 
 object PrayerWidget {
+  /** يجدّد ويدجت «الصلاة القادمة» وويدجت رمضان (المرحلة الرابعة) معاً */
   suspend fun updateAll(ctx: Context) {
+    val mgr = GlanceAppWidgetManager(ctx)
     val widget = PrayerGlanceWidget()
-    for (id in GlanceAppWidgetManager(ctx).getGlanceIds(PrayerGlanceWidget::class.java)) {
+    for (id in mgr.getGlanceIds(PrayerGlanceWidget::class.java)) {
       updateAppWidgetState(ctx, id) { it[PrayerGlanceWidget.TICK] = System.currentTimeMillis() }
       widget.update(ctx, id)
+    }
+    val ramadan = RamadanGlanceWidget()
+    for (id in mgr.getGlanceIds(RamadanGlanceWidget::class.java)) {
+      updateAppWidgetState(ctx, id) { it[PrayerGlanceWidget.TICK] = System.currentTimeMillis() }
+      ramadan.update(ctx, id)
     }
   }
 }

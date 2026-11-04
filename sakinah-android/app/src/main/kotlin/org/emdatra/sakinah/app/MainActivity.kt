@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import org.emdatra.sakinah.app.ui.AppTab
 import org.emdatra.sakinah.app.ui.DeepLink
+import org.emdatra.sakinah.app.ui.HomeRoute
 import org.emdatra.sakinah.app.ui.RootScreen
 import org.emdatra.sakinah.app.ui.SakinahTheme
 
@@ -28,13 +29,18 @@ class MainActivity : ComponentActivity() {
   // ما غيّره المستخدم داخل التطبيق (المدينة، الأرقام، السماء…) يصل الويدجت والإشعار الحيّ حين يغادر
   override fun onStop() { super.onStop(); LiveDay.refresh(this) }
 
-  /** روابط الويدجت والإشعار الحيّ: `sakinah://today` يفتح «اليوم»، و`sakinah://adhkar/<morning|evening|sleep>` جلسة أذكار الوقت */
+  /**
+   * روابط الويدجت والإشعار الحيّ: `sakinah://today` يفتح «اليوم»، و`sakinah://adhkar/<morning|evening|sleep>` جلسة أذكار الوقت؛
+   * وفي رمضان `sakinah://hisn/<رقم الباب>` بابٌ من حصن المسلم فوق «اليوم» (دعاء الإفطار)، و`sakinah://wird` القارئ على حصّة الختمة.
+   */
   private fun route(i: Intent?) {
     val u = i?.data ?: return
     if (u.scheme != "sakinah") return
     when (u.host) {
       "today" -> DeepLink.tab = AppTab.Home
       "adhkar" -> u.lastPathSegment?.takeIf { it in setOf("morning", "evening", "sleep") }?.let { Store.pendingAdhkarPeriod = it; DeepLink.tab = AppTab.Adhkar }
+      "hisn" -> u.lastPathSegment?.toIntOrNull()?.let { HomeRoute.request = "hisn:$it"; DeepLink.tab = AppTab.Home }
+      "wird" -> { Store.pendingReaderPage = Ramadan.nextPage() ?: Store.lastRead?.page ?: 1; DeepLink.tab = AppTab.Mushaf }
     }
   }
 }

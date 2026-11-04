@@ -16,8 +16,8 @@ object ScreenshotMode {
   var skyWeather: org.emdatra.sakinah.core.SkyWeather? = null; private set
   /** المرحلة الثانية: «المزيد» صار «المكتبة»، والإعدادات (ومنها «مظهر السماء» و«ضمان الأذان») والبحث تُفتح من رأس «اليوم» */
   val tab: AppTab? get() = when (route) {
-    "prayer", "qibla", "home", "today", "search", "settings", "sky-settings", "adhan-guard" -> AppTab.Home
-    "mushaf", "mushaf-juz", "mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-khatmah", "mushaf-display", "mushaf-hifz" -> AppTab.Mushaf
+    "prayer", "qibla", "home", "today", "search", "settings", "sky-settings", "adhan-guard", "ramadan" -> AppTab.Home
+    "mushaf", "mushaf-juz", "mushaf-page", "mushaf-spread", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-khatmah", "mushaf-display", "mushaf-hifz" -> AppTab.Mushaf
     "adhkar", "hisn", "tasbih" -> AppTab.Adhkar
     "hadith", "more", "library" -> AppTab.Library
     else -> null
@@ -26,7 +26,7 @@ object ScreenshotMode {
   val todayRoute: String? get() = when (route) { "search" -> "search"; "settings" -> "settings"; "sky-settings" -> "settings:sky"; "adhan-guard" -> "guard"; else -> null }
   val searchQuery: String get() = if (route == "search") "الصبر" else ""
   /** صفحة المصحف التي يُفتح عليها القارئ مباشرةً (سورة الشعراء — صفحة كثيفة الرسم) */
-  val readerPage: Int? get() = if (route in setOf("mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-display", "mushaf-hifz")) 270 else null
+  val readerPage: Int? get() = if (route == "mushaf-spread") 1 else if (route in setOf("mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-display", "mushaf-hifz")) 270 else null
   /** يُبقي الشريط الموحّد ظاهراً بدل انزلاقه بعد ثوانٍ */
   val keepChrome: Boolean get() = route == "mushaf-bar" || route == "mushaf-ayah"
   /** لقطات المصحف v2: آية محدّدة مع رصيفها، ورقة مفتوحة في القارئ، جلسة إخفاء للحفظ، وورقة الختمة في المكتبة */
@@ -55,6 +55,17 @@ object ScreenshotMode {
       for ((i, d) in listOf(-5, -4, -3, -1, 0).withIndex()) for (p in (i * 21 + 1)..((i + 1) * 21)) log = org.emdatra.sakinah.core.Wird.mark(log, org.emdatra.sakinah.core.DayKey.adding(today, d), p, 1)
       Store.wird = log
       Store.lastRead = LastRead(106, 5, 1, System.currentTimeMillis().toDouble())
+    }
+    // المرحلة الرابعة — «ramadan»: طبعة رمضان بتاريخٍ ثابت (١٢ رمضان، انظر Ramadan.forced) وختمة رمضان بدأت أوّل الشهر:
+    // ٢١ صفحة في كلّ يومٍ من الأيام الأحد عشر الماضية (في موعدها) وثماني صفحات اليوم (صلاتان من خمس).
+    // و«mushaf-spread» يفتح القارئ على الفاتحة والبقرة (صفحتين متقابلتين متى كانت النافذة موسّعة أفقية أو في وضع الكتاب).
+    if (route == "ramadan") {
+      val today = Store.todayKey; val start = org.emdatra.sakinah.core.DayKey.adding(today, -(Ramadan.SHOT_DAY - 1))
+      Store.khatmah = org.emdatra.sakinah.core.KhatmahPlan.make(1, start, 30, null)
+      var log: org.emdatra.sakinah.core.WirdLog = emptyMap()
+      for (d in 0 until Ramadan.SHOT_DAY - 1) for (p in (d * 21 + 1)..((d + 1) * 21)) log = org.emdatra.sakinah.core.Wird.mark(log, org.emdatra.sakinah.core.DayKey.adding(start, d), p, 1)
+      for (p in ((Ramadan.SHOT_DAY - 1) * 21 + 1)..((Ramadan.SHOT_DAY - 1) * 21 + 8)) log = org.emdatra.sakinah.core.Wird.mark(log, today, p, 1)
+      Store.wird = log; Store.nowHidden = null
     }
     Store.save()
   }

@@ -57,6 +57,8 @@ object Store {
   /** «النشاط الحيّ في الإشعارات» (المرحلة الثالثة): إشعارٌ صامت مستمرّ بالعدّ إلى الأذان — مطفأ افتراضاً؛
    *  وموعدٌ (ملّي ثانية) يبقى قبله مخفيّاً إن أزاحه المستخدم، فيعود مع الصلاة التالية */
   var liveUpdate by mutableStateOf(false); var liveHiddenUntil = 0L
+  /** طبعة رمضان (المرحلة الرابعة): «الإمساك قبل الفجر» بالدقائق — ٠ أو ٥ أو ١٠ (الافتراضي) أو ١٥ */
+  var imsakMinutes by mutableStateOf(10)
 
   private fun <T> get(key: String, ser: KSerializer<T>): T? = sp.getString(key, null)?.let { runCatching { json.decodeFromString(ser, it) }.getOrNull() }
   private fun <T> put(key: String, ser: KSerializer<T>, v: T?) { sp.edit().apply { if (v == null) remove(key) else putString(key, json.encodeToString(ser, v)) }.apply() }
@@ -78,6 +80,7 @@ object Store {
     adhkarLog = get("adhkarLog", MapSerializer(String.serializer(), ListSerializer(String.serializer()))) ?: emptyMap(); haptics = sp.getBoolean("ui.haptics", true); tasbihSound = sp.getBoolean("ui.tasbihSound", false); seenChromeHint = sp.getBoolean("quran.seenChromeHint", false)
     nowHidden = sp.getString("today.nowHidden", null); recentSearches = get("search.recent", ListSerializer(String.serializer())) ?: emptyList()
     liveUpdate = sp.getBoolean("notifications.live", false); liveHiddenUntil = sp.getLong("notifications.liveHiddenUntil", 0L)
+    imsakMinutes = sp.getInt("ramadan.imsak", 10).takeIf { it in listOf(0, 5, 10, 15) } ?: 10
   }
   /** حفظ كل الحالة (تُستدعى بعد أي تغيير) */
   fun save() {
@@ -92,7 +95,7 @@ object Store {
     put("quran.lastRead", LastRead.serializer(), lastRead); put("quran.bookmarks", ListSerializer(WebSettings.Bookmark.serializer()), bookmarks)
     put("quran.khatmah", KhatmahPlan.serializer(), khatmah); put("quran.readLog", MapSerializer(String.serializer(), ListSerializer(Int.serializer())), readLog); put("quran.challenge", ActiveChallenge.serializer(), challenge)
     put("quran.wird", MapSerializer(String.serializer(), Int.serializer()), wird); put("quran.recent", ListSerializer(LastRead.serializer()), recent); put("quran.weakAyahs", ListSerializer(Int.serializer()), weakAyahs); sp.edit().putString("quran.khatmahUnit", khatmahUnit).apply()
-    sp.edit().putString("today.nowHidden", nowHidden).putBoolean("notifications.live", liveUpdate).putLong("notifications.liveHiddenUntil", liveHiddenUntil).apply(); put("search.recent", ListSerializer(String.serializer()), recentSearches)
+    sp.edit().putString("today.nowHidden", nowHidden).putBoolean("notifications.live", liveUpdate).putLong("notifications.liveHiddenUntil", liveHiddenUntil).putInt("ramadan.imsak", imsakMinutes).apply(); put("search.recent", ListSerializer(String.serializer()), recentSearches)
     put("adhkarProgress", WebSettings.AdhkarProgress.serializer(), adhkarProgress); put("favorites", ListSerializer(String.serializer()), favorites); put("tasbih", TasbihState.serializer(), tasbih); put("hisnFavorites", ListSerializer(Int.serializer()), hisnFavorites); put("adhkarLog", MapSerializer(String.serializer(), ListSerializer(String.serializer())), adhkarLog)
   }
 
@@ -106,7 +109,7 @@ object Store {
   val coords: Coordinates? get() = if (locLat.isNaN() || locLon.isNaN()) null else Coordinates(locLat, locLon)
   val zone: ZoneId get() = locTz?.let { runCatching { ZoneId.of(it) }.getOrNull() } ?: ZoneId.systemDefault()
   val todayKey: String get() = DayKey.key(Instant.now(), zone)
-  fun params(): PrayerParams = PrayerParams(method = methodId, madhab = Madhab.of(madhab), highLatitudeRule = HighLatitudeRule.of(highLat), isRamadan = Hijri.isRamadan(Instant.now(), zone, hijriOffset), tz = zone.id)
+  fun params(): PrayerParams = PrayerParams(method = methodId, madhab = Madhab.of(madhab), highLatitudeRule = HighLatitudeRule.of(highLat), isRamadan = Ramadan.active(Instant.now(), zone), tz = zone.id)
   fun timeline(now: Instant = Instant.now()) = coords?.let { PrayerTimes.dayTimeline(it, zone, params(), now) }
   fun useCity(c: City) { locMode = "manual"; locLat = c.lat; locLon = c.lon; locTz = c.tz; locName = c.nameAr; locCountry = c.countryCode; locCityId = c.id; applyAutoMethod(); save() }
   fun applyAutoMethod() { if (methodAuto) methodId = Methods.defaultMethod(locCountry, zone.id) }
