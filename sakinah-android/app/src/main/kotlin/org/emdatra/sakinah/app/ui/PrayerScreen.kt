@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -93,6 +94,13 @@ import java.time.Instant
     LazyColumn(Modifier.padding(bottom = 24.dp, start = 8.dp, end = 8.dp)) {
       item { DSToggleRow("تلقائي حسب الدولة", "تُختار الهيئة الرسمية لبلدك من الموقع", Store.methodAuto) { on -> Store.methodAuto = on; if (on) Store.applyAutoMethod(); Store.save(); Notify.schedule(ctx) } }
       item { Text("مذهب العصر", Modifier.padding(horizontal = 14.dp, vertical = 8.dp), style = DSType.labelSm, color = c.textTertiary); Row(Modifier.padding(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { DSChip("الجمهور (مثل الظل)", Store.madhab == "shafi") { Store.madhab = "shafi"; Store.save(); Notify.schedule(ctx) }; DSChip("الحنفي (مثلا الظل)", Store.madhab == "hanafi") { Store.madhab = "hanafi"; Store.save(); Notify.schedule(ctx) } } }
+      // خطوط العرض العالية (كانت صفًّا في الإعدادات القديمة): تُضبط هنا مع الطريقة
+      item {
+        Text("خطوط العرض العالية", Modifier.padding(horizontal = 14.dp, vertical = 8.dp), style = DSType.labelSm, color = c.textTertiary)
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          HighLatitudeRule.entries.forEach { r -> DSChip(if (r == HighLatitudeRule.AUTO) "تلقائي" else r.nameAr, on = Store.highLat == r.id) { Store.highLat = r.id; Store.save(); Notify.schedule(ctx) } }
+        }
+      }
       item { Text("الطرق", Modifier.padding(horizontal = 14.dp, vertical = 8.dp), style = DSType.labelSm, color = c.textTertiary) }
       items(Methods.order) { id -> val m = Methods.method(id); val on = !Store.methodAuto && Store.methodId == id
         DSRow(Icons.Outlined.Public, m.nameAr, m.nameEn, iconStyle = if (on) IconStyle.Brand else IconStyle.Soft, onClick = { Store.methodAuto = false; Store.methodId = id; Store.save(); Notify.schedule(ctx); onDismiss() }) { if (on) Icon(Icons.Filled.Check, null, Modifier.size(18.dp), tint = c.brandPrimary) } }

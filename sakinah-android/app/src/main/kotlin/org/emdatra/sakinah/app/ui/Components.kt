@@ -138,11 +138,10 @@ enum class IconStyle { Outlined, Soft, GoldSoft, Glass, Brand, Plain }
   }
 }
 
-/** أربعة تبويبات (تصميم «الرئيسية المدمجة»): الرئيسية تجمع الصلاة والقبلة، والقبلة الكاملة تُفتح من ميداليتها */
+/** أربعة تبويبات بلا «المزيد» (المرحلة الثانية): اليوم · القرآن · الذكر · المكتبة — والإعدادات تُفتح من رأس «اليوم» */
 enum class AppTab(val title: String, val icon: ImageVector, val iconSelected: ImageVector) {
-  Home("الرئيسية", Icons.Outlined.Home, Icons.Filled.Home), Mushaf("المصحف", Icons.Outlined.MenuBook, Icons.Filled.MenuBook), Adhkar("الأذكار", Icons.Outlined.AutoAwesome, Icons.Filled.AutoAwesome), More("المزيد", Icons.Outlined.MoreHoriz, Icons.Filled.MoreHoriz)
+  Home("اليوم", Icons.Outlined.WbTwilight, Icons.Filled.WbTwilight), Mushaf("القرآن", Icons.Outlined.MenuBook, Icons.Filled.MenuBook), Adhkar("الذكر", Icons.Outlined.AutoAwesome, Icons.Filled.AutoAwesome), Library("المكتبة", Icons.Outlined.LocalLibrary, Icons.Filled.LocalLibrary)
 }
-/** شريط التبويبات الخمسة */
 /** شريط تبويبات عائم: كبسولة بظلّ ناعم، والمختار في حبّة نعناعية */
 @Composable fun DSTabBar(selected: AppTab, onSelect: (AppTab) -> Unit) {
   val c = DS.c

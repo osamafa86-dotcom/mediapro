@@ -14,13 +14,17 @@ object ScreenshotMode {
   /** لقطات التحقّق من نظام السماء: فرض طور (`--es sakinahSky dhuhr`) وطقس (`--es sakinahWeather rain`) — لا أثر لهما في التشغيل العادي */
   var skyPhase: org.emdatra.sakinah.core.SkyPhase? = null; private set
   var skyWeather: org.emdatra.sakinah.core.SkyWeather? = null; private set
+  /** المرحلة الثانية: «المزيد» صار «المكتبة»، والإعدادات (ومنها «مظهر السماء» و«ضمان الأذان») والبحث تُفتح من رأس «اليوم» */
   val tab: AppTab? get() = when (route) {
-    "prayer", "qibla", "home" -> AppTab.Home
+    "prayer", "qibla", "home", "today", "search", "settings", "sky-settings", "adhan-guard" -> AppTab.Home
     "mushaf", "mushaf-juz", "mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-khatmah", "mushaf-display", "mushaf-hifz" -> AppTab.Mushaf
     "adhkar", "hisn", "tasbih" -> AppTab.Adhkar
-    "hadith", "more", "sky-settings" -> AppTab.More
+    "hadith", "more", "library" -> AppTab.Library
     else -> null
   }
+  /** ما يُفتح فوق «اليوم» مباشرةً في وضع اللقطات: البحث (باستعلام التصميم)، الإعدادات، مظهر السماء، ضمان الأذان */
+  val todayRoute: String? get() = when (route) { "search" -> "search"; "settings" -> "settings"; "sky-settings" -> "settings:sky"; "adhan-guard" -> "guard"; else -> null }
+  val searchQuery: String get() = if (route == "search") "الصبر" else ""
   /** صفحة المصحف التي يُفتح عليها القارئ مباشرةً (سورة الشعراء — صفحة كثيفة الرسم) */
   val readerPage: Int? get() = if (route in setOf("mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-display", "mushaf-hifz")) 270 else null
   /** يُبقي الشريط الموحّد ظاهراً بدل انزلاقه بعد ثوانٍ */

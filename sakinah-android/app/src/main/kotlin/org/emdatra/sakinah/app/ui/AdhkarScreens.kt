@@ -117,7 +117,7 @@ private fun periodMap(p: WebSettings.AdhkarProgress, period: String): Map<String
 
 /** ورقة تذكيرات الأذكار: مفاتيح الصباح والمساء وحديث اليوم */
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable private fun AdhkarRemindersSheet(ctx: android.content.Context, onDismiss: () -> Unit) {
+@Composable fun AdhkarRemindersSheet(ctx: android.content.Context, onDismiss: () -> Unit) {
   val c = DS.c
   ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.bgSurface) {
     Column(Modifier.fillMaxWidth().padding(16.dp, 0.dp, 16.dp, 32.dp)) {

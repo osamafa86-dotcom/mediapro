@@ -33,16 +33,18 @@ import org.emdatra.sakinah.BuildConfig
 import org.emdatra.sakinah.core.*
 import java.time.Instant
 
-/** المزيد (تصميم Figma 12): بطاقة هوية التطبيق، ثم مجموعات المحتوى والأدوات والتطبيق */
-@Composable fun MoreScreen() {
+/**
+ * المكتبة (كانت «المزيد» — المرحلة الثانية): الحديث والأربعون والختمة، والمساجد والجدول الشهري والتنزيلات.
+ * الإعدادات انتقلت إلى رأس «اليوم»، وزرّ الترس هنا يفتحها أيضًا.
+ */
+@Composable fun LibraryScreen() {
   val c = DS.c
-  // مسار اللقطات «sky-settings» يفتح الإعدادات ثم «مظهر السماء» مباشرةً للتحقّق البصري
-  var screen by remember { mutableStateOf(if (org.emdatra.sakinah.app.ScreenshotMode.route == "sky-settings") "settings" else "home") }
+  var screen by remember { mutableStateOf("home") }
   BackHandler(screen != "home") { screen = "home" }
   when (screen) {
     "hadith" -> HadithScreen("sahih") { screen = "home" }
     "nawawi" -> HadithScreen("nawawi") { screen = "home" }
-    "settings" -> SettingsScreen { screen = "home" }
+    "settings" -> SettingsScreen(backLabel = "المكتبة") { screen = "home" }
     "month" -> MonthTableScreen { screen = "home" }
     "mosques" -> MosquesScreen { screen = "home" }
     else -> {
@@ -54,11 +56,15 @@ import java.time.Instant
         contentPadding = PaddingValues(16.dp, 0.dp, 16.dp, 32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
       ) {
-        item { DSNavBar("المزيد") }
-        item { BrandCard() }
+        item {
+          Row(Modifier.fillMaxWidth().padding(start = 4.dp, top = 6.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("المكتبة", style = DSType.displayLg, color = c.textPrimary); Spacer(Modifier.weight(1f))
+            DSIconButton(Icons.Outlined.Tune, size = 46.dp, contentDescription = "الإعدادات") { screen = "settings" }
+          }
+        }
         item {
           MoreGroup("المحتوى") {
-            MoreRow(Icons.Outlined.MenuBook, "الحديث", "مختارات الصحيحين · حديث اليوم") { screen = "hadith" }
+            MoreRow(Icons.Outlined.MenuBook, "الحديث", "مختارات الصحيحين، وحديث اليوم") { screen = "hadith" }
             DSDivider()
             MoreRow(Icons.Outlined.FormatListNumbered, "الأربعون النووية", null) { screen = "nawawi" }
             DSDivider()
@@ -75,13 +81,8 @@ import java.time.Instant
           }
         }
         item {
-          MoreGroup("التطبيق") {
-            MoreRow(Icons.Outlined.Settings, "الإعدادات", "الموقع والحساب والتنبيهات والمظهر") { screen = "settings" }
-          }
-        }
-        item {
           Text(
-            "سكينة ${appVersion()} · تطبيق أصلي لأندرويد (Kotlin وCompose) على النواة نفسها المُتحقَّق منها في iOS والويب · يعمل دون اتصال · لا حساب ولا تتبّع.",
+            "سكينة ${appVersion()} — تطبيق أصلي لأندرويد على النواة نفسها المُتحقَّق منها في iOS والويب، يعمل دون اتصال، لا حساب ولا تتبّع.",
             style = DSType.labelXs, color = c.textTertiary, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
           )
         }
@@ -92,32 +93,10 @@ import java.time.Instant
   }
 }
 
-@Composable private fun BrandCard() {
-  val c = DS.c
-  DSCard {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-      Box(Modifier.size(62.dp).clip(CircleShape).background(c.accentGoldSoft), contentAlignment = Alignment.Center) {
-        Icon(Icons.Filled.NightlightRound, null, Modifier.size(26.dp), tint = c.accentGoldStrong)
-      }
-      Spacer(Modifier.weight(1f))
-      Column(horizontalAlignment = Alignment.End) {
-        Text("سكينة", style = DSType.displayMd, color = c.textPrimary)
-        Spacer(Modifier.height(4.dp))
-        Text("مواقيتك ومصحفك وأذكارك · بلا إعلانات ولا تتبّع", style = DSType.labelXs, color = c.textSecondary, maxLines = 2)
-        Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-          Text("الإصدار ${appVersion()}", style = DSType.labelXs, color = c.textTertiary, modifier = Modifier.clip(CircleShape).background(c.bgSubtle).padding(10.dp, 4.dp))
-          Text("لا يجمع بيانات", style = DSType.labelXs, color = c.brandPrimary, modifier = Modifier.clip(CircleShape).background(c.brandSoft).padding(10.dp, 4.dp))
-        }
-      }
-    }
-  }
-}
-
 @Composable private fun MoreGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
   val c = DS.c
   Column {
-    Text(title, style = DSType.labelSm, color = c.textTertiary, textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth().padding(4.dp, 0.dp, 4.dp, 8.dp))
+    Text(title, style = DSType.labelSm, color = c.textSecondary, textAlign = TextAlign.Start, modifier = Modifier.fillMaxWidth().padding(6.dp, 0.dp, 6.dp, 8.dp))
     DSCard(padding = 8.dp, content = content)
   }
 }
@@ -140,13 +119,14 @@ private fun downloadsLabel(): String? {
 }
 
 /** شاشة الحديث (تصميم Figma 11): بطاقة حديث اليوم بخلفية الليل، مبدّل المجموعة، شرائط التصنيف، وبطاقات الأحاديث */
-@Composable fun HadithScreen(initial: String = "sahih", onBack: () -> Unit) {
+@Composable fun HadithScreen(initial: String = "sahih", initialQuery: String = "", onBack: () -> Unit) {
   val ctx = LocalContext.current
   val c = DS.c
   var book by remember { mutableStateOf(initial) }
   var topic by remember { mutableStateOf("all") }
-  var q by remember { mutableStateOf("") }
-  var searching by remember { mutableStateOf(false) }
+  // من البحث الشامل: يُفتح والبحث معبّأ بالاستعلام نفسه
+  var q by remember { mutableStateOf(initialQuery) }
+  var searching by remember { mutableStateOf(initialQuery.isNotBlank()) }
   val favs = Store.favorites.toSet()
   val today = CivilDate.of(Instant.now(), Store.zone)
   val daily = remember(today.key) { HadithLibrary.hadithOfDay(today.year, today.month, today.day) }
@@ -179,12 +159,12 @@ private fun downloadsLabel(): String? {
     }
     if (book == "sahih") {
       val list = HadithLibrary.searchSahih(q, if (topic == "all" || topic == "fav") null else topic, favs, topic == "fav")
-      item { Text("${Fmt.number(list.size)} حديثًا · منقولة حرفيًا من الصحيحين بترقيم فتح الباري وعبد الباقي", style = DSType.labelXs, color = c.textTertiary) }
+      item { Text("${Fmt.number(list.size)} حديثًا، منقولة حرفيًا من الصحيحين بترقيم فتح الباري وعبد الباقي", style = DSType.labelXs, color = c.textTertiary) }
       items(list) { h -> HadithCard(h, favs, ctx) }
       if (list.isEmpty()) item { Text(if (topic == "fav") "لم تُضف أحاديث إلى المفضلة بعد" else "لا نتائج — جرّب كلمة أخرى", style = DSType.bodySm, color = c.textTertiary) }
     } else {
       val list = HadithLibrary.searchNawawi(q, favs, topic == "fav")
-      item { Text("${Fmt.number(list.size)} حديثًا · الأربعون النووية للإمام النووي بزيادتي ابن رجب، بمتونها وتخريجها", style = DSType.labelXs, color = c.textTertiary) }
+      item { Text("${Fmt.number(list.size)} حديثًا — الأربعون النووية للإمام النووي بزيادتي ابن رجب، بمتونها وتخريجها", style = DSType.labelXs, color = c.textTertiary) }
       items(list) { n -> NawawiCard(n, favs, ctx) }
       if (list.isEmpty()) item { Text(if (topic == "fav") "لم تُضف أحاديث إلى المفضلة بعد" else "لا نتائج — جرّب كلمة أخرى", style = DSType.bodySm, color = c.textTertiary) }
     }
@@ -276,197 +256,6 @@ private fun downloadsLabel(): String? {
     }
     Spacer(Modifier.width(6.dp))
     DSIconButton(Icons.Outlined.Image, contentDescription = "مشاركة كصورة", style = IconStyle.Soft, size = 34.dp, iconSize = 14.dp, onClick = onImage)
-  }
-}
-
-/** الإعدادات (تصميم Figma 13): مجموعات ببطاقات، صفوف بقيمة على اليسار، ومبدّلات مضمّنة */
-@Composable fun SettingsScreen(onBack: () -> Unit) {
-  val ctx = LocalContext.current
-  val c = DS.c
-  var sky by remember { mutableStateOf(org.emdatra.sakinah.app.ScreenshotMode.route == "sky-settings") }
-  if (sky) { SkySettingsScreen { sky = false }; return }
-  var guard by remember { mutableStateOf(org.emdatra.sakinah.app.ScreenshotMode.route == "adhan-guard") }
-  if (guard) { AdhanGuardScreen { guard = false }; return }
-  var showCity by remember { mutableStateOf(false) }
-  var showMethod by remember { mutableStateOf(false) }
-  var showPrayers by remember { mutableStateOf(false) }
-  var msg by remember { mutableStateOf<String?>(null) }
-  val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> Store.reminders = Store.reminders.copy(enabled = ok); Store.save(); Notify.schedule(ctx) }
-  // يُعاد فحصه عند العودة من شاشة النظام (onResume في MainActivity يعيد الجدولة دقيقةً بعد المنح)
-  var exactOk by remember { mutableStateOf(Notify.exactAllowed(ctx)) }
-  androidx.lifecycle.compose.LifecycleResumeEffect(Unit) { exactOk = Notify.exactAllowed(ctx); onPauseOrDispose { } }
-  val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
-    uri?.let { ctx.contentResolver.openOutputStream(it)?.use { os -> os.write(Backup.export().encoded().toByteArray()) }; msg = "صُدّرت النسخة" }
-  }
-  val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-    uri?.let {
-      val text = ctx.contentResolver.openInputStream(it)?.use { s -> s.readBytes().toString(Charsets.UTF_8) } ?: ""
-      msg = runCatching { Backup.apply(WebBackup.parse(text)); Notify.schedule(ctx); "استُعيدت النسخة" }.getOrElse { "الملف ليس نسخة احتياطية من سكينة" }
-    }
-  }
-
-  Column(Modifier.fillMaxSize().background(c.bgCanvas).verticalScroll(rememberScrollState())) {
-    DSNavBar("الإعدادات", onBack = onBack)
-    Column(Modifier.fillMaxWidth().padding(16.dp, 0.dp, 16.dp, 32.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-      MoreGroup("الموقع والحساب") {
-        SettingsRow("الموقع", Store.locName ?: "غير محدد", if (Store.locMode == "gps") "تلقائي" else "تغيير") { showCity = true }
-        DSDivider()
-        SettingsRow("طريقة الحساب", if (Store.methodAuto) "تُختار حسب الدولة" else "اختيار يدوي", Methods.method(Store.methodId).nameAr) { showMethod = true }
-        DSDivider()
-        Row(Modifier.fillMaxWidth().padding(12.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
-          Text("مذهب العصر", style = DSType.bodyMd, color = c.textPrimary, modifier = Modifier.weight(1f))
-          DSSegmented(listOf("حنفي", "الجمهور"), if (Store.madhab == "hanafi") 0 else 1, Modifier.width(168.dp)) {
-            Store.madhab = if (it == 0) "hanafi" else "shafi"; Store.save(); Notify.schedule(ctx)
-          }
-        }
-        DSDivider()
-        Row(Modifier.fillMaxWidth().padding(12.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
-          Text("خطوط العرض العالية", style = DSType.bodyMd, color = c.textPrimary)
-          Spacer(Modifier.width(8.dp))
-          Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            HighLatitudeRule.entries.forEach { r ->
-              DSChip(if (r == HighLatitudeRule.AUTO) "تلقائي" else r.nameAr, on = Store.highLat == r.id) { Store.highLat = r.id; Store.save(); Notify.schedule(ctx) }
-            }
-          }
-        }
-      }
-
-      MoreGroup("الإشعارات") {
-        val issues = remember(exactOk, Store.reminders) { AdhanGuard.issues(ctx, includeSnoozed = true).size }
-        DSRow(Icons.Outlined.VerifiedUser, "ضمان الأذان", if (issues == 0) "كل الفحوص سليمة" else "${Fmt.number(issues)} ${if (issues == 1) "بندٌ يحتاج" else "بنود تحتاج"} إصلاحاً",
-          iconStyle = if (issues == 0) IconStyle.Soft else IconStyle.GoldSoft, onClick = { guard = true }) { DSChevron() }
-        DSDivider()
-        DSToggleRow("إشعارات الصلاة", "تصل حتى والتطبيق مغلق", Store.reminders.enabled, Icons.Outlined.NotificationsActive) { on ->
-          if (on && android.os.Build.VERSION.SDK_INT >= 33) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-          else { Store.reminders = Store.reminders.copy(enabled = on); Store.save(); Notify.schedule(ctx) }
-        }
-        if (Store.reminders.enabled) {
-          if (!exactOk) {
-            DSDivider()
-            SettingsRow("الأذان في وقته بالضبط", "اسمح بـ«المنبّهات والتذكيرات» كي لا يتأخر الإشعار دقائق", "السماح") {
-              runCatching { ctx.startActivity(Notify.exactSettingsIntent(ctx)) }
-            }
-          }
-          DSDivider()
-          Row(Modifier.fillMaxWidth().padding(12.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("صوت الأذان", style = DSType.bodyMd, color = c.textPrimary)
-            Spacer(Modifier.weight(1f))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-              listOf("adhan-fakhry" to "أذان", "chime" to "نغمة", "none" to "صامت").forEach { (k, l) ->
-                DSChip(l, on = Store.reminders.sound == k) { Store.reminders = Store.reminders.copy(sound = k); Store.save(); Notify.schedule(ctx) }
-              }
-            }
-          }
-          DSDivider()
-          Row(Modifier.fillMaxWidth().padding(12.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("تنبيه قبل الصلاة", style = DSType.bodyMd, color = c.textPrimary)
-            Spacer(Modifier.width(8.dp))
-            Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-              listOf(0, 5, 10, 15, 20, 30).forEach { m ->
-                DSChip(if (m == 0) "لا" else "${Fmt.number(m)} د", on = Store.reminders.preMinutes == m) { Store.reminders = Store.reminders.copy(preMinutes = m); Store.save(); Notify.schedule(ctx) }
-              }
-            }
-          }
-          DSDivider()
-          SettingsRow("الصلوات المُنبَّه لها", null, "${Fmt.number(Store.reminders.prayers.size)} من ${Fmt.number(Prayer.entries.size)}") { showPrayers = true }
-        }
-        DSDivider()
-        DSToggleRow("أذكار الصباح والمساء", "بعد الفجر والعصر بـ${Fmt.number(Store.extras.morningAfter)} دقيقة", Store.extras.adhkarMorning || Store.extras.adhkarEvening, Icons.Outlined.WbTwilight) {
-          Store.extras = Store.extras.copy(adhkarMorning = it, adhkarEvening = it); Store.save(); Notify.schedule(ctx)
-        }
-        DSDivider()
-        DSToggleRow("حديث اليوم", Store.extras.hadithTime, Store.extras.hadithDaily, Icons.Outlined.AutoStories) {
-          Store.extras = Store.extras.copy(hadithDaily = it); Store.save(); Notify.schedule(ctx)
-        }
-      }
-
-      MoreGroup("المظهر") {
-        DSRow(Icons.Outlined.WbTwilight, "مظهر السماء", "تتبدّل مع الوقت والطقس، أو ثابتة، أو بلونك", onClick = { sky = true }) { Text(Store.skyPrefs.mode.nameAr, style = DSType.labelSm, color = c.textSecondary); Spacer(Modifier.width(4.dp)); DSChevron() }
-        DSDivider()
-        Row(Modifier.fillMaxWidth().padding(12.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
-          Text("الأرقام", style = DSType.bodyMd, color = c.textPrimary, modifier = Modifier.weight(1f))
-          DSSegmented(listOf("١٢٣", "123"), if (Store.numerals == "arab") 0 else 1, Modifier.width(140.dp)) {
-            Store.numerals = if (it == 0) "arab" else "latn"; Store.save()
-          }
-        }
-        DSDivider()
-        DSToggleRow("نظام ١٢ ساعة", null, Store.hour12, Icons.Outlined.Schedule) { Store.hour12 = it; Store.save() }
-        DSDivider()
-        StepperRow("تعديل التاريخ الهجري", "${Fmt.number(Store.hijriOffset)} يوم", Icons.Outlined.CalendarMonth,
-          onMinus = { Store.hijriOffset = maxOf(-2, Store.hijriOffset - 1); Store.save() },
-          onPlus = { Store.hijriOffset = minOf(2, Store.hijriOffset + 1); Store.save() })
-        DSDivider()
-        StepperRow("حجم نص الأذكار والأحاديث", "${(Store.textScale * 100).toInt()}٪", Icons.Outlined.FormatSize,
-          onMinus = { Store.textScale = maxOf(0.8, Store.textScale - 0.1); Store.save() },
-          onPlus = { Store.textScale = minOf(1.6, Store.textScale + 0.1); Store.save() })
-        DSDivider()
-        DSToggleRow("الاهتزاز عند العدّ", null, Store.haptics, Icons.Outlined.Bolt) { Store.haptics = it; Store.save() }
-      }
-
-      MoreGroup("البيانات") {
-        Row(Modifier.fillMaxWidth().padding(12.dp, 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-          DSButton("تصدير نسخة", modifier = Modifier.weight(1f), icon = Icons.Outlined.Upload) { exporter.launch("sakinah-backup-${Store.todayKey}.json") }
-          DSButton("استيراد", kind = ButtonKind.Outline, modifier = Modifier.weight(1f), icon = Icons.Outlined.Download) { importer.launch(arrayOf("application/json", "text/plain", "*/*")) }
-        }
-        if (msg != null) Text(msg!!, style = DSType.labelSm, color = c.brandPrimary, modifier = Modifier.padding(12.dp, 0.dp, 12.dp, 10.dp))
-      }
-
-      Text(
-        "الصيغة نفسها في نسخ الويب وiOS وأندرويد: تنقل الإعدادات والعلامات والختمة والمسبحة بين النسخ. كل الحسابات تجري على جهازك؛ لا حساب ولا تتبّع.",
-        style = DSType.labelXs, color = c.textTertiary
-      )
-    }
-  }
-  if (showCity) CityPickerSheet(onDismiss = { showCity = false }, onDevice = { showCity = false })
-  if (showMethod) MethodSheet { showMethod = false }
-  if (showPrayers) PrayerTogglesDialog(ctx) { showPrayers = false }
-}
-
-@Composable private fun SettingsRow(title: String, subtitle: String?, value: String?, onClick: () -> Unit) {
-  val c = DS.c
-  Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-    if (value != null) Text(value, style = DSType.labelSm, color = c.textSecondary, maxLines = 1)
-    Spacer(Modifier.width(4.dp))
-    DSChevron()
-    Spacer(Modifier.weight(1f))
-    Column(horizontalAlignment = Alignment.End) {
-      Text(title, style = DSType.bodyMd, color = c.textPrimary)
-      if (subtitle != null) Text(subtitle, style = DSType.labelXs, color = c.textSecondary, maxLines = 1)
-    }
-  }
-}
-
-@Composable private fun StepperRow(title: String, value: String, icon: ImageVector, onMinus: () -> Unit, onPlus: () -> Unit) {
-  val c = DS.c
-  Row(Modifier.fillMaxWidth().padding(12.dp, 8.dp), verticalAlignment = Alignment.CenterVertically) {
-    DSIconButton(Icons.Outlined.Remove, contentDescription = "إنقاص", style = IconStyle.Soft, size = 34.dp, iconSize = 14.dp, onClick = onMinus)
-    Spacer(Modifier.width(8.dp))
-    DSIconButton(Icons.Outlined.Add, contentDescription = "زيادة", style = IconStyle.Soft, size = 34.dp, iconSize = 14.dp, onClick = onPlus)
-    Spacer(Modifier.weight(1f))
-    Column(horizontalAlignment = Alignment.End) {
-      Text(title, style = DSType.bodyMd, color = c.textPrimary)
-      Text(value, style = DSType.labelXs, color = c.textSecondary)
-    }
-    Spacer(Modifier.width(12.dp))
-    DSIconButton(icon, style = IconStyle.Soft, size = 38.dp, iconSize = 16.dp)
-  }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable private fun PrayerTogglesDialog(ctx: android.content.Context, onDismiss: () -> Unit) {
-  val c = DS.c
-  ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.bgSurface) {
-    Column(Modifier.fillMaxWidth().padding(16.dp, 0.dp, 16.dp, 32.dp)) {
-      Text("الصلوات المُنبَّه لها", style = DSType.headingMd, color = c.textPrimary)
-      Spacer(Modifier.height(8.dp))
-      Prayer.entries.forEachIndexed { i, p ->
-        if (i > 0) DSDivider()
-        DSToggleRow(if (p == Prayer.SUNRISE) "الشروق (تنبيه هادئ)" else p.nameAr, null, p.id in Store.reminders.prayers) { on ->
-          Store.reminders = Store.reminders.copy(prayers = if (on) Store.reminders.prayers + p.id else Store.reminders.prayers - p.id)
-          Store.save(); Notify.schedule(ctx)
-        }
-      }
-    }
   }
 }
 

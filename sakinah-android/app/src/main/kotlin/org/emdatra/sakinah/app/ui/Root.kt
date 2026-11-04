@@ -17,19 +17,21 @@ val LocalSwitchTab = staticCompositionLocalOf<(AppTab) -> Unit> { {} }
 
 /** قارئ المصحف يملأ الشاشة كلها كما في iOS والتصميم: بلا شريط التبويبات وبلا حشوه (القارئ يحشو أشرطة النظام بنفسه) */
 object ReaderFullScreen { var open by mutableStateOf(false) }
+/** البحث الشامل يملأ الشاشة كذلك (لوحة المفاتيح مكان الشريط، كما في التصميم) ويحشو أشرطة النظام بنفسه */
+object SearchFullScreen { var open by mutableStateOf(false) }
 
-/** الجذر: تهيئة أول تشغيل ثم خمسة تبويبات بشريط مخصّص */
+/** الجذر: تهيئة أول تشغيل ثم أربعة تبويبات بشريط مخصّص */
 @Composable fun RootScreen() {
   var tabIndex by rememberSaveable { mutableIntStateOf(ScreenshotMode.tab?.ordinal ?: 0) }
   var intro by remember { mutableStateOf(!Store.seenIntro && Store.coords == null) }
   if (intro) { OnboardingScreen(onDone = { Store.seenIntro = true; Store.save(); intro = false }); return }
   val tab = AppTab.entries[tabIndex]
   CompositionLocalProvider(LocalSwitchTab provides { t -> tabIndex = t.ordinal }) {
-    val full = ReaderFullScreen.open && tab == AppTab.Mushaf
+    val full = (ReaderFullScreen.open && tab == AppTab.Mushaf) || (SearchFullScreen.open && tab == AppTab.Home)
     Scaffold(containerColor = DS.c.bgCanvas, bottomBar = { if (!full) DSTabBar(tab) { tabIndex = it.ordinal } }) { pad ->
       // الرئيسية تمدّ سماءها تحت شريط الحالة (تحشو الهيرو بنفسه)؛ سائر التبويبات تحت الشريط
       Box(Modifier.fillMaxSize().background(DS.c.bgCanvas).padding(top = if (tab == AppTab.Home || full) 0.dp else pad.calculateTopPadding(), bottom = if (full) 0.dp else pad.calculateBottomPadding())) {
-        when (tab) { AppTab.Home -> HomeScreen(); AppTab.Mushaf -> MushafHome(); AppTab.Adhkar -> AdhkarHome(); AppTab.More -> MoreScreen() }
+        when (tab) { AppTab.Home -> HomeScreen(); AppTab.Mushaf -> MushafHome(); AppTab.Adhkar -> AdhkarHome(); AppTab.Library -> LibraryScreen() }
       }
     }
   }

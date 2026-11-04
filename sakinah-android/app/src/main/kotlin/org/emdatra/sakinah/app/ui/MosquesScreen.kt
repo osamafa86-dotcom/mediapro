@@ -60,7 +60,7 @@ import org.emdatra.sakinah.core.Qibla
       Column(Modifier.fillMaxWidth().padding(16.dp, 48.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
         if (Store.coords == null) {
           DSIconButton(Icons.Outlined.LocationOff, style = IconStyle.Soft, size = 64.dp, iconSize = 26.dp)
-          Text("حدّد موقعك من الرئيسية لعرض المساجد القريبة", style = DSType.headingSm, color = c.textPrimary, textAlign = TextAlign.Center)
+          Text("حدّد موقعك من «اليوم» لعرض المساجد القريبة", style = DSType.headingSm, color = c.textPrimary, textAlign = TextAlign.Center)
         } else {
           DSIconButton(Icons.Outlined.LocationSearching, style = IconStyle.Soft, size = 64.dp, iconSize = 26.dp)
           DeviceFixPrompt(denied = denied, failed = fixFailed, granted = Loc.granted(ctx)) {

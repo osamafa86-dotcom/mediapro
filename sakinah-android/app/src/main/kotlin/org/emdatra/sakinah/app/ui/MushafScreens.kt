@@ -86,7 +86,8 @@ data class ReaderTarget(val page: Int, val ayah: Int? = null, val autoplay: Bool
   var reader by remember { mutableStateOf<ReaderTarget?>(org.emdatra.sakinah.app.ScreenshotMode.readerPage?.let { ReaderTarget(it) }) }
   var q by remember { mutableStateOf("") }; var tab by remember { mutableIntStateOf(org.emdatra.sakinah.app.ScreenshotMode.libraryTab) }; var searching by remember { mutableStateOf(false) }
   var sheet by remember { mutableStateOf<String?>(org.emdatra.sakinah.app.ScreenshotMode.librarySheet) }
-  LaunchedEffect(Store.pendingReaderPage) { Store.pendingReaderPage?.let { p -> Store.pendingReaderPage = null; reader = ReaderTarget(p) } }
+  // صفحة (وآية) معلّقة من «اليوم» أو البحث الشامل
+  LaunchedEffect(Store.pendingReaderPage) { Store.pendingReaderPage?.let { p -> val n = Store.pendingReaderAyah; Store.pendingReaderPage = null; Store.pendingReaderAyah = null; reader = ReaderTarget(p, n) } }
   reader?.let { t ->
     DisposableEffect(Unit) { ReaderFullScreen.open = true; onDispose { ReaderFullScreen.open = false } }
     MushafReader(startPage = t.page, startAyah = t.ayah, autoplay = t.autoplay, hifz = t.hifz, onClose = { reader = null }); return
