@@ -14,8 +14,12 @@ class SakinahApp : Application() {
     val adhan = NotificationChannel(CH_ADHAN, "الأذان", NotificationManager.IMPORTANCE_HIGH).apply { description = "مواعيد الصلاة بصوت الأذان"; setSound(Uri.parse("android.resource://$packageName/raw/adhan_short"), attrs); enableVibration(true) }
     val chime = NotificationChannel(CH_CHIME, "تذكيرات الصلاة", NotificationManager.IMPORTANCE_HIGH).apply { description = "مواعيد الصلاة بنغمة النظام" }
     val other = NotificationChannel(CH_OTHER, "الأذكار وحديث اليوم والختمة", NotificationManager.IMPORTANCE_DEFAULT)
-    nm.createNotificationChannels(listOf(adhan, chime, other))
+    // «النشاط الحيّ»: إشعارٌ مستمرّ يتجدّد بصمت — قناة منخفضة الأهمية بلا صوت ولا اهتزاز ولا شارة
+    val live = NotificationChannel(CH_LIVE, "النشاط الحيّ", NotificationManager.IMPORTANCE_LOW).apply {
+      description = "عدٌّ تنازليّ صامت للصلاة القادمة وشريط اليوم"; setSound(null, null); enableVibration(false); setShowBadge(false)
+    }
+    nm.createNotificationChannels(listOf(adhan, chime, other, live))
     Store.init(this); QdcMeta.init(this); AudioDownloads.init(this); MushafFontPack.init(this)
   }
-  companion object { const val CH_ADHAN = "adhan"; const val CH_CHIME = "chime"; const val CH_OTHER = "other" }
+  companion object { const val CH_ADHAN = "adhan"; const val CH_CHIME = "chime"; const val CH_OTHER = "other"; const val CH_LIVE = "live" }
 }

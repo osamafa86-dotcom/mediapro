@@ -54,6 +54,9 @@ object Store {
   var nowHidden by mutableStateOf<String?>(null)
   /** آخر عمليات البحث الشامل (ستّ على الأكثر، الأحدث أولًا) — على الجهاز وحده */
   var recentSearches by mutableStateOf<List<String>>(emptyList())
+  /** «النشاط الحيّ في الإشعارات» (المرحلة الثالثة): إشعارٌ صامت مستمرّ بالعدّ إلى الأذان — مطفأ افتراضاً؛
+   *  وموعدٌ (ملّي ثانية) يبقى قبله مخفيّاً إن أزاحه المستخدم، فيعود مع الصلاة التالية */
+  var liveUpdate by mutableStateOf(false); var liveHiddenUntil = 0L
 
   private fun <T> get(key: String, ser: KSerializer<T>): T? = sp.getString(key, null)?.let { runCatching { json.decodeFromString(ser, it) }.getOrNull() }
   private fun <T> put(key: String, ser: KSerializer<T>, v: T?) { sp.edit().apply { if (v == null) remove(key) else putString(key, json.encodeToString(ser, v)) }.apply() }
@@ -74,6 +77,7 @@ object Store {
     adhkarProgress = get("adhkarProgress", WebSettings.AdhkarProgress.serializer()) ?: WebSettings.AdhkarProgress(); favorites = get("favorites", ListSerializer(String.serializer())) ?: emptyList(); tasbih = get("tasbih", TasbihState.serializer()) ?: TasbihState(); hisnFavorites = get("hisnFavorites", ListSerializer(Int.serializer())) ?: emptyList(); textScale = sp.getFloat("textScale", 1f).toDouble()
     adhkarLog = get("adhkarLog", MapSerializer(String.serializer(), ListSerializer(String.serializer()))) ?: emptyMap(); haptics = sp.getBoolean("ui.haptics", true); tasbihSound = sp.getBoolean("ui.tasbihSound", false); seenChromeHint = sp.getBoolean("quran.seenChromeHint", false)
     nowHidden = sp.getString("today.nowHidden", null); recentSearches = get("search.recent", ListSerializer(String.serializer())) ?: emptyList()
+    liveUpdate = sp.getBoolean("notifications.live", false); liveHiddenUntil = sp.getLong("notifications.liveHiddenUntil", 0L)
   }
   /** حفظ كل الحالة (تُستدعى بعد أي تغيير) */
   fun save() {
@@ -88,9 +92,15 @@ object Store {
     put("quran.lastRead", LastRead.serializer(), lastRead); put("quran.bookmarks", ListSerializer(WebSettings.Bookmark.serializer()), bookmarks)
     put("quran.khatmah", KhatmahPlan.serializer(), khatmah); put("quran.readLog", MapSerializer(String.serializer(), ListSerializer(Int.serializer())), readLog); put("quran.challenge", ActiveChallenge.serializer(), challenge)
     put("quran.wird", MapSerializer(String.serializer(), Int.serializer()), wird); put("quran.recent", ListSerializer(LastRead.serializer()), recent); put("quran.weakAyahs", ListSerializer(Int.serializer()), weakAyahs); sp.edit().putString("quran.khatmahUnit", khatmahUnit).apply()
-    sp.edit().putString("today.nowHidden", nowHidden).apply(); put("search.recent", ListSerializer(String.serializer()), recentSearches)
+    sp.edit().putString("today.nowHidden", nowHidden).putBoolean("notifications.live", liveUpdate).putLong("notifications.liveHiddenUntil", liveHiddenUntil).apply(); put("search.recent", ListSerializer(String.serializer()), recentSearches)
     put("adhkarProgress", WebSettings.AdhkarProgress.serializer(), adhkarProgress); put("favorites", ListSerializer(String.serializer()), favorites); put("tasbih", TasbihState.serializer(), tasbih); put("hisnFavorites", ListSerializer(Int.serializer()), hisnFavorites); put("adhkarLog", MapSerializer(String.serializer(), ListSerializer(String.serializer())), adhkarLog)
   }
+
+  /** «صلّيتُ»: بذرة سجلّ العبادة — مفتاح لكل صلاة في يومها (`prayed.YYYY-MM-DD.asr`) بمعنى نسخة iOS نفسه */
+  fun hasPrayed(day: String, p: Prayer): Boolean = sp.getBoolean("prayed.$day.${p.id}", false)
+  fun markPrayed(day: String, p: Prayer) { sp.edit().putBoolean("prayed.$day.${p.id}", true).apply() }
+  /** إزاحة الإشعار الحيّ: يبقى مخفيّاً حتى هذا الموعد (أذان الصلاة القادمة) — يُكتب وحده بلا حفظ الحالة كلها */
+  fun hideLiveUntil(ms: Long) { liveHiddenUntil = ms; sp.edit().putLong("notifications.liveHiddenUntil", ms).apply() }
 
   // ---- مشتقات ----
   val coords: Coordinates? get() = if (locLat.isNaN() || locLon.isNaN()) null else Coordinates(locLat, locLon)

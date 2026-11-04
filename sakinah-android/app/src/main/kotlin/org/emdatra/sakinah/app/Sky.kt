@@ -57,6 +57,15 @@ object SkyWeatherService {
 
   fun cellKey(lat: Double, lon: Double): String = String.format(java.util.Locale.US, "%.2f,%.2f", lat, lon)
 
+  /** آخر قراءةٍ محفوظة (الطقس والحرارة) إن فعّل المستخدم الطقس وكانت حديثة (٣ ساعات) — للويدجت والإشعار الحيّ:
+   *  لا طلب شبكة من خارج الشاشة أبداً، فما لم يُحفظ لا يُعرض */
+  fun cachedReading(maxAgeMs: Long = 3 * 3600_000L): Pair<SkyWeather?, Double?>? {
+    if (!Store.skyWeather) return null
+    val c = Store.skyWeatherCache?.let { runCatching { Res.json.decodeFromString(Cache.serializer(), it) }.getOrNull() } ?: return null
+    if (System.currentTimeMillis() - c.at > maxAgeMs) return null
+    return SkyWeather.of(c.weather) to c.temp
+  }
+
   private fun restore() {
     if (restored) return; restored = true
     val c = Store.skyWeatherCache?.let { runCatching { Res.json.decodeFromString(Cache.serializer(), it) }.getOrNull() } ?: return

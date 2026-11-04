@@ -265,7 +265,11 @@ private fun rateApp(ctx: Context) {
   val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> Store.reminders = Store.reminders.copy(enabled = ok); Store.save(); Notify.schedule(ctx) }
   // يُعاد فحصه عند العودة من شاشة النظام (onResume في MainActivity يعيد الجدولة دقيقةً بعد المنح)
   var exactOk by remember { mutableStateOf(Notify.exactAllowed(ctx)) }
-  androidx.lifecycle.compose.LifecycleResumeEffect(Unit) { exactOk = Notify.exactAllowed(ctx); onPauseOrDispose { } }
+  fun promoted(): Boolean = android.os.Build.VERSION.SDK_INT < 36 || ctx.getSystemService(android.app.NotificationManager::class.java).canPostPromotedNotifications()
+  var promotedOk by remember { mutableStateOf(promoted()) }
+  androidx.lifecycle.compose.LifecycleResumeEffect(Unit) { exactOk = Notify.exactAllowed(ctx); promotedOk = promoted(); onPauseOrDispose { } }
+  fun setLive(on: Boolean) { Store.liveUpdate = on; if (on) Store.hideLiveUntil(0L); Store.save(); LiveDay.refresh(ctx) }
+  val livePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> setLive(ok) }
   Column(Modifier.fillMaxSize().background(c.bgCanvas).verticalScroll(rememberScrollState())) {
     DSNavBar("الأذان والتنبيهات", onBack = onBack)
     Column(Modifier.fillMaxWidth().padding(16.dp, 4.dp, 16.dp, 32.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -319,6 +323,19 @@ private fun rateApp(ctx: Context) {
         DSDivider()
         DSToggleRow("حديث اليوم", Store.extras.hadithTime, Store.extras.hadithDaily, Icons.Outlined.AutoStories) {
           Store.extras = Store.extras.copy(hadithDaily = it); Store.save(); Notify.schedule(ctx)
+        }
+      }
+      // «اليوم الحيّ» (المرحلة الثالثة): إشعارٌ صامت مستمرّ بالعدّ إلى الأذان وشريط اليوم، وزرّا «أذكار الوقت» و«صلّيتُ» — اختياريّ
+      SettingsGroup("اليوم الحيّ") {
+        DSToggleRow("النشاط الحيّ في الإشعارات", "عدٌّ تنازليّ صامت للصلاة القادمة وشريط اليوم بألوان السماء", Store.liveUpdate, Icons.Outlined.Timelapse) { on ->
+          if (on && android.os.Build.VERSION.SDK_INT >= 33 && !androidx.core.app.NotificationManagerCompat.from(ctx).areNotificationsEnabled()) livePermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+          else setLive(on)
+        }
+        // أندرويد ١٦: إن منع المستخدم «التحديثات الحيّة» لسكينة يبقى الإشعار عاديّاً بلا شريحة شريط الحالة — نرشده إلى الإعداد
+        if (Store.liveUpdate && android.os.Build.VERSION.SDK_INT >= 36 && !promotedOk) {
+          DSDivider()
+          DSRow(Icons.Outlined.Timelapse, "اعرضه في شريط الحالة", "اسمح بـ«التحديثات الحيّة» لسكينة في إعدادات الإشعارات", iconStyle = IconStyle.GoldSoft,
+            onClick = { runCatching { ctx.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_PROMOTION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, ctx.packageName)) } }) { DSChevron() }
         }
       }
       Text("الأذان يُجدوَل منبّهًا عند النظام فيصل والتطبيق مغلق. وتذكير الورد يُضبط من خطة الختمة.", style = DSType.labelXs, color = c.textTertiary)

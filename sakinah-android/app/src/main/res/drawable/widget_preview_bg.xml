@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- معاينة الويدجت في منتقي الويدجت: سماء العصر -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+  <corners android:radius="22dp" />
+  <gradient android:angle="270" android:startColor="#FF3A86C8" android:centerColor="#FF9CC7E6" android:endColor="#FFF3D9A6" android:type="linear" />
+</shape>

@@ -4,6 +4,8 @@
   <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
   <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <!-- أندرويد ١٦: ترقية الإشعار الحيّ إلى «تحديث حيّ» (إذنٌ عاديّ لا يُطلب من المستخدم) -->
+  <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
   <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
   <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
   <uses-permission android:name="android.permission.VIBRATE" />
@@ -20,6 +22,12 @@
       <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
     </provider>
     <receiver android:name=".app.ReminderReceiver" android:exported="false" />
+    <!-- «اليوم الحيّ»: منبّهات الحدود وزرّا الإشعار الحيّ، وويدجت «الصلاة القادمة» -->
+    <receiver android:name=".app.LiveDayReceiver" android:exported="false" />
+    <receiver android:name=".app.widget.PrayerWidgetReceiver" android:exported="true" android:label="@string/widget_prayer_label">
+      <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /><action android:name="android.intent.action.LOCALE_CHANGED" /></intent-filter>
+      <meta-data android:name="android.appwidget.provider" android:resource="@xml/prayer_widget_info" />
+    </receiver>
     <receiver android:name=".app.BootReceiver" android:exported="true">
       <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /><action android:name="android.intent.action.TIMEZONE_CHANGED" /><action android:name="android.intent.action.TIME_SET" /></intent-filter>
     </receiver>

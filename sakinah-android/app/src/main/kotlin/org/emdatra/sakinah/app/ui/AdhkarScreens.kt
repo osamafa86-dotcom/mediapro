@@ -61,7 +61,13 @@ private fun periodMap(p: WebSettings.AdhkarProgress, period: String): Map<String
   var chapter by remember { mutableStateOf<HisnChapter?>(null) }
   var session by remember { mutableStateOf<String?>(null) }
   // «ابدأ» من بطاقة أذكار الوقت في الرئيسية
-  LaunchedEffect(Store.pendingAdhkarPeriod) { Store.pendingAdhkarPeriod?.let { p -> Store.pendingAdhkarPeriod = null; session = p } }
+  // و«أذكار النوم» من الويدجت والإشعار الحيّ: باب حصن المسلم نفسه الذي تفتحه بطاقة «الآن» بعد العشاء
+  LaunchedEffect(Store.pendingAdhkarPeriod) {
+    Store.pendingAdhkarPeriod?.let { p ->
+      Store.pendingAdhkarPeriod = null
+      if (p == "sleep") Hisn.chapters.firstOrNull { it.title == "أذكار النوم" }?.let { session = null; chapter = it } else { chapter = null; session = p }
+    }
+  }
   BackHandler(screen != "home" || chapter != null || session != null) {
     when { session != null -> session = null; chapter != null -> chapter = null; else -> screen = "home" }
   }

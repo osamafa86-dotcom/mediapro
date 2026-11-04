@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="app_name">سكينة</string>
+  <!-- ويدجت الشاشة الرئيسية (المرحلة الثالثة) -->
+  <string name="widget_prayer_label">الصلاة القادمة</string>
+  <string name="widget_prayer_desc">الصلاة القادمة والعدّ إليها، والصلوات الخمس، وأذكار الوقت — تتبدّل سماؤه مع وقتك بلا اتصال</string>
+  <string name="widget_preview_name">المغرب</string>
+  <string name="widget_preview_time">٤:٥٢</string>
+  <string name="widget_preview_after">بعد ٤٢ د</string>
 </resources>

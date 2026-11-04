@@ -20,10 +20,14 @@ object ReaderFullScreen { var open by mutableStateOf(false) }
 /** البحث الشامل يملأ الشاشة كذلك (لوحة المفاتيح مكان الشريط، كما في التصميم) ويحشو أشرطة النظام بنفسه */
 object SearchFullScreen { var open by mutableStateOf(false) }
 
+/** تبويبٌ يطلبه رابطٌ من خارج التطبيق (الويدجت والإشعار الحيّ) — يستهلكه الجذر مرّة */
+object DeepLink { var tab by mutableStateOf<AppTab?>(null) }
+
 /** الجذر: تهيئة أول تشغيل ثم أربعة تبويبات بشريط مخصّص */
 @Composable fun RootScreen() {
   var tabIndex by rememberSaveable { mutableIntStateOf(ScreenshotMode.tab?.ordinal ?: 0) }
   var intro by remember { mutableStateOf(!Store.seenIntro && Store.coords == null) }
+  LaunchedEffect(DeepLink.tab, intro) { if (!intro) DeepLink.tab?.let { tabIndex = it.ordinal; DeepLink.tab = null } }
   if (intro) { OnboardingScreen(onDone = { Store.seenIntro = true; Store.save(); intro = false }); return }
   val tab = AppTab.entries[tabIndex]
   CompositionLocalProvider(LocalSwitchTab provides { t -> tabIndex = t.ordinal }) {

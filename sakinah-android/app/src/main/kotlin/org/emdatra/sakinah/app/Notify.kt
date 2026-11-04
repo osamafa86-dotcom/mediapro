@@ -45,6 +45,8 @@ object Notify {
       if (exact) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi) else am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
     }
     lastIds = ids
+    // «اليوم الحيّ» يتجدّد في الطريق نفسه (فتح التطبيق، الإعدادات، كل تذكير، الإقلاع وتغيير الوقت): الويدجت والإشعار الحيّ ومنبّه حدّهما
+    LiveDay.refresh(ctx)
   }
   /** «المنبّهات والتذكيرات»: من Android 14 لا يُمنح للتثبيت الجديد تلقائيًا (USE_EXACT_ALARM حكرٌ على تطبيقات المنبّه والتقويم في Google Play)؛
    *  بلا الإذن يُجدوَل المنبّه غير دقيق فقد يتأخر الإشعار دقائق، والإعدادات تعرض زرّ السماح */
