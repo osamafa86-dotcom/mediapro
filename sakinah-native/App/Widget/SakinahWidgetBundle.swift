@@ -5,6 +5,8 @@ import WidgetKit
 struct SakinahWidgetBundle: WidgetBundle {
   var body: some Widget {
     PrayerWidget()
+    AdhkarWidget()
+    HijriWidget()
     PrayerLiveActivity()
   }
 }

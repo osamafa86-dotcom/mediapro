@@ -13,6 +13,10 @@ struct AdhkarHomeView: View {
   @State private var query = ""
   @State private var searching = false
   @State private var showReminders = false
+  /// أذكار النوم (باب ٢٨ من حصن المسلم) من رابط الودجت أو النشاط المباشر
+  @State private var showSleep = false
+  /// الجذر ظاهر (لا تبويب آخر ولا وجهة مدفوعة ولا غطاء): وحده يقدّم الجلسة
+  @State private var rootVisible = false
 
   var body: some View {
     NavigationStack {
@@ -40,12 +44,32 @@ struct AdhkarHomeView: View {
       }
       .navigationDestination(isPresented: $showHisn) { HisnView().environment(model).tabBarClearance() }
       .navigationDestination(isPresented: $showTasbih) { TasbihView().environment(model).tabBarClearance() }
-      // «ابدأ» من بطاقة أذكار الوقت في الرئيسية
-      .onAppear { if let p = model.pendingAdhkarPeriod { model.pendingAdhkarPeriod = nil; period = p; Task { @MainActor in try? await Task.sleep(for: .milliseconds(80)); session = p } } }
+      // «ابدأ» من بطاقة أذكار الوقت في الرئيسية، ورابط الودجت/النشاط المباشر (sakinah://adhkar/<period>).
+      // الرابط قد يصل والتبويب ظاهر أصلًا فلا يتكرّر onAppear: يُستهلك في onChange إن كان الجذر ظاهرًا،
+      // وإلا تُغلق الوجهات المدفوعة ويُنتظر ظهوره (البحث الشامل يعيّن الفترة ثم يغلق غطاءه قبل تبديل التبويب)
+      .onAppear { rootVisible = true; consumePendingPeriod() }
+      .onDisappear { rootVisible = false }
+      .onChange(of: model.pendingAdhkarPeriod) { _, new in
+        guard new != nil else { return }
+        if rootVisible { consumePendingPeriod() } else { showHisn = false; showTasbih = false; showSleep = false }
+      }
+      .navigationDestination(isPresented: $showSleep) {
+        if let ch = Hisn.chapter(28) { HisnChapterView(chapter: ch).environment(model).tabBarClearance() }
+      }
       .sheet(isPresented: $showReminders) { AdhkarRemindersSheet().environment(model) }
     }
   }
   private struct SessionID: Identifiable { let id: String }
+
+  /// فترة معلّقة: الصباح والمساء جلسة عدّ، والنوم باب حصن المسلم كما في بطاقة «الآن»
+  private func consumePendingPeriod() {
+    guard let p = model.pendingAdhkarPeriod else { return }
+    model.pendingAdhkarPeriod = nil
+    if p == "sleep" { showSleep = true; return }
+    guard p == "morning" || p == "evening" else { return }
+    period = p
+    Task { @MainActor in try? await Task.sleep(for: .milliseconds(80)); session = p }
+  }
 
   // MARK: شريط العنوان
 

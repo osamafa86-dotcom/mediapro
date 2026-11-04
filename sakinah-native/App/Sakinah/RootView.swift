@@ -55,5 +55,16 @@ struct RootView: View {
       // كل عودة للتطبيق: تحديث حالة الإشعارات وإعادة جدولة الأيام القادمة (حدّ النظام 64 إشعارًا معلّقًا)
       if phase == .active { model.notifications.refreshStatus(); model.rescheduleNotifications(); BackupService.autoSnapshot(model); LiveActivityManager.sync(model) }
     }
+    // روابط الودجت والنشاط المباشر (المخطّط في project.yml): sakinah://today و sakinah://adhkar/<morning|evening|sleep>
+    .onOpenURL { url in
+      guard let route = SakinahURL.route(url) else { return }
+      switch route {
+      case .today:
+        tab = .home
+      case .adhkar(let p):
+        if !p.isEmpty { model.pendingAdhkarPeriod = p }
+        tab = .adhkar
+      }
+    }
   }
 }

@@ -82,6 +82,11 @@ targets:
         UIBackgroundModes: [audio]
         UIApplicationSupportsIndirectInputEvents: true
         NSSupportsLiveActivities: true
+        # روابط الودجت والنشاط المباشر: sakinah://today و sakinah://adhkar/<morning|evening|sleep> (RootView.onOpenURL)
+        # — مخطّط URL خاصية Info.plist لا صلاحية، فلا يمسّ التوقيع ولا ملفات provisioning
+        CFBundleURLTypes:
+          - CFBundleURLName: org.emdatra.sakinah.native
+            CFBundleURLSchemes: [sakinah]
   # ودجت مواقيت الصلاة (الشاشة الرئيسية وشاشة القفل) والنشاط المباشر — يحسب بنفسه من النواة بموقع الجهاز أو مدينة يختارها المستخدم (لا يحتاج App Group)
   SakinahWidget:
     type: app-extension
