@@ -87,7 +87,14 @@ struct MushafReaderView: View {
     }
     .statusBarHidden(!chrome)
     .persistentSystemOverlays(chrome ? .automatic : .hidden)
-    .onGeometryChange(for: CGSize.self) { $0.size } action: { stageSize = $0 }
+    // قياس النافذة بقارئٍ خلفيّ: onAppear مضمونٌ من أوّل إطار، وonChange مع كل تدوير أو تغيير في Split View
+    .background {
+      GeometryReader { g in
+        Color.clear
+          .onAppear { stageSize = g.size }
+          .onChange(of: g.size) { _, size in stageSize = size }
+      }
+    }
     .onAppear(perform: setup)
     .onDisappear(perform: teardown)
     .onChange(of: page) { _, p in pageDidChange(p) }
