@@ -53,8 +53,10 @@ enum MushafMetrics {
   static func fontMetrics(fontName: String, size: CGFloat) -> FontMetrics {
     let key = "\(fontName)|\(Int(size * 4))"
     if let c = metricsCache[key] { return c }
-    let f = CTFontCreateWithName(fontName as CFString, size, nil)
+    let f = MushafFonts.shared.ctFont(fontName, size: size)
     let m = FontMetrics(ascent: CTFontGetAscent(f), descent: CTFontGetDescent(f))
+    // لا يُحفظ قياسُ خطٍّ لم يُحمَّل بعد (خطّ النظام البديل) وإلا بقي خطؤه بعد التحميل
+    guard MushafFonts.shared.isLoaded(fontName) else { return m }
     if metricsCache.count > 256 { metricsCache.removeAll() }
     metricsCache[key] = m
     return m
@@ -68,7 +70,7 @@ enum MushafMetrics {
   static func glyphRun(_ glyph: String, fontName: String, size: CGFloat) -> GlyphRun {
     let key = "\(fontName)|\(Int(size * 4))|\(glyph)"
     if let c = runCache[key] { return c }
-    let font = CTFontCreateWithName(fontName as CFString, size, nil)
+    let font = MushafFonts.shared.ctFont(fontName, size: size)
     let chars = Array(glyph.utf16)
     var ids = [CGGlyph](repeating: 0, count: max(1, chars.count))
     var advances = [CGSize](repeating: .zero, count: max(1, chars.count))
@@ -79,6 +81,8 @@ enum MushafMetrics {
     let n = chars.count
     let adv = Array(advances.prefix(n)).map(\.width)
     let run = GlyphRun(ids: Array(ids.prefix(n)), advances: adv, width: adv.reduce(0, +))
+    // معرّفاتٌ من خطٍّ بديل (لم يُحمَّل خطّ الصفحة) لا تُحفظ: تُعاد حين يحضر الخطّ
+    guard MushafFonts.shared.isLoaded(fontName) else { return run }
     if runCache.count > 6000 { runCache.removeAll() }
     runCache[key] = run
     return run
@@ -89,7 +93,7 @@ enum MushafMetrics {
   /// عرض نصّ عبر محرّك النصّ — لوضع النصّ المتدفّق، حيث الخطّ عربيّ عادي والتشكيل مطلوب.
   /// لا يصلح لخطوط الصفحات: جدول morx فيها يستبدل الرموز فيختلف المقيس عن المرسوم.
   static func textWidth(_ s: String, fontName: String, size: CGFloat) -> CGFloat {
-    let font = CTFontCreateWithName(fontName as CFString, size, nil)
+    let font = MushafFonts.shared.ctFont(fontName, size: size)
     let attr = NSAttributedString(string: s, attributes: [NSAttributedString.Key(kCTFontAttributeName as String): font])
     return CGFloat(CTLineGetTypographicBounds(CTLineCreateWithAttributedString(attr), nil, nil, nil))
   }
@@ -149,7 +153,7 @@ struct MushafPageView: View {
           .opacity(fontReady ? 1 : 0.35)
         }
         if showChrome {
-          Text(QuranMeta.arabicDigits(page)).font(.custom(MushafFonts.amiriQuranFont, fixedSize: base * 0.8)).foregroundStyle(palette.ink.opacity(0.85)).padding(.top, base * 0.1)
+          Text(QuranMeta.arabicDigits(page)).font(MushafFonts.font(MushafFonts.amiriQuranFont, size: base * 0.8)).foregroundStyle(palette.ink.opacity(0.85)).padding(.top, base * 0.1)
         }
       }
       .padding(.top, max(insets.top, 8)).padding(.bottom, max(insets.bottom, 6)).padding(.horizontal, sideInset)
@@ -229,7 +233,7 @@ struct MushafLineView: View {
   /// يرسم رموز السطر من اليمين إلى اليسار بمواضع محسوبة من عروضها
   private func paint(_ ctx: GraphicsContext, width: CGFloat, fontName: String,
                      runs: [MushafMetrics.GlyphRun], styles: [MushafReaderState.WordStyle], ascent: CGFloat) {
-    let font = CTFontCreateWithName(fontName as CFString, size, nil)
+    let font = MushafFonts.shared.ctFont(fontName, size: size)
     // سماكة الخطّ: كل رمز يُملأ ويُحدَّد بلونه نفسه بعرضٍ نسبيّ من حجم الخط — فتغلظ الحروف كما في طبعة المدينة دون خطّ آخر
     let stroke = rs.strokeWidth(size)
     func setWeight(_ cg: CGContext) {
@@ -345,7 +349,7 @@ struct PageHead: View {
     HStack(alignment: .firstTextBaseline) {
       if page % 2 == 1 { surah; Spacer(minLength: 8); juz } else { juz; Spacer(minLength: 8); surah }
     }
-    .font(.custom(MushafFonts.amiriQuranFont, fixedSize: size * 0.66)).foregroundStyle(palette.ink.opacity(0.85)).lineLimit(1).minimumScaleFactor(0.6)
+    .font(MushafFonts.font(MushafFonts.amiriQuranFont, size: size * 0.66)).foregroundStyle(palette.ink.opacity(0.85)).lineLimit(1).minimumScaleFactor(0.6)
   }
 }
 
@@ -390,19 +394,19 @@ struct SurahHeader: View {
         Cartouche().stroke(palette.gold1, lineWidth: mid).frame(width: cw, height: ch)
         Cartouche().stroke(palette.gold2, lineWidth: thin).frame(width: cw - H * 0.22, height: ch - H * 0.18)
         Group {
-          if plain { Text("سورة \(meta.name)").font(.custom(MushafFonts.amiriQuranFont, fixedSize: size * 0.9)) }
-          else { Text(String(format: "%03d surah", surah)).font(.custom(MushafFonts.surahNamesFont, fixedSize: size * 0.86)) }
+          if plain { Text("سورة \(meta.name)").font(MushafFonts.font(MushafFonts.amiriQuranFont, size: size * 0.9)) }
+          else { Text(String(format: "%03d surah", surah)).font(MushafFonts.font(MushafFonts.surahNamesFont, size: size * 0.86)) }
         }
         .foregroundStyle(palette.ink).lineLimit(1).minimumScaleFactor(0.5).frame(width: cw - ch * 0.9, height: ch * 0.9)
         // ٤) الوسامان: النزول يميناً، والآيات يساراً
         medal(R: R, thin: thin, mid: mid) {
-          Text(type).font(.custom(MushafFonts.amiriQuranFont, fixedSize: R * 0.4)).foregroundStyle(palette.ink).lineLimit(1).minimumScaleFactor(0.6)
+          Text(type).font(MushafFonts.font(MushafFonts.amiriQuranFont, size: R * 0.4)).foregroundStyle(palette.ink).lineLimit(1).minimumScaleFactor(0.6)
         }
         .position(x: W - R - H * 0.04, y: H / 2)
         medal(R: R, thin: thin, mid: mid) {
           VStack(spacing: -R * 0.08) {
-            Text("آياتها").font(.custom(MushafFonts.amiriQuranFont, fixedSize: R * 0.28)).foregroundStyle(palette.ink.opacity(0.85))
-            Text(QuranMeta.arabicDigits(meta.ayahs)).font(.custom(MushafFonts.amiriQuranFont, fixedSize: R * 0.48)).foregroundStyle(palette.ink)
+            Text("آياتها").font(MushafFonts.font(MushafFonts.amiriQuranFont, size: R * 0.28)).foregroundStyle(palette.ink.opacity(0.85))
+            Text(QuranMeta.arabicDigits(meta.ayahs)).font(MushafFonts.font(MushafFonts.amiriQuranFont, size: R * 0.48)).foregroundStyle(palette.ink)
           }
           .lineLimit(1).minimumScaleFactor(0.6)
         }
@@ -469,7 +473,7 @@ struct MadinahBasmala: View {
       let w = runs.reduce(CGFloat.zero) { $0 + $1.width }
       let m = MushafMetrics.fontMetrics(fontName: fontName, size: size)
       Canvas { ctx, sz in
-        let font = CTFontCreateWithName(fontName as CFString, size, nil)
+        let font = MushafFonts.shared.ctFont(fontName, size: size)
         ctx.withCGContext { cg in
           cg.textMatrix = .identity; cg.translateBy(x: 0, y: m.ascent); cg.scaleBy(x: 1, y: -1)
           if stroke > 0 { cg.setTextDrawingMode(.fillStroke); cg.setLineWidth(stroke); cg.setLineJoin(.round) } else { cg.setTextDrawingMode(.fill) }
@@ -482,7 +486,7 @@ struct MadinahBasmala: View {
       .scaleEffect(w > maxWidth && w > 0 ? maxWidth / w : 1, anchor: .center)
       .accessibilityLabel(QuranMeta.basmala)
     } else {
-      Text(QuranMeta.basmala).font(.custom(MushafFonts.amiriQuranFont, fixedSize: size * 0.98)).foregroundStyle(palette.ink).lineLimit(1).minimumScaleFactor(0.5).frame(maxWidth: maxWidth * 0.62)
+      Text(QuranMeta.basmala).font(MushafFonts.font(MushafFonts.amiriQuranFont, size: size * 0.98)).foregroundStyle(palette.ink).lineLimit(1).minimumScaleFactor(0.5).frame(maxWidth: maxWidth * 0.62)
     }
   }
 }

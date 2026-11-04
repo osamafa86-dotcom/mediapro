@@ -32,7 +32,7 @@ struct ShareCardView: View {
     VStack(alignment: .center, spacing: 40) {
       HStack { Text("سكينة").font(.system(size: 30, weight: .bold, design: .rounded)).foregroundStyle(theme.accent); Spacer(); Text(request.title).font(.system(size: 28, weight: .semibold)).foregroundStyle(theme.fg.opacity(0.85)).lineLimit(1) }
       RoundedRectangle(cornerRadius: 2).fill(theme.accent).frame(width: 140, height: 4)
-      Text(request.text).font(request.quran ? .custom(MushafFonts.amiriQuranFont, fixedSize: size) : .system(size: size, weight: .regular)).foregroundStyle(theme.fg).multilineTextAlignment(.center).lineSpacing(size * 0.75).frame(maxWidth: .infinity)
+      Text(request.text).font(request.quran ? MushafFonts.font(MushafFonts.amiriQuranFont, size: size) : .system(size: size, weight: .regular)).foregroundStyle(theme.fg).multilineTextAlignment(.center).lineSpacing(size * 0.75).frame(maxWidth: .infinity)
       if !request.footer.isEmpty { Text(request.footer).font(.system(size: 28)).foregroundStyle(theme.fg.opacity(0.75)).multilineTextAlignment(.center) }
     }
     .padding(80)

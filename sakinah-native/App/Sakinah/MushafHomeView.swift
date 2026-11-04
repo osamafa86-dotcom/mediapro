@@ -319,7 +319,7 @@ struct JuzRow: View {
       VStack(alignment: .leading, spacing: 1) {
         Text(QuranMeta.juzName(start.juz, vocalized: false)).font(DS.F.headingSm).foregroundStyle(DS.C.textPrimary)
         HStack(spacing: 6) {
-          Text(QuranText.shared.juzStartPhrase(start.juz)).font(.custom(MushafFonts.amiriQuranFont, fixedSize: 13)).foregroundStyle(DS.C.textSecondary)
+          Text(QuranText.shared.juzStartPhrase(start.juz)).font(MushafFonts.font(MushafFonts.amiriQuranFont, size: 13)).foregroundStyle(DS.C.textSecondary)
           Text("· \(QuranMeta.surah(start.surah).name) \(Fmt.number(start.ayah, numerals: numerals))").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary)
         }
       }
@@ -401,7 +401,7 @@ struct BookmarkRow: View {
       VStack(alignment: .leading, spacing: 2) {
         Text("\(QuranMeta.surah(ayah.surah).name): \(Fmt.number(ayah.ayah, numerals: numerals))").font(DS.F.headingSm).foregroundStyle(DS.C.textPrimary)
         if let n = bookmark.note, !n.isEmpty { Text(n).font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary).lineLimit(2) }
-        else { Text(ayah.text.count > 70 ? String(ayah.text.prefix(70)) + "…" : ayah.text).font(.custom(MushafFonts.amiriQuranFont, fixedSize: 13)).foregroundStyle(DS.C.textSecondary).lineLimit(1) }
+        else { Text(ayah.text.count > 70 ? String(ayah.text.prefix(70)) + "…" : ayah.text).font(MushafFonts.font(MushafFonts.amiriQuranFont, size: 13)).foregroundStyle(DS.C.textSecondary).lineLimit(1) }
       }
       Spacer()
       VStack(spacing: 0) { Text(Fmt.number(ayah.page, numerals: numerals)).font(DS.F.numericMd).foregroundStyle(DS.C.textSecondary); Text("صفحة").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary) }
@@ -428,7 +428,7 @@ struct QuranSearchRows: View {
       if !surahs.isEmpty { Section("سور") { ForEach(surahs) { su in Button { onGo(su.page, QuranText.shared.ayah(surah: su.n, ayah: 1)?.n) } label: { SurahRow(surah: su, numerals: numerals) }.tint(.primary) } } }
       if !ayahs.isEmpty {
         Section("آيات (\(Fmt.number(ayahs.count, numerals: numerals))\(ayahs.count == 30 ? "+" : ""))") {
-          ForEach(ayahs) { a in Button { onGo(a.page, a.n) } label: { HStack { VStack(alignment: .leading, spacing: 3) { Text(a.text.count > 90 ? String(a.text.prefix(90)) + "…" : a.text).font(.custom(MushafFonts.amiriQuranFont, fixedSize: 15)).lineLimit(2); Text(QuranSearch.refLabel(a)).font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary) }; Spacer(); Text("ص \(Fmt.number(a.page, numerals: numerals))").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary) }.contentShape(Rectangle()) }.tint(.primary) }
+          ForEach(ayahs) { a in Button { onGo(a.page, a.n) } label: { HStack { VStack(alignment: .leading, spacing: 3) { Text(a.text.count > 90 ? String(a.text.prefix(90)) + "…" : a.text).font(MushafFonts.font(MushafFonts.amiriQuranFont, size: 15)).lineLimit(2); Text(QuranSearch.refLabel(a)).font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary) }; Spacer(); Text("ص \(Fmt.number(a.page, numerals: numerals))").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary) }.contentShape(Rectangle()) }.tint(.primary) }
         }
       }
       if surahs.isEmpty && ayahs.isEmpty { Section { Text("لا نتائج").foregroundStyle(DS.C.textSecondary) } }

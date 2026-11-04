@@ -56,7 +56,7 @@ struct MushafTextPageView: View {
             ForEach(blocks) { b in
               switch b {
               case .header(let s): SurahHeader(surah: s, size: base, palette: palette, plain: true).frame(height: base * 1.45).padding(.horizontal, base * 0.1)
-              case .basmala: Text(QuranMeta.basmala).font(.custom(MushafFonts.amiriQuranFont, fixedSize: base * 0.95)).foregroundStyle(palette.ink).lineLimit(1).minimumScaleFactor(0.5).frame(maxWidth: W * 0.62).frame(height: base * 1.3)
+              case .basmala: Text(QuranMeta.basmala).font(MushafFonts.font(MushafFonts.amiriQuranFont, size: base * 0.95)).foregroundStyle(palette.ink).lineLimit(1).minimumScaleFactor(0.5).frame(maxWidth: W * 0.62).frame(height: base * 1.3)
               case .words(let ws):
                 FlowLayout(spacing: size * 0.3, lineHeight: size * rs.lineHeight) {
                   ForEach(ws) { w in TextWord(word: w, fontName: fontName, size: size) }
@@ -72,7 +72,7 @@ struct MushafTextPageView: View {
             else { ScrollView(.vertical) { content.padding(.vertical, base * 0.2) }.frame(width: W, height: inner.size.height).scrollIndicators(.hidden) }
           }
         }
-        if showChrome { Text(QuranMeta.arabicDigits(page)).font(.custom(MushafFonts.amiriQuranFont, fixedSize: base * 0.8)).foregroundStyle(palette.ink.opacity(0.85)).padding(.top, base * 0.1) }
+        if showChrome { Text(QuranMeta.arabicDigits(page)).font(MushafFonts.font(MushafFonts.amiriQuranFont, size: base * 0.8)).foregroundStyle(palette.ink.opacity(0.85)).padding(.top, base * 0.1) }
       }
       .padding(.top, max(insets.top, 8)).padding(.bottom, max(insets.bottom, 6)).padding(.horizontal, sideInset)
       .frame(width: geo.size.width, height: geo.size.height)
@@ -105,7 +105,7 @@ struct TextWord: View {
       .onLongPressGesture(minimumDuration: 0.4, maximumDistance: 12) { rs.onLongPressAyah?(word.n) }
   }
   private func attributed(_ st: MushafReaderState.WordStyle) -> AttributedString {
-    let font = Font.custom(fontName, fixedSize: word.end ? size * 0.95 : (word.spoken ? size : size * 0.75))
+    let font = MushafFonts.font(fontName, size: word.end ? size * 0.95 : (word.spoken ? size : size * 0.75))
     func piece(_ s: String, _ c: Color) -> AttributedString { var a = AttributedString(s); a.font = font; a.foregroundColor = c; return a }
     if st.hidden { return piece(word.raw, rs.palette.ink) }
     guard rs.tajweed, word.spoken, word.start >= 0 else { return piece(word.raw, st.fg) }

@@ -2,6 +2,7 @@ import Foundation
 import CoreGraphics
 import CoreText
 import Compression
+import SwiftUI
 
 /// خطوط صفحات المصحف (QCF v2 — خطّ طبعة المدينة الأحدث) مضغوطة raw-deflate (4 بايتات حجم أصلي + البيانات):
 /// صفحات قليلة مضمّنة في App/Fonts/*.ttf.z، والبقية من الحزمة المنزَّلة بعد التثبيت (MushafPack).
@@ -53,6 +54,28 @@ final class MushafFonts {
   /// اسم خط وضع النص بحسب التفضيل ('hafs' | 'amiri') مع ضمان تسجيله
   func textFontName(_ pref: String) -> String { if pref == "hafs", ensureHafs() { return MushafFonts.hafsFont }; ensureAmiri(); return MushafFonts.amiriQuranFont }
 
+  /// خطّ CoreText مبنيّ من الـCGFont المحمَّل نفسه، لا من البحث بالاسم في سجلّ الخطوط.
+  /// بناء ٦٢ (٥٫٢٫٠) على جهاز المالك: الخطّ محمَّل (الصفحة بعتامة كاملة) لكن CTFontCreateWithName
+  /// لم يجده فسقط إلى خطّ النظام بصمت — حروف لاتينية مكان كلمات الفاتحة والبقرة، و«001 surah» في الرأس.
+  /// وأميري لم يُطابق اسمُه قطّ (الاسم الداخليّ AmiriQuran-Regular). المرجع المباشر لا يمرّ بالسجلّ أصلاً.
+  func ctFont(_ postScriptName: String, size: CGFloat) -> CTFont {
+    lock.lock(); let cg = registered[postScriptName]; lock.unlock()
+    if let cg { return CTFontCreateWithGraphicsFont(cg, size, nil, nil) }
+    return CTFontCreateWithName(postScriptName as CFString, size, nil)
+  }
+  func isLoaded(_ postScriptName: String) -> Bool { lock.lock(); defer { lock.unlock() }; return registered[postScriptName] != nil }
+  /// خطّ SwiftUI من المرجع المباشر (بديل .custom(name) الذي يعتمد على البحث بالاسم)
+  static func font(_ postScriptName: String, size: CGFloat) -> Font {
+    // الخطوط الثابتة تُحمَّل عند أوّل طلب، فلا يُرسم نصٌّ بخطٍّ بديل قبل اكتمال التحميل المسبق في الخلفية
+    switch postScriptName {
+    case amiriQuranFont: shared.ensureAmiri()
+    case hafsFont: shared.ensureHafs()
+    case surahNamesFont: shared.ensureSurahNames()
+    default: break
+    }
+    return Font(shared.ctFont(postScriptName, size: size))
+  }
+
   private var pinned: Set<String> = []
   private let prefetchQueue = DispatchQueue(label: "org.emdatra.sakinah.mushaf-fonts", qos: .userInitiated)
 
@@ -67,11 +90,10 @@ final class MushafFonts {
     lock.lock(); defer { lock.unlock() }
     if registered[postScriptName] != nil { if pin { pinned.insert(postScriptName) } else { touch(postScriptName) }; return true }
     guard let data = MushafFonts.load(file: file), let provider = CGDataProvider(data: data as CFData), let font = CGFont(provider) else { return false }
+    // التسجيل بالاسم احتياطٌ فقط (الرسم يأخذ CGFont مباشرةً عبر ctFont)، ففشله لا يُسقط الخطّ
     var err: Unmanaged<CFError>?
-    if !CTFontManagerRegisterGraphicsFont(font, &err) {
-      // قد يكون مسجّلًا من قبل (إعادة تشغيل الواجهة): نعتبره متاحًا
-      if let e = err?.takeRetainedValue(), CFErrorGetCode(e) != CTFontManagerError.alreadyRegistered.rawValue { return false }
-    }
+    _ = CTFontManagerRegisterGraphicsFont(font, &err)
+    _ = err?.takeRetainedValue()
     registered[postScriptName] = font
     if pin { pinned.insert(postScriptName) } else { touch(postScriptName) }
     evict()

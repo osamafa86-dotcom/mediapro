@@ -12,7 +12,7 @@ struct TafsirSheet: View {
     NavigationStack {
       ScrollView {
         VStack(alignment: .leading, spacing: 14) {
-          Text(ayah.text).font(.custom(MushafFonts.amiriQuranFont, fixedSize: 20)).lineSpacing(9).multilineTextAlignment(.center).frame(maxWidth: .infinity)
+          Text(ayah.text).font(MushafFonts.font(MushafFonts.amiriQuranFont, size: 20)).lineSpacing(9).multilineTextAlignment(.center).frame(maxWidth: .infinity)
             .padding(14).background(Theme.paper, in: RoundedRectangle(cornerRadius: 12)).foregroundStyle(Color(hex: "#1d1a14"))
           if let html = Tafsir.shared.text(surah: ayah.surah, ayah: ayah.ayah) {
             Text(attributed(html)).font(.arabic(16)).lineSpacing(6)
@@ -55,7 +55,7 @@ struct BookmarkSheet: View {
     let existing = model.quran.bookmark(for: ayah)
     NavigationStack {
       Form {
-        Section { Text(ayah.text.count > 160 ? String(ayah.text.prefix(160)) + "…" : ayah.text).font(.custom(MushafFonts.amiriQuranFont, fixedSize: 17)).lineSpacing(8) }
+        Section { Text(ayah.text.count > 160 ? String(ayah.text.prefix(160)) + "…" : ayah.text).font(MushafFonts.font(MushafFonts.amiriQuranFont, size: 17)).lineSpacing(8) }
         Section("ملاحظة (اختياري)") { TextField("تدبّر، فائدة، تذكير…", text: $note, axis: .vertical).lineLimit(3...6) }
         Section("اللون") {
           HStack(spacing: 14) {
@@ -102,7 +102,7 @@ struct DisplaySheet: View {
                 ForEach(c.themes.filter { $0.group == g.id }) { t in
                   Button { q.setTheme(t.id) } label: {
                     VStack(spacing: 4) {
-                      Text("ق").font(.custom(MushafFonts.amiriQuranFont, fixedSize: 20)).foregroundStyle(Color(hex: t.ink)).frame(width: 44, height: 40).background(Color(hex: t.paper), in: RoundedRectangle(cornerRadius: 8))
+                      Text("ق").font(MushafFonts.font(MushafFonts.amiriQuranFont, size: 20)).foregroundStyle(Color(hex: t.ink)).frame(width: 44, height: 40).background(Color(hex: t.paper), in: RoundedRectangle(cornerRadius: 8))
                         .overlay(RoundedRectangle(cornerRadius: 8).stroke(q.theme == t.id ? DS.C.brandPrimary : Color.secondary.opacity(0.3), lineWidth: q.theme == t.id ? 2 : 1))
                       Text(t.name).font(.arabic(10)).lineLimit(1)
                     }
@@ -152,7 +152,7 @@ struct DisplaySheet: View {
     return ZStack {
       shape.fill(MushafPalette.background(for: t))
       VStack(spacing: 6) {
-        Text((a?.text ?? "") + " ﴿٢﴾").font(.custom(MushafFonts.amiriQuranFont, fixedSize: 20 * (q.isTextMode ? q.fontScale : 1))).modifier(Embolden(width: 20 * (q.weight >= 2 ? 0.022 : q.weight == 1 ? 0.011 : 0) * 0.7)).foregroundStyle(Color(hex: t.ink)).multilineTextAlignment(.center).lineLimit(2).minimumScaleFactor(0.6)
+        Text((a?.text ?? "") + " ﴿٢﴾").font(MushafFonts.font(MushafFonts.amiriQuranFont, size: 20 * (q.isTextMode ? q.fontScale : 1))).modifier(Embolden(width: 20 * (q.weight >= 2 ? 0.022 : q.weight == 1 ? 0.011 : 0) * 0.7)).foregroundStyle(Color(hex: t.ink)).multilineTextAlignment(.center).lineLimit(2).minimumScaleFactor(0.6)
         Text("سورة الفاتحة · \(t.name)").font(DS.F.labelXs).foregroundStyle(Color(hex: t.ink).opacity(0.6))
       }
       .padding(16)
@@ -331,7 +331,7 @@ struct QuickNavSheet: View {
     return Button { onGo(j.page, nil) } label: {
       VStack(spacing: 3) {
         Text(Fmt.number(j.juz, numerals: numerals)).font(DS.kufi(15, .semibold)).foregroundStyle(on ? DS.C.textOnBrand : DS.C.textPrimary)
-        Text(phrase).font(.custom(MushafFonts.amiriQuranFont, fixedSize: 11)).foregroundStyle(on ? DS.C.textOnBrand.opacity(0.85) : DS.C.textSecondary).lineLimit(1).minimumScaleFactor(0.6)
+        Text(phrase).font(MushafFonts.font(MushafFonts.amiriQuranFont, size: 11)).foregroundStyle(on ? DS.C.textOnBrand.opacity(0.85) : DS.C.textSecondary).lineLimit(1).minimumScaleFactor(0.6)
       }
       .frame(maxWidth: .infinity).frame(height: 58)
       .background(on ? DS.C.brandPrimary : DS.C.bgSurface, in: RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))

@@ -93,7 +93,7 @@ struct DhikrCard: View {
     func flush() {
       guard !buf.isEmpty else { return }
       var a = AttributedString(buf)
-      a.font = inAyah ? .custom(MushafFonts.amiriQuranFont, fixedSize: 17 * scale) : DS.amiri(17 * scale)
+      a.font = inAyah ? MushafFonts.font(MushafFonts.amiriQuranFont, size: 17 * scale) : DS.amiri(17 * scale)
       a.foregroundColor = inAyah ? DS.C.accentGoldStrong : DS.C.textPrimary
       out.append(a); buf = ""
     }

@@ -65,7 +65,7 @@ enum DS {
     .custom(weight == .bold ? "ReemKufi-Bold" : (weight == .regular ? "ReemKufi-Regular" : "ReemKufi-SemiBold"), size: size)
   }
   static func amiri(_ size: CGFloat, bold: Bool = false) -> Font { .custom(bold ? "Amiri-Bold" : "Amiri-Regular", size: size) }
-  static func quran(_ size: CGFloat) -> Font { MushafFonts.shared.ensureAmiri(); return .custom(MushafFonts.amiriQuranFont, size: size) }
+  static func quran(_ size: CGFloat) -> Font { MushafFonts.shared.ensureAmiri(); return MushafFonts.font(MushafFonts.amiriQuranFont, size: UIFontMetrics.default.scaledValue(for: size)) }
 
   /// سلّم الأنماط كما في Figma (الاسم نفسه)
   enum F {

@@ -115,7 +115,7 @@ struct AudioBarView: View {
     HStack(spacing: 4) {
       Text("\(QuranSearch.refLabel(a)) · \(Fmt.number(p.index + 1, numerals: numerals))/\(Fmt.number(p.queue.count, numerals: numerals))").font(DS.F.labelXs).foregroundStyle(ink.opacity(0.65)).lineLimit(1)
       if p.loading || p.buffering { Text("· جارٍ التحميل…").font(DS.F.labelXs).foregroundStyle(ink.opacity(0.5)) }
-      else if let w = p.currentWord, p.hasWords { let words = a.text.split(separator: " "); if w >= 1 && w <= words.count { Text(String(words[w - 1])).font(.custom(MushafFonts.amiriQuranFont, fixedSize: 13)).foregroundStyle(onBrand).padding(.horizontal, 6).padding(.vertical, 1).background(brand, in: RoundedRectangle(cornerRadius: 6)) } }
+      else if let w = p.currentWord, p.hasWords { let words = a.text.split(separator: " "); if w >= 1 && w <= words.count { Text(String(words[w - 1])).font(MushafFonts.font(MushafFonts.amiriQuranFont, size: 13)).foregroundStyle(onBrand).padding(.horizontal, 6).padding(.vertical, 1).background(brand, in: RoundedRectangle(cornerRadius: 6)) } }
     }
   }
 }
@@ -189,12 +189,12 @@ struct PlayerSheet: View {
       if p.hasWords {
         FlowLayout(spacing: 6, lineHeight: 36, justify: false) {
           ForEach(Array(words.enumerated()), id: \.offset) { i, w in
-            Text(w).font(.custom(MushafFonts.amiriQuranFont, fixedSize: 21))
+            Text(w).font(MushafFonts.font(MushafFonts.amiriQuranFont, size: 21))
               .foregroundStyle(cur == i ? Color(hex: 0x16211F) : DS.C.textOnDark)
               .padding(.horizontal, 5).padding(.vertical, 2)
               .background(cur == i ? DS.C.accentGold : Color.clear, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
           }
-          Text("﴿\(Fmt.number(a.ayah, numerals: numerals))﴾").font(.custom(MushafFonts.amiriQuranFont, fixedSize: 21)).foregroundStyle(DS.C.accentGold).padding(.horizontal, 5)
+          Text("﴿\(Fmt.number(a.ayah, numerals: numerals))﴾").font(MushafFonts.font(MushafFonts.amiriQuranFont, size: 21)).foregroundStyle(DS.C.accentGold).padding(.horizontal, 5)
         }
         .environment(\.layoutDirection, .leftToRight)
         .frame(maxWidth: .infinity)
@@ -202,7 +202,7 @@ struct PlayerSheet: View {
         .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: DS.Radius.xl, style: .continuous))
         .animation(.easeInOut(duration: 0.12), value: p.currentWord)
       } else {
-        Text(a.text + " ﴿\(Fmt.number(a.ayah, numerals: numerals))﴾").font(.custom(MushafFonts.amiriQuranFont, fixedSize: 20)).lineSpacing(10).multilineTextAlignment(.center).foregroundStyle(DS.C.textOnDark)
+        Text(a.text + " ﴿\(Fmt.number(a.ayah, numerals: numerals))﴾").font(MushafFonts.font(MushafFonts.amiriQuranFont, size: 20)).lineSpacing(10).multilineTextAlignment(.center).foregroundStyle(DS.C.textOnDark)
           .frame(maxWidth: .infinity).lineLimit(4).minimumScaleFactor(0.75)
       }
     }
@@ -316,7 +316,7 @@ struct AyahOptionsSheet: View {
               .foregroundStyle(DS.C.brandPrimary).padding(.vertical, 8).padding(.horizontal, 12).background(DS.C.brandSoft, in: Capsule())
           }.buttonStyle(.plain).accessibilityLabel("نسخ نصّ الآية مع المرجع")
         }
-        Text(ayah.text + " ﴿\(Fmt.number(ayah.ayah, numerals: numerals))﴾").font(.custom(MushafFonts.amiriQuranFont, fixedSize: 20)).lineSpacing(10).multilineTextAlignment(.center).foregroundStyle(DS.C.paperInk)
+        Text(ayah.text + " ﴿\(Fmt.number(ayah.ayah, numerals: numerals))﴾").font(MushafFonts.font(MushafFonts.amiriQuranFont, size: 20)).lineSpacing(10).multilineTextAlignment(.center).foregroundStyle(DS.C.paperInk)
           .frame(maxWidth: .infinity).padding(.vertical, 12).padding(.horizontal, 16)
           .background(DS.C.paperPage, in: RoundedRectangle(cornerRadius: DS.Radius.lg, style: .continuous))
           .overlay { RoundedRectangle(cornerRadius: DS.Radius.lg, style: .continuous).stroke(DS.C.borderSubtle, lineWidth: 1) }
@@ -391,7 +391,7 @@ struct HifzPanelView: View {
             if session.done { Text("✓ أحسنت، أتممت الصفحة").foregroundStyle(DS.C.success) }
             else if session.veil { Text("مخفيّة · \(Fmt.number(min(session.revealedAyahs, total), numerals: numerals)) من \(Fmt.number(total, numerals: numerals)) آية").foregroundStyle(ink) }
             else if session.listening { Text("يستمع… \(Fmt.number(session.pos, numerals: numerals)) من \(Fmt.number(session.words.count, numerals: numerals)) كلمة").foregroundStyle(brand) }
-            else if let w = session.lastRevealed { HStack(spacing: 5) { Text("آخر كلمة").foregroundStyle(ink.opacity(0.6)); Text(w.raw).font(.custom(MushafFonts.amiriQuranFont, fixedSize: 17)).foregroundStyle(ink) } }
+            else if let w = session.lastRevealed { HStack(spacing: 5) { Text("آخر كلمة").foregroundStyle(ink.opacity(0.6)); Text(w.raw).font(MushafFonts.font(MushafFonts.amiriQuranFont, size: 17)).foregroundStyle(ink) } }
             else { Text(session.speechSupported ? "اضغط الميكروفون أو انقر الصفحة" : "انقر الصفحة لكشف الكلمة التالية").foregroundStyle(ink) }
           }
           .font(DS.F.labelSm).lineLimit(1).minimumScaleFactor(0.85)

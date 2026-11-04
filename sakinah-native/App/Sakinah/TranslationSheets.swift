@@ -13,7 +13,7 @@ struct TranslationSheet: View {
     NavigationStack {
       ScrollView {
         VStack(alignment: .leading, spacing: 14) {
-          Text(ayah.text).font(.custom(MushafFonts.amiriQuranFont, fixedSize: 20)).lineSpacing(9).multilineTextAlignment(.center).frame(maxWidth: .infinity)
+          Text(ayah.text).font(MushafFonts.font(MushafFonts.amiriQuranFont, size: 20)).lineSpacing(9).multilineTextAlignment(.center).frame(maxWidth: .infinity)
             .padding(14).background(Theme.paper, in: RoundedRectangle(cornerRadius: 12)).foregroundStyle(Color(hex: "#1d1a14"))
           NavigationLink { TranslationPicker(list: list) } label: {
             HStack { Image(systemName: "globe"); Text(list.first { $0.id == id }.map { "\($0.name) · \($0.languageName)" } ?? "اختيار الترجمة"); Spacer(); Image(systemName: "chevron.backward").foregroundStyle(.tertiary) }.font(.arabic(14))
@@ -88,7 +88,7 @@ struct WordMeaningsSheet: View {
             FlowLayout(spacing: 8, lineHeight: 74, justify: false) {
               ForEach(words) { w in
                 VStack(spacing: 4) {
-                  Text(w.text).font(.custom(MushafFonts.amiriQuranFont, fixedSize: w.isEnd ? 16 : 22)).foregroundStyle(w.isEnd ? Theme.gold : .primary)
+                  Text(w.text).font(MushafFonts.font(MushafFonts.amiriQuranFont, size: w.isEnd ? 16 : 22)).foregroundStyle(w.isEnd ? Theme.gold : .primary)
                   Text(w.meaning).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.center).frame(maxWidth: 110)
                 }
                 .padding(.horizontal, 8).padding(.vertical, 6).background(Theme.cardBackground, in: RoundedRectangle(cornerRadius: 10))
