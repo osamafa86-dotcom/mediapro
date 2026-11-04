@@ -35,10 +35,10 @@ struct PrayerLiveActivity: Widget {
         SkyDot(phase: context.state.skyPhase, size: 20)
       } compactTrailing: {
         Text(timerInterval: context.state.countdownRange, countsDown: true)
-          .font(.system(size: 13, weight: .semibold)).monospacedDigit()
+          .font(.system(size: 12, weight: .semibold)).monospacedDigit()
           .foregroundStyle(WDS.accentGoldSoft)
           .multilineTextAlignment(.center)
-          .frame(width: 52)
+          .frame(width: 56)
           .environment(\.locale, WFmt.locale(context.state.numeralsValue))
       } minimal: {
         SkyDot(phase: context.state.skyPhase, size: 20)

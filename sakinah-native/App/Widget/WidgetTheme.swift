@@ -157,9 +157,9 @@ struct WidgetSkyBackground: View {
           .position(x: w / 2, y: p.disc == .sunHigh ? 0 : h)
         if decorations && WidgetSky.starry(phase) {
           ForEach(0..<22, id: \.self) { i in
-            let d: CGFloat = 1.2 + CGFloat(i % 3) * 0.7
-            Circle().fill(Color.white.opacity(i % 4 == 0 ? 0.9 : 0.5)).frame(width: d, height: d)
-              .position(x: CGFloat((i * 53 + 17) % 397) / 397 * w, y: CGFloat((i * 31 + 7) % 211) / 211 * h * 0.62)
+            Circle().fill(Color.white.opacity(i % 4 == 0 ? 0.9 : 0.5))
+              .frame(width: Self.starSize(i), height: Self.starSize(i))
+              .position(Self.starPoint(i, width: w, height: h))
           }
         }
         WidgetDisc(palette: p, diameter: discDiameter)
@@ -178,6 +178,14 @@ struct WidgetSkyBackground: View {
     .environment(\.layoutDirection, .leftToRight)
     .clipped()
     .allowsHitTesting(false)
+  }
+
+  /// نجوم ثابتة بمواضع مشتقّة من الفهرس (لا عشوائية بين المدخلات)
+  static func starSize(_ i: Int) -> CGFloat { 1.2 + CGFloat(i % 3) * 0.7 }
+  static func starPoint(_ i: Int, width: CGFloat, height: CGFloat) -> CGPoint {
+    let fx = CGFloat((i * 53 + 17) % 397) / 397
+    let fy = CGFloat((i * 31 + 7) % 211) / 211
+    return CGPoint(x: fx * width, y: fy * height * 0.62)
   }
 }
 

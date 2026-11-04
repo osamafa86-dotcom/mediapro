@@ -50,13 +50,13 @@ enum SakinahURL {
   enum Route { case today, adhkar(String) }
   static func route(_ url: URL) -> Route? {
     guard url.scheme?.lowercased() == scheme, let c = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
-    switch c.host?.lowercased() ?? "" {
-    case "adhkar":
+    let host = (c.host ?? "").lowercased()
+    if host == "adhkar" {
       let p = c.path.split(separator: "/").first.map(String.init) ?? ""
-      return ["morning", "evening", "sleep"].contains(p) ? .adhkar(p) : .adhkar("")
-    default:
-      return .today
+      let known = ["morning", "evening", "sleep"].contains(p)
+      return Route.adhkar(known ? p : "")
     }
+    return Route.today
   }
 }
 
