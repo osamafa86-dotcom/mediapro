@@ -318,7 +318,7 @@ struct MushafReaderView: View {
             Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
               .foregroundStyle(ink.opacity(0.45)).accessibilityHidden(true)
           }
-          Text("صفحة \(num(current)) · الجزء \(num(label.juz)) · الحزب \(num(label.hizb)) · \(su.type)")
+          Text("صفحة \(num(current))، الجزء \(num(label.juz))، الحزب \(num(label.hizb))، \(su.type)")
             .font(DS.F.labelXs).foregroundStyle(ink.opacity(0.6))
             .lineLimit(1).minimumScaleFactor(0.92)
         }
