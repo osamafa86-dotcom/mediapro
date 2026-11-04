@@ -29,6 +29,12 @@ struct MethodPicker: View {
             Text("الجمهور (مثل الظل)").tag(Madhab.shafi); Text("الحنفي (مثلا الظل)").tag(Madhab.hanafi)
           }.pickerStyle(.inline).labelsHidden()
         }
+        // كانت في الإعدادات القديمة صفًّا مستقلًّا؛ صارت هنا مع الطريقة (الإعدادات الجديدة تفتح هذه الورقة)
+        Section {
+          Picker("خطوط العرض العالية", selection: Binding(get: { model.settings.highLatitudeRule }, set: { model.settings.highLatitudeRule = $0; model.rescheduleNotifications() })) {
+            ForEach(HighLatitudeRule.allCases, id: \.self) { r in Text(r == .auto ? "تلقائي" : r.nameAr).tag(r) }
+          }.pickerStyle(.inline).labelsHidden()
+        } header: { Text("خطوط العرض العالية") } footer: { Text("تُستعمل حين لا تبلغ الشمس زاوية الفجر أو العشاء في ليالي الصيف القصيرة").font(DS.F.labelXs) }
       }
       .scrollContentBackground(.hidden).background(DS.C.bgCanvas)
       .tabBarClearance()

@@ -1,21 +1,29 @@
 import SwiftUI
 import CoreLocation
-import MapKit
 import UIKit
 import SakinahCore
 
-/// الرئيسية (تصميم Figma «٦ · الرئيسية — الحيويّة (v6)» و«٧ · نظام السماء والطقس»):
-/// هيرو سماءٍ يتبدّل مع وقت الصلاة (والطقس إن فُعّل)، يجمع الصلاة القادمة والقبلة وخطّ اليوم؛
-/// ثم شبكة المواقيت، ومتابعة القراءة، وأقرب مسجد، وأذكار الوقت — بلا بلاطات وصول سريع (كانت تكرّر الشريط السفلي).
+/// «اليوم» (المرحلة الثانية — تصميم «اليوم — iOS» فاتحًا وداكنًا):
+/// هيرو سماءٍ يتبدّل مع وقت الصلاة (والطقس إن فُعّل) يجمع الصلاة القادمة ووقت أذانها والمتبقّي، والقبلة،
+/// وبطاقة مواقيتٍ زجاجية داكنة في أسفله (نسبة ما مضى من الوقت، الصلوات الخمس، ضمان الأذان، جدول الشهر)؛
+/// ثم بطاقة «الآن» (ذكر الوقت)، وأدوات سريعة، وورد اليوم، وحديث اليوم.
+/// ملاحظة اتجاه: البيئة RTL، فأوّل عنصر في HStack يقع يمينًا، و`.leading` هو اليمين.
 struct HomeView: View {
   @Environment(AppModel.self) private var model
   @Environment(\.switchTab) private var switchTab
-  @State private var showMethods = false
   @State private var showQibla = ScreenshotMode.fullQibla
   @State private var showSkySettings = ScreenshotMode.skySettings
   @State private var showGuard = false
-  @State private var mosques = MosqueFinder()
+  @State private var showSearch = ScreenshotMode.search
+  @State private var showSettings = ScreenshotMode.settings
+  @State private var showKhatmah = false
+  @State private var hadithShare: ShareItems?
   @State private var weather = SkyWeatherService()
+  /// «ليس الآن» في بطاقة «الآن»: يُخفيها حتى الفترة التالية (المفتاح: الفترة ولحظة بدايتها)
+  @AppStorage("today.now.dismissed") private var nowDismissed = ""
+
+  /// أعمدة بطاقة المواقيت: الخمس وحدها (الشروق ليس عمودًا)
+  private let cardPrayers: [Prayer] = [.fajr, .dhuhr, .asr, .maghrib, .isha]
 
   var body: some View {
     NavigationStack {
@@ -26,11 +34,25 @@ struct HomeView: View {
       .background(DS.C.bgCanvas)
       .tabBarClearance()
       .toolbar(.hidden, for: .navigationBar)
-      // الورقة لا شريط تحتها: صفر إزاحة
-      .sheet(isPresented: $showMethods) { MethodPicker().environment(\.tabBarInset, 0) }
       .fullScreenCover(isPresented: $showQibla) { QiblaView(presented: true).environment(model) }
       .fullScreenCover(isPresented: $showSkySettings) { NavigationStack { SkySettingsView().environment(model) } }
+      // البحث الشامل: غطاءٌ كامل بلا شريط تبويبات (كما في التصميم). الانتقال إلى تبويبٍ بعد إغلاقه لا معه،
+      // كي لا يُقدَّم غطاء الوجهة (جلسة الأذكار، القارئ) والإغلاق جارٍ
+      .fullScreenCover(isPresented: $showSearch) {
+        SearchView(initialQuery: ScreenshotMode.searchQuery, openTab: { t in
+          showSearch = false
+          DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { switchTab(t) }
+        })
+        .environment(model)
+        .environment(\.tabBarInset, 0)
+        .environment(\.layoutDirection, .rightToLeft)
+      }
+      .sheet(isPresented: $showKhatmah) {
+        KhatmahSheet(onGo: { p in showKhatmah = false; model.pendingReaderPage = p; switchTab(.mushaf) }).environment(model)
+      }
+      .sheet(item: $hadithShare) { ShareSheet(items: $0.items) }
       .navigationDestination(isPresented: $showGuard) { AdhanGuardView().environment(model).tabBarClearance() }
+      .navigationDestination(isPresented: $showSettings) { SettingsView().environment(model).tabBarClearance() }
     }
     .onAppear { model.location.startHeading() }
     .onDisappear { model.location.stopHeading() }
@@ -63,19 +85,18 @@ struct HomeView: View {
       ScrollView(showsIndicators: false) {
         VStack(spacing: 0) {
           hero(now: now, timeline: t, coords: c, sky: sky, topInset: topInset)
-          if let t, let c {
-            // لا صفّ بلاطات: كان يكرّر الشريط السفلي (المصحف/الأذكار) والميدالية (القبلة) وبطاقة أقرب مسجد (طلب المالك)
-            VStack(spacing: 16) {
-              prayerGridCard(t, now: now)
-              continueReadingCard
-              nearestMosqueCard(c)
-              adhkarCard(t, now: now)
-              Text("يعمل دون اتصال · لا حساب ولا تتبّع").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).frame(maxWidth: .infinity)
+          VStack(spacing: 20) {
+            if let t {
+              if let ctx = nowContext(t, now: now) { nowCard(ctx) }
+            } else {
+              locationPrompt
             }
-            .padding(.horizontal, 20).padding(.top, 20)
-          } else {
-            locationPrompt.padding(.horizontal, 20).padding(.top, 20)
+            quickTools
+            wirdSection
+            hadithSection
+            Text("يعمل دون اتصال، لا حساب ولا تتبّع").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).frame(maxWidth: .infinity)
           }
+          .padding(.horizontal, 20).padding(.top, 20)
           if ScreenshotMode.scrollToBottom { Text("▲ نهاية المحتوى").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).padding(.top, 12) }
         }
         // الإزاحة عن الشريط العائم من `.tabBarClearance()` على الجذر — هنا فسحة فقط
@@ -109,9 +130,8 @@ struct HomeView: View {
             Spacer(minLength: 0)
             medallionColumn(coords: c, palette: p)
           }
-          .padding(.top, 10)
-          DayTimelineStrip(t: t, now: now, palette: p, tz: model.timeZone, hour12: model.settings.hour12, numerals: model.settings.numerals)
-            .frame(height: 84).padding(.top, 14)
+          .padding(.top, 12)
+          prayerCard(t, now: now).padding(.top, 18)
         } else {
           VStack(alignment: .leading, spacing: 6) {
             Text("حدّد موقعك").font(DS.kufi(40, .bold)).foregroundStyle(p.text)
@@ -120,15 +140,14 @@ struct HomeView: View {
           .padding(.top, 24).padding(.bottom, 40)
         }
       }
-      .padding(.top, topInset + 6).padding(.horizontal, 20).padding(.bottom, 30)
+      .padding(.top, topInset + 6).padding(.horizontal, 16).padding(.bottom, 16)
     }
     .frame(maxWidth: .infinity)
     .clipShape(UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 36, bottomTrailingRadius: 36, topTrailingRadius: 0, style: .continuous))
     .animation(.easeInOut(duration: model.settings.sky.reduceMotion ? 0 : 0.8), value: sky.palette)
   }
 
-  /// المدينة والتاريخ الهجري (يمين) وزرّ التنبيهات الزجاجي (يسار) — بلا تحية ولا تاريخ ميلادي ولا أيقونة تقويم:
-  /// أعلى الرئيسية كان مكتظًّا بالنصوص (طلب المالك)، والجدول الشهري له رابطه في بطاقة المواقيت
+  /// المدينة والحرارة والتاريخ الهجري (يمين)، وزرّا البحث والإعدادات الزجاجيّان (يسار) — لا جرس: التنبيهات في الإعدادات
   private func topRow(now: Date, palette p: SkyPalette) -> some View {
     let s = model.settings
     let h = model.hijri(now: now)
@@ -139,23 +158,28 @@ struct HomeView: View {
             Image(systemName: "mappin").font(.system(size: 12, weight: .semibold)).foregroundStyle(p.gold)
             Text(model.location.placeName ?? "حدّد موقعك").font(DS.readex(13, .medium)).foregroundStyle(p.text).lineLimit(1)
             // حرارة المكان من طلب الطقس نفسه — تظهر متى فعّل المستخدم الطقس (اختياريّ للخصوصية)
-            if s.sky.weather, let t = weather.temperature, !ScreenshotMode.active {
+            if s.sky.weather, let temp = weather.temperature, !ScreenshotMode.active {
               Rectangle().fill(p.textMuted.opacity(0.6)).frame(width: 1, height: 12)
               Image(systemName: SkyWeatherService.symbol(weather.current, dark: p.isDark)).font(.system(size: 12, weight: .medium)).foregroundStyle(p.textSoft)
-              Text("\u{2066}\(Fmt.number(Int(t.rounded()), numerals: s.numerals))°\u{2069}").font(DS.readex(13, .medium)).foregroundStyle(p.text).monospacedDigit()
+              Text("\u{2066}\(Fmt.number(Int(temp.rounded()), numerals: s.numerals))°\u{2069}").font(DS.readex(13, .medium)).foregroundStyle(p.text).monospacedDigit()
             }
-            Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold)).foregroundStyle(p.textMuted)
           }
-          .padding(.vertical, 6).padding(.leading, 12).padding(.trailing, 10)
+          .padding(.vertical, 7).padding(.horizontal, 12)
+          .frame(minHeight: 36)
           .background(p.glass, in: Capsule()).overlay(Capsule().stroke(p.glassStroke, lineWidth: 1))
+          .contentShape(Capsule())
         }
-        .buttonStyle(.plain).accessibilityLabel(locationLabel)
-        Text("\(h.weekday) \(Fmt.number(h.day, numerals: s.numerals)) \(h.monthName) \(Fmt.number(h.year, numerals: s.numerals))هـ")
+        .buttonStyle(.plain).accessibilityLabel(locationLabel).accessibilityHint("يفتح اختيار المدينة")
+        Text("\(h.weekday)، \(Fmt.number(h.day, numerals: s.numerals)) \(h.monthName) \(Fmt.number(h.year, numerals: s.numerals))هـ")
           .font(DS.readex(12.5)).foregroundStyle(p.textMuted).lineLimit(1).minimumScaleFactor(0.8)
       }
       Spacer(minLength: 8)
-      NavigationLink { SettingsView().environment(model).tabBarClearance() } label: { glassIcon("bell", palette: p, badge: !s.reminders.prayers.isEmpty) }
-        .buttonStyle(.plain).accessibilityLabel("التنبيهات")
+      HStack(spacing: 10) {
+        Button { showSearch = true } label: { glassIcon("magnifyingglass", palette: p) }
+          .buttonStyle(.plain).accessibilityLabel("البحث")
+        Button { showSettings = true } label: { glassIcon("slider.horizontal.3", palette: p) }
+          .buttonStyle(.plain).accessibilityLabel("الإعدادات")
+      }
     }
   }
   /// الموقع والحرارة لقارئ الشاشة
@@ -164,44 +188,62 @@ struct HomeView: View {
     if model.settings.sky.weather, let t = weather.temperature { l += "، \(Int(t.rounded())) درجة" }
     return l
   }
-  private func glassIcon(_ name: String, palette p: SkyPalette, badge: Bool = false) -> some View {
-    ZStack(alignment: .topLeading) {
-      Circle().fill(p.glass).overlay(Circle().stroke(p.glassStroke, lineWidth: 1)).frame(width: 46, height: 46)
-        .overlay(Image(systemName: name).font(.system(size: 18, weight: .medium)).foregroundStyle(p.textSoft))
-      if badge { Circle().fill(p.gold).frame(width: 9, height: 9).overlay(Circle().stroke(p.stops[1].color, lineWidth: 1.5)).padding(7) }
-    }
+  private func glassIcon(_ name: String, palette p: SkyPalette) -> some View {
+    Circle().fill(p.glass).overlay(Circle().stroke(p.glassStroke, lineWidth: 1)).frame(width: 46, height: 46)
+      .overlay(Image(systemName: name).font(.system(size: 18, weight: .medium)).foregroundStyle(p.textSoft))
+      .contentShape(Circle())
   }
 
-  /// كتلة الصلاة القادمة: عنوان صغير، اسم الصلاة بالكوفي، العدّ التنازلي الكبير، ثم وقت الأذان — بلا حبّة «بعد…» (العدّاد يقولها) ولا شريحة الطريقة (في بطاقة المواقيت)
+  /// كتلة الصلاة القادمة: عنوان ذهبي صغير، اسم الصلاة بالكوفي، وقت الأذان بأرقام كبيرة رفيعة، ثم حبّة «باقٍ …» الذهبية
+  /// (العدّاد بالثواني لم يعد بطل الشاشة: الوقت نفسه أنفع، والمتبقّي بالدقائق في الحبّة)
   private func nextPrayerBlock(_ t: PrayerTimes.DayTimeline, now: Date, palette p: SkyPalette) -> some View {
     let s = model.settings
-    let remaining = t.next.time.timeIntervalSince(now)
-    return VStack(alignment: .leading, spacing: 2) {
-      HStack(spacing: 8) {
-        Circle().fill(p.gold).frame(width: 6, height: 6)
-        Text("الصلاة القادمة").font(DS.readex(13, .medium)).kerning(0.4).foregroundStyle(p.gold).lineLimit(1)
-      }
-      Text(t.next.isTomorrow ? "فجر الغد" : t.next.key.nameAr).font(DS.kufi(52, .bold)).foregroundStyle(p.text).lineLimit(1).minimumScaleFactor(0.6)
-        .padding(.top, 4)
-      Text(Fmt.countdown(remaining, numerals: s.numerals)).font(DS.readex(52, .light, fixed: true)).monospacedDigit().foregroundStyle(p.text).lineLimit(1).minimumScaleFactor(0.5)
-      Text("الأذان \(Fmt.time(t.next.time, tz: model.timeZone, hour12: s.hour12, numerals: s.numerals))").font(DS.readex(13, .medium)).foregroundStyle(p.textSoft)
+    let name = t.next.isTomorrow ? "فجر الغد" : t.next.key.nameAr
+    let parts = Fmt.timeParts(t.next.time, tz: model.timeZone, hour12: s.hour12, numerals: s.numerals)
+    let left = remainingText(t.next.time.timeIntervalSince(now))
+    return VStack(alignment: .leading, spacing: 0) {
+      Text("الصلاة القادمة").font(DS.readex(13, .medium)).foregroundStyle(p.gold).lineLimit(1)
+      Text(name).font(DS.kufi(34, .bold)).foregroundStyle(p.text).lineLimit(1).minimumScaleFactor(0.6)
         .padding(.top, 2)
-      // «ضمان الأذان»: سطرٌ دائم يقول إن الأذان القادم مجدولٌ فعلاً، أو يفتح الفحص
-      if let g = AdhanGuard.homeLine(model, t) {
-        Button { showGuard = true } label: {
-          HStack(spacing: 5) {
-            Image(systemName: g.icon).font(.system(size: 11, weight: .semibold)).foregroundStyle(g.ok ? p.mint : p.gold)
-            Text(g.text).font(DS.readex(12)).foregroundStyle(g.ok ? p.textSoft : p.gold).lineLimit(1)
-          }
-          .padding(.vertical, 2).contentShape(Rectangle())
+      HStack(alignment: .firstTextBaseline, spacing: 6) {
+        Text(parts.main).font(DS.F.numericHero).monospacedDigit().foregroundStyle(p.text).lineLimit(1).minimumScaleFactor(0.5)
+        if let suffix = parts.suffix {
+          Text(suffix).font(DS.readex(16, .medium)).foregroundStyle(p.textMuted).lineLimit(1)
         }
-        .buttonStyle(.plain).padding(.top, 4)
-        .accessibilityLabel("ضمان الأذان: \(g.text)")
       }
+      // حبّة المتبقّي: ذهبٌ بنصٍّ داكن في الوضعين (brandDeep داكنٌ فاتحًا وليلًا)
+      Text(left).font(DS.readex(14, .semibold)).foregroundStyle(DS.C.brandDeep).lineLimit(1).minimumScaleFactor(0.8)
+        .padding(.vertical, 7).padding(.horizontal, 14)
+        .background(DS.C.accentGold, in: Capsule())
+        .padding(.top, 6)
     }
-    // بلا سقف عرض: مع ٢٠٠ نقطة كانت حبّة «بعد ٥ س و٤٩ د» تنكسر سطرين على ٦٫٩″ (قِيس في لقطة المحاكي)
+    // بلا سقف عرض: مع ٢٠٠ نقطة كانت الحبّة تنكسر سطرين على ٦٫٩″ (قِيس في لقطة المحاكي)
     .frame(maxWidth: .infinity, alignment: .leading)
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("الصلاة القادمة \(name)، الأذان \(Fmt.time(t.next.time, tz: model.timeZone, hour12: s.hour12, numerals: s.numerals))، \(left)")
   }
+
+  /// «باقٍ ٤٢ دقيقة» / «باقٍ ساعة و٥ دقائق» / «باقٍ ٣ ساعات و٢٠ دقيقة» — بمطابقة العدد والمعدود
+  private func remainingText(_ seconds: TimeInterval) -> String {
+    if seconds <= 0 { return "حان الأذان" }
+    if seconds < 60 { return "باقٍ أقل من دقيقة" }
+    let mins = Int((seconds / 60).rounded(.up))
+    let h = mins / 60, m = mins % 60
+    let mPart = counted(m, one: "دقيقة", two: "دقيقتان", few: "دقائق", many: "دقيقة")
+    if h == 0 { return "باقٍ \(mPart)" }
+    let hPart = counted(h, one: "ساعة", two: "ساعتان", few: "ساعات", many: "ساعة")
+    return m == 0 ? "باقٍ \(hPart)" : "باقٍ \(hPart) و\(mPart)"
+  }
+  /// العدد والمعدود: ١ و٢ بلفظهما، ٣–١٠ بالجمع، وما فوقها بالمفرد
+  private func counted(_ v: Int, one: String, two: String, few: String, many: String) -> String {
+    switch v {
+    case 1: return one
+    case 2: return two
+    case 3...10: return "\(num(v)) \(few)"
+    default: return "\(num(v)) \(many)"
+    }
+  }
+  private func num(_ v: Int) -> String { Fmt.number(v, numerals: model.settings.numerals) }
 
   /// الميدالية وحبّة التوجّه — بلا سطر الدرجات والبُعد (في شاشة القبلة الكاملة)
   private func medallionColumn(coords c: Coordinates, palette p: SkyPalette) -> some View {
@@ -238,221 +280,321 @@ struct HomeView: View {
     .animation(.snappy(duration: 0.25), value: aligned)
   }
 
-  // MARK: مواقيت اليوم — شبكة ٣×٢
-  private func isNext(_ p: Prayer, _ t: PrayerTimes.DayTimeline) -> Bool { t.next.key == p && !t.next.isTomorrow }
-
-  private func prayerGridCard(_ t: PrayerTimes.DayTimeline, now: Date) -> some View {
-    let s = model.settings
-    let rows: [[Prayer]] = [[.fajr, .sunrise, .dhuhr], [.asr, .maghrib, .isha]]
-    return VStack(alignment: .leading, spacing: 12) {
-      HStack {
-        Text("مواقيت اليوم").font(DS.kufi(19)).foregroundStyle(DS.C.textPrimary)
-        Spacer()
-        NavigationLink { MonthTableView().tabBarClearance() } label: { DSLinkLabel(title: "الجدول الشهري") }.buttonStyle(.plain)
+  // MARK: بطاقة المواقيت الزجاجية (أسفل الهيرو)
+  /// زجاجٌ داكن في الوضعين: سطر «مضى ٪ من وقت …» بشريطٍ رفيع، خمسة أعمدة والقادمة في مستطيلٍ أفتح،
+  /// ثم ضمان الأذان (يمين) و«جدول الشهر» (يسار). حلّت محلّ «خطّ اليوم» وشبكة المواقيت القديمة.
+  private func prayerCard(_ t: PrayerTimes.DayTimeline, now: Date) -> some View {
+    let elapsed = elapsedShare(t, now: now)
+    let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
+    let elapsedText = "مضى \(num(elapsed.pct))٪ من وقت \(t.current.nameAr)"
+    return VStack(spacing: 10) {
+      HStack(spacing: 10) {
+        Text(elapsedText).font(DS.readex(12, .medium)).foregroundStyle(DS.C.textOnDark).lineLimit(1).minimumScaleFactor(0.8)
+          .layoutPriority(1)
+        ProgressTrack(progress: elapsed.fraction, tint: DS.C.textOnDark, track: DS.C.textOnDark.opacity(0.22), height: 3)
+          .accessibilityHidden(true)
       }
-      VStack(spacing: 8) {
-        ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-          HStack(spacing: 8) { ForEach(row, id: \.self) { p in prayerCell(p, t, now: now) } }
-        }
+      .accessibilityElement(children: .combine)
+      .accessibilityLabel(elapsedText)
+      HStack(spacing: 4) {
+        ForEach(cardPrayers, id: \.self) { p in prayerColumn(p, t, now: now) }
       }
-      HStack {
-        Button { showMethods = true } label: {
-          HStack(spacing: 6) {
-            Text(Methods.method(s.methodId).nameAr).font(DS.readex(11.5, .medium)).foregroundStyle(DS.C.textSecondary).lineLimit(1).minimumScaleFactor(0.7)
-            Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold)).foregroundStyle(DS.C.textSecondary)
-          }
-          .padding(.vertical, 5).padding(.horizontal, 10).background(DS.C.bgSubtle, in: Capsule())
-        }
-        .buttonStyle(.plain).accessibilityLabel("طريقة الحساب")
-        Spacer()
-        NavigationLink { SettingsView().environment(model).tabBarClearance() } label: {
-          HStack(spacing: 5) {
-            Image(systemName: "bell").font(.system(size: 12, weight: .medium))
-            Text("التنبيهات \(Fmt.number(s.reminders.prayers.count, numerals: s.numerals)) من ٦").font(DS.readex(11.5))
-          }
-          .foregroundStyle(DS.C.textTertiary)
-        }
-        .buttonStyle(.plain)
-      }
-    }
-    .dsCard(padding: 16)
-  }
-
-  private func glyph(for p: Prayer) -> String {
-    switch p { case .fajr: "sunrise"; case .sunrise: "sun.horizon"; case .dhuhr: "sun.max"; case .asr: "sun.min"; case .maghrib: "sunset"; case .isha: "moon.stars" }
-  }
-
-  private func prayerCell(_ p: Prayer, _ t: PrayerTimes.DayTimeline, now: Date) -> some View {
-    let s = model.settings
-    let next = isNext(p, t)
-    let past = !next && (t.times[p].map { $0 <= now } ?? false)
-    let remind = s.reminders.prayers.contains(p)
-    return Button {
-      var r = s.reminders
-      if remind { r.prayers.remove(p) } else { r.prayers.insert(p) }
-      s.reminders = r; model.rescheduleNotifications()
-    } label: {
-      VStack(spacing: 6) {
-        Image(systemName: glyph(for: p)).font(.system(size: 16, weight: .medium)).foregroundStyle(next ? DS.C.textOnBrand : past ? DS.C.textTertiary : DS.C.brandPrimary).frame(height: 20)
-        Text(p.nameAr).font(DS.readex(12.5, .semibold)).foregroundStyle(next ? DS.C.textOnBrand : past ? DS.C.textTertiary : DS.C.textPrimary)
-        Text(Fmt.time(t.times[p], tz: model.timeZone, hour12: s.hour12, numerals: s.numerals)).font(DS.readex(12, .medium, fixed: true)).monospacedDigit()
-          .foregroundStyle(next ? DS.C.textOnBrand.opacity(0.9) : past ? DS.C.textTertiary : DS.C.textSecondary)
-      }
-      .frame(maxWidth: .infinity).padding(.vertical, 10).padding(.horizontal, 6)
-      .background(next ? DS.C.brandPrimary : DS.C.bgCanvas, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-      .overlay(alignment: .topLeading) {
-        if next { Text("القادمة").font(DS.readex(10, .semibold)).foregroundStyle(DS.C.textPrimary).padding(.vertical, 2).padding(.horizontal, 8).background(DS.C.accentGold, in: Capsule()).padding(6) }
-      }
-      .overlay(alignment: .topTrailing) {
-        Image(systemName: remind ? "bell.fill" : "bell.slash").font(.system(size: 9, weight: .semibold))
-          .foregroundStyle(next ? DS.C.textOnBrand.opacity(0.85) : remind ? DS.C.brandPrimary : DS.C.borderStrong).padding(8)
-      }
-      .shadow(color: next ? DS.C.brandPrimary.opacity(0.35) : .clear, radius: 12, x: 0, y: 8)
-    }
-    .buttonStyle(.plain)
-    .accessibilityLabel("\(p.nameAr) \(Fmt.time(t.times[p], tz: model.timeZone, hour12: s.hour12, numerals: s.numerals))")
-    .accessibilityHint(remind ? "اضغط لإيقاف التذكير" : "اضغط لتفعيل التذكير")
-  }
-
-  // MARK: متابعة القراءة
-  private var continueReadingCard: some View {
-    let s = model.settings; let q = model.quran; let n = s.numerals; let today = model.todayKey
-    let last = s.lastRead
-    let page = last?.page ?? 1
-    let stt = q.khatmah.map { Khatmah.status($0, wird: q.wird, today: today) }
-    let pct = stt.map { Double($0.percent) / 100 } ?? Double(page) / 604
-    let pagesToday = q.readLog[today]?.count ?? 0
-    let progressLine: String = {
-      if let stt { return stt.finished ? "تقبّل الله ✦ أتممت الختمة" : "الختمة \(Fmt.number(stt.percent, numerals: n))٪  ·  \(Fmt.number(stt.todayPages, numerals: n)) صفحات اليوم من \(Fmt.number(stt.todayTarget, numerals: n))" }
-      return "\(Fmt.number(Int((pct * 100).rounded()), numerals: n))٪ من المصحف  ·  \(pagesToday == 0 ? "لم تقرأ اليوم بعد" : "قرأت اليوم \(Fmt.number(pagesToday, numerals: n)) صفحات")"
-    }()
-    return HStack(alignment: .center, spacing: 14) {
-      VStack(alignment: .leading, spacing: 6) {
-        HStack(spacing: 6) {
-          Image(systemName: "book").font(.system(size: 12, weight: .medium)).foregroundStyle(DS.C.accentGoldStrong)
-          Text(last == nil ? "ابدأ القراءة" : "متابعة القراءة").font(DS.readex(12, .medium)).foregroundStyle(DS.C.accentGoldStrong)
-        }
-        Text(last.map { "سورة \(QuranMeta.surah($0.surah).name)" } ?? "سورة الفاتحة").font(DS.kufi(22)).foregroundStyle(DS.C.textPrimary).lineLimit(1).minimumScaleFactor(0.7)
-        Text(last.map { "صفحة \(Fmt.number($0.page, numerals: n))  ·  الجزء \(Fmt.number(QuranMeta.juz(ofPage: $0.page), numerals: n))  ·  الآية \(Fmt.number($0.ayah, numerals: n))" } ?? "مصحف المدينة · حفص عن عاصم · ٦٠٤ صفحات")
-          .font(DS.readex(12)).foregroundStyle(DS.C.textSecondary).lineLimit(1).minimumScaleFactor(0.75)
-        ProgressTrack(progress: pct, tint: DS.C.accentGold, track: DS.C.bgSubtle, height: 6).padding(.top, 2)
-        Text(progressLine).font(DS.readex(11)).foregroundStyle(DS.C.textTertiary).lineLimit(1).minimumScaleFactor(0.75)
-        Button { model.pendingReaderPage = page; switchTab(.mushaf) } label: {
-          HStack(spacing: 6) {
-            Text(last == nil ? "افتح المصحف" : "تابع القراءة").font(DS.readex(12.5, .semibold))
+      HStack(spacing: 8) {
+        guardLine(t)
+        Spacer(minLength: 4)
+        NavigationLink { MonthTableView().environment(model).tabBarClearance() } label: {
+          HStack(spacing: 3) {
+            Text("جدول الشهر").font(DS.readex(12, .medium))
             Image(systemName: "chevron.forward").font(.system(size: 10, weight: .bold))
           }
-          .foregroundStyle(DS.C.textOnBrand).padding(.vertical, 8).padding(.horizontal, 14).background(DS.C.brandPrimary, in: Capsule())
+          .foregroundStyle(DS.C.textOnDark)
+          .frame(minHeight: 44).contentShape(Rectangle())
         }
-        .buttonStyle(.plain).padding(.top, 4)
+        .buttonStyle(.plain).accessibilityLabel("جدول الشهر")
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
-      MiniPageThumb(page: page, numerals: n)
     }
-    .dsCard(padding: 16)
+    .padding(.horizontal, 14).padding(.top, 14)
+    .background {
+      shape.fill(.ultraThinMaterial)
+        .overlay(shape.fill(Color.black.opacity(0.36)))
+        .environment(\.colorScheme, .dark)
+    }
+    .overlay(shape.stroke(Color.white.opacity(0.12), lineWidth: 1))
+    .clipShape(shape)
   }
 
-  // MARK: أقرب مسجد
-  /// مركز البحث هو موقع الجهاز الفعلي لا إحداثيات المواقيت (`AppModel.mosqueCenter`): مدينة يدوية تعني مركزها،
-  /// فبدا «أقرب مسجد» في إسطنبول آيا صوفيا على ٩٠ م والمالك على نصف ساعة منها (قِيس في ثلاثة بناءات).
-  private func nearestMosqueCard(_ c: Coordinates) -> some View {
-    let s = model.settings; let n = s.numerals
-    let center = model.mosqueCenter
-    let fixKey = center.map { String(format: "%.3f,%.3f", $0.latitude, $0.longitude) } ?? "-"
-    return VStack(alignment: .leading, spacing: 12) {
-      HStack {
-        Text("أقرب مسجد").font(DS.kufi(19)).foregroundStyle(DS.C.textPrimary)
-        Spacer()
-        NavigationLink { MosquesView().environment(model).tabBarClearance() } label: { DSLinkLabel(title: "المساجد القريبة") }.buttonStyle(.plain)
+  /// نسبة ما مضى من وقت الصلاة الحالية: بين بدايتها وبداية القادمة (قبل الفجر يبدأ الوقت من عشاء الأمس)
+  private func elapsedShare(_ t: PrayerTimes.DayTimeline, now: Date) -> (fraction: Double, pct: Int) {
+    let todayStart: Date? = t.times[t.current].flatMap { $0 <= now ? $0 : nil }
+    guard let start = todayStart ?? t.yesterdayIsha else { return (0, 0) }
+    let total = t.next.time.timeIntervalSince(start)
+    guard total > 0 else { return (0, 0) }
+    let f = min(1, max(0, now.timeIntervalSince(start) / total))
+    return (f, Int((f * 100).rounded()))
+  }
+
+  private func prayerColumn(_ p: Prayer, _ t: PrayerTimes.DayTimeline, now: Date) -> some View {
+    let s = model.settings
+    let isNext = t.next.key == p
+    // القادمة بوقتها الفعلي (فجر الغد بعد العشاء)، والباقية بأوقات اليوم
+    let time: Date? = isNext ? t.next.time : t.times[p]
+    let past = !isNext && (t.times[p].map { $0 <= now } ?? false)
+    let parts = Fmt.timeParts(time, tz: model.timeZone, hour12: s.hour12, numerals: s.numerals)
+    let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+    return VStack(spacing: 4) {
+      Text(p.nameAr).font(DS.readex(11.5, isNext ? .semibold : .medium)).foregroundStyle(DS.C.textOnDark.opacity(isNext ? 1 : 0.72))
+      Text(parts.main).font(DS.readex(15, .semibold, fixed: true)).monospacedDigit().foregroundStyle(DS.C.textOnDark.opacity(past ? 0.6 : 1))
+    }
+    .lineLimit(1).minimumScaleFactor(0.75)
+    .frame(maxWidth: .infinity).padding(.vertical, 9)
+    .background {
+      if isNext { shape.fill(Color.white.opacity(0.16)).overlay(shape.stroke(Color.white.opacity(0.24), lineWidth: 1)) }
+    }
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("\(p.nameAr) \(Fmt.time(time, tz: model.timeZone, hour12: s.hour12, numerals: s.numerals))\(isNext ? "، القادمة" : "")")
+  }
+
+  /// «ضمان الأذان» (المرحلة الأولى) بصياغة البطاقة: «أذان المغرب مجدول ✓»، أو حالة التحذير كما هي — يفتح الفحص
+  @ViewBuilder private func guardLine(_ t: PrayerTimes.DayTimeline) -> some View {
+    if let g = AdhanGuard.homeLine(model, t) {
+      let text = g.ok ? "أذان \(t.next.key.nameAr) مجدول" : g.text
+      Button { showGuard = true } label: {
+        HStack(spacing: 5) {
+          Image(systemName: g.icon).font(.system(size: 11, weight: .bold)).foregroundStyle(g.ok ? DS.C.textOnDarkMuted : DS.C.accentGold)
+          Text(text).font(DS.readex(12, .medium)).foregroundStyle(g.ok ? DS.C.textOnDark : DS.C.accentGold).lineLimit(1).minimumScaleFactor(0.8)
+        }
+        .frame(minHeight: 44).contentShape(Rectangle())
       }
-      if !s.nearbyMosques {
-        Text("يعرض أقرب مسجد إليك من خرائط آبل وOpenStreetMap. يُرسل موقعك مقرّبًا إلى نحو كيلومتر عند البحث، ولا يُحفظ لدينا.")
-          .font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary)
-        DSButton(title: "اعرض أقرب مسجد", icon: "building.columns") { s.nearbyMosques = true }
-      } else if center == nil {
-        DeviceFixPrompt()
-      } else if let m = mosques.results.first, let center {
-        NavigationLink { MosquesView().environment(model).tabBarClearance() } label: { MosqueMapStrip(mosque: m, center: center, walk: MosqueFinder.walkLabel(m.distanceKm, numerals: n)) }.buttonStyle(.plain)
-        HStack(spacing: 12) {
-          DSIcon(systemName: "building.columns", style: .soft, size: 42, iconSize: 17)
-          VStack(alignment: .leading, spacing: 3) {
-            Text(m.name).font(DS.readex(15, .semibold)).foregroundStyle(DS.C.textPrimary).lineLimit(1)
-            HStack(spacing: 6) {
-              Text("\(MosqueFinder.distanceLabel(m.distanceKm, numerals: n))  ·  \(MosqueFinder.walkLabel(m.distanceKm, numerals: n))  ·  \(Qibla.compassPointAr(m.bearing))")
-                .font(DS.readex(11.5)).foregroundStyle(DS.C.textSecondary).lineLimit(1).minimumScaleFactor(0.75)
-              // نتائج آبل تُعرض فورًا؛ الدوّارة تعني أن OpenStreetMap ما زالت تُدقّق الأقرب
-              if mosques.loading { ProgressView().controlSize(.mini).accessibilityLabel("يجري تدقيق الأقرب") }
-            }
+      .buttonStyle(.plain)
+      .accessibilityLabel("ضمان الأذان: \(text)")
+    }
+  }
+
+  // MARK: بطاقة «الآن»
+  /// سياق الوقت: أذكار الصباح بعد الفجر (حتى الظهر)، والمساء بعد العصر (حتى العشاء)، والنوم بعد العشاء؛ وما بين الظهر والعصر لا شيء
+  private struct NowContext { let period: String; let label: String; let hint: String?; let key: String }
+
+  private func nowContext(_ t: PrayerTimes.DayTimeline, now: Date) -> NowContext? {
+    guard let fajr = t.times[.fajr], let dhuhr = t.times[.dhuhr], let asr = t.times[.asr] else { return nil }
+    let sunrise = t.times[.sunrise], maghrib = t.times[.maghrib], isha = t.times[.isha]
+    let beforeIsha = isha.map { now < $0 } ?? true
+    let ctx: NowContext?
+    if now >= fajr && now < dhuhr {
+      let early = sunrise.map { now < $0 } ?? false
+      ctx = NowContext(period: "morning", label: early ? "الآن، بعد الفجر" : "الآن، وقت الضحى",
+                       hint: early ? "أفضل وقتها قبل الشروق" : "وقتها إلى الظهر", key: "morning|\(Int(fajr.timeIntervalSince1970))")
+    } else if now >= asr && beforeIsha {
+      let late = maghrib.map { now >= $0 } ?? false
+      ctx = NowContext(period: "evening", label: late ? "الآن، بعد المغرب" : "الآن، بعد العصر",
+                       hint: late ? nil : "أفضل وقتها قبل المغرب", key: "evening|\(Int(asr.timeIntervalSince1970))")
+    } else if let isha, now >= isha {
+      ctx = NowContext(period: "sleep", label: "الآن، بعد العشاء", hint: "تُقال عند النوم", key: "sleep|\(Int(isha.timeIntervalSince1970))")
+    } else if now < fajr {
+      let start = t.yesterdayIsha ?? fajr
+      ctx = NowContext(period: "sleep", label: "الآن، بعد العشاء", hint: "تُقال عند النوم", key: "sleep|\(Int(start.timeIntervalSince1970))")
+    } else {
+      ctx = nil
+    }
+    guard let ctx, ctx.key != nowDismissed else { return nil }
+    return ctx
+  }
+
+  /// الأذكار بعددها وما أُتمّ منها اليوم (لا مدّة مقدَّرة: لا مصدر لها)؛ وتختفي البطاقة إن اكتملت
+  @ViewBuilder private func nowCard(_ ctx: NowContext) -> some View {
+    let n = model.settings.numerals
+    if ctx.period == "sleep" {
+      if let ch = Hisn.chapter(28) {
+        nowCardBody(ctx, title: ch.title, subtitle: "\(HisnView.countLabel(ch.items.count, numerals: n)) من حصن المسلم", progress: nil) {
+          NavigationLink { HisnChapterView(chapter: ch).environment(model).tabBarClearance() } label: {
+            DSButtonLabel(title: "ابدأ الأذكار", kind: .gold, icon: "chevron.forward", fill: false)
           }
-          Spacer(minLength: 4)
-          Button { MosqueFinder.openDirections(to: m) } label: { DSIcon(systemName: "arrow.triangle.turn.up.right.diamond", style: .brand, size: 42, iconSize: 17) }
-            .buttonStyle(.plain).accessibilityLabel("الاتجاهات إلى \(m.name)")
+          .buttonStyle(.plain)
         }
-      } else if mosques.loading {
-        HStack(spacing: 8) { ProgressView(); Text("جارٍ البحث حولك…").font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary) }
-      } else {
-        Text(mosques.error ?? "لا مساجد ضمن ٣ كم — افتح «المساجد القريبة» للبحث بالاسم").font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary)
       }
-    }
-    .dsCard(padding: 16)
-    .task(id: "\(s.nearbyMosques)-\(fixKey)-\(model.location.authorization.rawValue)") {
-      guard s.nearbyMosques else { return }
-      // موقع طازج مع كل ظهور (مخنوق دقيقتين)؛ حين يصل يتغيّر المفتاح فيُعاد البحث حوله
-      if model.location.authorization == .authorizedWhenInUse || model.location.authorization == .authorizedAlways { model.location.requestDeviceFix() }
-      if let center { await mosques.nearby(around: center) }
+    } else {
+      let items = Adhkar.items(for: ctx.period)
+      let prog = AdhkarSession.current(model)
+      let map = (ctx.period == "evening" ? prog.evening : prog.morning) ?? [:]
+      let done = items.filter { (map[$0.id] ?? 0) >= $0.target(for: ctx.period) }.count
+      let total = items.count
+      if total > 0 && done < total {
+        let base = HisnView.countLabel(total, numerals: n)
+        let subtitle = done > 0 ? "\(base) — أتممتَ \(num(done)) منها" : base
+        nowCardBody(ctx, title: ctx.period == "morning" ? "أذكار الصباح" : "أذكار المساء", subtitle: subtitle,
+                    progress: done > 0 ? Double(done) / Double(total) : nil) {
+          Button { model.pendingAdhkarPeriod = ctx.period; switchTab(.adhkar) } label: {
+            DSButtonLabel(title: done > 0 ? "أكمِل الأذكار" : "ابدأ الأذكار", kind: .gold, icon: "chevron.forward", fill: false)
+          }
+          .buttonStyle(.plain)
+        }
+      }
     }
   }
 
-  // MARK: أذكار الوقت
-  private func adhkarCard(_ t: PrayerTimes.DayTimeline, now: Date) -> some View {
-    let n = model.settings.numerals; let today = model.todayKey
-    let period = Adhkar.autoPeriod(now: now, fajr: t.times[.fajr], dhuhr: t.times[.dhuhr], asr: t.times[.asr], tz: model.timeZone)
-    let items = Adhkar.items(for: period)
-    let pr = model.content.adhkarProgress
-    let map: [String: Int] = period == "morning" ? (pr.date == today ? (pr.morning ?? [:]) : [:]) : (pr.eveningDate == today ? (pr.evening ?? [:]) : [:])
-    let done = items.filter { (map[$0.id] ?? 0) >= $0.target(for: period) }.count
-    let total = items.count
-    let streak = AdhkarStreak.current(model.content.adhkarLog, today: today)
-    let finished = total > 0 && done >= total
-    let title = period == "morning" ? "أذكار الصباح" : "أذكار المساء"
-    let when = period == "morning" ? "وقتها من الفجر إلى الظهر" : "وقتها من العصر إلى الفجر"
-    let status: String = {
-      if finished { return "أتممتها اليوم ✓" + (streak > 0 ? "  ·  سلسلة \(Fmt.number(streak, numerals: n)) \(dayWord(streak))" : "") }
-      let base = done == 0 ? "لم تبدأ بعد" : "أكملت \(Fmt.number(done, numerals: n)) من \(Fmt.number(total, numerals: n))"
-      return streak > 0 ? "\(base)  ·  سلسلة \(Fmt.number(streak, numerals: n)) \(dayWord(streak)) 🔥" : base
-    }()
-    return HStack(spacing: 14) {
-      ZStack {
-        RingProgress(progress: total > 0 ? Double(done) / Double(total) : 0, tint: DS.C.accentGold, track: Color.white.opacity(0.14), lineWidth: 6).frame(width: 58, height: 58)
-        Text("\(Fmt.number(done, numerals: n))/\(Fmt.number(total, numerals: n))").font(DS.readex(12, .semibold, fixed: true)).foregroundStyle(DS.C.textOnDark)
+  private func nowCardBody<Action: View>(_ ctx: NowContext, title: String, subtitle: String, progress: Double?, @ViewBuilder action: () -> Action) -> some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack(spacing: 8) {
+        Circle().fill(DS.C.accentGold).frame(width: 7, height: 7)
+        Text(ctx.label).font(DS.F.labelSm).foregroundStyle(DS.C.textPrimary).lineLimit(1)
+        Spacer(minLength: 6)
+        if let hint = ctx.hint { Text(hint).font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).lineLimit(1).minimumScaleFactor(0.8) }
       }
-      VStack(alignment: .leading, spacing: 4) {
-        Text(when).font(DS.readex(11.5)).foregroundStyle(DS.C.textOnDarkMuted)
-        Text(title).font(DS.kufi(22)).foregroundStyle(DS.C.textOnDark)
-        Text(status).font(DS.readex(11.5)).foregroundStyle(DS.C.textOnDark.opacity(0.75)).lineLimit(1).minimumScaleFactor(0.75)
+      .accessibilityElement(children: .combine)
+      Text(title).font(DS.kufi(24, .bold)).foregroundStyle(DS.C.textPrimary).lineLimit(1).minimumScaleFactor(0.8)
+      Text(subtitle).font(DS.F.bodySm).foregroundStyle(DS.C.textSecondary).fixedSize(horizontal: false, vertical: true)
+      if let progress {
+        ProgressTrack(progress: progress, tint: DS.C.accentGold, track: DS.C.bgSubtle, height: 5).padding(.top, 2).accessibilityHidden(true)
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
-      Button { model.pendingAdhkarPeriod = period; switchTab(.adhkar) } label: {
-        HStack(spacing: 6) {
-          Text(finished ? "راجع" : done > 0 ? "تابع" : "ابدأ").font(DS.readex(13, .semibold))
-          Image(systemName: "chevron.forward").font(.system(size: 10, weight: .bold))
+      HStack(spacing: 12) {
+        action()
+        Spacer(minLength: 8)
+        Button { withAnimation(.snappy(duration: 0.25)) { nowDismissed = ctx.key } } label: {
+          Text("ليس الآن").font(DS.F.labelMd).foregroundStyle(DS.C.textSecondary)
+            .padding(.horizontal, 8).frame(minHeight: 44).contentShape(Rectangle())
         }
-        .foregroundStyle(DS.C.textPrimary).padding(.vertical, 10).padding(.horizontal, 16).background(DS.C.accentGold, in: Capsule())
+        .buttonStyle(.plain).accessibilityHint("يُخفي البطاقة حتى الوقت التالي")
+      }
+      .padding(.top, 4)
+    }
+    .todayCard()
+  }
+
+  // MARK: الأدوات السريعة
+  private var quickTools: some View {
+    HStack(alignment: .top, spacing: 10) {
+      quickTool("calendar", "التقويم") { MonthTableView().environment(model).tabBarClearance() }
+      quickTool("circle.hexagongrid", "المسبحة") { TasbihView().environment(model).tabBarClearance() }
+      quickTool("shield", "حصن المسلم") { HisnView().environment(model).tabBarClearance() }
+      quickTool("building.columns", "المساجد") { MosquesView().environment(model).tabBarClearance() }
+    }
+  }
+  private func quickTool<Dest: View>(_ icon: String, _ title: String, @ViewBuilder destination: @escaping () -> Dest) -> some View {
+    NavigationLink { destination() } label: {
+      VStack(spacing: 8) {
+        Image(systemName: icon).font(.system(size: 21, weight: .regular)).foregroundStyle(DS.C.brandPrimary)
+          .frame(width: 60, height: 60)
+          .background(DS.C.bgSurface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+          .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(DS.C.borderSubtle, lineWidth: 1))
+        Text(title).font(DS.F.labelSm).foregroundStyle(DS.C.textPrimary).lineLimit(1).minimumScaleFactor(0.8)
+      }
+      .frame(maxWidth: .infinity).contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(title)
+  }
+
+  // MARK: ورد اليوم
+  private var wirdSection: some View {
+    VStack(spacing: 10) {
+      DSSectionHead("ورد اليوم") {
+        Button { showKhatmah = true } label: { DSLinkLabel(title: "الختمة").frame(minHeight: 44).contentShape(Rectangle()) }
+          .buttonStyle(.plain).accessibilityLabel("خطة الختمة")
+      }
+      wirdCard
+    }
+  }
+
+  @ViewBuilder private var wirdCard: some View {
+    if let plan = model.quran.khatmah {
+      let stt = Khatmah.status(plan, wird: model.quran.wird, today: model.todayKey)
+      if stt.finished { readingCard(finished: true) } else { khatmahCard(plan, stt) }
+    } else {
+      readingCard(finished: false)
+    }
+  }
+
+  /// بخطة ختمة: سورة الموضع التالي، جزؤه وآيته، وما بقي من ورد اليوم، ونسبة الختمة — «تابع القراءة» على صفحة الورد
+  private func khatmahCard(_ plan: KhatmahPlan, _ stt: KhatmahStatus) -> some View {
+    let next = ((plan.startPage - 1 + stt.done) % Khatmah.total) + 1
+    let first = QuranText.shared.pageAyahs(next).first
+    let surah = first.map { QuranMeta.surah($0.surah).name } ?? QuranMeta.firstSurah(onPage: next).name
+    let left = max(0, stt.todayTarget - stt.todayPages)
+    let place = first.map { "الجزء \(num($0.juz))، من الآية \(num($0.ayah))" } ?? "الصفحة \(num(next))"
+    let today = left > 0 ? "باقٍ \(counted(left, one: "صفحة واحدة", two: "صفحتان", few: "صفحات", many: "صفحة"))" : "أتممتَ ورد اليوم ✓"
+    return VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .top, spacing: 12) {
+        VStack(alignment: .leading, spacing: 4) {
+          Text("سورة \(surah)").font(DS.readex(19, .bold)).foregroundStyle(DS.C.textPrimary).lineLimit(1).minimumScaleFactor(0.8)
+          Text("\(place) — \(today)").font(DS.F.labelSm).foregroundStyle(DS.C.textSecondary).lineLimit(2).minimumScaleFactor(0.85)
+        }
+        Spacer(minLength: 8)
+        Text("\(num(stt.percent))٪").font(DS.readex(30, .medium, fixed: true)).monospacedDigit().foregroundStyle(DS.C.brandPrimary)
+          .accessibilityLabel("الختمة \(stt.percent) بالمئة")
+      }
+      ProgressTrack(progress: Double(stt.percent) / 100, tint: DS.C.brandPrimary, track: DS.C.bgSubtle, height: 6).accessibilityHidden(true)
+      Button { model.pendingReaderPage = next; switchTab(.mushaf) } label: {
+        DSButtonLabel(title: "تابع القراءة", kind: .primary, icon: "chevron.forward")
       }
       .buttonStyle(.plain)
     }
-    .padding(16)
-    .frame(maxWidth: .infinity)
-    .background {
-      ZStack {
-        LinearGradient(colors: [Color(hex: 0x0B3F39), Color(hex: 0x0E5C55)], startPoint: .leading, endPoint: .trailing)
-        StarLattice().opacity(0.06)
-      }
-    }
-    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-    .shadow(color: DS.C.brandPrimary.opacity(0.28), radius: 20, x: 0, y: 10)
+    .todayCard()
   }
-  private func dayWord(_ n: Int) -> String { n == 1 ? "يوم" : n == 2 ? "يومين" : n <= 10 ? "أيام" : "يومًا" }
+
+  /// بلا خطة (أو بعد إتمامها): متابعة القراءة من آخر صفحة، بلا نسبة، ورابطٌ هادئ لبدء ختمة
+  private func readingCard(finished: Bool) -> some View {
+    let last = model.settings.lastRead
+    let page = last?.page ?? 1
+    let title = last.map { "سورة \(QuranMeta.surah($0.surah).name)" } ?? "سورة الفاتحة"
+    let line = last.map { "الجزء \(num(QuranMeta.juz(ofPage: $0.page)))، الآية \(num($0.ayah)) — الصفحة \(num($0.page))" } ?? "مصحف المدينة، حفص عن عاصم"
+    return VStack(alignment: .leading, spacing: 12) {
+      VStack(alignment: .leading, spacing: 4) {
+        if finished { Text("تقبّل الله، أتممتَ الختمة ✦").font(DS.F.labelSm).foregroundStyle(DS.C.accentGoldStrong) }
+        Text(title).font(DS.readex(19, .bold)).foregroundStyle(DS.C.textPrimary).lineLimit(1).minimumScaleFactor(0.8)
+        Text(line).font(DS.F.labelSm).foregroundStyle(DS.C.textSecondary).lineLimit(2).minimumScaleFactor(0.85)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      Button { model.pendingReaderPage = page; switchTab(.mushaf) } label: {
+        DSButtonLabel(title: last == nil ? "افتح المصحف" : "تابع القراءة", kind: .primary, icon: "chevron.forward")
+      }
+      .buttonStyle(.plain)
+      Button { showKhatmah = true } label: {
+        Text(finished ? "ابدأ ختمة جديدة" : "ابدأ خطة ختمة تقسّم المصحف على أيامك").font(DS.F.labelSm).foregroundStyle(DS.C.brandPrimary)
+          .frame(maxWidth: .infinity).frame(minHeight: 44).contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+    }
+    .todayCard()
+  }
+
+  // MARK: حديث اليوم
+  private var hadithSection: some View {
+    let h = HadithLibrary.hadithOfDay(Date(), tz: model.timeZone)
+    let fav = model.content.favorites.contains(h.id)
+    let shareText = "\(h.text)\n\nرواه \(h.narrator) — \(h.reference) (\(h.grade))"
+    return VStack(spacing: 10) {
+      DSSectionHead("حديث اليوم") {
+        NavigationLink { HadithView(initialBook: "nawawi", embedded: true).environment(model).tabBarClearance() } label: {
+          DSLinkLabel(title: "الأربعون").frame(minHeight: 44).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain).accessibilityLabel("الأربعون النووية")
+      }
+      VStack(alignment: .leading, spacing: 14) {
+        NavigationLink { HadithView(embedded: true).environment(model).tabBarClearance() } label: {
+          Text("«\(h.text)»").font(DS.amiri(19)).lineSpacing(8).foregroundStyle(DS.C.textPrimary)
+            .multilineTextAlignment(.leading).lineLimit(6)
+            .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain).accessibilityHint("يفتح الأحاديث")
+        HStack(spacing: 10) {
+          Text("\(h.grade)، عن \(h.narrator)").font(DS.F.labelSm).foregroundStyle(DS.C.textSecondary).lineLimit(2).minimumScaleFactor(0.85)
+          Spacer(minLength: 8)
+          circleButton(fav ? "bookmark.fill" : "bookmark", label: fav ? "إزالة من المفضلة" : "حفظ في المفضلة", on: fav) { model.content.toggleFavorite(h.id) }
+          circleButton("square.and.arrow.up", label: "مشاركة الحديث") { hadithShare = ShareItems(items: [shareText]) }
+        }
+      }
+      .todayCard()
+    }
+  }
+  private func circleButton(_ icon: String, label: String, on: Bool = false, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+      Image(systemName: icon).font(.system(size: 15, weight: .medium)).foregroundStyle(on ? DS.C.brandPrimary : DS.C.textPrimary)
+        .frame(width: 44, height: 44)
+        .background(DS.C.bgSurface, in: Circle())
+        .overlay(Circle().stroke(DS.C.borderSubtle, lineWidth: 1))
+        .contentShape(Circle())
+    }
+    .buttonStyle(.plain).accessibilityLabel(label)
+  }
 
   // MARK: لا موقع بعد
   private var locationPrompt: some View {
@@ -462,101 +604,20 @@ struct HomeView: View {
       Text("يُستخدم الموقع على جهازك فقط لحساب المواقيت واتجاه القبلة، ولا يُرسل إلى أي خادم.").font(DS.F.bodyMd).foregroundStyle(DS.C.textSecondary).multilineTextAlignment(.center)
       if let e = model.location.errorMessage { Text(e).font(DS.F.bodySm).foregroundStyle(DS.C.danger).multilineTextAlignment(.center) }
       DSButton(title: "استخدام موقع الجهاز", icon: "location.fill") { model.location.requestLocation() }
-      NavigationLink { CityPickerView().tabBarClearance() } label: { DSButtonLabel(title: "اختيار مدينة يدويًا · ٦٤٩ مدينة", kind: .outline, icon: "magnifyingglass") }.buttonStyle(.plain)
+      NavigationLink { CityPickerView().tabBarClearance() } label: { DSButtonLabel(title: "اختيار مدينة يدويًا — ٦٤٩ مدينة", kind: .outline, icon: "magnifyingglass") }.buttonStyle(.plain)
     }
     .frame(maxWidth: .infinity)
     .dsCard(padding: 24)
   }
 }
 
-// MARK: - خطّ اليوم
-/// ست عقد للصلوات على مسار أفقي (الفجر يمينًا)، المنقضي ذهبي، والقادمة محلّقة بذهب، وعلامة «الآن» (هلال/شمس) تزحف مع نسبة الوقت
-struct DayTimelineStrip: View {
-  let t: PrayerTimes.DayTimeline
-  let now: Date
-  let palette: SkyPalette
-  let tz: TimeZone
-  let hour12: Bool
-  let numerals: String
-
-  private var prayers: [Prayer] { Array(Prayer.allCases) }
-  /// موضع «الآن» بين ٠ (الفجر) و٥ (العشاء) — قبل الفجر عند اليمين وبعد العشاء عند اليسار
-  private var nowIndex: Double {
-    let times = prayers.map { t.times[$0] }
-    guard let fajr = times[0], now >= fajr else { return 0 }
-    for k in 0..<(prayers.count - 1) {
-      guard let a = times[k], let b = times[k + 1], b > a else { continue }
-      if now < b { return Double(k) + now.timeIntervalSince(a) / b.timeIntervalSince(a) }
-    }
-    return Double(prayers.count - 1)
-  }
-  private var passedCount: Int { prayers.filter { p in t.times[p].map { $0 <= now } ?? false }.count }
-  private var isNight: Bool {
-    let m = t.times[.maghrib], s = t.times[.sunrise]
-    return (m.map { now >= $0 } ?? false) || (s.map { now < $0 } ?? true)
-  }
-  private var elapsedLabel: String {
-    let start = t.times[t.current].flatMap { $0 <= now ? $0 : nil } ?? t.yesterdayIsha
-    let total = start.map { t.next.time.timeIntervalSince($0) } ?? 0
-    let pct = total > 0 ? Int((min(1, max(0, now.timeIntervalSince(start!) / total)) * 100).rounded()) : 0
-    return "مضى \(Fmt.number(pct, numerals: numerals))٪ من وقت \(t.current.nameAr)"
-  }
-
-  var body: some View {
-    GeometryReader { geo in
-      let w = geo.size.width, pad: CGFloat = 26, ty: CGFloat = 40
-      let step = (w - pad * 2) / CGFloat(prayers.count - 1)
-      let x: (Double) -> CGFloat = { w - pad - CGFloat($0) * step }
-      let nowX = x(nowIndex)
-      // عبارة «مضى…» على الجهة الفارغة من العلامة: يسارها حين تكون العلامة في النصف الأيمن
-      let labelLeft = nowX > w / 2
-      ZStack(alignment: .topLeading) {
-        Canvas { ctx, _ in
-          var track = Path(); track.move(to: CGPoint(x: pad, y: ty)); track.addLine(to: CGPoint(x: w - pad, y: ty))
-          ctx.stroke(track, with: .color(palette.text.opacity(0.18)), style: StrokeStyle(lineWidth: 2, lineCap: .round))
-          var done = Path(); done.move(to: CGPoint(x: x(0), y: ty)); done.addLine(to: CGPoint(x: nowX, y: ty))
-          ctx.stroke(done, with: .linearGradient(Gradient(colors: [palette.gold.opacity(0.55), palette.gold]), startPoint: CGPoint(x: nowX, y: ty), endPoint: CGPoint(x: x(0), y: ty)), style: StrokeStyle(lineWidth: 3, lineCap: .round))
-          for (k, p) in prayers.enumerated() {
-            let next = t.next.key == p && !t.next.isTomorrow
-            let passed = k < passedCount
-            let sz: CGFloat = next ? 14 : 10
-            let rect = CGRect(x: x(Double(k)) - sz / 2, y: ty - sz / 2, width: sz, height: sz)
-            if next {
-              ctx.fill(Path(ellipseIn: rect), with: .color(palette.stops[1].color))
-              ctx.stroke(Path(ellipseIn: rect), with: .color(palette.gold), lineWidth: 2.5)
-            } else {
-              ctx.fill(Path(ellipseIn: rect), with: .color(passed ? palette.gold : palette.text.opacity(p == .sunrise ? 0.45 : 0.9)))
-              ctx.stroke(Path(ellipseIn: rect), with: .color(palette.stops[1].color), lineWidth: 2)
-            }
-          }
-        }
-        ForEach(Array(prayers.enumerated()), id: \.offset) { k, p in
-          let next = t.next.key == p && !t.next.isTomorrow
-          VStack(spacing: 1) {
-            // الأسماء فقط: الأوقات مكرّرة في شبكة المواقيت تحت الهيرو مباشرةً
-            Text(p.nameAr).font(DS.readex(11.5, next ? .semibold : .medium)).foregroundStyle(next ? palette.gold : palette.text.opacity(p == .sunrise ? 0.5 : 0.9))
-          }
-          .lineLimit(1).minimumScaleFactor(0.8)
-          .frame(width: step + 4)
-          .position(x: x(Double(k)), y: ty + 24)
-        }
-        // علامة «الآن»: هلال ليلًا وشمس نهارًا مع وهج ذهبي فوق موضعها على المسار، والعبارة إلى جانبها
-        ZStack {
-          Circle().fill(palette.stops[3].color).overlay(Circle().stroke(palette.gold, lineWidth: 1.5)).frame(width: 26, height: 26)
-            .shadow(color: palette.gold.opacity(0.55), radius: 10)
-          Image(systemName: isNight ? "moon.fill" : "sun.max.fill").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color(hex: 0xF3DFA0))
-        }
-        .position(x: nowX, y: ty - 26)
-        Text(elapsedLabel).font(DS.readex(10.5, .medium)).foregroundStyle(palette.gold).lineLimit(1).minimumScaleFactor(0.7)
-          .frame(width: max(0, labelLeft ? nowX - 20 : w - nowX - 20), height: 26, alignment: labelLeft ? .trailing : .leading)
-          .offset(x: labelLeft ? 0 : nowX + 20, y: ty - 39)
-        Rectangle().fill(palette.gold.opacity(0.8)).frame(width: 1.5, height: 8).position(x: nowX, y: ty - 10)
-      }
-    }
-    // الإحداثيات صريحة (الفجر يمينًا كما في التصميم)؛ بيئة RTL كانت تعكس الشريط كلّه فبدا الفجر يسارًا (قِيس في لقطة المحاكي)
-    .environment(\.layoutDirection, .leftToRight)
-    .accessibilityElement(children: .combine)
-    .accessibilityLabel("خطّ اليوم: \(elapsedLabel)")
+/// بطاقة سطحٍ بحدٍّ خفيف بلا ظلّ (بطاقات «اليوم» تحت الهيرو كما في التصميم)
+private extension View {
+  func todayCard(padding: CGFloat = 18) -> some View {
+    self.padding(padding)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(DS.C.bgSurface, in: RoundedRectangle(cornerRadius: DS.Radius.xl, style: .continuous))
+      .overlay(RoundedRectangle(cornerRadius: DS.Radius.xl, style: .continuous).stroke(DS.C.borderSubtle, lineWidth: 1))
   }
 }
 
@@ -585,52 +646,6 @@ struct MiniPageThumb: View {
     }
     .frame(width: 78, height: 106)
     .shadow(color: DS.C.shadowCard, radius: 10, x: 0, y: 4)
-  }
-}
-
-// MARK: - شريحة الخريطة
-/// خريطة حقيقية (خرائط آبل) بلا تفاعل تؤطّر المستخدم والمسجد معًا؛ اللمس يفتح شاشة المساجد
-struct MosqueMapStrip: View {
-  let mosque: Mosque
-  let center: Coordinates
-  let walk: String
-
-  private var region: MKCoordinateRegion {
-    let mid = CLLocationCoordinate2D(latitude: (center.latitude + mosque.latitude) / 2, longitude: (center.longitude + mosque.longitude) / 2)
-    let meters = max(600, mosque.distanceKm * 1000 * 2.6)
-    return MKCoordinateRegion(center: mid, latitudinalMeters: meters, longitudinalMeters: meters * 2.4)
-  }
-
-  var body: some View {
-    Map(initialPosition: .region(region), interactionModes: []) {
-      UserAnnotation()
-      Annotation(mosque.name, coordinate: mosque.coordinate, anchor: .bottom) {
-        VStack(spacing: -2) {
-          ZStack {
-            Circle().fill(DS.C.brandPrimary).frame(width: 34, height: 34).overlay(Circle().stroke(.white, lineWidth: 2.5))
-              .shadow(color: DS.C.brandPrimary.opacity(0.4), radius: 8, x: 0, y: 6)
-            Image(systemName: "building.columns.fill").font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
-          }
-          Triangle().fill(DS.C.brandPrimary).frame(width: 12, height: 8)
-        }
-      }
-    }
-    .mapStyle(.standard(pointsOfInterest: .excludingAll))
-    .mapControlVisibility(.hidden)
-    .overlay(alignment: .topLeading) {
-      Text(walk).font(DS.readex(10.5, .medium)).foregroundStyle(DS.C.brandPrimary)
-        .padding(.vertical, 3).padding(.horizontal, 8).background(Color.white.opacity(0.92), in: Capsule()).padding(10)
-    }
-    .frame(height: 118)
-    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-    .accessibilityLabel("خريطة: \(mosque.name) على بعد \(walk)")
-  }
-}
-
-/// مثلّث رأس الدبّوس
-struct Triangle: Shape {
-  func path(in r: CGRect) -> Path {
-    var p = Path(); p.move(to: CGPoint(x: r.minX, y: r.minY)); p.addLine(to: CGPoint(x: r.maxX, y: r.minY)); p.addLine(to: CGPoint(x: r.midX, y: r.maxY)); p.closeSubpath(); return p
   }
 }
 

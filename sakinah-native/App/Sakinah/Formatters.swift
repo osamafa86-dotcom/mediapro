@@ -14,6 +14,19 @@ enum Fmt {
     return f.string(from: date)
   }
 
+  /// الوقت مقسومًا: الأرقام وحدها، ولاحقة ص/م منفصلة في نظام ١٢ ساعة (للعرض الكبير والأعمدة الضيّقة حيث تصغر اللاحقة أو تُحذف)
+  static func timeParts(_ date: Date?, tz: TimeZone, hour12: Bool, numerals: String) -> (main: String, suffix: String?) {
+    guard let date else { return ("—", nil) }
+    let f = DateFormatter()
+    f.locale = locale(numerals: numerals)
+    f.timeZone = tz
+    f.dateFormat = hour12 ? "h:mm" : "HH:mm"
+    let main = f.string(from: date)
+    guard hour12 else { return (main, nil) }
+    f.dateFormat = "a"
+    return (main, f.string(from: date))
+  }
+
   // ⚠️ محلّية ar_SA تجعل تقويم DateFormatter الافتراضي هجريًّا (أمّ القرى) — قِيس: «التاريخ الميلادي»
   // خرج «٦ ربيع الآخر». فالتقويم الميلادي يُضبط صراحةً في كل منسّق تاريخ.
   static func gregorian(_ date: Date, tz: TimeZone, numerals: String) -> String {

@@ -26,7 +26,7 @@ struct RootView: View {
       HomeView().hiddenSystemTabBar().tag(AppTab.home)
       MushafHomeView().hiddenSystemTabBar().tag(AppTab.mushaf)
       AdhkarHomeView().hiddenSystemTabBar().tag(AppTab.adhkar)
-      MoreView().hiddenSystemTabBar().tag(AppTab.more)
+      LibraryView().hiddenSystemTabBar().tag(AppTab.library)
     }
     .environment(\.tabBarInset, barHeight)
     .overlay(alignment: .bottom) {

@@ -219,13 +219,14 @@ struct DSNavBar<Trailing: View>: View {
 extension DSNavBar where Trailing == EmptyView { init(title: String, subtitle: String? = nil, back: (() -> Void)? = nil) { self.init(title: title, subtitle: subtitle, back: back) { EmptyView() } } }
 
 // MARK: - شريط التبويبات
-/// أربعة تبويبات (تصميم «الرئيسية المدمجة»): الرئيسية تجمع الصلاة والقبلة، والقبلة الكاملة تُفتح من ميداليتها
+/// أربعة تبويبات (المرحلة الثانية): اليوم · القرآن · الذكر · المكتبة — لا «مزيد»: محتواه في المكتبة،
+/// والإعدادات تُفتح من رأس «اليوم» (وزرّ في رأس المكتبة)
 enum AppTab: Int, CaseIterable, Identifiable {
-  case home, mushaf, adhkar, more
+  case home, mushaf, adhkar, library
   var id: Int { rawValue }
-  var title: String { switch self { case .home: return "الرئيسية"; case .mushaf: return "المصحف"; case .adhkar: return "الأذكار"; case .more: return "المزيد" } }
-  var icon: String { switch self { case .home: return "house"; case .mushaf: return "book"; case .adhkar: return "sparkles"; case .more: return "ellipsis" } }
-  var iconSelected: String { switch self { case .home: return "house.fill"; case .mushaf: return "book.fill"; case .adhkar: return "sparkles"; case .more: return "ellipsis" } }
+  var title: String { switch self { case .home: return "اليوم"; case .mushaf: return "القرآن"; case .adhkar: return "الذكر"; case .library: return "المكتبة" } }
+  var icon: String { switch self { case .home: return "sun.horizon"; case .mushaf: return "book"; case .adhkar: return "sparkles"; case .library: return "books.vertical" } }
+  var iconSelected: String { switch self { case .home: return "sun.horizon.fill"; case .mushaf: return "book.fill"; case .adhkar: return "sparkles"; case .library: return "books.vertical.fill" } }
 }
 /// شريط تبويبات عائم: كبسولة زجاجية بظلّ ناعم، والمختار في حبّة نعناعية
 struct DSTabBar: View {

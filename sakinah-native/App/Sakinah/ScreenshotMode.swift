@@ -21,10 +21,11 @@ enum ScreenshotMode {
   /// التبويب الذي يُفتح عليه التطبيق
   static var tab: AppTab? {
     switch route {
-    case "prayer", "qibla", "home", "home-bottom", "sky-settings": return .home
+    case "prayer", "qibla", "home", "home-bottom", "sky-settings", "search", "settings": return .home
     case "mushaf", "mushaf-juz", "mushaf-switch", "mushaf-bookmarks", "mushaf-ayah-bookmark", "mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-khatmah", "mushaf-display", "mushaf-hifz": return .mushaf
     case "adhkar", "hisn", "tasbih": return .adhkar
-    case "hadith", "more": return .more
+    // «more» يبقى اسمًا للمسار القديم في سير اللقطات — التبويب صار «المكتبة»
+    case "hadith", "more", "library": return .library
     default: return nil
     }
   }
@@ -49,6 +50,11 @@ enum ScreenshotMode {
   static var fullQibla: Bool { route == "qibla" }
   /// مسار «sky-settings» (تشخيصي): يفتح شاشة «مظهر السماء» فوق الرئيسية للتحقّق البصري منها
   static var skySettings: Bool { route == "sky-settings" }
+  /// مسار «search» (تشخيصي): يفتح البحث الشامل فوق «اليوم» مكتوبًا فيه «الصبر» كما في التصميم
+  static var search: Bool { route == "search" }
+  static var searchQuery: String { route == "search" ? "الصبر" : "" }
+  /// مسار «settings» (تشخيصي): يفتح الإعدادات من رأس «اليوم»
+  static var settings: Bool { route == "settings" }
   /// مسار «home-bottom» (تشخيصي لا للمتجر): يمرّر الرئيسية إلى آخرها كي تُرى آخر بطاقة فوق الشريط العائم
   /// — لقطة أعلى الصفحة لا تكشف تغطية الشريط لآخر بطاقة (قِيس في ثلاثة بناءات على جهاز المالك)
   static var scrollToBottom: Bool { route == "home-bottom" }
