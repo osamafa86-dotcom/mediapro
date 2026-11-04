@@ -13,6 +13,7 @@ struct HomeView: View {
   @State private var showMethods = false
   @State private var showQibla = ScreenshotMode.fullQibla
   @State private var showSkySettings = ScreenshotMode.skySettings
+  @State private var showGuard = false
   @State private var mosques = MosqueFinder()
   @State private var weather = SkyWeatherService()
 
@@ -29,6 +30,7 @@ struct HomeView: View {
       .sheet(isPresented: $showMethods) { MethodPicker().environment(\.tabBarInset, 0) }
       .fullScreenCover(isPresented: $showQibla) { QiblaView(presented: true).environment(model) }
       .fullScreenCover(isPresented: $showSkySettings) { NavigationStack { SkySettingsView().environment(model) } }
+      .navigationDestination(isPresented: $showGuard) { AdhanGuardView().environment(model).tabBarClearance() }
     }
     .onAppear { model.location.startHeading() }
     .onDisappear { model.location.stopHeading() }
@@ -136,12 +138,18 @@ struct HomeView: View {
           HStack(spacing: 6) {
             Image(systemName: "mappin").font(.system(size: 12, weight: .semibold)).foregroundStyle(p.gold)
             Text(model.location.placeName ?? "حدّد موقعك").font(DS.readex(13, .medium)).foregroundStyle(p.text).lineLimit(1)
+            // حرارة المكان من طلب الطقس نفسه — تظهر متى فعّل المستخدم الطقس (اختياريّ للخصوصية)
+            if s.sky.weather, let t = weather.temperature, !ScreenshotMode.active {
+              Rectangle().fill(p.textMuted.opacity(0.6)).frame(width: 1, height: 12)
+              Image(systemName: SkyWeatherService.symbol(weather.current, dark: p.isDark)).font(.system(size: 12, weight: .medium)).foregroundStyle(p.textSoft)
+              Text("\u{2066}\(Fmt.number(Int(t.rounded()), numerals: s.numerals))°\u{2069}").font(DS.readex(13, .medium)).foregroundStyle(p.text).monospacedDigit()
+            }
             Image(systemName: "chevron.down").font(.system(size: 10, weight: .bold)).foregroundStyle(p.textMuted)
           }
           .padding(.vertical, 6).padding(.leading, 12).padding(.trailing, 10)
           .background(p.glass, in: Capsule()).overlay(Capsule().stroke(p.glassStroke, lineWidth: 1))
         }
-        .buttonStyle(.plain).accessibilityLabel("الموقع")
+        .buttonStyle(.plain).accessibilityLabel(locationLabel)
         Text("\(h.weekday) \(Fmt.number(h.day, numerals: s.numerals)) \(h.monthName) \(Fmt.number(h.year, numerals: s.numerals))هـ")
           .font(DS.readex(12.5)).foregroundStyle(p.textMuted).lineLimit(1).minimumScaleFactor(0.8)
       }
@@ -149,6 +157,12 @@ struct HomeView: View {
       NavigationLink { SettingsView().environment(model).tabBarClearance() } label: { glassIcon("bell", palette: p, badge: !s.reminders.prayers.isEmpty) }
         .buttonStyle(.plain).accessibilityLabel("التنبيهات")
     }
+  }
+  /// الموقع والحرارة لقارئ الشاشة
+  private var locationLabel: String {
+    var l = "الموقع: " + (model.location.placeName ?? "غير محدّد")
+    if model.settings.sky.weather, let t = weather.temperature { l += "، \(Int(t.rounded())) درجة" }
+    return l
   }
   private func glassIcon(_ name: String, palette p: SkyPalette, badge: Bool = false) -> some View {
     ZStack(alignment: .topLeading) {
@@ -172,6 +186,18 @@ struct HomeView: View {
       Text(Fmt.countdown(remaining, numerals: s.numerals)).font(DS.readex(52, .light, fixed: true)).monospacedDigit().foregroundStyle(p.text).lineLimit(1).minimumScaleFactor(0.5)
       Text("الأذان \(Fmt.time(t.next.time, tz: model.timeZone, hour12: s.hour12, numerals: s.numerals))").font(DS.readex(13, .medium)).foregroundStyle(p.textSoft)
         .padding(.top, 2)
+      // «ضمان الأذان»: سطرٌ دائم يقول إن الأذان القادم مجدولٌ فعلاً، أو يفتح الفحص
+      if let g = AdhanGuard.homeLine(model, t) {
+        Button { showGuard = true } label: {
+          HStack(spacing: 5) {
+            Image(systemName: g.icon).font(.system(size: 11, weight: .semibold)).foregroundStyle(g.ok ? p.mint : p.gold)
+            Text(g.text).font(DS.readex(12)).foregroundStyle(g.ok ? p.textSoft : p.gold).lineLimit(1)
+          }
+          .padding(.vertical, 2).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain).padding(.top, 4)
+        .accessibilityLabel("ضمان الأذان: \(g.text)")
+      }
     }
     // بلا سقف عرض: مع ٢٠٠ نقطة كانت حبّة «بعد ٥ س و٤٩ د» تنكسر سطرين على ٦٫٩″ (قِيس في لقطة المحاكي)
     .frame(maxWidth: .infinity, alignment: .leading)

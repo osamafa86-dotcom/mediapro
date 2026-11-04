@@ -41,6 +41,9 @@ final class MushafFonts {
     }
     order.removeAll { !pinned.contains($0) }
   }
+  /// خطّ الصفحة الأولى مثبّتاً: منه تُرسم البسملة برسم المدينة في كلّ رأس سورة، فلا يُخلى من الذاكرة
+  @discardableResult
+  func ensureBasmala() -> Bool { ensure(file: "p1", postScriptName: MushafFonts.pageFontName(1), pin: true) }
   @discardableResult
   func ensureSurahNames() -> Bool { ensure(file: "sura_names", postScriptName: MushafFonts.surahNamesFont, pin: true) }
   @discardableResult
@@ -62,7 +65,7 @@ final class MushafFonts {
 
   private func ensure(file: String, postScriptName: String, pin: Bool = false) -> Bool {
     lock.lock(); defer { lock.unlock() }
-    if registered[postScriptName] != nil { touch(postScriptName); return true }
+    if registered[postScriptName] != nil { if pin { pinned.insert(postScriptName) } else { touch(postScriptName) }; return true }
     guard let data = MushafFonts.load(file: file), let provider = CGDataProvider(data: data as CFData), let font = CGFont(provider) else { return false }
     var err: Unmanaged<CFError>?
     if !CTFontManagerRegisterGraphicsFont(font, &err) {

@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.emdatra.sakinah.app.Fonts
 
-/** نظام تصميم «سكينة» (مطابق لملف Figma): رموز لونية دلالية بوضعين، خطوط Readex Pro / Reem Kufi / Amiri، مسافات وزوايا */
+/** نظام تصميم «سكينة» (مطابق لملف Figma؛ رموز النص والحالة معدّلة لتباين WCAG AA ٤٫٥:١ — ٢٠٢٦-١١): رموز لونية دلالية بوضعين، خطوط Readex Pro / Reem Kufi / Amiri، مسافات وزوايا */
 @Immutable data class DSColors(
   val bgCanvas: Color, val bgSurface: Color, val bgSubtle: Color, val bgElevated: Color, val bgInverse: Color,
   val brandPrimary: Color, val brandStrong: Color, val brandSoft: Color, val brandDeep: Color,
@@ -31,16 +31,16 @@ import org.emdatra.sakinah.app.Fonts
 val LightDS = DSColors(
   bgCanvas = Color(0xFFF6F4EE), bgSurface = Color(0xFFFFFFFF), bgSubtle = Color(0xFFECE8DF), bgElevated = Color(0xFFFBF9F4), bgInverse = Color(0xFF16211F),
   brandPrimary = Color(0xFF0E5C55), brandStrong = Color(0xFF0A4640), brandSoft = Color(0xFFCDE7E3), brandDeep = Color(0xFF0B3733),
-  accentGold = Color(0xFFC69C3E), accentGoldSoft = Color(0xFFF3E7C9), accentGoldStrong = Color(0xFFA47E2C),
-  textPrimary = Color(0xFF16211F), textSecondary = Color(0xFF5D6B68), textTertiary = Color(0xFF8A9794), textOnBrand = Color(0xFFFFFFFF),
+  accentGold = Color(0xFFC69C3E), accentGoldSoft = Color(0xFFF3E7C9), accentGoldStrong = Color(0xFF806222),
+  textPrimary = Color(0xFF16211F), textSecondary = Color(0xFF5D6B68), textTertiary = Color(0xFF5E6A66), textOnBrand = Color(0xFFFFFFFF),
   borderSubtle = Color(0xFFE3DFD4), borderStrong = Color(0xFFC9C4B7), paperPage = Color(0xFFFBF7EC), paperInk = Color(0xFF2A2521),
-  success = Color(0xFF2F855A), warning = Color(0xFFB7791F), danger = Color(0xFFC53030), isDark = false,
+  success = Color(0xFF29744F), warning = Color(0xFF8B5C18), danger = Color(0xFFC12F2F), isDark = false,
 )
 val DarkDS = DSColors(
   bgCanvas = Color(0xFF0C1514), bgSurface = Color(0xFF14211F), bgSubtle = Color(0xFF1C2C29), bgElevated = Color(0xFF22342F), bgInverse = Color(0xFFFBF9F4),
   brandPrimary = Color(0xFF3FB5A6), brandStrong = Color(0xFF6ED0C2), brandSoft = Color(0xFF263733), brandDeep = Color(0xFF14211F),
   accentGold = Color(0xFFD9B25B), accentGoldSoft = Color(0xFF3A2F14), accentGoldStrong = Color(0xFFE2C77A),
-  textPrimary = Color(0xFFFBF9F4), textSecondary = Color(0xFFA9B6B2), textTertiary = Color(0xFF7C8A86), textOnBrand = Color(0xFF0C1514),
+  textPrimary = Color(0xFFFBF9F4), textSecondary = Color(0xFFA9B6B2), textTertiary = Color(0xFF909C99), textOnBrand = Color(0xFF0C1514),
   borderSubtle = Color(0xFF263733), borderStrong = Color(0xFF354944), paperPage = Color(0xFF101817), paperInk = Color(0xFFFBF9F4),
   success = Color(0xFF7BC59A), warning = Color(0xFFE0B25E), danger = Color(0xFFEF8A8A), isDark = true,
 )

@@ -285,6 +285,8 @@ private fun downloadsLabel(): String? {
   val c = DS.c
   var sky by remember { mutableStateOf(org.emdatra.sakinah.app.ScreenshotMode.route == "sky-settings") }
   if (sky) { SkySettingsScreen { sky = false }; return }
+  var guard by remember { mutableStateOf(org.emdatra.sakinah.app.ScreenshotMode.route == "adhan-guard") }
+  if (guard) { AdhanGuardScreen { guard = false }; return }
   var showCity by remember { mutableStateOf(false) }
   var showMethod by remember { mutableStateOf(false) }
   var showPrayers by remember { mutableStateOf(false) }
@@ -330,6 +332,10 @@ private fun downloadsLabel(): String? {
       }
 
       MoreGroup("الإشعارات") {
+        val issues = remember(exactOk, Store.reminders) { AdhanGuard.issues(ctx, includeSnoozed = true).size }
+        DSRow(Icons.Outlined.VerifiedUser, "ضمان الأذان", if (issues == 0) "كل الفحوص سليمة" else "${Fmt.number(issues)} ${if (issues == 1) "بندٌ يحتاج" else "بنود تحتاج"} إصلاحاً",
+          iconStyle = if (issues == 0) IconStyle.Soft else IconStyle.GoldSoft, onClick = { guard = true }) { DSChevron() }
+        DSDivider()
         DSToggleRow("إشعارات الصلاة", "تصل حتى والتطبيق مغلق", Store.reminders.enabled, Icons.Outlined.NotificationsActive) { on ->
           if (on && android.os.Build.VERSION.SDK_INT >= 33) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
           else { Store.reminders = Store.reminders.copy(enabled = on); Store.save(); Notify.schedule(ctx) }

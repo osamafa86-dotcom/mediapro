@@ -109,7 +109,7 @@ enum MushafMetrics {
   }
 }
 
-/// صفحة من مصحف المدينة بخط صفحتها (QCF v1): 15 سطرًا (8 في الفاتحة وأول البقرة داخل إطار)، كل كلمة عنصر مستقل (نقر، تظليل، إخفاء)
+/// صفحة من مصحف المدينة بخط صفحتها (QCF v2): 15 سطرًا (8 في الفاتحة وأول البقرة، في وسط الصفحة بلا إطار)، كل كلمة عنصر مستقل (نقر، تظليل، إخفاء)
 struct MushafPageView: View {
   @Environment(MushafReaderState.self) private var rs
   let page: Int
@@ -143,7 +143,6 @@ struct MushafPageView: View {
                   .frame(width: W, height: rowH)
               }
             }
-            if short { ShortPageFrame(palette: palette).frame(width: W * 0.97, height: fit.bodyHeight * (1 - 0.175 - 0.215)).offset(y: fit.bodyHeight * (0.175 - 0.215) / 2) }
           }
           .frame(width: W, height: fit.bodyHeight)
           .frame(width: inner.size.width, height: inner.size.height)
@@ -184,10 +183,9 @@ struct MushafPageView: View {
   private func row(_ line: MushafLine, size: CGFloat, rowH: CGFloat, width: CGFloat) -> some View {
     switch line {
     case .header(let s):
-      SurahHeader(surah: s, size: size, palette: rs.palette).frame(height: min(rowH * 0.88, size * 1.45)).padding(.horizontal, size * 0.1)
+      SurahHeader(surah: s, size: size, palette: rs.palette).frame(height: min(rowH * 0.92, size * 1.6)).padding(.horizontal, size * 0.06)
     case .basmala:
-      Text(QuranMeta.basmala).font(.custom(MushafFonts.amiriQuranFont, fixedSize: size * 0.98)).foregroundStyle(rs.palette.ink).lineLimit(1).minimumScaleFactor(0.5).frame(maxWidth: width * 0.62)
-        .modifier(Embolden(width: rs.strokeWidth(size * 0.98) * 0.7))
+      MadinahBasmala(size: size, maxWidth: width, palette: rs.palette, stroke: rs.strokeWidth(size))
     case .words(let ws):
       MushafLineView(words: ws, page: page, size: size, maxWidth: width).frame(maxWidth: .infinity)
     }
@@ -351,62 +349,140 @@ struct PageHead: View {
   }
 }
 
-/// إطار اسم السورة: حدّ ذهبي مزدوج وزخرفة جانبية، والاسم برموز خط sura_names («001 surah») أو نصًا عاديًا
+/// رأس السورة (v3، بروح مصحف المدينة): حزامٌ ذهبيّ بإطارين، وفي وسطه خرطوشةٌ سداسية فيها الاسم
+/// برموز خطّ sura_names («001 surah»)، ووسامان بنجمةٍ ثمانية: مكان النزول في البداية (يميناً)
+/// وعدد الآيات في النهاية (يساراً). يشغل سطراً واحداً من سطور الصفحة فلا يمسّ الترقيم ولا المواضع.
+/// المواضع تُحسب بالإحداثيات لا باتجاه التخطيط: الوسامان ثابتان في جهتيهما مهما كانت لغة النظام.
 struct SurahHeader: View {
   let surah: Int; let size: CGFloat; let palette: MushafPalette
   var plain = false
   var body: some View {
     let _ = plain ? MushafFonts.shared.ensureAmiri() : MushafFonts.shared.ensureSurahNames()
-    ZStack {
-      RoundedRectangle(cornerRadius: 4).fill(palette.paper)
-      HStack(spacing: 0) {
-        Ornament(color: palette.gold2).mask(LinearGradient(colors: [.black, .black, .clear], startPoint: .leading, endPoint: .trailing))
-        Spacer(minLength: size * 3)
-        Ornament(color: palette.gold2).mask(LinearGradient(colors: [.clear, .black, .black], startPoint: .leading, endPoint: .trailing))
-      }
-      .padding(4)
-      RoundedRectangle(cornerRadius: 4).strokeBorder(palette.gold1, lineWidth: 1)
-      RoundedRectangle(cornerRadius: 3).inset(by: 2).strokeBorder(palette.gold2, lineWidth: 1)
-      Group {
-        if plain { Text("سورة \(QuranMeta.surah(surah).name)").font(.custom(MushafFonts.amiriQuranFont, fixedSize: size * 0.9)) }
-        else { Text(String(format: "%03d surah", surah)).font(.custom(MushafFonts.surahNamesFont, fixedSize: size * 0.86)).environment(\.layoutDirection, .leftToRight) }
-      }
-      .foregroundStyle(palette.ink).lineLimit(1).minimumScaleFactor(0.6).padding(.horizontal, size * 0.6).background(palette.paper)
-    }
-    .clipShape(RoundedRectangle(cornerRadius: 4))
-    .accessibilityLabel("سورة \(QuranMeta.surah(surah).name)")
-  }
-  private struct Ornament: View {
-    let color: Color
-    var body: some View {
-      Canvas { ctx, sz in
-        let h = sz.height, step = max(6, h * 0.55)
-        var top = Path(); top.move(to: CGPoint(x: 0, y: h * 0.22)); top.addLine(to: CGPoint(x: sz.width, y: h * 0.22))
-        var bot = Path(); bot.move(to: CGPoint(x: 0, y: h * 0.78)); bot.addLine(to: CGPoint(x: sz.width, y: h * 0.78))
-        ctx.stroke(top, with: .color(color), lineWidth: 0.8); ctx.stroke(bot, with: .color(color), lineWidth: 0.8)
-        var x: CGFloat = step / 2
-        while x < sz.width {
-          let r = h * 0.14
-          var d = Path(); d.move(to: CGPoint(x: x, y: h / 2 - r)); d.addLine(to: CGPoint(x: x + r, y: h / 2)); d.addLine(to: CGPoint(x: x, y: h / 2 + r)); d.addLine(to: CGPoint(x: x - r, y: h / 2)); d.closeSubpath()
-          ctx.fill(d, with: .color(color)); x += step
+    let _ = MushafFonts.shared.ensureAmiri()
+    let meta = QuranMeta.surah(surah)
+    let type = SurahHeader.typeLabel(meta.type)
+    GeometryReader { g in
+      let W = g.size.width, H = g.size.height
+      let R = H * 0.5                                  // نصف قطر الوسام
+      let cw = min(W * 0.5, max(W * 0.38, H * 5.2))    // عرض الخرطوشة
+      let ch = H * 0.78
+      let thin = max(0.5, H * 0.016), mid = max(0.8, H * 0.03)
+      ZStack {
+        // ١) الحزام وإطاراه
+        RoundedRectangle(cornerRadius: H * 0.08).fill(palette.gold3).frame(width: W, height: H * 0.9)
+        RoundedRectangle(cornerRadius: H * 0.08).strokeBorder(palette.gold1, lineWidth: mid).frame(width: W, height: H * 0.9)
+        RoundedRectangle(cornerRadius: H * 0.05).strokeBorder(palette.gold1, lineWidth: thin).frame(width: W - H * 0.22, height: H * 0.68)
+        // ٢) زخرفة الجانبين بين الوسام والخرطوشة
+        Canvas { ctx, sz in
+          for (a, b) in [(R * 2 + H * 0.12, (W - cw) / 2 - H * 0.12), ((W + cw) / 2 + H * 0.12, W - R * 2 - H * 0.12)] where b > a {
+            for y in [H * 0.3, H * 0.7] { var l = Path(); l.move(to: CGPoint(x: a, y: y)); l.addLine(to: CGPoint(x: b, y: y)); ctx.stroke(l, with: .color(palette.gold1), lineWidth: thin) }
+            let step = H * 0.42, r = H * 0.1
+            var x = a + step * 0.5
+            while x <= b - r {
+              ctx.fill(OctaStar(ratio: 0.58).path(in: CGRect(x: x - r, y: H / 2 - r, width: r * 2, height: r * 2)), with: .color(palette.gold1))
+              if x + step * 0.5 < b - r { let d = H * 0.035; ctx.fill(Path(ellipseIn: CGRect(x: x + step * 0.5 - d, y: H / 2 - d, width: d * 2, height: d * 2)), with: .color(palette.gold1)) }
+              x += step
+            }
+          }
         }
+        // ٣) الخرطوشة والاسم
+        Cartouche().fill(palette.paper).frame(width: cw, height: ch)
+        Cartouche().stroke(palette.gold1, lineWidth: mid).frame(width: cw, height: ch)
+        Cartouche().stroke(palette.gold2, lineWidth: thin).frame(width: cw - H * 0.22, height: ch - H * 0.18)
+        Group {
+          if plain { Text("سورة \(meta.name)").font(.custom(MushafFonts.amiriQuranFont, fixedSize: size * 0.9)) }
+          else { Text(String(format: "%03d surah", surah)).font(.custom(MushafFonts.surahNamesFont, fixedSize: size * 0.86)) }
+        }
+        .foregroundStyle(palette.ink).lineLimit(1).minimumScaleFactor(0.5).frame(width: cw - ch * 0.9, height: ch * 0.9)
+        // ٤) الوسامان: النزول يميناً، والآيات يساراً
+        medal(R: R, thin: thin, mid: mid) {
+          Text(type).font(.custom(MushafFonts.amiriQuranFont, fixedSize: R * 0.4)).foregroundStyle(palette.ink).lineLimit(1).minimumScaleFactor(0.6)
+        }
+        .position(x: W - R - H * 0.04, y: H / 2)
+        medal(R: R, thin: thin, mid: mid) {
+          VStack(spacing: -R * 0.08) {
+            Text("آياتها").font(.custom(MushafFonts.amiriQuranFont, fixedSize: R * 0.28)).foregroundStyle(palette.ink.opacity(0.85))
+            Text(QuranMeta.arabicDigits(meta.ayahs)).font(.custom(MushafFonts.amiriQuranFont, fixedSize: R * 0.48)).foregroundStyle(palette.ink)
+          }
+          .lineLimit(1).minimumScaleFactor(0.6)
+        }
+        .position(x: R + H * 0.04, y: H / 2)
       }
-      .frame(maxWidth: .infinity)
+      .frame(width: W, height: H)
     }
+    .environment(\.layoutDirection, .leftToRight)
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("سورة \(meta.name)، \(type)، عدد آياتها \(QuranMeta.arabicDigits(meta.ayahs))")
+  }
+  private func medal<C: View>(R: CGFloat, thin: CGFloat, mid: CGFloat, @ViewBuilder _ content: () -> C) -> some View {
+    ZStack {
+      OctaStar().fill(palette.paper)
+      OctaStar().stroke(palette.gold1, lineWidth: mid)
+      Circle().stroke(palette.gold1, lineWidth: thin).padding(R * 0.36)
+      content().frame(width: R * 1.2, height: R * 1.2)
+    }
+    .frame(width: R * 2, height: R * 2)
+  }
+  /// «مكية» ← «مكيّة» كما في الوسام
+  static func typeLabel(_ t: String) -> String {
+    switch t { case "مكية": return "مكيّة"; case "مدنية": return "مدنيّة"; default: return t }
   }
 }
 
-/// إطار الفاتحة وأول البقرة
-struct ShortPageFrame: View {
-  let palette: MushafPalette
-  var body: some View {
-    ZStack {
-      RoundedRectangle(cornerRadius: 14).inset(by: -14).strokeBorder(palette.gold3.opacity(0.8), lineWidth: 1)
-      RoundedRectangle(cornerRadius: 10).inset(by: -5).strokeBorder(palette.gold2, lineWidth: 1)
-      RoundedRectangle(cornerRadius: 10).strokeBorder(palette.gold1, lineWidth: 2)
-      RoundedRectangle(cornerRadius: 8).inset(by: 5).strokeBorder(palette.gold2, lineWidth: 1)
-      RoundedRectangle(cornerRadius: 6).inset(by: 6).strokeBorder(palette.gold3, lineWidth: 1)
+/// نجمةٌ ثمانية (خاتم): ستة عشر رأساً تتناوب بين نصفَي قطرين
+struct OctaStar: Shape {
+  var ratio: CGFloat = 0.7654
+  func path(in r: CGRect) -> Path {
+    var p = Path(); let c = CGPoint(x: r.midX, y: r.midY), R = min(r.width, r.height) / 2
+    for i in 0..<16 {
+      let a = (Double(i) * 22.5 - 90) * .pi / 180, rr = i % 2 == 0 ? R : R * ratio
+      let pt = CGPoint(x: c.x + rr * CGFloat(cos(a)), y: c.y + rr * CGFloat(sin(a)))
+      if i == 0 { p.move(to: pt) } else { p.addLine(to: pt) }
     }
-    .allowsHitTesting(false)
+    p.closeSubpath(); return p
+  }
+}
+
+/// خرطوشةٌ سداسية ممدودة بطرفين مدبّبين
+struct Cartouche: Shape {
+  func path(in r: CGRect) -> Path {
+    let d = r.height * 0.42; var p = Path()
+    p.move(to: CGPoint(x: r.minX + d, y: r.minY)); p.addLine(to: CGPoint(x: r.maxX - d, y: r.minY))
+    p.addLine(to: CGPoint(x: r.maxX, y: r.midY)); p.addLine(to: CGPoint(x: r.maxX - d, y: r.maxY))
+    p.addLine(to: CGPoint(x: r.minX + d, y: r.maxY)); p.addLine(to: CGPoint(x: r.minX, y: r.midY))
+    p.closeSubpath(); return p
+  }
+}
+
+/// البسملة برسم المدينة: أول أربع كلمات من سطر الصفحة الأولى بخطّ تلك الصفحة (QCF v2)،
+/// مرسومةً بالمعرّفات كسائر الأسطر (لا محرّك نصّ ولا morx). إن لم يتوفّر خطّ الصفحة فأميري.
+struct MadinahBasmala: View {
+  let size: CGFloat; let maxWidth: CGFloat; let palette: MushafPalette; var stroke: CGFloat = 0
+  static let glyphs: [String] = {
+    let line = MushafLayout.shared.lines(ofPage: 1).first { !$0.words.isEmpty }
+    return Array((line?.words ?? []).prefix(4).map(\.glyph))
+  }()
+  var body: some View {
+    let fontName = MushafFonts.pageFontName(1)
+    if !MadinahBasmala.glyphs.isEmpty, MushafFonts.shared.ensureBasmala() {
+      let runs = MadinahBasmala.glyphs.map { MushafMetrics.glyphRun($0, fontName: fontName, size: size) }
+      let w = runs.reduce(CGFloat.zero) { $0 + $1.width }
+      let m = MushafMetrics.fontMetrics(fontName: fontName, size: size)
+      Canvas { ctx, sz in
+        let font = CTFontCreateWithName(fontName as CFString, size, nil)
+        ctx.withCGContext { cg in
+          cg.textMatrix = .identity; cg.translateBy(x: 0, y: m.ascent); cg.scaleBy(x: 1, y: -1)
+          if stroke > 0 { cg.setTextDrawingMode(.fillStroke); cg.setLineWidth(stroke); cg.setLineJoin(.round) } else { cg.setTextDrawingMode(.fill) }
+          let c = UIColor(palette.ink).cgColor; cg.setFillColor(c); cg.setStrokeColor(c)
+          var x = sz.width
+          for run in runs { for gi in run.ids.indices { x -= run.advances[gi]; var g = run.ids[gi]; var pt = CGPoint(x: x, y: 0); CTFontDrawGlyphs(font, &g, &pt, 1, cg) } }
+        }
+      }
+      .frame(width: max(1, w), height: max(1, m.height))
+      .scaleEffect(w > maxWidth && w > 0 ? maxWidth / w : 1, anchor: .center)
+      .accessibilityLabel(QuranMeta.basmala)
+    } else {
+      Text(QuranMeta.basmala).font(.custom(MushafFonts.amiriQuranFont, fixedSize: size * 0.98)).foregroundStyle(palette.ink).lineLimit(1).minimumScaleFactor(0.5).frame(maxWidth: maxWidth * 0.62)
+    }
   }
 }

@@ -10,16 +10,26 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
   var authorization: UNAuthorizationStatus = .notDetermined
   var pendingCount = 0
   var scheduledUntil: Date?
+  /// لـ«ضمان الأذان»: معرّفات الطلبات المعلّقة فعلاً عند النظام، وإعدادات الإشعار الكاملة (حسّاسية الوقت، الصوت، شاشة القفل)
+  var pendingIDs: Set<String> = []
+  var timeSensitive: UNNotificationSetting = .notSupported
+  var soundSetting: UNNotificationSetting = .notSupported
+  var alertsVisible = true
   /// يُستدعى عند وصول إشعار أذان والتطبيق في المقدمة (لتشغيل الأذان الكامل)
   var onForegroundAdhan: ((Prayer?) -> Void)?
 
   override init() { super.init(); center.delegate = self; refreshStatus() }
 
   func refreshStatus() {
-    center.getNotificationSettings { s in DispatchQueue.main.async { self.authorization = s.authorizationStatus } }
+    center.getNotificationSettings { s in
+      let ts = s.timeSensitiveSetting, snd = s.soundSetting
+      let visible = s.alertSetting == .enabled || s.lockScreenSetting == .enabled || s.notificationCenterSetting == .enabled
+      DispatchQueue.main.async { self.authorization = s.authorizationStatus; self.timeSensitive = ts; self.soundSetting = snd; self.alertsVisible = visible }
+    }
     center.getPendingNotificationRequests { reqs in
       let dates = reqs.compactMap { ($0.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() }
-      DispatchQueue.main.async { self.pendingCount = reqs.count; self.scheduledUntil = dates.max() }
+      let ids = Set(reqs.map(\.identifier))
+      DispatchQueue.main.async { self.pendingCount = reqs.count; self.scheduledUntil = dates.max(); self.pendingIDs = ids }
     }
   }
 

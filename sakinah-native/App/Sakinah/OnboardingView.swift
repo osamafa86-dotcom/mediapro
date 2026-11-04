@@ -8,7 +8,7 @@ struct OnboardingView: View {
   @State private var step = 0
   @State private var showCities = false
   @State private var locating = false
-  @State private var preReminder = true
+  @State private var preReminder = false  // «الأذان وحده» افتراضياً للتثبيت الجديد (خارطة الطريق: ضمان الأذان)
   @State private var adhkarReminders = false
 
   var body: some View {

@@ -86,6 +86,11 @@ struct SettingsView: View {
     let n = model.notifications
     let prefs = Binding<ReminderPrefs>(get: { model.settings.reminders }, set: { model.settings.reminders = $0; model.rescheduleNotifications() })
     SettingsGroup("الإشعارات") {
+      NavigationLink { AdhanGuardView().environment(model).tabBarClearance() } label: {
+        let issues = AdhanGuard.issues(model, includeSnoozed: true).count
+        SettingsRow(title: "ضمان الأذان", subtitle: issues == 0 ? "كل الفحوص سليمة" : "\(Fmt.number(issues, numerals: settings.numerals)) \(issues == 1 ? "بندٌ يحتاج" : "بنود تحتاج") إصلاحاً", value: nil)
+      }.buttonStyle(.plain)
+      SettingsDivider()
       Toggle(isOn: Binding(get: { prefs.wrappedValue.enabled }, set: { on in
         if on { Task { let ok = await n.requestAuthorization(); await MainActor.run { denied = !ok; prefs.wrappedValue.enabled = ok } } }
         else { prefs.wrappedValue.enabled = false }

@@ -22,7 +22,8 @@ object Notify {
 
   fun schedule(ctx: Context) {
     val am = ctx.getSystemService(AlarmManager::class.java)
-    for (id in lastIds) am.cancel(pending(ctx, id, null))
+    // إلغاء المنبّه ونيّته معاً كي يصدق فحص «مجدول» (isScheduled) بعد الإلغاء
+    for (id in lastIds) pending(ctx, id, null).let { am.cancel(it); it.cancel() }
     val items = ArrayList<Item>()
     val coords = Store.coords; val zone = Store.zone; val params = Store.params(); val now = Instant.now()
     if (coords != null) {
@@ -50,6 +51,11 @@ object Notify {
   fun exactAllowed(ctx: Context): Boolean = Build.VERSION.SDK_INT < 31 || ctx.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
   fun exactSettingsIntent(ctx: Context): Intent =
     Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, android.net.Uri.parse("package:" + ctx.packageName))
+  /** هل منبّه هذا المعرّف قائمٌ عند النظام فعلاً؟ (FLAG_NO_CREATE لا يُنشئ؛ يعيد null إن لم يوجد) */
+  fun isScheduled(ctx: Context, id: Int): Boolean {
+    val i = Intent(ctx, ReminderReceiver::class.java).setAction("org.emdatra.sakinah.REMINDER")
+    return PendingIntent.getBroadcast(ctx, id, i, PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE) != null
+  }
   private fun pending(ctx: Context, id: Int, it: Item?): PendingIntent {
     val i = Intent(ctx, ReminderReceiver::class.java).setAction("org.emdatra.sakinah.REMINDER").putExtra("id", id)
     if (it != null) i.putExtra("kind", it.kind.id).putExtra("title", it.title).putExtra("body", it.body)
@@ -69,6 +75,8 @@ object Notify {
 class ReminderReceiver : BroadcastReceiver() {
   override fun onReceive(ctx: Context, intent: Intent) {
     val kind = intent.getStringExtra("kind") ?: return
+    // اختبار «ضمان الأذان»: يُعرض بطريق الأذان نفسه ولا يمسّ الجدول
+    if (intent.getBooleanExtra("test", false)) { Notify.show(ctx, kind, intent.getStringExtra("title") ?: "سكينة", intent.getStringExtra("body") ?: "", intent.getIntExtra("id", 1)); return }
     val enabledPrayers = Store.reminders.enabled
     if ((kind == "adhan" || kind == "pre" || kind == "sunrise") && !enabledPrayers) return
     // منبّهات قديمة قد تبقى بعد قتل العملية: لا يُعرض تذكير ختمة بلا خطة أو بلا تذكير، ولا أذكار/حديث أُطفئت

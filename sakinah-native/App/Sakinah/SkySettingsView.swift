@@ -79,7 +79,7 @@ struct SkySettingsView: View {
       row(title: "السماء تتبع الوقت", subtitle: "تسعة أطوار من مواقيت صلاتك: السَّحَر، الفجر، الشروق، الضحى، الظهر، العصر، الغروب، الشفق، الليل",
           on: Binding(get: { prefs.mode == .auto }, set: { on in update { $0.mode = on ? .auto : .fixed } }))
       SettingsDivider()
-      row(title: "تتأثّر بالطقس", subtitle: "غيوم ومطر وغبار وثلج فوق السماء. يُرسل موقعك مقرّبًا إلى نحو كيلومتر إلى Open-Meteo مرّةً كل ساعة، بلا حساب ولا مفتاح.",
+      row(title: "الطقس والحرارة", subtitle: "غيوم ومطر وغبار وثلج فوق السماء، وحرارة مكانك بجانب اسم المدينة. يُرسل موقعك مقرّبًا إلى نحو كيلومتر إلى Open-Meteo مرّةً كل ساعة، بلا حساب ولا مفتاح.",
           on: Binding(get: { prefs.weather }, set: { on in update { $0.weather = on } }))
       SettingsDivider()
       row(title: "تقليل الحركة", subtitle: "يوقف زحف الغيوم ونبض القبلة وتبدّل السماء المتدرّج",

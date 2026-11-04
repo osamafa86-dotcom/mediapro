@@ -57,6 +57,8 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
@@ -83,11 +85,13 @@ import kotlin.math.sin
   LaunchedEffect(Unit) { while (true) { delay(1000); now = Instant.now() } }
   var showCity by remember { mutableStateOf(false) }; var showMethod by remember { mutableStateOf(false) }; var showMonth by remember { mutableStateOf(false) }
   var showQibla by rememberSaveable { mutableStateOf(ScreenshotMode.fullQibla) }
+  var showGuard by rememberSaveable { mutableStateOf(false) }
   var showMosques by rememberSaveable { mutableStateOf(false) }
   val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { if (it.values.any { g -> g }) scope.launch { Loc.current(ctx)?.let { l -> Loc.apply(ctx, l); Notify.schedule(ctx) } } }
   LaunchedEffect(Unit) { if (Store.coords == null && Store.locMode == "gps") { if (Loc.granted(ctx)) Loc.current(ctx)?.let { Loc.apply(ctx, it); Notify.schedule(ctx) } else permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) } }
   if (showMonth) { MonthScreen(onBack = { showMonth = false }); return }
   if (showQibla) { QiblaScreen(onClose = { showQibla = false }); return }
+  if (showGuard) { AdhanGuardScreen { showGuard = false }; return }
   if (showMosques) { MosquesScreen(onBack = { showMosques = false }); return }
   val tl = Store.timeline(now); val h = Hijri.date(now, Store.zone, Store.hijriOffset); val coords = Store.coords
   val compass = rememberCompass(enabled = coords != null)
@@ -106,7 +110,7 @@ import kotlin.math.sin
   Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
     Box(Modifier.fillMaxWidth()) {
       // لا صفّ بلاطات: كان يكرّر الشريط السفلي (المصحف/الأذكار) والميدالية (القبلة) وبطاقة أقرب مسجد (طلب المالك)
-      Hero(sky, prefs.reduceMotion, h, now, tl, coords, compass, onCity = { showCity = true }, onBell = { switchTab(AppTab.More) }, onQibla = { showQibla = true })
+      Hero(sky, prefs.reduceMotion, h, now, tl, coords, compass, onCity = { showCity = true }, onBell = { switchTab(AppTab.More) }, onQibla = { showQibla = true }, onGuard = { showGuard = true })
     }
     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 20.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
       if (tl == null || coords == null) LocationPrompt(onDevice = { permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) }, onCity = { showCity = true })
@@ -156,7 +160,7 @@ class CompassReading(val heading: Float?, val accuracy: Int)
 
 // MARK: الهيرو
 @Composable private fun Hero(sky: SkyState, reduceMotion: Boolean, h: HijriDate, now: Instant, tl: PrayerTimes.DayTimeline?, coords: Coordinates?, compass: CompassReading,
-                             onCity: () -> Unit, onBell: () -> Unit, onQibla: () -> Unit) {
+                             onCity: () -> Unit, onBell: () -> Unit, onQibla: () -> Unit, onGuard: () -> Unit) {
   val p = sky.palette
   val shape = RoundedCornerShape(bottomStart = 36.dp, bottomEnd = 36.dp)
   Box(Modifier.fillMaxWidth().clip(shape)) {
@@ -165,7 +169,7 @@ class CompassReading(val heading: Float?, val accuracy: Int)
       TopRow(p, h, onCity, onBell)
       if (tl != null && coords != null) {
         Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.Top) {
-          NextPrayerBlock(Modifier.weight(1f), tl, now, p)
+          NextPrayerBlock(Modifier.weight(1f), tl, now, p, onGuard)
           Spacer(Modifier.width(8.dp))
           MedallionColumn(coords, compass, p, onQibla)
         }
@@ -185,15 +189,32 @@ class CompassReading(val heading: Float?, val accuracy: Int)
 @Composable private fun TopRow(p: SkyPalette, h: HijriDate, onCity: () -> Unit, onBell: () -> Unit) {
   Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-      Row(Modifier.clip(CircleShape).background(p.glass).border(1.dp, p.glassStroke, CircleShape).clickable(onClick = onCity).padding(start = 12.dp, end = 10.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+      // الحرارة بجانب المدينة متى فعّل المستخدم الطقس (القراءة نفسها التي تلوّن السماء — لا طلب إضافي)
+      val temp = if (Store.skyWeather && !ScreenshotMode.active) SkyWeatherService.temperature else null
+      val label = "الموقع: " + (Store.locName ?: "غير محدّد") + (temp?.let { "، ${Math.round(it)} درجة" } ?: "")
+      Row(Modifier.clip(CircleShape).background(p.glass).border(1.dp, p.glassStroke, CircleShape).clickable(onClick = onCity).semantics(mergeDescendants = true) { contentDescription = label }.padding(start = 12.dp, end = 10.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Icon(Icons.Filled.Place, null, Modifier.size(14.dp), tint = p.gold)
-        Text(Store.locName ?: "حدّد موقعك", style = DSType.labelSm.copy(fontSize = 13.sp), color = p.text, maxLines = 1)
+        Text(Store.locName ?: "حدّد موقعك", style = DSType.labelSm.copy(fontSize = 13.sp), color = p.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        if (temp != null) {
+          Box(Modifier.width(1.dp).height(12.dp).background(p.glassStroke))
+          Icon(weatherGlyph(SkyWeatherService.current, p.isDark), null, Modifier.size(14.dp), tint = p.textSoft)
+          Text("\u2066${Fmt.number(Math.round(temp).toInt())}°\u2069", style = DSType.labelSm.copy(fontSize = 13.sp), color = p.text, maxLines = 1)
+        }
         Icon(Icons.Filled.KeyboardArrowDown, null, Modifier.size(14.dp), tint = p.textMuted)
       }
       Text("${h.weekday} ${Fmt.number(h.day)} ${h.monthName} ${Fmt.number(h.year)}هـ", style = DSType.labelSm.copy(fontSize = 12.5.sp, fontWeight = FontWeight.Normal), color = p.textMuted, maxLines = 1)
     }
     GlassIcon(Icons.Outlined.Notifications, "التنبيهات", p, badge = Store.reminders.prayers.isNotEmpty(), onClick = onBell)
   }
+}
+/** رمز الطقس في شارة المدينة — مرآة SkyWeatherService.symbol في iOS */
+private fun weatherGlyph(w: SkyWeather?, dark: Boolean): ImageVector = when (w) {
+  SkyWeather.PARTLY_CLOUDY -> if (dark) Icons.Outlined.NightsStay else Icons.Outlined.WbCloudy
+  SkyWeather.OVERCAST -> Icons.Outlined.Cloud
+  SkyWeather.RAIN -> Icons.Outlined.Umbrella
+  SkyWeather.DUST -> Icons.Outlined.Air
+  SkyWeather.SNOW -> Icons.Outlined.AcUnit
+  else -> if (dark) Icons.Outlined.DarkMode else Icons.Outlined.WbSunny
 }
 @Composable private fun GlassIcon(icon: ImageVector, label: String, p: SkyPalette, badge: Boolean, onClick: () -> Unit) {
   Box(Modifier.size(46.dp).clip(CircleShape).background(p.glass).border(1.dp, p.glassStroke, CircleShape).clickable(onClick = onClick)) {
@@ -203,7 +224,7 @@ class CompassReading(val heading: Float?, val accuracy: Int)
 }
 
 /** كتلة الصلاة القادمة: عنوان صغير، اسم الصلاة بالكوفي، العدّ التنازلي الكبير، ثم وقت الأذان — بلا حبّة «بعد…» (العدّاد يقولها) ولا شريحة الطريقة (في بطاقة المواقيت) */
-@Composable private fun NextPrayerBlock(modifier: Modifier, tl: PrayerTimes.DayTimeline, now: Instant, p: SkyPalette) {
+@Composable private fun NextPrayerBlock(modifier: Modifier, tl: PrayerTimes.DayTimeline, now: Instant, p: SkyPalette, onGuard: () -> Unit) {
   val secs = tl.next.time.epochSecond - now.epochSecond
   val cd = Fmt.countdown(secs)
   Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -214,6 +235,30 @@ class CompassReading(val heading: Float?, val accuracy: Int)
     Text(if (tl.next.isTomorrow) "فجر الغد" else tl.next.key.nameAr, Modifier.padding(top = 4.dp), style = DSType.displayHero.copy(fontSize = 52.sp), color = p.text, maxLines = 1)
     Text(cd, style = DSType.numericHero.copy(fontSize = if (cd.length > 5) 44.sp else 52.sp), color = p.text, maxLines = 1, softWrap = false)
     Text("الأذان ${Fmt.time(tl.next.time)}", Modifier.padding(top = 2.dp), style = DSType.labelMd.copy(fontSize = 13.sp), color = p.textSoft, maxLines = 1)
+    AdhanGuardLine(tl, p, onGuard)
+  }
+}
+
+/** سطر «ضمان الأذان» الدائم: ✓ مجدول متى كان منبّه الأذان القادم قائماً عند النظام، وإلا تنبيهٌ يفتح الفحص */
+@Composable private fun AdhanGuardLine(tl: PrayerTimes.DayTimeline, p: SkyPalette, onGuard: () -> Unit) {
+  if (ScreenshotMode.active) return
+  val ctx = LocalContext.current
+  var tick by remember { mutableIntStateOf(0) }
+  androidx.lifecycle.compose.LifecycleResumeEffect(Unit) { tick++; onPauseOrDispose { } }
+  val state = remember(tick, tl.next.time, Store.reminders) {
+    if (!Store.reminders.enabled) null
+    else { val up = AdhanGuard.upcoming(ctx, 1).firstOrNull(); (up?.scheduled ?: false) to AdhanGuard.issues(ctx).isEmpty() }
+  }
+  val (ok, text, icon) = when {
+    state == null -> Triple(false, "الأذان غير مفعّل", Icons.Outlined.NotificationsOff)
+    state.first && state.second -> Triple(true, "مجدولٌ على جهازك", Icons.Filled.Check)
+    state.first -> Triple(false, "مجدول، وقد يتأخر — افحص", Icons.Outlined.NotificationImportant)
+    else -> Triple(false, "غير مجدول — افحص", Icons.Outlined.NotificationImportant)
+  }
+  Row(Modifier.padding(top = 4.dp).clip(CircleShape).clickable(onClickLabel = "ضمان الأذان", onClick = onGuard).padding(vertical = 2.dp, horizontal = 2.dp),
+    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+    Icon(icon, null, Modifier.size(13.dp), tint = if (ok) p.mint else p.gold)
+    Text(text, style = DSType.labelSm.copy(fontSize = 12.sp, fontWeight = FontWeight.Normal), color = if (ok) p.textSoft else p.gold, maxLines = 1)
   }
 }
 

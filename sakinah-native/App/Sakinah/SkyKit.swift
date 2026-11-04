@@ -9,10 +9,12 @@ import SakinahCore
 @Observable
 final class SkyWeatherService {
   var current: SkyWeather?
+  /// حرارة المكان الآن (°م) من الطلب نفسه — تُعرض في حبّة المدينة متى فُعّل الطقس
+  var temperature: Double?
   var updatedAt: Date?
   var error: String?
   private var inflight = false
-  private struct Cache: Codable { let key: String; let at: Date; let weather: String }
+  private struct Cache: Codable { let key: String; let at: Date; let weather: String; var temp: Double? }
   private static let cacheKey = "sky.weather.cache"
   static let ua = "Sakinah/5.1 (+https://github.com/osamafa86-dotcom/mediapro)"
 
@@ -20,7 +22,7 @@ final class SkyWeatherService {
 
   init() {
     if let d = UserDefaults.standard.data(forKey: Self.cacheKey), let c = try? JSONDecoder().decode(Cache.self, from: d),
-       Date().timeIntervalSince(c.at) < 3 * 3600, let w = SkyWeather(rawValue: c.weather) { current = w; updatedAt = c.at }
+       Date().timeIntervalSince(c.at) < 3 * 3600, let w = SkyWeather(rawValue: c.weather) { current = w; temperature = c.temp; updatedAt = c.at }
   }
 
   /// تحديث إن مضت ساعة (أو تغيّرت الخلية) — يُستدعى من الرئيسية عند كل ظهور
@@ -30,9 +32,9 @@ final class SkyWeatherService {
     if let at = updatedAt, current != nil, Date().timeIntervalSince(at) < 3600, cachedKey == key { return }
     inflight = true; defer { inflight = false }
     do {
-      let w = try await Self.fetch(around: c)
-      current = w; updatedAt = Date(); error = nil; cachedKey = key
-      if let d = try? JSONEncoder().encode(Cache(key: key, at: Date(), weather: w.rawValue)) { UserDefaults.standard.set(d, forKey: Self.cacheKey) }
+      let (w, t) = try await Self.fetch(around: c)
+      current = w; temperature = t; updatedAt = Date(); error = nil; cachedKey = key
+      if let d = try? JSONEncoder().encode(Cache(key: key, at: Date(), weather: w.rawValue, temp: t)) { UserDefaults.standard.set(d, forKey: Self.cacheKey) }
     } catch { self.error = error.localizedDescription }
   }
   private var cachedKey: String? = {
@@ -40,23 +42,37 @@ final class SkyWeatherService {
     return c.key
   }()
 
-  static func fetch(around c: Coordinates) async throws -> SkyWeather {
+  static func fetch(around c: Coordinates) async throws -> (SkyWeather, Double?) {
     let lat = String(format: "%.2f", (c.latitude * 100).rounded() / 100), lon = String(format: "%.2f", (c.longitude * 100).rounded() / 100)
     func request(_ base: String, _ items: [String: String]) -> URLRequest {
       var u = URLComponents(string: base)!
       u.queryItems = [URLQueryItem(name: "latitude", value: lat), URLQueryItem(name: "longitude", value: lon)] + items.map { URLQueryItem(name: $0.key, value: $0.value) }
       var r = URLRequest(url: u.url!); r.timeoutInterval = 12; r.setValue(ua, forHTTPHeaderField: "User-Agent"); return r
     }
-    let (data, resp) = try await URLSession.shared.data(for: request("https://api.open-meteo.com/v1/forecast", ["current": "weather_code,cloud_cover", "timezone": "auto"]))
+    let (data, resp) = try await URLSession.shared.data(for: request("https://api.open-meteo.com/v1/forecast", ["current": "weather_code,cloud_cover,temperature_2m", "timezone": "auto"]))
     guard let h = resp as? HTTPURLResponse, (200..<300).contains(h.statusCode) else { throw URLError(.badServerResponse) }
-    struct R: Decodable { struct C: Decodable { let weather_code: Int; let cloud_cover: Int? }; let current: C }
+    struct R: Decodable { struct C: Decodable { let weather_code: Int; let cloud_cover: Int?; let temperature_2m: Double? }; let current: C }
     let r = try JSONDecoder().decode(R.self, from: data)
     var dust: Double? = nil
     if let (aq, _) = try? await URLSession.shared.data(for: request("https://air-quality-api.open-meteo.com/v1/air-quality", ["current": "dust"])) {
       struct AQ: Decodable { struct C: Decodable { let dust: Double? }; let current: C }
       dust = (try? JSONDecoder().decode(AQ.self, from: aq))?.current.dust
     }
-    return SkyWeather.from(wmo: r.current.weather_code, cloudCover: r.current.cloud_cover ?? 0, dust: dust)
+    return (SkyWeather.from(wmo: r.current.weather_code, cloudCover: r.current.cloud_cover ?? 0, dust: dust), r.current.temperature_2m)
+  }
+}
+
+extension SkyWeatherService {
+  /// رمز حال الطقس بجانب الحرارة (قمرٌ في الليل الصافي)
+  static func symbol(_ w: SkyWeather?, dark: Bool) -> String {
+    switch w {
+    case .partlyCloudy?: return dark ? "cloud.moon" : "cloud.sun"
+    case .overcast?: return "cloud"
+    case .rain?: return "cloud.rain"
+    case .dust?: return "sun.dust"
+    case .snow?: return "cloud.snow"
+    default: return dark ? "moon.stars" : "sun.max"
+    }
   }
 }
 

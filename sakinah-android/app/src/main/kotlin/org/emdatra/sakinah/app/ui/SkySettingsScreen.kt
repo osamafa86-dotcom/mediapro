@@ -64,7 +64,7 @@ import java.time.Instant
       SkyGroup("تلقائي") {
         DSToggleRow("السماء تتبع الوقت", "تسعة أطوار من مواقيت صلاتك: السَّحَر، الفجر، الشروق، الضحى، الظهر، العصر، الغروب، الشفق، الليل", prefs.mode == SkyMode.AUTO, Icons.Outlined.WbTwilight) { on -> save { Store.skyMode = if (on) "auto" else "fixed" } }
         DSDivider()
-        DSToggleRow("تتأثّر بالطقس", "غيوم ومطر وغبار وثلج فوق السماء. يُرسل موقعك مقرّبًا إلى نحو كيلومتر إلى Open-Meteo مرّةً كل ساعة، بلا حساب ولا مفتاح.", prefs.weather, Icons.Outlined.Cloud) { on -> save { Store.skyWeather = on } }
+        DSToggleRow("الطقس والحرارة", "غيوم ومطر وغبار وثلج فوق السماء، وحرارة مكانك بجانب اسم المدينة. يُرسل موقعك مقرّبًا إلى نحو كيلومتر إلى Open-Meteo مرّةً كل ساعة، بلا حساب ولا مفتاح.", prefs.weather, Icons.Outlined.Cloud) { on -> save { Store.skyWeather = on } }
         DSDivider()
         DSToggleRow("تقليل الحركة", "يوقف زحف الغيوم ونبض القبلة وتبدّل السماء المتدرّج", prefs.reduceMotion, Icons.Outlined.MotionPhotosOff) { on -> save { Store.skyReduceMotion = on } }
       }

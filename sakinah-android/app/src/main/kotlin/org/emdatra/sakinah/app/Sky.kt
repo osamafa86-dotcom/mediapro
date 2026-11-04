@@ -49,16 +49,18 @@ import kotlin.math.sin
 /** الطقس من Open-Meteo: بلا مفتاح ولا حساب، إحداثيات مقرّبة إلى ~١ كم، مرّةً كل ساعة، ولا يُستدعى إلا إن فعّله المستخدم */
 object SkyWeatherService {
   var current by mutableStateOf<SkyWeather?>(null); private set
+  /** درجة الحرارة الحالية (°م) من القراءة نفسها — تُعرض في شارة المدينة متى فعّل المستخدم الطقس */
+  var temperature by mutableStateOf<Double?>(null); private set
   private var updatedAt = 0L; private var key: String? = null; private var inflight = false; private var restored = false
   private const val UA = "Sakinah/5.1 (+https://github.com/osamafa86-dotcom/mediapro)"
-  @Serializable private data class Cache(val key: String, val at: Long, val weather: String)
+  @Serializable private data class Cache(val key: String, val at: Long, val weather: String, val temp: Double? = null)
 
   fun cellKey(lat: Double, lon: Double): String = String.format(java.util.Locale.US, "%.2f,%.2f", lat, lon)
 
   private fun restore() {
     if (restored) return; restored = true
     val c = Store.skyWeatherCache?.let { runCatching { Res.json.decodeFromString(Cache.serializer(), it) }.getOrNull() } ?: return
-    if (System.currentTimeMillis() - c.at < 3 * 3600_000L) { current = SkyWeather.of(c.weather); updatedAt = c.at; key = c.key }
+    if (System.currentTimeMillis() - c.at < 3 * 3600_000L) { current = SkyWeather.of(c.weather); temperature = c.temp; updatedAt = c.at; key = c.key }
   }
 
   suspend fun refreshIfNeeded(lat: Double, lon: Double) {
@@ -68,9 +70,9 @@ object SkyWeatherService {
     if (current != null && key == k && System.currentTimeMillis() - updatedAt < 3600_000L) return
     inflight = true
     try {
-      val w = withContext(Dispatchers.IO) { fetch(lat, lon) }
-      current = w; updatedAt = System.currentTimeMillis(); key = k
-      Store.skyWeatherCache = Res.json.encodeToString(Cache.serializer(), Cache(k, updatedAt, w.id)); Store.save()
+      val (w, t) = withContext(Dispatchers.IO) { fetch(lat, lon) }
+      current = w; temperature = t; updatedAt = System.currentTimeMillis(); key = k
+      Store.skyWeatherCache = Res.json.encodeToString(Cache.serializer(), Cache(k, updatedAt, w.id, t)); Store.save()
     } catch (e: Exception) { /* بلا شبكة: تبقى آخر قراءة أو لا شيء */ } finally { inflight = false }
   }
 
@@ -81,16 +83,17 @@ object SkyWeatherService {
     return c.inputStream.bufferedReader().readText()
   }
 
-  private fun fetch(lat: Double, lon: Double): SkyWeather {
+  private fun fetch(lat: Double, lon: Double): Pair<SkyWeather, Double?> {
     val la = String.format(java.util.Locale.US, "%.2f", Math.round(lat * 100) / 100.0)
     val lo = String.format(java.util.Locale.US, "%.2f", Math.round(lon * 100) / 100.0)
-    val body = get("https://api.open-meteo.com/v1/forecast?latitude=$la&longitude=$lo&current=weather_code,cloud_cover&timezone=auto")
+    val body = get("https://api.open-meteo.com/v1/forecast?latitude=$la&longitude=$lo&current=weather_code,cloud_cover,temperature_2m&timezone=auto")
     val cur = Res.json.parseToJsonElement(body).jsonObject["current"]?.jsonObject ?: error("no current")
     val code = cur["weather_code"]?.jsonPrimitive?.intOrNull ?: 0
     val cloud = cur["cloud_cover"]?.jsonPrimitive?.intOrNull ?: 0
+    val temp = cur["temperature_2m"]?.jsonPrimitive?.doubleOrNull
     // الغبار من واجهة جودة الهواء نفسها (اختياري؛ فشله لا يعطّل الطقس)
     val dust = runCatching { Res.json.parseToJsonElement(get("https://air-quality-api.open-meteo.com/v1/air-quality?latitude=$la&longitude=$lo&current=dust")).jsonObject["current"]?.jsonObject?.get("dust")?.jsonPrimitive?.doubleOrNull }.getOrNull()
-    return SkyWeather.from(code, cloud, dust)
+    return SkyWeather.from(code, cloud, dust) to temp
   }
 }
 

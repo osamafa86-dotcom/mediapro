@@ -18,6 +18,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import android.content.Context
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -637,7 +638,7 @@ private fun Modifier.frosted(on: Boolean) = if (on && canBlur) this.blur(5.dp) e
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
               if (idx in lines.indices) when (val l = lines[idx]) {
                 is MushafLine.Header -> SurahHeaderBox(l.surah, fontSize, ink, paper)
-                is MushafLine.Basmala -> Text(QuranMeta.basmala, fontFamily = Fonts.amiri, fontSize = fontSize * 0.95, color = ink, maxLines = 1)
+                is MushafLine.Basmala -> MadinahBasmala(fontSize, ink)
                 is MushafLine.Words -> Row(verticalAlignment = Alignment.CenterVertically) {
                   for (w in l.words) {
                     val a = QuranText.shared.ayah(w.n)
@@ -660,11 +661,99 @@ private fun Modifier.frosted(on: Boolean) = if (on && canBlur) this.blur(5.dp) e
     }
   }
 }
+/**
+ * رأس السورة (v3، بروح مصحف المدينة): حزامٌ ذهبيّ بإطارين، وخرطوشةٌ سداسية فيها الاسم برموز خطّ
+ * sura_names، ووسامان بنجمةٍ ثمانية: مكان النزول في البداية (يميناً) وعدد الآيات في النهاية (يساراً).
+ * المواضع بالإحداثيات لا باتجاه التخطيط، فالوسامان ثابتان في جهتيهما. مطابقٌ لـ SurahHeader في iOS.
+ */
 @Composable fun SurahHeaderBox(surah: Int, fontSize: TextUnit, ink: Color, paper: Color) {
-  Box(Modifier.fillMaxWidth(0.98f).fillMaxHeight(0.88f).border(1.dp, Gold, RoundedCornerShape(4.dp)).padding(2.dp).border(1.dp, Gold.copy(alpha = 0.6f), RoundedCornerShape(3.dp)), contentAlignment = Alignment.Center) {
-    val f = Fonts.surahNames
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) { if (f != null) Text("%03d surah".format(java.util.Locale.US, surah), fontFamily = f, fontSize = fontSize * 0.86, color = ink, maxLines = 1) else Text("سورة ${QuranMeta.surah(surah).name}", fontFamily = Fonts.amiri, fontSize = fontSize * 0.9, color = ink) }
+  val meta = QuranMeta.surah(surah); val type = surahTypeLabel(meta.type)
+  val dark = paper.luminance() < 0.5f
+  val gold1 = if (dark) Color(0xFFB8993F) else Color(0xFFA98A3A)
+  val gold2 = if (dark) Color(0xFF8D7434) else Color(0xFFCFB46F)
+  val gold3 = if (dark) Color(0xFF4A3F22) else Color(0xFFE9DCB2)
+  val label = "سورة ${meta.name}، $type، عدد آياتها ${QuranMeta.arabicDigits(meta.ayahs)}"
+  CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+    BoxWithConstraints(Modifier.fillMaxWidth(0.98f).fillMaxHeight(0.92f).semantics(mergeDescendants = true) { contentDescription = label }) {
+      val density = LocalDensity.current
+      val W = constraints.maxWidth.toFloat(); val H = constraints.maxHeight.toFloat()
+      val R = H * 0.5f
+      val cw = minOf(W * 0.5f, maxOf(W * 0.38f, H * 5.2f)); val ch = H * 0.78f
+      val thin = maxOf(1f, H * 0.016f); val mid = maxOf(1.5f, H * 0.03f)
+      Canvas(Modifier.fillMaxSize()) {
+        // ١) الحزام وإطاراه
+        val bandTop = H * 0.05f
+        drawRoundRect(gold3, Offset(0f, bandTop), androidx.compose.ui.geometry.Size(W, H * 0.9f), androidx.compose.ui.geometry.CornerRadius(H * 0.08f))
+        drawRoundRect(gold1, Offset(mid / 2, bandTop + mid / 2), androidx.compose.ui.geometry.Size(W - mid, H * 0.9f - mid), androidx.compose.ui.geometry.CornerRadius(H * 0.08f), style = Stroke(mid))
+        drawRoundRect(gold1, Offset(H * 0.11f, H * 0.16f), androidx.compose.ui.geometry.Size(W - H * 0.22f, H * 0.68f), androidx.compose.ui.geometry.CornerRadius(H * 0.05f), style = Stroke(thin))
+        // ٢) زخرفة الجانبين
+        for ((a, b) in listOf((R * 2 + H * 0.12f) to ((W - cw) / 2 - H * 0.12f), ((W + cw) / 2 + H * 0.12f) to (W - R * 2 - H * 0.12f))) {
+          if (b <= a) continue
+          for (y in listOf(H * 0.3f, H * 0.7f)) drawLine(gold1, Offset(a, y), Offset(b, y), thin)
+          val step = H * 0.42f; val r = H * 0.1f; var x = a + step * 0.5f
+          while (x <= b - r) {
+            drawPath(octaStarPath(x, H / 2, r, 0.58f), gold1)
+            if (x + step * 0.5f < b - r) drawCircle(gold1, H * 0.035f, Offset(x + step * 0.5f, H / 2))
+            x += step
+          }
+        }
+        // ٣) الخرطوشة
+        val cl = (W - cw) / 2; val ct = (H - ch) / 2
+        drawPath(cartouchePath(cl, ct, cw, ch), paper)
+        drawPath(cartouchePath(cl, ct, cw, ch), gold1, style = Stroke(mid))
+        drawPath(cartouchePath(cl + H * 0.11f, ct + H * 0.09f, cw - H * 0.22f, ch - H * 0.18f), gold2, style = Stroke(thin))
+        // ٤) الوسامان
+        for (cx in listOf(W - R - H * 0.04f, R + H * 0.04f)) {
+          drawPath(octaStarPath(cx, H / 2, R - mid / 2), paper)
+          drawPath(octaStarPath(cx, H / 2, R - mid / 2), gold1, style = Stroke(mid))
+          drawCircle(gold1, R * 0.64f, Offset(cx, H / 2), style = Stroke(thin))
+        }
+      }
+      with(density) {
+        val f = Fonts.surahNames
+        Box(Modifier.align(Alignment.Center).size((cw - ch * 0.9f).toDp(), (ch * 0.9f).toDp()), contentAlignment = Alignment.Center) {
+          if (f != null) Text("%03d surah".format(java.util.Locale.US, surah), fontFamily = f, fontSize = fontSize * 0.84, color = ink, maxLines = 1, softWrap = false)
+          else Text("سورة ${meta.name}", fontFamily = Fonts.amiri, fontSize = fontSize * 0.85, color = ink, maxLines = 1, softWrap = false)
+        }
+        // النزول يميناً
+        Box(Modifier.offset((W - R - H * 0.04f - R * 0.62f).toDp(), (H / 2 - R * 0.62f).toDp()).size((R * 1.24f).toDp()), contentAlignment = Alignment.Center) {
+          Text(type, fontFamily = Fonts.amiri, fontSize = (R * 0.4f).toSp(), color = ink, maxLines = 1, softWrap = false)
+        }
+        // الآيات يساراً
+        Column(Modifier.offset((R + H * 0.04f - R * 0.62f).toDp(), (H / 2 - R * 0.62f).toDp()).size((R * 1.24f).toDp()), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+          Text("آياتها", fontFamily = Fonts.amiri, fontSize = (R * 0.27f).toSp(), lineHeight = (R * 0.3f).toSp(), color = ink.copy(alpha = 0.85f), maxLines = 1, softWrap = false)
+          Text(QuranMeta.arabicDigits(meta.ayahs), fontFamily = Fonts.amiri, fontSize = (R * 0.46f).toSp(), lineHeight = (R * 0.5f).toSp(), color = ink, maxLines = 1, softWrap = false)
+        }
+      }
+    }
   }
+}
+
+/** «مكية» ← «مكيّة» كما في الوسام */
+fun surahTypeLabel(t: String): String = when (t) { "مكية" -> "مكيّة"; "مدنية" -> "مدنيّة"; else -> t }
+
+/** نجمةٌ ثمانية (خاتم): ستة عشر رأساً تتناوب بين نصفَي قطرين */
+fun octaStarPath(cx: Float, cy: Float, r: Float, ratio: Float = 0.7654f) = Path().apply {
+  for (i in 0 until 16) {
+    val a = Math.toRadians(i * 22.5 - 90.0); val rr = if (i % 2 == 0) r else r * ratio
+    val x = cx + rr * kotlin.math.cos(a).toFloat(); val y = cy + rr * kotlin.math.sin(a).toFloat()
+    if (i == 0) moveTo(x, y) else lineTo(x, y)
+  }
+  close()
+}
+
+/** خرطوشةٌ سداسية ممدودة بطرفين مدبّبين */
+fun cartouchePath(l: Float, t: Float, w: Float, h: Float) = Path().apply {
+  val d = h * 0.42f
+  moveTo(l + d, t); lineTo(l + w - d, t); lineTo(l + w, t + h / 2); lineTo(l + w - d, t + h); lineTo(l + d, t + h); lineTo(l, t + h / 2); close()
+}
+
+/** البسملة برسم المدينة: أول أربع كلمات من سطر الصفحة الأولى بخطّها، وإلا أميري */
+@Composable fun MadinahBasmala(fontSize: TextUnit, ink: Color) {
+  val f = Fonts.page(1)
+  val glyphs = remember { MushafLayout.shared.lines(1).firstNotNullOfOrNull { (it as? MushafLine.Words)?.words?.take(4)?.joinToString("") { w -> w.glyph } } }
+  if (f != null && glyphs != null) Text(glyphs, Modifier.embolden(fontSize).semantics { contentDescription = QuranMeta.basmala }, fontFamily = f, fontSize = fontSize, color = ink, maxLines = 1, softWrap = false, overflow = TextOverflow.Visible)
+  else Text(QuranMeta.basmala, fontFamily = Fonts.amiri, fontSize = fontSize * 0.95, color = ink, maxLines = 1)
 }
 
 /** وضع النص المتدفق: أميري قرآن أو حفص، التجويد الملوّن، حجم قابل للتغيير */

@@ -41,7 +41,7 @@ import org.emdatra.sakinah.app.*
   val c = DS.c; val ctx = LocalContext.current; val scope = rememberCoroutineScope()
   var step by remember { mutableIntStateOf(0) }
   var showCity by remember { mutableStateOf(false) }; var locating by remember { mutableStateOf(false) }
-  var preReminder by remember { mutableStateOf(true) }; var adhan by remember { mutableStateOf(true) }; var adhkar by remember { mutableStateOf(false) }
+  var preReminder by remember { mutableStateOf(false) }; var adhan by remember { mutableStateOf(true) }; var adhkar by remember { mutableStateOf(false) }
   val locPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { g -> if (g.values.any { it }) scope.launch { Loc.current(ctx)?.let { l -> Loc.apply(ctx, l); Notify.schedule(ctx) }; locating = false } else locating = false }
   val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { _ -> Notify.schedule(ctx); onDone() }
   fun enableNotifications() {
