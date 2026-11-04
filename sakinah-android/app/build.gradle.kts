@@ -60,6 +60,8 @@ dependencies {
   implementation("androidx.activity:activity-compose:1.9.2")
   implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")
   implementation("androidx.core:core-ktx:1.13.1")
+  // ويدجت الشاشة الرئيسية (المرحلة الثالثة «اليوم الحيّ»): Glance فوق RemoteViews
+  implementation("androidx.glance:glance-appwidget:1.1.1")
   implementation("androidx.media3:media3-exoplayer:1.4.1")
   implementation("com.google.android.play:asset-delivery-ktx:2.3.0")
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
