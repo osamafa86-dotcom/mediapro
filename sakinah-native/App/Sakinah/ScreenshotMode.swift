@@ -21,8 +21,8 @@ enum ScreenshotMode {
   /// التبويب الذي يُفتح عليه التطبيق
   static var tab: AppTab? {
     switch route {
-    case "prayer", "qibla", "home", "home-bottom", "sky-settings", "search", "settings", "ramadan", "ramadan-iftar", "ramadan-suhoor": return .home
-    case "mushaf", "mushaf-juz", "mushaf-switch", "mushaf-bookmarks", "mushaf-ayah-bookmark", "mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-khatmah", "mushaf-display", "mushaf-hifz", "mushaf-spread": return .mushaf
+    case "prayer", "qibla", "qibla-sun", "qibla-map", "home", "home-bottom", "sky-settings", "search", "settings", "ramadan", "ramadan-iftar", "ramadan-suhoor": return .home
+    case "mushaf", "mushaf-juz", "mushaf-switch", "mushaf-bookmarks", "mushaf-ayah-bookmark", "mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-khatmah", "mushaf-display", "mushaf-hifz", "mushaf-spread", "review-ayahs": return .mushaf
     case "adhkar", "hisn", "tasbih": return .adhkar
     // «more» يبقى اسمًا للمسار القديم في سير اللقطات — التبويب صار «المكتبة»
     case "hadith", "more", "library": return .library
@@ -50,8 +50,14 @@ enum ScreenshotMode {
   static var librarySheet: Bool { route == "mushaf-khatmah" }
   /// تبويب الفهرس الذي تُفتح عليه المكتبة (الأجزاء في لقطة التحقّق من تبديل التبويبات)
   static var libraryTab: Int { route == "mushaf-juz" ? 1 : (route == "mushaf-bookmarks" ? 3 : 0) }
-  /// مسار «qibla» يفتح القبلة الكاملة فوق الرئيسية
-  static var fullQibla: Bool { route == "qibla" }
+  /// مسار «qibla» يفتح القبلة الكاملة فوق الرئيسية — و«qibla-sun» و«qibla-map» على تبويبَي الشمس والخريطة (المرحلة الخامسة)
+  static var fullQibla: Bool { route == "qibla" || route == "qibla-sun" || route == "qibla-map" }
+  /// تبويب شاشة القبلة الذي تُفتح عليه: ٠ البوصلة، ١ الشمس، ٢ الخريطة
+  static var qiblaMode: Int { route == "qibla-sun" ? 1 : (route == "qibla-map" ? 2 : 0) }
+  /// مسار «tasbih» يفتح شاشة المسبحة فوق «الذكر»
+  static var openTasbih: Bool { route == "tasbih" }
+  /// مسار «review-ayahs» يفتح «للمراجعة» (الآيات الموسومة ضعيفة) فوق «القرآن»
+  static var reviewAyahs: Bool { route == "review-ayahs" }
   /// مسار «sky-settings» (تشخيصي): يفتح شاشة «مظهر السماء» فوق الرئيسية للتحقّق البصري منها
   static var skySettings: Bool { route == "sky-settings" }
   /// مسار «search» (تشخيصي): يفتح البحث الشامل فوق «اليوم» مكتوبًا فيه «الصبر» كما في التصميم
@@ -101,6 +107,30 @@ enum ScreenshotMode {
       RamadanEdition.markRamadanPlan(plan)
       model.quran.khatmah = plan
       model.quran.wird = log
+    }
+    // «للمراجعة»: أربع آيات موسومة ضعيفة (الأرقام المتسلسلة من المتن نفسه)
+    if route == "review-ayahs" {
+      model.quran.weakAyahs = [(2, 255), (2, 286), (18, 10), (67, 2)].compactMap { QuranText.shared.ayah(surah: $0.0, ayah: $0.1)?.n }
+    }
+    // المسبحة و«الذكر»: سجلّ أسبوعٍ للمسبحة، وحضورٌ في أيامٍ من الأسبوع، ومفضّلةٌ تُرى في قسمها
+    if route == "tasbih" || route == "adhkar" {
+      let today = model.todayKey
+      var daily: [String: Int] = [:]
+      for (d, v) in [(-6, 180), (-5, 330), (-4, 0), (-3, 99), (-2, 240), (-1, 410), (0, 240)] { daily[DayKey.adding(today, days: d)] = v }
+      model.content.tasbihDaily = daily
+      // الإحصاء بمسار النقر نفسه (بنية الإحصاء في النواة بلا مُهيِّئ عامّ): ١٢٬١٦٠ قبل اليوم و٢٤٠ اليوم
+      var st = TasbihState()
+      st.target = 0
+      let before = DayKey.adding(today, days: -1)
+      for _ in 0..<12_160 { st = Tasbih.tap(st, today: before).state }
+      for _ in 0..<240 { st = Tasbih.tap(st, today: today).state }
+      st.target = 33; st.count = 23; st.rounds = 1
+      model.content.tasbih = st
+      var log: AdhkarLog = [:]
+      for d in WeekKeys.saturdayWeek(containing: today) where d <= today && d != DayKey.adding(today, days: -1) { log[d] = ["morning"] }
+      model.content.adhkarLog = log
+      model.content.favorites = ["dhikr:a01"]
+      model.content.hisnFavorites = [34, 129]
     }
     if route == "mushaf-khatmah" || route == "mushaf" {
       let today = model.todayKey

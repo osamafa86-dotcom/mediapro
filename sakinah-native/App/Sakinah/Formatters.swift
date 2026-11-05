@@ -43,6 +43,12 @@ enum Fmt {
     return f.string(from: NSNumber(value: n)) ?? String(n)
   }
 
+  /// عددٌ بفاصل الآلاف («١٬٥٠٠») للأرقام الكبيرة في البلاطات والسطور (المسبحة، المسافة إلى الكعبة)
+  static func grouped(_ n: Int, numerals: String) -> String {
+    let f = NumberFormatter(); f.locale = locale(numerals: numerals); f.numberStyle = .decimal; f.usesGroupingSeparator = true; f.maximumFractionDigits = 0
+    return f.string(from: NSNumber(value: n)) ?? String(n)
+  }
+
   static func decimal(_ v: Double, digits: Int, numerals: String) -> String {
     let f = NumberFormatter(); f.locale = locale(numerals: numerals); f.maximumFractionDigits = digits; f.minimumFractionDigits = 0
     return f.string(from: NSNumber(value: v)) ?? String(v)

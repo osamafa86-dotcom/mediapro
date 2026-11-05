@@ -696,7 +696,7 @@ struct SearchView: View {
     case .monthTable: MonthTableView().environment(model)
     case .adhanGuard: AdhanGuardView().environment(model)
     case .notifications: NotificationSettingsView().environment(model)
-    case .tasbih: TasbihView().environment(model)
+    case .tasbih: TasbihView(backTitle: "البحث").environment(model)
     case .mosques: MosquesView().environment(model)
     case .hisn: HisnView().environment(model)
     case .nawawi: HadithView(initialBook: "nawawi", embedded: true).environment(model)

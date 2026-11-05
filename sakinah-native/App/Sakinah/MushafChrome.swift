@@ -324,6 +324,9 @@ struct AyahOptionsSheet: View {
         HStack(spacing: 10) { action("book", "التفسير الميسّر", "مضمّن") { onAction(.tafsir) }; action("globe", "الترجمة", "quran.com") { onAction(.translation) } }
         HStack(spacing: 10) { action("character.book.closed", "معاني الكلمات", "كلمةً كلمة") { onAction(.wordMeanings) }; action("repeat", "تكرار الآية ×٣", "للحفظ") { onAction(.repeat3) } }
         HStack(spacing: 10) { action("mic", "مراجعة الحفظ", "من هنا", tone: .gold) { onAction(.hifz) }; action("photo", "مشاركة صورةً", "٤ سمات") { onAction(.shareImage) } }
+        // وسم «ضعيفة» من خيارات الآية (المرحلة الخامسة): تظهر في «للمراجعة» في تبويب «القرآن» — كما في لوحة التسميع
+        action(weak ? "exclamationmark.triangle.fill" : "exclamationmark.triangle", weak ? "إزالة من «للمراجعة»" : "علِّمها ضعيفة", weak ? "أتقنتُها" : "تظهر في «للمراجعة»", tone: weak ? .gold : .teal) { model.quran.toggleWeak(ayah.n) }
+          .accessibilityLabel(weak ? "إزالة وسم الآية الضعيفة" : "وسم الآية ضعيفةً للمراجعة")
         Text("موضع القراءة يُحفظ تلقائيًا مع التقليب · العلامة والمشاركة من رصيف الآية").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).multilineTextAlignment(.center).frame(maxWidth: .infinity)
       }
       .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 24)

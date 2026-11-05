@@ -17,6 +17,11 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
   var alertsVisible = true
   /// يُستدعى عند وصول إشعار أذان والتطبيق في المقدمة (لتشغيل الأذان الكامل)
   var onForegroundAdhan: ((Prayer?) -> Void)?
+  /// تذكير «تعامد الشمس على الكعبة» (شاشة القبلة، المرحلة الخامسة): لحظة الحادثة نفسها، والإشعار قبلها بعشر دقائق.
+  /// `sync` تمحو المعلّق كلّه عند كل إعادة جدولة، فيُعاد الطلب منها ما دام موعده قادمًا
+  var zenithReminderAt: Date? = UserDefaults.standard.object(forKey: "qibla.zenithReminder") as? Date
+  static let zenithKey = "qibla.zenithReminder"
+  static let zenithID = "qibla.zenith"
 
   override init() { super.init(); center.delegate = self; refreshStatus() }
 
@@ -65,8 +70,44 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
       var comps = DateComponents(); comps.hour = d.hour; comps.minute = d.minute; comps.timeZone = tz
       center.add(UNNotificationRequest(identifier: d.id, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)))
     }
+    addZenithRequest()
     if !(prayerItems + extraItems).isEmpty || !daily.isEmpty { Task { _ = await requestAuthorizationIfNeeded() } }
     refreshStatus()
+  }
+
+  // MARK: - تذكير تعامد الشمس على الكعبة
+  /// يطلب الإذن إن لم يُحدَّد بعد، ثم يحفظ الموعد ويضيف الطلب. بمعرّفٍ ثابت: الضغطة الثانية تحلّ محلّ الأولى فلا يتكرّر
+  func scheduleZenithReminder(at event: Date) async -> Bool {
+    let s = await center.notificationSettings()
+    var allowed = s.authorizationStatus == .authorized || s.authorizationStatus == .provisional || s.authorizationStatus == .ephemeral
+    if s.authorizationStatus == .notDetermined && !ScreenshotMode.active { allowed = await requestAuthorization() }
+    guard allowed else { return false }
+    await MainActor.run {
+      self.zenithReminderAt = event
+      UserDefaults.standard.set(event, forKey: Self.zenithKey)
+      self.addZenithRequest()
+      self.refreshStatus()
+    }
+    return true
+  }
+  func cancelZenithReminder() {
+    zenithReminderAt = nil
+    UserDefaults.standard.removeObject(forKey: Self.zenithKey)
+    center.removePendingNotificationRequests(withIdentifiers: [Self.zenithID])
+    refreshStatus()
+  }
+  private func addZenithRequest() {
+    guard let event = zenithReminderAt else { return }
+    let interval = event.addingTimeInterval(-10 * 60).timeIntervalSinceNow
+    guard interval > 1 else { return }
+    let content = UNMutableNotificationContent()
+    content.title = "تعامد الشمس على الكعبة بعد عشر دقائق"
+    content.body = "عندها يكون اتجاه الشمس من كل مكانٍ يراها هو القبلة: قف ووجهك إلى الشمس."
+    content.sound = .default
+    content.threadIdentifier = "qibla"
+    content.userInfo = ["kind": "zenith"]
+    let trigger = UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false)
+    center.add(UNNotificationRequest(identifier: Self.zenithID, content: content, trigger: trigger))
   }
   private func requestAuthorizationIfNeeded() async -> Bool {
     let s = await center.notificationSettings()

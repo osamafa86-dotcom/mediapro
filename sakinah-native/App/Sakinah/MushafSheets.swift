@@ -297,7 +297,7 @@ struct QuickNavSheet: View {
             Button { onGo(r.page, QuranText.shared.ayah(surah: r.surah, ayah: r.ayah)?.n) } label: {
               VStack(alignment: .leading, spacing: 2) {
                 Text(QuranMeta.surah(r.surah).name).font(DS.amiri(16)).foregroundStyle(DS.C.textPrimary)
-                Text("آية \(Fmt.number(r.ayah, numerals: numerals)) · ص \(Fmt.number(r.page, numerals: numerals))").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary)
+                Text("آية \(Fmt.number(r.ayah, numerals: numerals))، صفحة \(Fmt.number(r.page, numerals: numerals))").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary)
               }
               .padding(.vertical, 8).padding(.horizontal, 12)
               .background(DS.C.bgSurface, in: RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))
@@ -349,7 +349,7 @@ struct NavRow: View {
       Text(num).font(.arabic(14, weight: .bold)).frame(width: 34, height: 34).background((current ? Theme.gold : Theme.primary).opacity(0.14), in: Circle())
       VStack(alignment: .leading, spacing: 2) { Text(title).font(.arabic(16)); Text(sub).font(.arabic(12)).foregroundStyle(.secondary) }
       Spacer()
-      Text("ص \(page)").font(.arabic(12)).foregroundStyle(.tertiary)
+      Text("صفحة \(page)").font(.arabic(12)).foregroundStyle(.tertiary)
     }
     .contentShape(Rectangle())
   }
@@ -434,7 +434,7 @@ struct KhatmahSheet: View {
         Text(stt.finished ? "" : (stt.behind > 0 ? "متأخّر \(Fmt.number(stt.behind, numerals: numerals)) صفحة — تُوزَّع على الأيام الباقية (\(Fmt.number(stt.neededPerDay, numerals: numerals)) يوميًا)" : "على الجدول ✓")).font(DS.readex(12, .medium)).foregroundStyle(gold).lineLimit(2).minimumScaleFactor(0.8)
         if !stt.finished, let onGo {
           Button { dismiss(); onGo(nextPage) } label: {
-            HStack(spacing: 6) { Text("تابع الورد · ص \(Fmt.number(nextPage, numerals: numerals))").font(DS.readex(13, .semibold)); Image(systemName: "chevron.forward").font(.system(size: 10, weight: .bold)) }
+            HStack(spacing: 6) { Text("تابع الورد، صفحة \(Fmt.number(nextPage, numerals: numerals))").font(DS.readex(13, .semibold)); Image(systemName: "chevron.forward").font(.system(size: 10, weight: .bold)) }
               .foregroundStyle(Color(hex: 0x16211F)).padding(.vertical, 9).padding(.horizontal, 14).background(DS.C.accentGold, in: Capsule())
           }.buttonStyle(.plain).padding(.top, 2)
         }
@@ -473,7 +473,7 @@ struct KhatmahSheet: View {
     return VStack(alignment: .leading, spacing: 12) {
       Text(plan == nil ? "خطة ختمة جديدة" : "تعديل الخطة").font(DS.kufi(16, .semibold)).foregroundStyle(DS.C.textPrimary)
       if let plan, days != remainingAtLoad {
-        Text("تغيير المدة يبدأ العدّ من موضعك الحالي (ص \(Fmt.number(((plan.startPage - 1 + Wird.done(model.quran.wird)) % Khatmah.total) + 1, numerals: numerals))) بالمدة الجديدة").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary)
+        Text("تغيير المدة يبدأ العدّ من موضعك الحالي (صفحة \(Fmt.number(((plan.startPage - 1 + Wird.done(model.quran.wird)) % Khatmah.total) + 1, numerals: numerals))) بالمدة الجديدة").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary)
       }
       VStack(alignment: .leading, spacing: 6) {
         Text("وحدة الورد").font(DS.F.labelSm).foregroundStyle(DS.C.textSecondary)
@@ -541,7 +541,7 @@ struct KhatmahSheet: View {
           DSIcon(systemName: w.id == "kahf" ? "sun.max" : w.id == "mulk" ? "moon.stars" : "book", style: pr.done >= pr.total ? .gold : .soft, size: 40, iconSize: 16)
           VStack(alignment: .leading, spacing: 4) {
             Text(w.name).font(DS.F.headingSm).foregroundStyle(DS.C.textPrimary)
-            Text("\(window) · ص \(Fmt.number(w.from, numerals: numerals))–\(Fmt.number(w.to, numerals: numerals))").font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary).lineLimit(1).minimumScaleFactor(0.8)
+            Text("\(window)، صفحة \(Fmt.number(w.from, numerals: numerals))–\(Fmt.number(w.to, numerals: numerals))").font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary).lineLimit(1).minimumScaleFactor(0.8)
             ProgressTrack(progress: pr.total > 0 ? Double(pr.done) / Double(pr.total) : 0, tint: DS.C.accentGold, track: DS.C.bgSubtle, height: 4)
           }
           Spacer(minLength: 4)

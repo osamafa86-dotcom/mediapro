@@ -1,68 +1,28 @@
 import SwiftUI
 import SakinahCore
 
-/// «المكتبة» (المرحلة الثانية — كانت «المزيد»): بطاقة هوية التطبيق، ثم المحتوى والأدوات.
-/// الإعدادات لم تعد صفًّا هنا: تُفتح من رأس «اليوم»، ومن زرّ الترس في رأس هذه الشاشة.
+/// «المكتبة» (المرحلة الخامسة — library.png): رأسٌ بعنوانه ووصفه وزرّ الإعدادات، «حديث اليوم» ببطاقة «اليوم» نفسها،
+/// «المحتوى» شبكة بطاقاتٍ أربع، «الأدوات» (القبلة كاملةً، المسبحة، المساجد، الجدول الشهري)، و«التطبيق»؛
+/// والإصدار في السطر الأخير (وفي الإعدادات). لا بطاقة هوية بعد اليوم.
 /// ملاحظة اتجاه: البيئة RTL، فـ`.leading` هو اليمين و`.trailing` هو اليسار.
 struct LibraryView: View {
   @Environment(AppModel.self) private var model
   @Environment(\.switchTab) private var switchTab
   @State private var showChallenges = false
+  @State private var showQibla = false
   private var version: String { (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "—" }
-  private var build: String { (Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? "—" }
 
   var body: some View {
     NavigationStack {
       ScrollView {
-        VStack(spacing: DS.Space.s4) {
+        VStack(spacing: 22) {
           header
-          brandCard
-          group("المحتوى") {
-            NavigationLink { HadithView(embedded: true).environment(model).tabBarClearance() } label: {
-              DSRow(icon: "text.book.closed", title: "الحديث", subtitle: "مختارات الصحيحين، وحديث اليوم") { DSChevron() }
-            }.buttonStyle(.plain)
-            Divider().overlay(DS.C.borderSubtle)
-            NavigationLink { HadithView(initialBook: "nawawi", embedded: true).environment(model).tabBarClearance() } label: {
-              DSRow(icon: "list.bullet.rectangle", title: "الأربعون النووية", subtitle: nil) { DSChevron() }
-            }.buttonStyle(.plain)
-            Divider().overlay(DS.C.borderSubtle)
-            NavigationLink { HisnView().environment(model).tabBarClearance() } label: {
-              DSRow(icon: "book.closed", title: "حصن المسلم", subtitle: "\(Fmt.number(Hisn.chapters.count, numerals: model.settings.numerals)) بابًا") { DSChevron() }
-            }.buttonStyle(.plain)
-            Divider().overlay(DS.C.borderSubtle)
-            Button { showChallenges = true } label: {
-              DSRow(icon: "book.closed", iconStyle: .gold, title: "الختمة والأوراد المسنونة", subtitle: streakLabel) { DSChevron() }
-            }.buttonStyle(.plain)
-          }
-          group("الأدوات") {
-            NavigationLink { TasbihView().environment(model).tabBarClearance() } label: {
-              DSRow(icon: "circle.hexagongrid", title: "المسبحة", subtitle: "عدّاد التسبيح والإحصاء") { DSChevron() }
-            }.buttonStyle(.plain)
-            Divider().overlay(DS.C.borderSubtle)
-            NavigationLink { MosquesView().environment(model).tabBarClearance() } label: {
-              DSRow(icon: "building.columns", title: "المساجد القريبة", subtitle: "أقرب مسجد والاتجاهات إليه") { DSChevron() }
-            }.buttonStyle(.plain)
-            Divider().overlay(DS.C.borderSubtle)
-            NavigationLink { MonthTableView().environment(model).tabBarClearance() } label: {
-              DSRow(icon: "calendar", title: "الجدول الشهري", subtitle: "تصدير ICS") { DSChevron() }
-            }.buttonStyle(.plain)
-          }
-          // مجموعة ثالثة لا Group: كتلة ViewBuilder لا تتجاوز عشرة عناصر
-          group("التطبيق") {
-            NavigationLink { WidgetsHelpView().environment(model).tabBarClearance() } label: {
-              DSRow(icon: "bolt", title: "الودجت والنشاط المباشر", subtitle: "شاشة القفل والجزيرة الديناميكية") { DSChevron() }
-            }.buttonStyle(.plain)
-            Divider().overlay(DS.C.borderSubtle)
-            NavigationLink { DownloadsView().environment(model) } label: {
-              DSRow(icon: "arrow.down.circle", title: "التنزيلات دون اتصال", subtitle: downloadsLabel) { DSChevron() }
-            }.buttonStyle(.plain)
-            Divider().overlay(DS.C.borderSubtle)
-            NavigationLink { BackupView().environment(model).tabBarClearance() } label: {
-              DSRow(icon: "icloud", title: "النسخ الاحتياطي", subtitle: "تصدير واستيراد إعداداتك") { DSChevron() }
-            }.buttonStyle(.plain)
-          }
-          Text("سكينة \u{2066}\(version)\u{2069} (بناء \u{2066}\(build)\u{2069}) — تطبيق أصلي بالكامل يعمل دون اتصال. لا حساب ولا تتبّع؛ الشبكة تُستعمل فقط لجلب التلاوات وتلاوة الأذكار والمساجد القريبة عند الطلب.")
-            .font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).multilineTextAlignment(.center)
+          hadithSection
+          contentSection
+          toolsSection
+          appSection
+          Text("سكينة \u{2066}\(version)\u{2069}، يعمل دون اتصال، بلا إعلانات ولا تتبّع")
+            .font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary).multilineTextAlignment(.center).frame(maxWidth: .infinity)
         }
         .padding(.horizontal, DS.Space.s4).padding(.top, DS.Space.s2).padding(.bottom, DS.Space.s8)
         .readableWidth()
@@ -71,14 +31,14 @@ struct LibraryView: View {
       .tabBarClearance()
       .navigationBarHidden(true)
       .sheet(isPresented: $showChallenges) { KhatmahSheet(onGo: { p in showChallenges = false; model.pendingReaderPage = p; switchTab(.mushaf) }).environment(model) }
+      // القبلة الكاملة (البوصلة، والشمس، والخريطة) كما تُفتح من ميدالية «اليوم»
+      .fullScreenCover(isPresented: $showQibla) { QiblaView(presented: true).environment(model) }
     }
   }
 
-  /// العنوان يمينًا وزرّ الإعدادات يسارًا
+  /// العنوان ووصفه يمينًا وزرّ الإعدادات يسارًا
   private var header: some View {
-    HStack(spacing: DS.Space.s3) {
-      Text("المكتبة").font(DS.F.displayLg).foregroundStyle(DS.C.textPrimary)
-      Spacer(minLength: 0)
+    SectionScreenHeader(title: "المكتبة", subtitle: "الحديث، والأوراد، والأدوات") {
       NavigationLink { SettingsView(backTitle: "المكتبة").environment(model).tabBarClearance() } label: {
         DSIcon(systemName: "slider.horizontal.3", size: 44, iconSize: 18)
       }
@@ -87,45 +47,125 @@ struct LibraryView: View {
     .padding(.top, DS.Space.s2)
   }
 
-  private var brandCard: some View {
-    HStack(spacing: DS.Space.s4) {
-      VStack(alignment: .leading, spacing: DS.Space.s2) {
-        Text("سكينة").font(DS.F.displayMd).foregroundStyle(DS.C.textPrimary)
-        Text("مواقيتك ومصحفك وأذكارك، بلا إعلانات ولا تتبّع")
-          .font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary).lineLimit(2).minimumScaleFactor(0.8)
-        HStack(spacing: DS.Space.s2) {
-          Text("لا يجمع بيانات").font(DS.F.labelXs).foregroundStyle(DS.C.brandPrimary)
-            .padding(.vertical, 4).padding(.horizontal, 10).background(DS.C.brandSoft, in: Capsule())
-          Text("الإصدار \u{2066}\(version)\u{2069}").font(DS.F.labelXs).foregroundStyle(DS.C.textTertiary)
-            .padding(.vertical, 4).padding(.horizontal, 10).background(DS.C.bgSubtle, in: Capsule())
+  // MARK: حديث اليوم — بطاقة «اليوم» نفسها
+  private var hadithSection: some View {
+    VStack(spacing: 10) {
+      DSSectionHead("حديث اليوم") {
+        NavigationLink { HadithView(embedded: true).environment(model).tabBarClearance() } label: {
+          DSLinkLabel(title: "الحديث").frame(minHeight: 44).contentShape(Rectangle())
         }
+        .buttonStyle(.plain).accessibilityLabel("الحديث")
       }
-      Spacer(minLength: 0)
-      ZStack {
-        Circle().fill(DS.C.accentGoldSoft).frame(width: 62, height: 62)
-        Image(systemName: "moon.stars.fill").font(.system(size: 26)).foregroundStyle(DS.C.accentGoldStrong)
-      }
-      .accessibilityHidden(true)
+      TodayHadithCard()
     }
-    .dsCard()
+  }
+
+  // MARK: المحتوى — شبكة ٢×٢
+  private var contentSection: some View {
+    let n = model.settings.numerals
+    let sahih = ArabicCount.phrase(HadithLibrary.hadiths.count, one: "حديث واحد", two: "حديثان", few: "أحاديث", many: "حديثًا", numerals: n)
+    let nawawi = ArabicCount.phrase(HadithLibrary.nawawi.count, one: "حديث واحد", two: "حديثان", few: "أحاديث", many: "حديثًا", numerals: n)
+    let chapters = ArabicCount.phrase(Hisn.chapters.count, one: "باب واحد", two: "بابان", few: "أبواب", many: "بابًا", numerals: n)
+    return VStack(spacing: 10) {
+      DSSectionHead("المحتوى")
+      LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+        NavigationLink { HadithView(embedded: true).environment(model).tabBarClearance() } label: {
+          contentCard("text.book.closed", "الحديث", "مختارات الصحيحين، \(sahih)")
+        }
+        .buttonStyle(.plain)
+        NavigationLink { HadithView(initialBook: "nawawi", embedded: true).environment(model).tabBarClearance() } label: {
+          contentCard("list.bullet.rectangle", "الأربعون النووية", "\(nawawi) بمتونها وتخريجها")
+        }
+        .buttonStyle(.plain)
+        NavigationLink { HisnView().environment(model).tabBarClearance() } label: {
+          contentCard("shield", "حصن المسلم", "\(chapters)، والمفضّلة")
+        }
+        .buttonStyle(.plain)
+        Button { showChallenges = true } label: {
+          contentCard("book", "الختمة والأوراد", commitmentLabel ?? "الكهف يوم الجمعة، والملك ليلًا")
+        }
+        .buttonStyle(.plain)
+      }
+    }
+  }
+  private func contentCard(_ icon: String, _ title: String, _ sub: String) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      DSSquareIcon(systemName: icon)
+      Spacer(minLength: 6)
+      Text(title).font(DS.F.headingSm).foregroundStyle(DS.C.textPrimary).lineLimit(1).minimumScaleFactor(0.8)
+      Text(sub).font(DS.F.labelXs).foregroundStyle(DS.C.textSecondary).lineLimit(2).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
+    }
+    .frame(maxWidth: .infinity, minHeight: 124, alignment: .topLeading)
+    .padding(14)
+    .background(DS.C.bgSurface, in: RoundedRectangle(cornerRadius: DS.Radius.xl, style: .continuous))
+    .overlay(RoundedRectangle(cornerRadius: DS.Radius.xl, style: .continuous).stroke(DS.C.borderSubtle, lineWidth: 1))
+    .contentShape(RoundedRectangle(cornerRadius: DS.Radius.xl, style: .continuous))
+    .accessibilityElement(children: .combine)
+  }
+
+  // MARK: الأدوات
+  private var toolsSection: some View {
+    VStack(spacing: 10) {
+      DSSectionHead("الأدوات")
+      VStack(spacing: 0) {
+        Button { showQibla = true } label: {
+          SectionListRow(icon: "safari", title: "القبلة", subtitle: "البوصلة، والشمس، والخريطة")
+        }
+        .buttonStyle(.plain)
+        SectionRowDivider()
+        NavigationLink { TasbihView(backTitle: "المكتبة").environment(model).tabBarClearance() } label: {
+          SectionListRow(icon: "circle.hexagongrid", title: "المسبحة", subtitle: "عدّاد، وهدف، وسجلّ الأسبوع")
+        }
+        .buttonStyle(.plain)
+        SectionRowDivider()
+        NavigationLink { MosquesView().environment(model).tabBarClearance() } label: {
+          SectionListRow(icon: "building.columns", title: "المساجد القريبة", subtitle: "أقرب مسجد والاتجاه إليه")
+        }
+        .buttonStyle(.plain)
+        SectionRowDivider()
+        NavigationLink { MonthTableView().environment(model).tabBarClearance() } label: {
+          SectionListRow(icon: "calendar", title: "الجدول الشهري", subtitle: "مواقيت الشهر، وتصديرها إلى التقويم")
+        }
+        .buttonStyle(.plain)
+      }
+      .todayCard(padding: 4)
+    }
+  }
+
+  // MARK: التطبيق
+  private var appSection: some View {
+    VStack(spacing: 10) {
+      DSSectionHead("التطبيق")
+      VStack(spacing: 0) {
+        NavigationLink { WidgetsHelpView().environment(model).tabBarClearance() } label: {
+          SectionListRow(icon: "sun.horizon", title: "الودجت والنشاط الحيّ", subtitle: "على الشاشة الرئيسة وشاشة القفل")
+        }
+        .buttonStyle(.plain)
+        SectionRowDivider()
+        NavigationLink { DownloadsView().environment(model) } label: {
+          SectionListRow(icon: "arrow.down.circle", title: "التنزيلات دون اتصال", subtitle: downloadsLabel)
+        }
+        .buttonStyle(.plain)
+        SectionRowDivider()
+        NavigationLink { BackupView().environment(model).tabBarClearance() } label: {
+          SectionListRow(icon: "square.and.arrow.up", title: "النسخ الاحتياطي", subtitle: "تصدير إعداداتك واستيرادها")
+        }
+        .buttonStyle(.plain)
+      }
+      .todayCard(padding: 4)
+    }
   }
 
   /// لا سلسلة تنكسر: التزامك بالورد في الأسبوعين الأخيرين إن كانت ثمّة خطة
-  private var streakLabel: String? {
+  private var commitmentLabel: String? {
     guard let plan = model.quran.khatmah else { return nil }
+    let n = model.settings.numerals
     let c = Wird.commitment(model.quran.wird, today: model.todayKey, target: plan.dailyPages, days: 14)
-    return "التزامك \(Fmt.number(c.done, numerals: model.settings.numerals)) من \(Fmt.number(c.total, numerals: model.settings.numerals)) يومًا"
+    return "التزامك \(Fmt.number(c.done, numerals: n)) من \(Fmt.number(c.total, numerals: n)) يومًا، والكهف والملك"
   }
-  private var downloadsLabel: String? {
+  private var downloadsLabel: String {
     let n = model.downloads.summary(reciter: model.quran.reciter).count
-    return n > 0 ? "\(Fmt.number(n, numerals: model.settings.numerals)) سورة محفوظة" : "لا تنزيلات بعد"
-  }
-
-  @ViewBuilder private func group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-    VStack(alignment: .leading, spacing: DS.Space.s2) {
-      Text(title).font(DS.F.labelSm).foregroundStyle(DS.C.textTertiary)
-        .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, DS.Space.s1)
-      VStack(spacing: 0) { content() }.dsCard(padding: DS.Space.s2)
-    }
+    let surahs = n > 0 ? ArabicCount.phrase(n, one: "سورة واحدة محفوظة", two: "سورتان محفوظتان", few: "سور محفوظة", many: "سورة محفوظة", numerals: model.settings.numerals) : "لا تلاوات محفوظة بعد"
+    return "\(surahs)، وخطّ المصحف"
   }
 }

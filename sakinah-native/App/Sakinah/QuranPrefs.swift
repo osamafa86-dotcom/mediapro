@@ -112,11 +112,31 @@ final class ContentPrefs {
   var shareTheme: String { didSet { Store.d.set(shareTheme, forKey: "shareTheme") } }
   var textScale: Double { didSet { Store.d.set(textScale, forKey: "textScale") } }
   var extraReminders: ExtraReminderPrefs { didSet { Store.save(extraReminders, "notifications.extras") } }
+  /// سجلّ المسبحة اليومي (المرحلة الخامسة): يوم «YYYY-MM-DD» ← عدد التسبيحات بكل الصيغ، لآخر ستين يومًا.
+  /// على الجهاز وحده (UserDefaults: tasbih.daily) — ليس في صيغة النسخة الاحتياطية المشتركة مع الويب
+  var tasbihDaily: [String: Int] { didSet { Store.save(tasbihDaily, ContentPrefs.tasbihDailyKey) } }
+  static let tasbihDailyKey = "tasbih.daily"
   init() {
     adhkarProgress = Store.load("adhkarProgress", WebSettings.AdhkarProgress(date: nil, morning: [:], evening: [:], eveningDate: nil))
-    favorites = Store.load("favorites", []); tasbih = Store.load("tasbih", TasbihState()); hisnFavorites = Store.load("hisnFavorites", [])
+    let tasbihState: TasbihState = Store.load("tasbih", TasbihState())
+    favorites = Store.load("favorites", []); tasbih = tasbihState; hisnFavorites = Store.load("hisnFavorites", [])
     adhkarLog = Store.load("adhkarLog", [:])
     shareTheme = Store.str("shareTheme", "green"); textScale = Store.dbl("textScale", 1); extraReminders = Store.load("notifications.extras", ExtraReminderPrefs())
+    if Store.d.object(forKey: ContentPrefs.tasbihDailyKey) != nil {
+      tasbihDaily = Store.load(ContentPrefs.tasbihDailyKey, [:])
+    } else {
+      // أوّل تشغيلٍ بعد التحديث: يُبذر السجلّ من إحصاء الصيغ نفسه (آخر يومٍ عُدّ فيه بكل صيغة وعدد ذلك اليوم)
+      var seed: [String: Int] = [:]
+      for t in tasbihState.totals.values where t.today > 0 { seed[t.date, default: 0] += t.today }
+      tasbihDaily = seed
+    }
+  }
+  /// تسجيل عدّة (أو التراجع عنها) في سجلّ اليوم، مع تقليم ما قبل ستين يومًا
+  func logTasbih(_ delta: Int, day: String) {
+    let cutoff = DayKey.adding(day, days: -59)
+    var h = tasbihDaily.filter { $0.key >= cutoff }
+    h[day] = max(0, (h[day] ?? 0) + delta)
+    tasbihDaily = h
   }
   func toggleFavorite(_ id: String) { if let i = favorites.firstIndex(of: id) { favorites.remove(at: i) } else { favorites.append(id) } }
   func toggleHisnFavorite(_ id: Int) { if let i = hisnFavorites.firstIndex(of: id) { hisnFavorites.remove(at: i) } else { hisnFavorites.append(id) } }

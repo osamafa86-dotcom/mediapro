@@ -20,7 +20,6 @@ struct HomeView: View {
   @State private var showSearch = ScreenshotMode.search
   @State private var showSettings = ScreenshotMode.settings
   @State private var showKhatmah = false
-  @State private var hadithShare: ShareItems?
   /// أوّل آية في صفحة الورد التالية — تُقرأ خارج الخيط الرئيس (نصّ المصحف يُحمَّل كسولًا وقد لا يكون جاهزًا عند أوّل رسم)
   @State private var wirdAyah: Ayah?
   @State private var weather = SkyWeatherService()
@@ -71,7 +70,6 @@ struct HomeView: View {
       .sheet(isPresented: $showKhatmah) {
         KhatmahSheet(onGo: { p in showKhatmah = false; model.pendingReaderPage = p; switchTab(.mushaf) }).environment(model)
       }
-      .sheet(item: $hadithShare) { ShareSheet(items: $0.items) }
       .navigationDestination(isPresented: $showGuard) { AdhanGuardView().environment(model).tabBarClearance() }
       .navigationDestination(isPresented: $showSettings) { SettingsView().environment(model).tabBarClearance() }
     }
@@ -670,7 +668,7 @@ struct HomeView: View {
   private var quickTools: some View {
     HStack(alignment: .top, spacing: 10) {
       quickTool("calendar", "التقويم") { MonthTableView().environment(model).tabBarClearance() }
-      quickTool("circle.hexagongrid", "المسبحة") { TasbihView().environment(model).tabBarClearance() }
+      quickTool("circle.hexagongrid", "المسبحة") { TasbihView(backTitle: "اليوم").environment(model).tabBarClearance() }
       quickTool("shield", "حصن المسلم") { HisnView().environment(model).tabBarClearance() }
       quickTool("building.columns", "المساجد") { MosquesView().environment(model).tabBarClearance() }
     }
@@ -785,42 +783,15 @@ struct HomeView: View {
 
   // MARK: حديث اليوم
   private var hadithSection: some View {
-    let h = HadithLibrary.hadithOfDay(Date(), tz: model.timeZone)
-    let fav = model.content.favorites.contains(h.id)
-    let shareText = "\(h.text)\n\nرواه \(h.narrator) — \(h.reference) (\(h.grade))"
-    return VStack(spacing: 10) {
+    VStack(spacing: 10) {
       DSSectionHead("حديث اليوم") {
         NavigationLink { HadithView(initialBook: "nawawi", embedded: true).environment(model).tabBarClearance() } label: {
           DSLinkLabel(title: "الأربعون").frame(minHeight: 44).contentShape(Rectangle())
         }
         .buttonStyle(.plain).accessibilityLabel("الأربعون النووية")
       }
-      VStack(alignment: .leading, spacing: 14) {
-        NavigationLink { HadithView(embedded: true).environment(model).tabBarClearance() } label: {
-          Text("«\(h.text)»").font(DS.amiri(19)).lineSpacing(8).foregroundStyle(DS.C.textPrimary)
-            .multilineTextAlignment(.leading).lineLimit(6)
-            .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-        }
-        .buttonStyle(.plain).accessibilityHint("يفتح الأحاديث")
-        HStack(spacing: 10) {
-          Text("\(h.grade)، عن \(h.narrator)").font(DS.F.labelSm).foregroundStyle(DS.C.textSecondary).lineLimit(2).minimumScaleFactor(0.85)
-          Spacer(minLength: 8)
-          circleButton(fav ? "bookmark.fill" : "bookmark", label: fav ? "إزالة من المفضلة" : "حفظ في المفضلة", on: fav) { model.content.toggleFavorite(h.id) }
-          circleButton("square.and.arrow.up", label: "مشاركة الحديث") { hadithShare = ShareItems(items: [shareText]) }
-        }
-      }
-      .todayCard()
+      TodayHadithCard()
     }
-  }
-  private func circleButton(_ icon: String, label: String, on: Bool = false, action: @escaping () -> Void) -> some View {
-    Button(action: action) {
-      Image(systemName: icon).font(.system(size: 15, weight: .medium)).foregroundStyle(on ? DS.C.brandPrimary : DS.C.textPrimary)
-        .frame(width: 44, height: 44)
-        .background(DS.C.bgSurface, in: Circle())
-        .overlay(Circle().stroke(DS.C.borderSubtle, lineWidth: 1))
-        .contentShape(Circle())
-    }
-    .buttonStyle(.plain).accessibilityLabel(label)
   }
 
   // MARK: خطّ اليوم (الوضع الموسّع — تحت السماء في عمودها)
@@ -964,6 +935,44 @@ extension View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .background(DS.C.bgSurface, in: RoundedRectangle(cornerRadius: DS.Radius.xl, style: .continuous))
       .overlay(RoundedRectangle(cornerRadius: DS.Radius.xl, style: .continuous).stroke(DS.C.borderSubtle, lineWidth: 1))
+  }
+}
+
+/// بطاقة حديث اليوم (اليوم والمكتبة — المرحلة الخامسة تعيد استعمالها): النصّ يفتح الأحاديث، والتخريج،
+/// وحفظ في المفضّلة ومشاركة. تحتاج NavigationStack فوقها (كلا الموضعين داخل واحد)
+struct TodayHadithCard: View {
+  @Environment(AppModel.self) private var model
+  @State private var share: ShareItems?
+  var body: some View {
+    let h = HadithLibrary.hadithOfDay(Date(), tz: model.timeZone)
+    let fav = model.content.favorites.contains(h.id)
+    let shareText = "\(h.text)\n\nرواه \(h.narrator) — \(h.reference) (\(h.grade))"
+    VStack(alignment: .leading, spacing: 14) {
+      NavigationLink { HadithView(embedded: true).environment(model).tabBarClearance() } label: {
+        Text("«\(h.text)»").font(DS.amiri(19)).lineSpacing(8).foregroundStyle(DS.C.textPrimary)
+          .multilineTextAlignment(.leading).lineLimit(6)
+          .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+      }
+      .buttonStyle(.plain).accessibilityHint("يفتح الأحاديث")
+      HStack(spacing: 10) {
+        Text("\(h.grade)، عن \(h.narrator)").font(DS.F.labelSm).foregroundStyle(DS.C.textSecondary).lineLimit(2).minimumScaleFactor(0.85)
+        Spacer(minLength: 8)
+        circleButton(fav ? "bookmark.fill" : "bookmark", label: fav ? "إزالة من المفضلة" : "حفظ في المفضلة", on: fav) { model.content.toggleFavorite(h.id) }
+        circleButton("square.and.arrow.up", label: "مشاركة الحديث") { share = ShareItems(items: [shareText]) }
+      }
+    }
+    .todayCard()
+    .sheet(item: $share) { ShareSheet(items: $0.items) }
+  }
+  private func circleButton(_ icon: String, label: String, on: Bool = false, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+      Image(systemName: icon).font(.system(size: 15, weight: .medium)).foregroundStyle(on ? DS.C.brandPrimary : DS.C.textPrimary)
+        .frame(width: 44, height: 44)
+        .background(DS.C.bgSurface, in: Circle())
+        .overlay(Circle().stroke(DS.C.borderSubtle, lineWidth: 1))
+        .contentShape(Circle())
+    }
+    .buttonStyle(.plain).accessibilityLabel(label)
   }
 }
 
