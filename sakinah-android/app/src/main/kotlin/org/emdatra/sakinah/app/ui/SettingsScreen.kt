@@ -249,6 +249,21 @@ private fun rateApp(ctx: Context) {
   }
 }
 
+/** ورقة النسخ الاحتياطي قائمةً بذاتها (من «المكتبة»): مشغّلا التصدير والاستيراد يعيشان ما دامت الورقة ظاهرة */
+@Composable fun BackupSheetHost(onDismiss: () -> Unit) {
+  val ctx = LocalContext.current
+  var msg by remember { mutableStateOf<String?>(null) }
+  val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
+    uri?.let { msg = runCatching { ctx.contentResolver.openOutputStream(it)?.use { os -> os.write(Backup.export().encoded().toByteArray()) }; "صُدّرت النسخة" }.getOrElse { "تعذّر حفظ الملف" } }
+  }
+  val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+    uri?.let {
+      val text = runCatching { ctx.contentResolver.openInputStream(it)?.use { s -> s.readBytes().toString(Charsets.UTF_8) } ?: "" }.getOrDefault("")
+      msg = runCatching { Backup.apply(WebBackup.parse(text)); Notify.schedule(ctx); "استُعيدت النسخة" }.getOrElse { "الملف ليس نسخة احتياطية من سكينة" }
+    }
+  }
+  BackupSheet(msg, onExport = { exporter.launch("sakinah-backup-${Store.todayKey}.json") }, onImport = { importer.launch(arrayOf("application/json", "text/plain", "*/*")) }, onDismiss = onDismiss)
+}
 /** النسخة الاحتياطية: الصيغة نفسها في الويب وiOS وأندرويد */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun BackupSheet(msg: String?, onExport: () -> Unit, onImport: () -> Unit, onDismiss: () -> Unit) {

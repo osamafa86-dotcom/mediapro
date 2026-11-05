@@ -81,55 +81,67 @@ import org.emdatra.sakinah.core.*
 /** وجهة القارئ من المكتبة: صفحة وآية، مع بدء التلاوة (بلاطة الاستماع) أو جلسة الحفظ (بلاطة المراجعة) فور الفتح */
 data class ReaderTarget(val page: Int, val ayah: Int? = null, val autoplay: Boolean = false, val hifz: Boolean = false)
 
-/** مكتبة المصحف (تصميم Figma «٨ · المصحف» بعد مراجعة الخبراء): بطاقة حالة واحدة، بلاطتان لا تكرّران الشريط السفلي، الفهرس فوق الطيّة، ثم «التزامك بالورد» */
+/**
+ * تبويب «القرآن» (المرحلة الخامسة — quran.png): رأسٌ بوصفه، بطاقة «متابعة القراءة» الليلية بسطر الورد، أربع أدوات
+ * (الاستماع، الحفظ، الختمة، للمراجعة)، الفهرس بشرائحه الأربع فوق الطيّة، ثم «التزامك بالورد» — لا سلسلة تنكسر.
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable fun MushafHome() {
   val c = DS.c
-  var reader by remember { mutableStateOf<ReaderTarget?>(org.emdatra.sakinah.app.ScreenshotMode.readerPage?.let { ReaderTarget(it) }) }
-  var q by remember { mutableStateOf("") }; var tab by remember { mutableIntStateOf(org.emdatra.sakinah.app.ScreenshotMode.libraryTab) }; var searching by remember { mutableStateOf(false) }
-  var sheet by remember { mutableStateOf<String?>(org.emdatra.sakinah.app.ScreenshotMode.librarySheet) }
+  val shots = org.emdatra.sakinah.app.ScreenshotMode
+  var reader by remember { mutableStateOf<ReaderTarget?>(shots.readerPage?.let { ReaderTarget(it) }) }
+  var q by remember { mutableStateOf("") }; var tab by remember { mutableIntStateOf(shots.libraryTab) }; var searching by remember { mutableStateOf(false) }
+  var sheet by remember { mutableStateOf<String?>(shots.librarySheet) }
+  // «للمراجعة»: الآيات الموسومة ضعيفةً — شاشةٌ فوق التبويب يعود إليها القارئ حين يُغلق
+  var review by remember { mutableStateOf(shots.route == "review-ayahs") }
   // صفحة (وآية) معلّقة من «اليوم» أو البحث الشامل
   LaunchedEffect(Store.pendingReaderPage) { Store.pendingReaderPage?.let { p -> val n = Store.pendingReaderAyah; Store.pendingReaderPage = null; Store.pendingReaderAyah = null; reader = ReaderTarget(p, n) } }
   reader?.let { t ->
     DisposableEffect(Unit) { ReaderFullScreen.open = true; onDispose { ReaderFullScreen.open = false } }
     MushafReader(startPage = t.page, startAyah = t.ayah, autoplay = t.autoplay, hifz = t.hifz, onClose = { reader = null }); return
   }
+  if (review) {
+    BackHandler { review = false }
+    ReadableBox { WeakAyahsScreen(onBack = { review = false }, onOpen = { p, n -> reader = ReaderTarget(p, n) }) }
+    return
+  }
   val last = Store.lastRead
   val lastN = last?.let { QuranText.shared.ayah(it.surah, it.ayah)?.n }
   // المكتبة بعرضٍ مقروء في الشاشات الكبيرة (المرحلة الرابعة)؛ القارئ وحده يملأ النافذة (صفحتان متقابلتان)
   ReadableBox { Column(Modifier.fillMaxSize()) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 6.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-      Text("المصحف", style = DSType.displayLg, color = c.textPrimary); Spacer(Modifier.weight(1f))
-      DSIconButton(if (searching) Icons.Filled.Close else Icons.Outlined.Search, contentDescription = if (searching) "إغلاق البحث" else "بحث", onClick = { searching = !searching; if (!searching) q = "" })
+    DSPageHeader("القرآن", "مصحف المدينة، حفص عن عاصم", Modifier.padding(horizontal = 20.dp)) {
+      DSIconButton(if (searching) Icons.Filled.Close else Icons.Outlined.Search, contentDescription = if (searching) "إغلاق البحث" else "البحث في المصحف", onClick = { searching = !searching; if (!searching) q = "" })
     }
     if (searching) OutlinedTextField(q, { q = it }, Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp), placeholder = { Text("سورة، آية، نص، أو رقم صفحة…", style = DSType.bodySm) }, singleLine = true, shape = CircleShape, leadingIcon = { Icon(Icons.Outlined.Search, null, tint = c.textTertiary) })
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 20.dp), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
       if (q.isBlank()) {
-        item { Box(Modifier.padding(bottom = 14.dp)) { HeroCard(onOpen = { p, n -> reader = ReaderTarget(p, n) }, onKhatmah = { sheet = "khatmah" }) } }
+        item { Box(Modifier.padding(bottom = 16.dp)) { HeroCard(onOpen = { p, n -> reader = ReaderTarget(p, n) }, onKhatmah = { sheet = "khatmah" }) } }
         if (Store.view != "text" && MushafFontPack.phase != MushafFontPack.Phase.READY) item { FontPackCard(Modifier.padding(bottom = 14.dp)) }
         item {
-          Row(Modifier.padding(bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Tile(Icons.Filled.PlayArrow, "الاستماع", "${Catalog.shared.reciter(Store.reciter).name} · ${last?.let { QuranMeta.surah(it.surah).name } ?: "الفاتحة"}", Modifier.weight(1f)) { reader = ReaderTarget(last?.page ?: 1, lastN, autoplay = true) }
-            Tile(Icons.Outlined.Mic, "مراجعة الحفظ", "من صفحتك · على الجهاز", Modifier.weight(1f)) { reader = ReaderTarget(last?.page ?: 1, hifz = true) }
+          Row(Modifier.fillMaxWidth().padding(bottom = 18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            QuranTool(Icons.Outlined.Headphones, "الاستماع", "الاستماع من آخر آية قرأتها", Modifier.weight(1f)) { reader = ReaderTarget(last?.page ?: 1, lastN, autoplay = true) }
+            QuranTool(Icons.Outlined.Mic, "الحفظ", "مراجعة الحفظ من صفحتك", Modifier.weight(1f)) { reader = ReaderTarget(last?.page ?: 1, hifz = true) }
+            QuranTool(Icons.Outlined.CalendarMonth, "الختمة", "الختمة والورد", Modifier.weight(1f)) { sheet = "khatmah" }
+            QuranTool(Icons.Outlined.BookmarkBorder, "للمراجعة", "الآيات الضعيفة للمراجعة", Modifier.weight(1f), badge = Store.weakAyahs.size) { review = true }
           }
         }
-        item { IndexHead(tab, onTab = { tab = it }, onSearch = { searching = true }) }
+        item { IndexHead(tab, onTab = { tab = it }) }
         when (tab) {
           0 -> itemsIndexed(QuranMeta.surahs) { i, s -> IndexRow(i == 0, i == 113) { SurahRow(s) { reader = ReaderTarget(s.page, QuranText.shared.ayah(s.n, 1)?.n) } } }
           1 -> itemsIndexed(QuranMeta.juzStarts) { i, j -> IndexRow(i == 0, i == 29) { JuzRow(j) { reader = ReaderTarget(j.page) } } }
           2 -> items((1..60).toList()) { h -> IndexRow(h == 1, h == 60) { HizbRow(h) { p -> reader = ReaderTarget(p) } } }
           else -> item { IndexRow(true, true) { BookmarksList { p, n -> reader = ReaderTarget(p, n) } } }
         }
-        item { Box(Modifier.padding(top = 14.dp)) { CommitmentCard { sheet = "khatmah" } } }
-        item { Text("مصحف المدينة · حفص عن عاصم · ٦٠٤ صفحات · يعمل دون اتصال", Modifier.fillMaxWidth().padding(top = 18.dp), style = DSType.labelXs, color = c.textTertiary, textAlign = TextAlign.Center) }
+        item { Box(Modifier.padding(top = 22.dp)) { CommitmentCard { sheet = "khatmah" } } }
+        item { Text("مصحف المدينة، حفص عن عاصم، ${Fmt.number(604)} صفحات، يعمل دون اتصال", Modifier.fillMaxWidth().padding(top = 18.dp), style = DSType.labelXs, color = c.textTertiary, textAlign = TextAlign.Center) }
       } else {
         val s = QuranNormalize.foldDigits(q.trim()); val page = s.toIntOrNull(); val ref = QuranSearch.parseRef(s)
         if (page != null && page in 1..604) item { DSCard(Modifier.fillMaxWidth().padding(bottom = 14.dp), padding = 4.dp) { DSRow(Icons.Outlined.MenuBook, "الانتقال إلى الصفحة ${Fmt.number(page)}", null, onClick = { reader = ReaderTarget(page) }) } }
-        else if (ref != null) { val a = QuranText.shared.ayah(ref.surah.n, minOf(ref.surah.ayahs, ref.ayah)); if (a != null) item { DSCard(Modifier.fillMaxWidth().padding(bottom = 14.dp), padding = 4.dp) { DSRow(Icons.Outlined.MenuBook, "سورة ${ref.surah.name} — الآية ${Fmt.number(a.ayah)}", "الصفحة ${Fmt.number(a.page)}", onClick = { reader = ReaderTarget(a.page, a.n) }) } } }
+        else if (ref != null) { val a = QuranText.shared.ayah(ref.surah.n, minOf(ref.surah.ayahs, ref.ayah)); if (a != null) item { DSCard(Modifier.fillMaxWidth().padding(bottom = 14.dp), padding = 4.dp) { DSRow(Icons.Outlined.MenuBook, "سورة ${ref.surah.name}، الآية ${Fmt.number(a.ayah)}", "صفحة ${Fmt.number(a.page)}", onClick = { reader = ReaderTarget(a.page, a.n) }) } } }
         else {
           val surahs = QuranSearch.matchSurahs(s); val ayat = if (s.length >= 2) QuranSearch.shared.search(s, 30) else emptyList()
           if (surahs.isNotEmpty()) item { DSCard(Modifier.fillMaxWidth().padding(bottom = 14.dp), padding = 8.dp) { surahs.forEach { su -> SurahRow(su) { reader = ReaderTarget(su.page, QuranText.shared.ayah(su.n, 1)?.n) } } } }
-          if (ayat.isNotEmpty()) item { DSCard(Modifier.fillMaxWidth().padding(bottom = 14.dp), padding = 8.dp) { ayat.forEach { a -> Column(Modifier.fillMaxWidth().clip(DS.shapeMd).clickable { reader = ReaderTarget(a.page, a.n) }.padding(10.dp)) { Text(a.text.take(90), style = DSType.quranInline.copy(fontSize = 16.sp, lineHeight = 30.sp), color = c.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis); Text("${QuranSearch.refLabel(a)} · ص ${Fmt.number(a.page)}", style = DSType.labelXs, color = c.textSecondary) } } } }
+          if (ayat.isNotEmpty()) item { DSCard(Modifier.fillMaxWidth().padding(bottom = 14.dp), padding = 8.dp) { ayat.forEach { a -> Column(Modifier.fillMaxWidth().clip(DS.shapeMd).clickable { reader = ReaderTarget(a.page, a.n) }.padding(10.dp)) { Text(a.text.take(90), style = DSType.quranInline.copy(fontSize = 16.sp, lineHeight = 30.sp), color = c.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis); Text("${QuranSearch.refLabel(a)}، صفحة ${Fmt.number(a.page)}", style = DSType.labelXs, color = c.textSecondary) } } } }
           if (surahs.isEmpty() && ayat.isEmpty()) item { Text("لا نتائج", Modifier.padding(12.dp), style = DSType.bodyMd, color = c.textSecondary) }
         }
       }
@@ -141,59 +153,70 @@ data class ReaderTarget(val page: Int, val ayah: Int? = null, val autoplay: Bool
   }
 }
 
-/** بطاقة الحالة الواحدة: السورة والموضع، سطر الورد من سجلّ الورد (لا من آخر صفحة مفتوحة)، زرّ المتابعة، وصورة الصفحة المصغّرة بشريط علامة */
+/** «N صفحات» بتمييز العدد (٣–١٠ جمعٌ، وما سواها مفرد) */
+fun pagesLabel(n: Int) = if (n % 100 in 3..10) "${Fmt.number(n)} صفحات" else "${Fmt.number(n)} صفحة"
+private fun ayahsLabel(n: Int) = if (n % 100 in 3..10) "${Fmt.number(n)} آيات" else "${Fmt.number(n)} آية"
+
+/** سطر الورد في بطاقة المتابعة: من سجلّ الورد (لا من آخر صفحة مفتوحة)، وحصّة رمضان طوال الشهر إن كانت الخطة ختمته */
+private fun wirdLine(): String {
+  val plan = Store.khatmah ?: return "ابدأ خطة ختمة لتقسيم المصحف على أيامك"
+  val today = Store.todayKey; val stt = Khatmah.status(plan, Store.wird, today)
+  if (stt.finished) return "تقبّل الله، أتممت الختمة ✦"
+  val now = Instant.now()
+  if (Ramadan.active(now) && Ramadan.isPlan(plan, today, now)) {
+    val share = maxOf(1, Ramadan.share(stt))
+    return "ختمة رمضان: ورد اليوم ${Fmt.number(minOf(stt.todayPages, share))} من ${pagesLabel(share)}، ${Fmt.number(stt.percent)}٪"
+  }
+  val target = maxOf(1, stt.todayTarget)
+  return "ورد اليوم ${Fmt.number(minOf(stt.todayPages, target))} من ${pagesLabel(target)}، الختمة ${Fmt.number(stt.percent)}٪"
+}
+
+/** بطاقة «متابعة القراءة»: السورة والموضع، سطر الورد (ينقر إلى الختمة)، شريط التقدّم، وزرّ المتابعة الذهبيّ */
 @Composable private fun HeroCard(onOpen: (Int, Int?) -> Unit, onKhatmah: () -> Unit) {
   val c = DS.c; val last = Store.lastRead; val page = last?.page ?: 1
   val stt = Store.khatmah?.let { Khatmah.status(it, Store.wird, Store.todayKey) }
-  val wirdLine = when {
-    stt == null -> "ابدأ خطة ختمة لتقسيم المصحف على أيامك"
-    stt.finished -> "تقبّل الله ✦ أتممت الختمة"
-    else -> { val target = maxOf(1, stt.todayTarget); val state = if (stt.todayPages >= target) "أتممت ورد اليوم ✓" else if (stt.behind > 0) "ما فات يُوزَّع على الأيام الباقية" else "على الجدول ✓"; "ورد اليوم: ${Fmt.number(minOf(stt.todayPages, target))} من ${Fmt.number(target)} صفحة  ·  الختمة ${Fmt.number(stt.percent)}٪  ·  $state" }
-  }
+  val progress = stt?.let { it.percent / 100f } ?: (page / 604f)
   NightCard(Modifier.fillMaxWidth(), padding = PaddingValues(20.dp)) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-      Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(7.dp).clip(CircleShape).background(c.accentGold)); Spacer(Modifier.width(7.dp))
         Text(if (last == null) "ابدأ القراءة" else "متابعة القراءة", style = DSType.labelSm, color = c.textOnDarkMuted)
-        Text(last?.let { "سورة ${QuranMeta.surah(it.surah).name}" } ?: "سورة الفاتحة", style = DSType.readingLg.copy(fontSize = 24.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold), color = c.textOnDark, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(last?.let { "الصفحة ${Fmt.number(it.page)}  ·  الجزء ${Fmt.number(QuranMeta.juzOfPage(it.page))}  ·  الآية ${Fmt.number(it.ayah)}" } ?: "الصفحة ١  ·  الجزء ١", style = DSType.labelSm, color = c.textOnDarkMuted, maxLines = 1)
-        Text(wirdLine, Modifier.clickable(onClick = onKhatmah), style = DSType.labelSm, color = Color(0xFFE2C77A), maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Row(Modifier.padding(top = 6.dp).clip(CircleShape).background(c.accentGold).clickable { onOpen(page, last?.let { QuranText.shared.ayah(it.surah, it.ayah)?.n }) }.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-          Text(if (last == null) "افتح المصحف" else "تابع القراءة", style = DSType.labelSm.copy(fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold), color = Color(0xFF16211F))
-          Icon(Icons.Filled.ChevronLeft, null, Modifier.size(12.dp), tint = Color(0xFF16211F))
-        }
       }
-      Spacer(Modifier.width(14.dp))
-      Box { PageThumb(page); if (last != null) Box(Modifier.align(Alignment.TopStart).offset(x = 6.dp, y = (-6).dp).size(10.dp, 26.dp).clip(RoundedCornerShape(2.dp)).background(c.accentGold)) }
+      Spacer(Modifier.width(10.dp))
+      Text(wirdLine(), Modifier.weight(1f).clickable(onClickLabel = "الختمة والورد", onClick = onKhatmah), style = DSType.labelXs, color = Color(0xFFE2C77A), textAlign = TextAlign.End, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+    Spacer(Modifier.height(10.dp))
+    Text(last?.let { "سورة ${QuranMeta.surah(it.surah).name}" } ?: "سورة الفاتحة", style = DSType.readingLg.copy(fontSize = 26.sp, lineHeight = 36.sp, fontWeight = FontWeight.Bold), color = c.textOnDark, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Text(last?.let { "صفحة ${Fmt.number(it.page)}، الجزء ${Fmt.number(QuranMeta.juzOfPage(it.page))}، من الآية ${Fmt.number(it.ayah)}" } ?: "صفحة ${Fmt.number(1)}، الجزء ${Fmt.number(1)}", style = DSType.labelSm, color = c.textOnDarkMuted, maxLines = 1)
+    Spacer(Modifier.height(12.dp))
+    ProgressTrack(progress, tint = c.accentGold, track = Color.White.copy(alpha = 0.16f), height = 5.dp)
+    Spacer(Modifier.height(16.dp))
+    Row(Modifier.clip(CircleShape).background(c.accentGold).clickable(role = Role.Button) { onOpen(page, last?.let { QuranText.shared.ayah(it.surah, it.ayah)?.n }) }.padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+      Text(if (last == null) "افتح المصحف" else "تابع القراءة", style = DSType.labelMd.copy(fontSize = 15.sp, fontWeight = FontWeight.SemiBold), color = Color(0xFF16211F))
+      Icon(Icons.Filled.ChevronLeft, null, Modifier.size(16.dp), tint = Color(0xFF16211F))
     }
   }
 }
-/** صورة صفحة مصغّرة: ورق، ترويسة، تسعة أسطر، رقم الصفحة */
-@Composable private fun PageThumb(page: Int) {
+/** أداة من الأربع: مربّعٌ أبيض بأيقونة، واسمها تحته — مساحة اللمس العمود كلّه */
+@Composable private fun QuranTool(icon: ImageVector, title: String, a11y: String, modifier: Modifier = Modifier, badge: Int = 0, onClick: () -> Unit) {
   val c = DS.c
-  Box(Modifier.size(78.dp, 106.dp).clip(RoundedCornerShape(10.dp)).background(c.paperPage).border(1.dp, c.accentGold.copy(alpha = 0.7f), RoundedCornerShape(10.dp))) {
-    Column(Modifier.fillMaxSize().padding(horizontal = 11.dp).padding(top = 11.dp, bottom = 4.dp), horizontalAlignment = Alignment.End) {
-      Box(Modifier.fillMaxWidth().height(9.dp).clip(RoundedCornerShape(2.dp)).background(c.brandSoft))
-      Spacer(Modifier.height(7.dp))
-      for (i in 0 until 9) { Box(Modifier.width(if (i == 8) 34.dp else 56.dp).height(1.6.dp).background(c.paperInk.copy(alpha = 0.55f))); Spacer(Modifier.height(6.4.dp)) }
-      Spacer(Modifier.weight(1f))
-      Text(Fmt.number(page), Modifier.align(Alignment.CenterHorizontally), style = DSType.labelXs.copy(fontSize = 7.sp, fontFamily = Fonts.amiriText), color = c.accentGoldStrong)
-    }
-    Box(Modifier.matchParentSize().padding(6.dp).border(0.8.dp, c.accentGold.copy(alpha = 0.45f), RoundedCornerShape(4.dp)))
-  }
-}
-@Composable private fun Tile(icon: ImageVector, title: String, sub: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-  val c = DS.c
-  DSTile(modifier, padding = 12.dp, onClick = onClick) { Row(verticalAlignment = Alignment.CenterVertically) { DSIconButton(icon, style = IconStyle.Soft, size = 38.dp, iconSize = 16.dp); Spacer(Modifier.width(10.dp)); Column { Text(title, style = DSType.labelMd.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold), color = c.textPrimary, maxLines = 1); Text(sub, style = DSType.labelXs, color = c.textTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis) } } }
-}
-/** رأس الفهرس فوق الطيّة: بحث ومقسّم رباعي (السور · الأجزاء · الأحزاب · العلامات)؛ الصفوف عناصر كسولة في عمود المكتبة نفسه */
-@Composable private fun IndexHead(tab: Int, onTab: (Int) -> Unit, onSearch: () -> Unit) {
-  val c = DS.c
-  Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(topStart = DS.Radius.xl, topEnd = DS.Radius.xl)).background(c.bgSurface).padding(12.dp)) {
-    Row(Modifier.fillMaxWidth().clip(CircleShape).background(c.bgCanvas).border(1.dp, c.borderSubtle, CircleShape).clickable(role = Role.Button, onClick = onSearch).padding(horizontal = 14.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-      Icon(Icons.Outlined.Search, null, Modifier.size(16.dp), tint = c.textTertiary); Text("سورة، آية، نص، أو رقم صفحة…", style = DSType.bodySm, color = c.textTertiary)
+  Column(modifier.clip(DS.shapeLg).clickable(role = Role.Button, onClick = onClick).semantics(mergeDescendants = true) { contentDescription = if (badge > 0) "$a11y، $badge" else a11y }.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Box(Modifier.size(62.dp)) {
+      Box(Modifier.matchParentSize().shadow(if (c.isDark) 0.dp else 4.dp, RoundedCornerShape(18.dp), ambientColor = c.shadow.copy(alpha = 0.08f), spotColor = c.shadow.copy(alpha = 0.10f)).clip(RoundedCornerShape(18.dp)).background(c.bgSurface).border(1.dp, c.borderSubtle, RoundedCornerShape(18.dp)), contentAlignment = Alignment.Center) {
+        Icon(icon, null, Modifier.size(24.dp), tint = c.brandPrimary)
+      }
+      if (badge > 0) Box(Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp)) { DSBadge(Fmt.number(badge), fg = Color(0xFF16211F), bg = c.accentGold) }
     }
     Spacer(Modifier.height(8.dp))
-    DSSegmented(listOf("السور", "الأجزاء", "الأحزاب", "العلامات"), tab, onSelect = onTab)
+    Text(title, style = DSType.labelSm.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, maxLines = 1)
+  }
+}
+/** رأس الفهرس فوق الطيّة: أربع شرائح (السور، الأجزاء، الأحزاب، العلامات)؛ والصفوف عناصر كسولة في عمود القرآن نفسه */
+@Composable private fun IndexHead(tab: Int, onTab: (Int) -> Unit) {
+  val c = DS.c
+  Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(topStart = DS.Radius.xl, topEnd = DS.Radius.xl)).background(c.bgSurface).horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp).padding(top = 14.dp, bottom = 8.dp),
+    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    listOf("السور", "الأجزاء", "الأحزاب", "العلامات").forEachIndexed { i, l -> DSPillChip(l, on = tab == i) { onTab(i) } }
   }
 }
 /** صفّ من صفوف الفهرس على سطح البطاقة (الأوّل يلي الرأس، والأخير يُغلق الزوايا) */
@@ -204,13 +227,35 @@ data class ReaderTarget(val page: Int, val ayah: Int? = null, val autoplay: Bool
     if (!last) RowDivider()
   }
 }
+/** العلامات: صفّ لكل علامة (الأحدث أولاً) ينقل إلى موضعها، وقائمة «⋮» لتعديل ملاحظتها أو حذفها */
 @Composable private fun BookmarksList(onGo: (Int, Int?) -> Unit) {
   val c = DS.c
-  if (Store.bookmarks.isEmpty()) Text("لا علامات بعد — انقر كلمة في المصحف ثم «علامة» في رصيف الآية", Modifier.padding(12.dp), style = DSType.bodySm, color = c.textSecondary)
-  Store.bookmarks.reversed().forEach { b -> val a = QuranText.shared.ayah(b.surah, b.ayah); if (a != null) DSRow(Icons.Filled.Bookmark, "${QuranMeta.surah(a.surah).name}: ${Fmt.number(a.ayah)}", b.note?.takeIf { it.isNotBlank() } ?: a.text.take(60), iconStyle = IconStyle.GoldSoft, onClick = { onGo(a.page, a.n) }) { PageNum(a.page) } }
+  var editing by remember { mutableStateOf<WebSettings.Bookmark?>(null) }
+  if (Store.bookmarks.isEmpty()) Text("لا علامات بعد: انقر كلمة في المصحف ثم «علامة» في رصيف الآية", Modifier.padding(12.dp), style = DSType.bodySm, color = c.textSecondary)
+  Store.bookmarks.reversed().forEach { b ->
+    val a = QuranText.shared.ayah(b.surah, b.ayah) ?: return@forEach
+    var menu by remember(b.surah, b.ayah) { mutableStateOf(false) }
+    DSRow(Icons.Filled.Bookmark, "${QuranMeta.surah(a.surah).name}، الآية ${Fmt.number(a.ayah)}", b.note?.takeIf { it.isNotBlank() } ?: a.text.take(60), iconStyle = IconStyle.GoldSoft, onClick = { onGo(a.page, a.n) }) {
+      PagePill("صفحة ${Fmt.number(a.page)}")
+      Box {
+        Box(Modifier.size(40.dp).clip(CircleShape).clickable(role = Role.Button) { menu = true }.semantics { contentDescription = "خيارات العلامة" }, contentAlignment = Alignment.Center) { Icon(Icons.Filled.MoreVert, null, Modifier.size(18.dp), tint = c.textTertiary) }
+        DropdownMenu(menu, { menu = false }, containerColor = c.bgSurface) {
+          DropdownMenuItem(text = { Text(if (b.note.isNullOrBlank()) "إضافة ملاحظة" else "تعديل الملاحظة", style = DSType.labelMd) }, leadingIcon = { Icon(Icons.Outlined.Edit, null) }, onClick = { menu = false; editing = b })
+          DropdownMenuItem(text = { Text("حذف العلامة", style = DSType.labelMd, color = c.danger) }, leadingIcon = { Icon(Icons.Outlined.Delete, null, tint = c.danger) }, onClick = { menu = false; Store.bookmarks = Store.bookmarks.filter { !(it.surah == b.surah && it.ayah == b.ayah) }; Store.save() })
+        }
+      }
+    }
+  }
+  editing?.let { b ->
+    var text by remember(b) { mutableStateOf(b.note ?: "") }
+    AlertDialog(onDismissRequest = { editing = null }, containerColor = c.bgSurface,
+      title = { Text("ملاحظة العلامة", style = DSType.headingSm) },
+      text = { OutlinedTextField(text, { text = it }, placeholder = { Text("مثال: للمراجعة يوم الجمعة") }, singleLine = false, maxLines = 3) },
+      confirmButton = { TextButton(onClick = { Store.bookmarks = Store.bookmarks.map { if (it.surah == b.surah && it.ayah == b.ayah) it.copy(note = text.trim().ifEmpty { null }) else it }; Store.save(); editing = null }) { Text("حفظ") } },
+      dismissButton = { TextButton(onClick = { editing = null }) { Text("إلغاء") } })
+  }
 }
 @Composable private fun RowDivider() { Box(Modifier.fillMaxWidth().padding(start = 56.dp).height(1.dp).background(DS.c.borderSubtle)) }
-@Composable private fun PageNum(page: Int) { val c = DS.c; Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(Fmt.number(page), style = DSType.numericMd, color = c.textSecondary); Text("صفحة", style = DSType.labelXs, color = c.textTertiary) } }
 /** رقم داخل نجمة ثمانية بحدّ ذهبي (رسم Figma) */
 @Composable fun StarNumber(text: String, current: Boolean = false) {
   val c = DS.c; val fill = if (current) c.accentGoldSoft else c.paperPage; val stroke = c.accentGold.copy(alpha = if (current) 1f else 0.9f); val lw = if (current) 1.6f else 1.2f
@@ -224,16 +269,17 @@ data class ReaderTarget(val page: Int, val ayah: Int? = null, val autoplay: Bool
     Text(text, style = DSType.labelSm.copy(fontFamily = Fonts.kufi, fontWeight = FontWeight.SemiBold), color = c.accentGoldStrong)
   }
 }
-@Composable private fun PagePill(text: String) { val c = DS.c; Text(text, Modifier.clip(CircleShape).background(c.brandSoft.copy(alpha = 0.55f)).padding(horizontal = 10.dp, vertical = 5.dp), style = DSType.labelXs, color = c.brandPrimary) }
+/** حبّة الصفحة «صفحة N» في صفوف الفهرس (لا «ص N») */
+@Composable private fun PagePill(text: String) { val c = DS.c; Text(text, Modifier.clip(CircleShape).background(c.bgSubtle).padding(horizontal = 10.dp, vertical = 5.dp), style = DSType.labelXs, color = c.textSecondary, maxLines = 1) }
 /** صفّ سورة: نجمة برقمها، الاسم بخطّ Amiri ونوعها وعدد آياتها، وحبّة الصفحة */
 @Composable fun SurahRow(s: Surah, current: Boolean = false, onClick: () -> Unit) {
   val c = DS.c
   Row(Modifier.fillMaxWidth().clip(DS.shapeMd).clickable(onClick = onClick).padding(horizontal = 4.dp, vertical = 9.dp).semantics(mergeDescendants = true) { contentDescription = "سورة ${s.name}، ${s.type}، ${s.ayahs} آية، صفحة ${s.page}" }, verticalAlignment = Alignment.CenterVertically) {
     StarNumber(Fmt.number(s.n), current)
     Spacer(Modifier.width(12.dp))
-    Column(Modifier.weight(1f)) { Text(s.name, style = DSType.readingMd, color = c.textPrimary, maxLines = 1); Text("${s.type} · ${Fmt.number(s.ayahs)} آية", style = DSType.labelXs, color = c.textTertiary) }
+    Column(Modifier.weight(1f)) { Text(s.name, style = DSType.readingMd, color = c.textPrimary, maxLines = 1); Text("${s.type}، ${ayahsLabel(s.ayahs)}", style = DSType.labelXs, color = c.textTertiary) }
     if (current) { Icon(Icons.Filled.Bookmark, null, Modifier.size(14.dp), tint = c.accentGold); Spacer(Modifier.width(6.dp)) }
-    PagePill("ص ${Fmt.number(s.page)}")
+    PagePill("صفحة ${Fmt.number(s.page)}")
   }
 }
 /** صفّ جزء: رقمه في نجمة، اسمه، وأوّله من المتن (مصحف المدينة) */
@@ -244,9 +290,9 @@ data class ReaderTarget(val page: Int, val ayah: Int? = null, val autoplay: Bool
     Spacer(Modifier.width(12.dp))
     Column(Modifier.weight(1f)) {
       Text(QuranMeta.juzName(j.juz, false), style = DSType.headingSm, color = c.textPrimary)
-      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) { Text(QuranText.shared.juzStartPhrase(j.juz), style = DSType.quranInline.copy(fontSize = 13.sp, lineHeight = 20.sp), color = c.textSecondary); Text("· ${QuranMeta.surah(j.surah).name} ${Fmt.number(j.ayah)}", style = DSType.labelXs, color = c.textTertiary) }
+      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) { Text(QuranText.shared.juzStartPhrase(j.juz), style = DSType.quranInline.copy(fontSize = 13.sp, lineHeight = 20.sp), color = c.textSecondary); Text("${QuranMeta.surah(j.surah).name} ${Fmt.number(j.ayah)}", style = DSType.labelXs, color = c.textTertiary) }
     }
-    PagePill("ص ${Fmt.number(j.page)}")
+    PagePill("صفحة ${Fmt.number(j.page)}")
   }
 }
 /** صفّ حزب: بدايته، وأرباعه الأربعة ۞ كحبّات تنقل إلى موضع كل ربع */
@@ -255,22 +301,76 @@ data class ReaderTarget(val page: Int, val ayah: Int? = null, val autoplay: Bool
   Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
     Row(Modifier.weight(1f).clip(DS.shapeMd).clickable { first?.let { onGo(it.page) } }, verticalAlignment = Alignment.CenterVertically) {
       StarNumber(Fmt.number(h)); Spacer(Modifier.width(12.dp))
-      Column { Text("الحزب ${Fmt.number(h)}", style = DSType.headingSm, color = c.textPrimary); Text(first?.let { "الجزء ${Fmt.number(it.juz)} · ${QuranMeta.surah(it.surah).name} ${Fmt.number(it.ayah)} · ص ${Fmt.number(it.page)}" } ?: "", style = DSType.labelXs, color = c.textTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+      Column { Text("الحزب ${Fmt.number(h)}", style = DSType.headingSm, color = c.textPrimary); Text(first?.let { "الجزء ${Fmt.number(it.juz)}، ${QuranMeta.surah(it.surah).name} ${Fmt.number(it.ayah)}، صفحة ${Fmt.number(it.page)}" } ?: "", style = DSType.labelXs, color = c.textTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis) }
     }
     Spacer(Modifier.width(4.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { quarters.forEachIndexed { i, a -> Box(Modifier.minimumInteractiveComponentSize().size(26.dp).clip(CircleShape).background(c.accentGoldSoft.copy(alpha = 0.7f)).clickable(role = Role.Button) { onGo(a.page) }.semantics { contentDescription = "الربع ${i + 1} من الحزب $h، صفحة ${a.page}" }, contentAlignment = Alignment.Center) { Text(Fmt.number(i + 1), style = DSType.labelXs.copy(fontSize = 10.5.sp), color = c.accentGoldStrong) } } }
   }
 }
-/** التزامك بالورد: صفّ ثنائي لأربعة عشر يومًا — لا سلسلة تنكسر */
+/** «التزامك بالورد»: أربعة عشر يوماً (الأقدم يميناً) من سجلّ الورد — حضورٌ يُرى بلطف، لا سلسلة تنكسر */
 @Composable private fun CommitmentCard(onKhatmah: () -> Unit) {
   val c = DS.c; val plan = Store.khatmah
   val cm = Wird.commitment(Store.wird, Store.todayKey, plan?.dailyPages ?: 1, 14)
-  DSCard(Modifier.fillMaxWidth(), padding = 16.dp) {
-    DSSectionHead("التزامك بالورد", link = if (plan != null) "الختمة" else "ابدأ خطة", onLink = onKhatmah)
-    Spacer(Modifier.height(6.dp))
-    Text(if (plan != null) "${Fmt.number(cm.done)} من ${Fmt.number(cm.total)} يومًا في الأسبوعين الأخيرين" else "خطة ختمة تحوّل القراءة إلى وردٍ يومي بمقدار تختاره", style = DSType.labelSm, color = c.textSecondary)
-    Spacer(Modifier.height(10.dp))
-    Row(Modifier.fillMaxWidth().semantics { contentDescription = "التزامك بالورد: ${cm.done} من ${cm.total} يومًا" }, horizontalArrangement = Arrangement.spacedBy(4.dp)) { cm.days.forEach { on -> Box(Modifier.weight(1f).height(18.dp).clip(RoundedCornerShape(5.dp)).background(if (on) c.brandPrimary else c.bgSubtle)) } }
+  val line = when {
+    plan == null -> "خطة ختمة تحوّل القراءة إلى وردٍ يوميّ بمقدارٍ تختاره"
+    cm.done == 0 -> "لم يكتمل وردٌ في الأيام الأربعة عشر الأخيرة بعد"
+    cm.done == 1 -> "قرأتَ يوماً واحداً من الأربعة عشر الأخيرة"
+    cm.done == 2 -> "قرأتَ يومين من الأربعة عشر الأخيرة"
+    cm.done <= 10 -> "قرأتَ ${Fmt.number(cm.done)} أيام من الأربعة عشر الأخيرة"
+    else -> "قرأتَ ${Fmt.number(cm.done)} يوماً من الأربعة عشر الأخيرة"
+  }
+  Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    DSSectionHead("التزامك بالورد", Modifier.padding(horizontal = 4.dp), link = if (plan != null) "الختمة" else "ابدأ خطة", onLink = onKhatmah)
+    DSCard(Modifier.fillMaxWidth(), padding = 18.dp) {
+      Text(line, style = DSType.headingSm, color = c.textPrimary)
+      Spacer(Modifier.height(12.dp))
+      Row(Modifier.fillMaxWidth().semantics { contentDescription = "التزامك بالورد: ${cm.done} من ${cm.total} يوماً" }, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        cm.days.forEachIndexed { i, on -> Box(Modifier.weight(1f).height(22.dp).clip(RoundedCornerShape(6.dp)).background(if (on) c.brandPrimary else c.bgSubtle).then(if (i == cm.days.lastIndex && !on && plan != null) Modifier.border(1.5.dp, c.accentGold, RoundedCornerShape(6.dp)) else Modifier)) }
+      }
+      Spacer(Modifier.height(10.dp))
+      Text("لا سلسلة تنكسر: يومٌ فاتك يُوزَّع على ما بقي.", style = DSType.labelXs, color = c.textSecondary)
+    }
+  }
+}
+
+/** «للمراجعة» (جديدة): الآيات التي علّمها القارئ ضعيفةً في الحفظ أو من خيارات الآية — تفتح موضعها، وتُزال بالسحب أو بالزرّ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable fun WeakAyahsScreen(onBack: () -> Unit, onOpen: (Int, Int) -> Unit) {
+  val c = DS.c
+  val list = Store.weakAyahs.mapNotNull { QuranText.shared.ayah(it) }.sortedBy { it.n }
+  LazyColumn(Modifier.fillMaxSize().background(c.bgCanvas), contentPadding = PaddingValues(16.dp, 0.dp, 16.dp, 32.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    item { DSBackLink("القرآن", onClick = onBack) }
+    item { DSPageHeader("للمراجعة", "آياتٌ علّمتَها ضعيفةً لتعود إليها", Modifier.padding(horizontal = 4.dp)) }
+    if (list.isEmpty()) item {
+      DSCard(Modifier.fillMaxWidth(), padding = 24.dp) {
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          DSIconButton(Icons.Outlined.BookmarkBorder, style = IconStyle.GoldSoft, size = 56.dp, iconSize = 24.dp)
+          Text("لا آيات للمراجعة بعد", style = DSType.headingSm, color = c.textPrimary)
+          Text("علِّم الآية ضعيفة من خيارات الآية في المصحف (اضغط الآية مطوّلاً)، أو من زرّ «ضعيفة» في جلسة الحفظ؛ فتجتمع هنا بترتيب المصحف.", style = DSType.bodySm, color = c.textSecondary, textAlign = TextAlign.Center)
+        }
+      }
+    } else {
+      item { Text("${ayahsLabel(list.size)} بترتيب المصحف. انقر الآية لتفتحها في موضعها، واسحبها جانباً لإزالتها من القائمة.", Modifier.padding(horizontal = 4.dp), style = DSType.labelXs, color = c.textTertiary) }
+      items(list, key = { it.n }) { a ->
+        val state = rememberSwipeToDismissBoxState(confirmValueChange = { v -> if (v != SwipeToDismissBoxValue.Settled) { Store.toggleWeak(a.n); true } else false })
+        SwipeToDismissBox(state, backgroundContent = {
+          Box(Modifier.fillMaxSize().clip(DS.shapeXl).background(c.accentGoldSoft).padding(horizontal = 20.dp), contentAlignment = Alignment.CenterStart) { Text("إزالة من المراجعة", style = DSType.labelSm, color = c.accentGoldStrong) }
+        }) {
+          DSCard(Modifier.fillMaxWidth(), padding = 14.dp, onClick = { onOpen(a.page, a.n) }) {
+            Row(verticalAlignment = Alignment.Top) {
+              StarNumber(Fmt.number(a.ayah))
+              Spacer(Modifier.width(12.dp))
+              Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("سورة ${QuranMeta.surah(a.surah).name}، الآية ${Fmt.number(a.ayah)}", style = DSType.labelMd, color = c.textPrimary)
+                Text(a.text, style = DSType.quranInline.copy(fontSize = 17.sp, lineHeight = 32.sp), color = c.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text("صفحة ${Fmt.number(a.page)}، الجزء ${Fmt.number(a.juz)}", style = DSType.labelXs, color = c.textTertiary)
+              }
+              DSIconButton(Icons.Outlined.Close, style = IconStyle.Plain, size = 40.dp, iconSize = 16.dp, contentDescription = "إزالة الآية من المراجعة") { Store.toggleWeak(a.n) }
+            }
+          }
+        }
+      }
+    }
   }
 }
 /** الكلمة المستورة في مراجعة الحفظ: خطّ سفليّ صريح كي تُقرأ «مخفيّة» لا «ناقصة» (مطابقةً لنسخة الويب) */
@@ -871,12 +971,14 @@ fun tajweedColor(code: String, dark: Boolean): Color? { val g = Tajweed.group(co
   ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.bgSurface) {
     Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
       Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) { Text(QuranSearch.refLabel(a), style = DSType.headingMd, color = c.textPrimary); Text("الصفحة ${Fmt.number(a.page)}${l?.let { " · الجزء ${Fmt.number(it.juz)}" } ?: ""}${if (marked) " · معلَّمة" else ""}${if (weak) " · آية ضعيفة" else ""}", style = DSType.labelXs, color = c.textSecondary) }
+        Column(Modifier.weight(1f)) { Text(QuranSearch.refLabel(a), style = DSType.headingMd, color = c.textPrimary); Text("صفحة ${Fmt.number(a.page)}${l?.let { "، الجزء ${Fmt.number(it.juz)}" } ?: ""}${if (marked) "، معلَّمة" else ""}${if (weak) "، آية ضعيفة" else ""}", style = DSType.labelXs, color = c.textSecondary) }
         Row(Modifier.clip(CircleShape).background(c.brandSoft).clickable { (ctx.getSystemService(android.content.ClipboardManager::class.java)).setPrimaryClip(android.content.ClipData.newPlainText("آية", txt)); onDismiss() }.padding(horizontal = 12.dp, vertical = 8.dp).semantics { contentDescription = "نسخ نصّ الآية مع المرجع" }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) { Icon(Icons.Outlined.ContentCopy, null, Modifier.size(13.dp), tint = c.brandPrimary); Text("نسخ", style = DSType.labelSm, color = c.brandPrimary) }
       }
       Text("${a.text} ﴿${Fmt.number(a.ayah)}﴾", Modifier.fillMaxWidth().clip(DS.shapeLg).background(c.paperPage).border(1.dp, c.borderSubtle, DS.shapeLg).padding(horizontal = 16.dp, vertical = 12.dp), style = DSType.quranInline.copy(fontSize = 20.sp, lineHeight = 40.sp), color = c.paperInk, textAlign = TextAlign.Center)
       Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { act(Icons.Outlined.MenuBook, "التفسير الميسّر", if (tafsir) "إخفاء" else "مضمّن") { tafsir = !tafsir }; act(Icons.Outlined.Repeat, "تكرار الآية ×٣", "للحفظ", onClick = onRepeat3) }
       Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { act(Icons.Outlined.Mic, "مراجعة الحفظ", "من هنا", gold = true, onClick = onHifz); act(Icons.Outlined.Image, "مشاركة صورةً", "٤ سمات") { ShareCard.share(ctx, ShareCard.render(ctx, "القرآن الكريم · ${QuranSearch.refLabel(a)}", "${a.text} ﴿${a.ayah}﴾", QuranSearch.refLabel(a), true), "ayah-${a.surah}-${a.ayah}.png", txt) } }
+      // المرحلة الخامسة: «للمراجعة» في تبويب القرآن يجمع ما يُعلَّم هنا (وفي جلسة الحفظ)
+      Row { act(if (weak) Icons.Filled.Warning else Icons.Outlined.WarningAmber, if (weak) "إزالة من المراجعة" else "علِّمها ضعيفة", if (weak) "آية ضعيفة الآن" else "تجتمع في «للمراجعة»", gold = weak) { Store.toggleWeak(a.n) } }
       if (tafsir) { val html = Tafsir.text(a.surah, a.ayah); Text(buildAnnotatedString { for (r in Tafsir.runs(html ?: "لا تفسير")) if (r.bold) withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = c.brandPrimary)) { append(r.text) } else append(r.text) }, style = DSType.readingMd, color = c.textPrimary); Text("التفسير الميسّر — مجمع الملك فهد", style = DSType.labelXs, color = c.textSecondary) }
       Text("موضع القراءة يُحفظ تلقائيًا مع التقليب · الاستماع والعلامة والمشاركة من رصيف الآية", Modifier.fillMaxWidth(), style = DSType.labelXs, color = c.textTertiary, textAlign = TextAlign.Center)
     }
@@ -1003,7 +1105,7 @@ fun tajweedColor(code: String, dark: Boolean): Color? { val g = Tajweed.group(co
             Column(Modifier.padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
               Text("آخر المواضع", style = DSType.labelSm, color = c.textSecondary)
               Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Store.recent.forEach { r -> Column(Modifier.clip(DS.shapeMd).background(c.bgSurface).border(1.dp, c.borderSubtle, DS.shapeMd).clickable { onGo(r.page, QuranText.shared.ayah(r.surah, r.ayah)?.n) }.padding(horizontal = 12.dp, vertical = 8.dp)) { Text(QuranMeta.surah(r.surah).name, style = DSType.readingSm, color = c.textPrimary); Text("آية ${Fmt.number(r.ayah)} · ص ${Fmt.number(r.page)}", style = DSType.labelXs, color = c.textTertiary) } }
+                Store.recent.forEach { r -> Column(Modifier.clip(DS.shapeMd).background(c.bgSurface).border(1.dp, c.borderSubtle, DS.shapeMd).clickable { onGo(r.page, QuranText.shared.ayah(r.surah, r.ayah)?.n) }.padding(horizontal = 12.dp, vertical = 8.dp)) { Text(QuranMeta.surah(r.surah).name, style = DSType.readingSm, color = c.textPrimary); Text("آية ${Fmt.number(r.ayah)}، صفحة ${Fmt.number(r.page)}", style = DSType.labelXs, color = c.textTertiary) } }
               }
             }
           }
@@ -1033,7 +1135,7 @@ fun tajweedColor(code: String, dark: Boolean): Color? { val g = Tajweed.group(co
           else {
             val surahs = QuranSearch.matchSurahs(s); val ayat = if (s.length >= 2) QuranSearch.shared.search(s, 30) else emptyList()
             if (surahs.isNotEmpty()) item { DSCard(Modifier.fillMaxWidth(), padding = 8.dp) { surahs.forEach { su -> SurahRow(su) { onGo(su.page, QuranText.shared.ayah(su.n, 1)?.n) } } } }
-            if (ayat.isNotEmpty()) item { DSCard(Modifier.fillMaxWidth(), padding = 8.dp) { ayat.forEach { a -> Column(Modifier.fillMaxWidth().clip(DS.shapeMd).clickable { onGo(a.page, a.n) }.padding(10.dp)) { Text(a.text.take(90), style = DSType.quranInline.copy(fontSize = 16.sp, lineHeight = 30.sp), color = c.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis); Text("${QuranSearch.refLabel(a)} · ص ${Fmt.number(a.page)}", style = DSType.labelXs, color = c.textSecondary) } } } }
+            if (ayat.isNotEmpty()) item { DSCard(Modifier.fillMaxWidth(), padding = 8.dp) { ayat.forEach { a -> Column(Modifier.fillMaxWidth().clip(DS.shapeMd).clickable { onGo(a.page, a.n) }.padding(10.dp)) { Text(a.text.take(90), style = DSType.quranInline.copy(fontSize = 16.sp, lineHeight = 30.sp), color = c.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis); Text("${QuranSearch.refLabel(a)}، صفحة ${Fmt.number(a.page)}", style = DSType.labelXs, color = c.textSecondary) } } } }
             if (surahs.isEmpty() && ayat.isEmpty()) item { Text("لا نتائج", Modifier.padding(12.dp), style = DSType.bodyMd, color = c.textSecondary) }
           }
         }
@@ -1112,14 +1214,14 @@ fun tajweedColor(code: String, dark: Boolean): Color? { val g = Tajweed.group(co
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
               Text(if (stt.finished) "تقبّل الله ✦ أتممت الختمة" else "ورد اليوم ${Fmt.number(minOf(stt.todayPages, target))} من ${Fmt.number(target)} صفحة", style = DSType.headingSm, color = c.textOnDark, maxLines = 2)
-              Text("اليوم ${Fmt.number(stt.dayIndex + 1)} من ${Fmt.number(plan.days)} · الإتمام المتوقّع ${Fmt.shortDate(stt.etaKey)}", style = DSType.labelXs, color = c.textOnDarkMuted, maxLines = 2)
+              Text("اليوم ${Fmt.number(stt.dayIndex + 1)} من ${Fmt.number(plan.days)}، الإتمام المتوقّع ${Fmt.shortDate(stt.etaKey)}", style = DSType.labelXs, color = c.textOnDarkMuted, maxLines = 2)
               if (!stt.finished) Text(if (stt.behind > 0) "متأخّر ${Fmt.number(stt.behind)} صفحة — تُوزَّع على الأيام الباقية (${Fmt.number(stt.neededPerDay)} يوميًا)" else "على الجدول ✓", style = DSType.labelSm, color = Color(0xFFE2C77A), maxLines = 2)
-              if (!stt.finished && onGo != null) Row(Modifier.padding(top = 2.dp).clip(CircleShape).background(c.accentGold).clickable { onGo(nextPage) }.padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) { Text("تابع الورد · ص ${Fmt.number(nextPage)}", style = DSType.labelSm.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold), color = Color(0xFF16211F)); Icon(Icons.Filled.ChevronLeft, null, Modifier.size(12.dp), tint = Color(0xFF16211F)) }
+              if (!stt.finished && onGo != null) Row(Modifier.padding(top = 2.dp).clip(CircleShape).background(c.accentGold).clickable { onGo(nextPage) }.padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) { Text("تابع الورد، صفحة ${Fmt.number(nextPage)}", style = DSType.labelSm.copy(fontSize = 13.sp, fontWeight = FontWeight.SemiBold), color = Color(0xFF16211F)); Icon(Icons.Filled.ChevronLeft, null, Modifier.size(12.dp), tint = Color(0xFF16211F)) }
             }
           }
         }
       }
-      Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { DSStatTile(Fmt.number(stats.week), "صفحة · هذا الأسبوع", Modifier.weight(1f)); DSStatTile(Fmt.number(stats.month), "صفحة · هذا الشهر", Modifier.weight(1f)); DSStatTile(Fmt.decimal(stats.avgDay, 1), "متوسط اليوم", Modifier.weight(1f)) }
+      Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { DSStatTile(Fmt.number(stats.week), "صفحة هذا الأسبوع", Modifier.weight(1f)); DSStatTile(Fmt.number(stats.month), "صفحة هذا الشهر", Modifier.weight(1f)); DSStatTile(Fmt.decimal(stats.avgDay, 1), "متوسط اليوم", Modifier.weight(1f)) }
       DSCard(Modifier.fillMaxWidth(), padding = 16.dp) {
         Text(if (plan == null) "خطة ختمة جديدة" else "تعديل الخطة", style = DSType.headingSm.copy(fontFamily = Fonts.kufi), color = c.textPrimary)
         Spacer(Modifier.height(10.dp))
@@ -1157,7 +1259,7 @@ fun tajweedColor(code: String, dark: Boolean): Color? { val g = Tajweed.group(co
           val window = if (w.window == SunnahWird.Window.FRIDAY_EVE) (if (ds.isEmpty()) "تُفتح النافذة مغرب الخميس" else "النافذة مفتوحة الآن") else w.desc
           Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             DSIconButton(when (w.id) { "kahf" -> Icons.Outlined.WbSunny; "mulk" -> Icons.Outlined.Bedtime; else -> Icons.Outlined.MenuBook }, style = if (pr.first >= pr.second) IconStyle.GoldSoft else IconStyle.Soft, size = 40.dp, iconSize = 16.dp)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(w.name, style = DSType.headingSm, color = c.textPrimary); Text("$window · ص ${Fmt.number(w.from)}–${Fmt.number(w.to)}", style = DSType.labelXs, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis); ProgressTrack(if (pr.second > 0) pr.first.toFloat() / pr.second else 0f, tint = c.accentGold, track = c.bgSubtle, height = 4.dp) }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) { Text(w.name, style = DSType.headingSm, color = c.textPrimary); Text("$window، صفحة ${Fmt.number(w.from)}–${Fmt.number(w.to)}", style = DSType.labelXs, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis); ProgressTrack(if (pr.second > 0) pr.first.toFloat() / pr.second else 0f, tint = c.accentGold, track = c.bgSubtle, height = 4.dp) }
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) { Text("${Fmt.number(pr.first)}/${Fmt.number(pr.second)}", style = DSType.numericSm, color = c.textSecondary); if (onGo != null) Text("اقرأ", Modifier.clip(CircleShape).background(c.brandSoft).clickable(role = Role.Button) { onGo(w.from) }.padding(horizontal = 12.dp, vertical = 6.dp).semantics { contentDescription = "اقرأ ${w.name}" }, style = DSType.labelSm, color = c.brandPrimary) }
           }
           if (i < Awrad.all.size - 1) { Spacer(Modifier.height(10.dp)); DSDivider(); Spacer(Modifier.height(10.dp)) }

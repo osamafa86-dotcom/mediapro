@@ -1,7 +1,11 @@
 package org.emdatra.sakinah.app.ui
 
 import android.Manifest
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Intent
+import android.os.Build
+import androidx.core.app.NotificationManagerCompat
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -25,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -34,88 +39,154 @@ import org.emdatra.sakinah.core.*
 import java.time.Instant
 
 /**
- * المكتبة (كانت «المزيد» — المرحلة الثانية): الحديث والأربعون والختمة، والمساجد والجدول الشهري والتنزيلات.
- * الإعدادات انتقلت إلى رأس «اليوم»، وزرّ الترس هنا يفتحها أيضًا.
+ * المكتبة (المرحلة الخامسة — library.png): حديث اليوم، «المحتوى» في شبكة ٢×٢، «الأدوات» (ومنها القبلة الكاملة)،
+ * و«التطبيق» (الودجت والنشاط الحيّ، التنزيلات، النسخ الاحتياطي). الإعدادات من زرّ الرأس كما في «اليوم».
  */
 @Composable fun LibraryScreen() {
-  val c = DS.c
-  var screen by remember { mutableStateOf("home") }
-  BackHandler(screen != "home") { screen = "home" }
+  var screen by remember { mutableStateOf(if (ScreenshotMode.route == "library-qibla") "qibla" else "home") }
+  var chapter by remember { mutableStateOf<HisnChapter?>(null) }
+  BackHandler(screen != "home" || chapter != null) { if (chapter != null) chapter = null else screen = "home" }
+  chapter?.let { ch -> HisnChapterScreen(ch) { chapter = null }; return }
+  val home = { screen = "home" }
   when (screen) {
-    "hadith" -> HadithScreen("sahih") { screen = "home" }
-    "nawawi" -> HadithScreen("nawawi") { screen = "home" }
-    "settings" -> SettingsScreen(backLabel = "المكتبة") { screen = "home" }
-    "month" -> MonthTableScreen { screen = "home" }
-    "mosques" -> MosquesScreen { screen = "home" }
-    else -> {
-      var challenges by remember { mutableStateOf(false) }
-      val switchTab = LocalSwitchTab.current
-      var downloads by remember { mutableStateOf(false) }
-      LazyColumn(
-        Modifier.fillMaxSize().background(c.bgCanvas),
-        contentPadding = PaddingValues(16.dp, 0.dp, 16.dp, 32.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-      ) {
-        item {
-          Row(Modifier.fillMaxWidth().padding(start = 4.dp, top = 6.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("المكتبة", style = DSType.displayLg, color = c.textPrimary); Spacer(Modifier.weight(1f))
-            DSIconButton(Icons.Outlined.Tune, size = 46.dp, contentDescription = "الإعدادات") { screen = "settings" }
-          }
+    "hadith" -> HadithScreen("sahih", onBack = home)
+    "nawawi" -> HadithScreen("nawawi", onBack = home)
+    "settings" -> SettingsScreen(backLabel = "المكتبة", onBack = home)
+    "month" -> MonthTableScreen(home)
+    "mosques" -> MosquesScreen(home)
+    "hisn" -> HisnScreen(onBack = home) { chapter = it }
+    "tasbih" -> TasbihScreen(backLabel = "المكتبة", onBack = home)
+    "qibla" -> QiblaScreen(onClose = home)
+    else -> LibraryHome(onOpen = { screen = it })
+  }
+}
+
+@Composable private fun LibraryHome(onOpen: (String) -> Unit) {
+  val c = DS.c
+  val switchTab = LocalSwitchTab.current
+  var sheet by remember { mutableStateOf<String?>(null) }
+  LazyColumn(Modifier.fillMaxSize().background(c.bgCanvas), contentPadding = PaddingValues(16.dp, 0.dp, 16.dp, 32.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
+    item {
+      DSPageHeader("المكتبة", "الحديث، والأوراد، والأدوات", Modifier.padding(horizontal = 4.dp)) {
+        DSIconButton(Icons.Outlined.Tune, contentDescription = "الإعدادات") { onOpen("settings") }
+      }
+    }
+    item {
+      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        DSSectionHead("حديث اليوم", Modifier.padding(horizontal = 4.dp), link = "الحديث", onLink = { onOpen("hadith") })
+        TodayHadithCard(onOpen = { onOpen("hadith") })
+      }
+    }
+    item {
+      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        DSSectionHead("المحتوى", Modifier.padding(horizontal = 4.dp))
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+          ContentCard(Icons.Outlined.HistoryEdu, "الحديث", "مختارات الصحيحين، ${hadithCount(HadithLibrary.hadiths.size)}", Modifier.weight(1f).fillMaxHeight()) { onOpen("hadith") }
+          ContentCard(Icons.Outlined.FormatListNumbered, "الأربعون النووية", "${hadithCount(HadithLibrary.nawawi.size)} بمتونها وتخريجها", Modifier.weight(1f).fillMaxHeight()) { onOpen("nawawi") }
         }
-        item {
-          MoreGroup("المحتوى") {
-            MoreRow(Icons.Outlined.MenuBook, "الحديث", "مختارات الصحيحين، وحديث اليوم") { screen = "hadith" }
-            DSDivider()
-            MoreRow(Icons.Outlined.FormatListNumbered, "الأربعون النووية", null) { screen = "nawawi" }
-            DSDivider()
-            MoreRow(Icons.Outlined.MenuBook, "الختمة والأوراد المسنونة", commitmentLabel(), gold = true) { challenges = true }
-          }
-        }
-        item {
-          MoreGroup("الأدوات") {
-            MoreRow(Icons.Outlined.Mosque, "المساجد القريبة", "أقرب مسجد والاتجاهات إليه") { screen = "mosques" }
-            DSDivider()
-            MoreRow(Icons.Outlined.CalendarMonth, "الجدول الشهري", "تصدير ICS") { screen = "month" }
-            DSDivider()
-            MoreRow(Icons.Outlined.Download, "التنزيلات دون اتصال", downloadsLabel()) { downloads = true }
-          }
-        }
-        item {
-          Text(
-            "سكينة ${appVersion()} — تطبيق أصلي لأندرويد على النواة نفسها المُتحقَّق منها في iOS والويب، يعمل دون اتصال، لا حساب ولا تتبّع.",
-            style = DSType.labelXs, color = c.textTertiary, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
-          )
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+          ContentCard(Icons.Outlined.Shield, "حصن المسلم", "${chaptersCount(Hisn.chapters.size)}، والمفضّلة", Modifier.weight(1f).fillMaxHeight()) { onOpen("hisn") }
+          ContentCard(Icons.Outlined.MenuBook, "الختمة والأوراد", "الكهف يوم الجمعة، والملك ليلاً", Modifier.weight(1f).fillMaxHeight()) { sheet = "khatmah" }
         }
       }
-      if (challenges) KhatmahSheet(onDismiss = { challenges = false }, onGo = { p -> challenges = false; Store.pendingReaderPage = p; switchTab(AppTab.Mushaf) })
-      if (downloads) DownloadsDialog { downloads = false }
+    }
+    item {
+      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        DSSectionHead("الأدوات", Modifier.padding(horizontal = 4.dp))
+        DSCard(Modifier.fillMaxWidth(), padding = 6.dp) {
+          LibRow(Icons.Outlined.Explore, "القبلة", "البوصلة، والشمس، والخريطة") { onOpen("qibla") }
+          DSDivider()
+          LibRow(Icons.Outlined.Grain, "المسبحة", "عدّاد، وهدف، وسجلّ الأسبوع") { onOpen("tasbih") }
+          DSDivider()
+          LibRow(Icons.Outlined.Mosque, "المساجد القريبة", "أقرب مسجد والاتجاه إليه") { onOpen("mosques") }
+          DSDivider()
+          LibRow(Icons.Outlined.CalendarMonth, "الجدول الشهري", "مواقيت الشهر، وتصديرها إلى التقويم") { onOpen("month") }
+        }
+      }
+    }
+    item {
+      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        DSSectionHead("التطبيق", Modifier.padding(horizontal = 4.dp))
+        DSCard(Modifier.fillMaxWidth(), padding = 6.dp) {
+          LibRow(Icons.Outlined.Widgets, "الودجت والنشاط الحيّ", "على الشاشة الرئيسة وشاشة القفل") { sheet = "widgets" }
+          DSDivider()
+          LibRow(Icons.Outlined.Download, "التنزيلات دون اتصال", downloadsLabel()) { sheet = "downloads" }
+          DSDivider()
+          LibRow(Icons.Outlined.Backup, "النسخ الاحتياطي", "تصدير إعداداتك واستيرادها") { sheet = "backup" }
+        }
+      }
+    }
+    item {
+      Text("سكينة ${appVersion()}، يعمل دون اتصال، بلا إعلانات ولا تتبّع", style = DSType.labelXs, color = c.textTertiary, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+    }
+  }
+  when (sheet) {
+    "khatmah" -> KhatmahSheet(onDismiss = { sheet = null }, onGo = { p -> sheet = null; Store.pendingReaderPage = p; switchTab(AppTab.Mushaf) })
+    "downloads" -> DownloadsDialog { sheet = null }
+    "widgets" -> WidgetsSheet { sheet = null }
+    "backup" -> BackupSheetHost { sheet = null }
+  }
+}
+
+/** بطاقة من شبكة «المحتوى»: مربّع أيقونة ناعم، عنوان، ووصف قصير */
+@Composable private fun ContentCard(icon: ImageVector, title: String, subtitle: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+  val c = DS.c
+  DSCard(modifier, padding = 16.dp, onClick = onClick) {
+    DSSoftSquare(icon, size = 40.dp, iconSize = 19.dp)
+    Spacer(Modifier.height(14.dp))
+    Text(title, style = DSType.headingSm, color = c.textPrimary, maxLines = 1)
+    Text(subtitle, style = DSType.labelXs, color = c.textSecondary, maxLines = 2)
+  }
+}
+/** صفّ أداة: مربّع أيقونة، عنوان ووصف، وسهم */
+@Composable private fun LibRow(icon: ImageVector, title: String, subtitle: String?, onClick: () -> Unit) {
+  val c = DS.c
+  Row(Modifier.fillMaxWidth().clip(DS.shapeMd).clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    DSSoftSquare(icon, size = 40.dp, iconSize = 18.dp)
+    Spacer(Modifier.width(12.dp))
+    Column(Modifier.weight(1f)) {
+      Text(title, style = DSType.labelMd.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, maxLines = 1)
+      if (subtitle != null) Text(subtitle, style = DSType.labelXs, color = c.textSecondary, maxLines = 1)
+    }
+    DSChevron()
+  }
+}
+
+/** «الودجت والنشاط الحيّ»: إضافة الويدجتين إلى الشاشة الرئيسة (حيث يدعم المشغّل ذلك)، ومفتاح النشاط الحيّ نفسه الذي في الإعدادات */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable private fun WidgetsSheet(onDismiss: () -> Unit) {
+  val ctx = LocalContext.current; val c = DS.c
+  val awm = remember { AppWidgetManager.getInstance(ctx) }
+  val canPin = remember { runCatching { awm.isRequestPinAppWidgetSupported }.getOrDefault(false) }
+  fun pin(cls: Class<*>) { runCatching { awm.requestPinAppWidget(ComponentName(ctx, cls), null, null) } }
+  fun setLive(on: Boolean) { Store.liveUpdate = on; if (on) Store.hideLiveUntil(0L); Store.save(); LiveDay.refresh(ctx) }
+  val livePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> setLive(ok) }
+  ModalBottomSheet(onDismissRequest = onDismiss, containerColor = c.bgCanvas) {
+    Column(Modifier.fillMaxWidth().padding(16.dp, 0.dp, 16.dp, 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+      Text("الودجت والنشاط الحيّ", style = DSType.headingMd, color = c.textPrimary)
+      Text("يُحسب كلّ ما فيها على جهازك من مواقيتك، ويتجدّد وحده.", style = DSType.labelXs, color = c.textSecondary)
+      DSCard(Modifier.fillMaxWidth(), padding = 6.dp) {
+        DSRow(Icons.Outlined.Schedule, "ويدجت «الصلاة القادمة»", if (canPin) "أضِفه إلى الشاشة الرئيسة" else "من قائمة الودجت في الشاشة الرئيسة", onClick = if (canPin) ({ pin(org.emdatra.sakinah.app.widget.PrayerWidgetReceiver::class.java) }) else null) { if (canPin) DSChevron() }
+        DSDivider()
+        DSRow(Icons.Outlined.NightsStay, "ويدجت رمضان", if (canPin) "أيام رمضان والإفطار، أضِفه إلى الشاشة الرئيسة" else "من قائمة الودجت في الشاشة الرئيسة", onClick = if (canPin) ({ pin(org.emdatra.sakinah.app.widget.RamadanWidgetReceiver::class.java) }) else null) { if (canPin) DSChevron() }
+        DSDivider()
+        DSToggleRow("النشاط الحيّ في الإشعارات", "عدٌّ تنازليّ صامت للصلاة القادمة، يظهر على شاشة القفل", Store.liveUpdate, Icons.Outlined.Timelapse) { on ->
+          if (on && Build.VERSION.SDK_INT >= 33 && !NotificationManagerCompat.from(ctx).areNotificationsEnabled()) livePermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+          else setLive(on)
+        }
+      }
+      if (!canPin) Text("لإضافة ويدجت: اضغط مطوّلاً على الشاشة الرئيسة، ثم «الودجت»، وابحث عن «سكينة».", style = DSType.labelXs, color = c.textTertiary)
     }
   }
 }
 
-@Composable private fun MoreGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
-  val c = DS.c
-  Column {
-    Text(title, style = DSType.labelSm, color = c.textSecondary, textAlign = TextAlign.Start, modifier = Modifier.fillMaxWidth().padding(6.dp, 0.dp, 6.dp, 8.dp))
-    DSCard(padding = 8.dp, content = content)
-  }
-}
-
-@Composable private fun MoreRow(icon: ImageVector, title: String, subtitle: String?, gold: Boolean = false, onClick: () -> Unit) {
-  DSRow(icon, title, subtitle, iconStyle = if (gold) IconStyle.GoldSoft else IconStyle.Soft, onClick = onClick) { DSChevron() }
-}
-
 private fun appVersion(): String = BuildConfig.VERSION_NAME
-
-/** لا سلسلة تنكسر: التزامك بالورد في الأسبوعين الأخيرين إن كانت ثمّة خطة */
-private fun commitmentLabel(): String? {
-  val plan = Store.khatmah ?: return null
-  val c = Wird.commitment(Store.wird, Store.todayKey, plan.dailyPages, 14)
-  return "التزامك ${Fmt.number(c.done)} من ${Fmt.number(c.total)} يومًا"
-}
-private fun downloadsLabel(): String? {
+private fun hadithCount(n: Int) = when { n == 1 -> "حديث واحد"; n == 2 -> "حديثان"; n % 100 in 3..10 -> "${Fmt.number(n)} أحاديث"; else -> "${Fmt.number(n)} حديثاً" }
+private fun chaptersCount(n: Int) = when { n == 1 -> "باب واحد"; n == 2 -> "بابان"; n % 100 in 3..10 -> "${Fmt.number(n)} أبواب"; else -> "${Fmt.number(n)} باباً" }
+private fun downloadsLabel(): String {
   val n = AudioDownloads.summary(Store.reciter).first
-  return if (n > 0) "${Fmt.number(n)} سورة محفوظة" else "لا تنزيلات بعد"
+  val audio = if (n > 0) "${Fmt.number(n)} سورة محفوظة" else "لا تلاوات محفوظة بعد"
+  return "$audio، وخطّ المصحف ${if (MushafFontPack.phase == MushafFontPack.Phase.READY) "محفوظ" else "لم يكتمل"}"
 }
 
 /** شاشة الحديث (تصميم Figma 11): بطاقة حديث اليوم بخلفية الليل، مبدّل المجموعة، شرائط التصنيف، وبطاقات الأحاديث */
@@ -292,7 +363,7 @@ private fun downloadsLabel(): String? {
         Spacer(Modifier.weight(1f))
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
           Text(hijriTitle, style = DSType.headingSm, color = c.textPrimary)
-          Text("${Fmt.number(month)}/${Fmt.number(year)} · ${Store.locName ?: "—"} · ${Methods.method(Store.methodId).nameAr}", style = DSType.labelXs, color = c.textSecondary, maxLines = 1)
+          Text("${Fmt.number(month)}/${Fmt.number(year)}، ${Store.locName ?: "—"}، ${Methods.method(Store.methodId).nameAr}", style = DSType.labelXs, color = c.textSecondary, maxLines = 1)
         }
         Spacer(Modifier.weight(1f))
         DSIconButton(Icons.Outlined.ChevronLeft, contentDescription = "الشهر التالي") { shift(1) }
@@ -338,7 +409,11 @@ private fun downloadsLabel(): String? {
 /** ورقة التنزيلات دون اتصال */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable private fun DownloadsDialog(onDismiss: () -> Unit) {
-  ModalBottomSheet(onDismissRequest = onDismiss, containerColor = DS.c.bgSurface) { DownloadsSheet(null) }
+  ModalBottomSheet(onDismissRequest = onDismiss, containerColor = DS.c.bgSurface) {
+    // خطّ صفحات المصحف حزمةٌ تُنزَّل وحدها: حالتها هنا ما لم تكتمل، ثم التلاوات
+    if (MushafFontPack.phase != MushafFontPack.Phase.READY) FontPackCard(Modifier.padding(horizontal = 12.dp).padding(bottom = 8.dp))
+    DownloadsSheet(null)
+  }
 }
 
 private fun exportIcs(ctx: android.content.Context, rows: List<PrayerTimesResult>, year: Int, month: Int) {

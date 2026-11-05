@@ -1,17 +1,21 @@
 package org.emdatra.sakinah.app.ui
 
 import android.content.Intent
+import android.media.AudioManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -21,16 +25,24 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -40,6 +52,7 @@ import org.emdatra.sakinah.app.Fonts
 import org.emdatra.sakinah.app.Store
 import org.emdatra.sakinah.app.ShareCard
 import org.emdatra.sakinah.app.Notify
+import org.emdatra.sakinah.app.ScreenshotMode
 import org.emdatra.sakinah.core.*
 import java.time.Instant
 
@@ -54,44 +67,74 @@ private fun adhkarProgressToday(): WebSettings.AdhkarProgress {
 }
 private fun periodMap(p: WebSettings.AdhkarProgress, period: String): Map<String, Int> =
   (if (period == "evening") p.evening else p.morning) ?: emptyMap()
+/** نافذة الفترة: «بدأت HH:MM» (بدأ وقتها بالفجر أو العصر) أو «تبدأ بعد الفجر/العصر» */
+private fun windowLabel(period: String): String {
+  val t = Store.timeline()?.times?.get(if (period == "morning") Prayer.FAJR else Prayer.ASR)
+  val fallback = if (period == "morning") "تبدأ بعد الفجر" else "تبدأ بعد العصر"
+  return if (t != null && !Instant.now().isBefore(t)) "بدأت ${Fmt.time(t)}" else fallback
+}
+/** الفترة التلقائية الآن (لذكرٍ مفضّل يُقال صباحاً ومساءً) */
+private fun currentPeriod(): String {
+  val t = Store.timeline()?.times
+  return Adhkar.autoPeriod(Instant.now(), t?.get(Prayer.FAJR), t?.get(Prayer.DHUHR), t?.get(Prayer.ASR), Store.zone)
+}
 
-/** الأذكار: الرئيسية، جلسة الذكر، حصن المسلم، والمسبحة */
+/** النصّ بلا تشكيل (للشرائح والسطور الصغيرة) */
+fun plainArabic(s: String): String = s.filter { it !in '\u064B'..'\u065F' && it != '\u0670' }
+
+/** أبواب «حصن المسلم» الثمانية في تبويب الذكر — كلٌّ يجمع من أقسام الكتاب الاثني عشر ما يخصّه (بفهرس القسم في hisn.json) */
+data class HisnTheme(val title: String, val sections: List<Int>)
+val hisnThemes = listOf(
+  HisnTheme("الصباح والمساء", listOf(3)), HisnTheme("النوم والاستيقاظ", listOf(0, 3)),
+  HisnTheme("الصلاة والمسجد", listOf(1, 2)), HisnTheme("الكرب والهمّ", listOf(4)),
+  HisnTheme("السفر", listOf(8, 10)), HisnTheme("الطعام والشراب", listOf(6)),
+  HisnTheme("المرض والعيادة", listOf(5)), HisnTheme("الاستغفار والتوبة", listOf(11)),
+)
+
+/** الأذكار: الرئيسية، جلسة الذكر، حصن المسلم، المفضّلة، والمسبحة */
 @Composable fun AdhkarHome() {
-  var screen by remember { mutableStateOf("home") }
+  var screen by remember { mutableStateOf(if (ScreenshotMode.route == "tasbih") "tasbih" else "home") }
   var chapter by remember { mutableStateOf<HisnChapter?>(null) }
   var session by remember { mutableStateOf<String?>(null) }
+  var sessionStart by remember { mutableStateOf<String?>(null) }
+  var hisnTheme by remember { mutableStateOf<Int?>(null) }; var hisnSearch by remember { mutableStateOf(false) }
   // «ابدأ» من بطاقة أذكار الوقت في الرئيسية
   // و«أذكار النوم» من الويدجت والإشعار الحيّ: باب حصن المسلم نفسه الذي تفتحه بطاقة «الآن» بعد العشاء
   LaunchedEffect(Store.pendingAdhkarPeriod) {
     Store.pendingAdhkarPeriod?.let { p ->
       Store.pendingAdhkarPeriod = null
-      if (p == "sleep") Hisn.chapters.firstOrNull { it.title == "أذكار النوم" }?.let { session = null; chapter = it } else { chapter = null; session = p }
+      if (p == "sleep") Hisn.chapters.firstOrNull { it.title == "أذكار النوم" }?.let { session = null; chapter = it } else { chapter = null; session = p; sessionStart = null }
     }
   }
   BackHandler(screen != "home" || chapter != null || session != null) {
     when { session != null -> session = null; chapter != null -> chapter = null; else -> screen = "home" }
   }
   when {
-    session != null -> DhikrSession(session!!) { session = null }
+    session != null -> DhikrSession(session!!, sessionStart) { session = null; sessionStart = null }
     chapter != null -> HisnChapterScreen(chapter!!) { chapter = null }
-    screen == "hisn" -> HisnScreen(onBack = { screen = "home" }) { chapter = it }
-    screen == "tasbih" -> TasbihScreen { screen = "home" }
-    else -> AdhkarDaily(onHisn = { screen = "hisn" }, onTasbih = { screen = "tasbih" }, onChapter = { chapter = it }, onSession = { session = it })
+    screen == "hisn" -> HisnScreen(onBack = { screen = "home" }, theme = hisnTheme, focusSearch = hisnSearch) { chapter = it }
+    screen == "tasbih" -> TasbihScreen(backLabel = "الذكر") { screen = "home" }
+    screen == "favorites" -> AdhkarFavoritesScreen(onBack = { screen = "home" }, onChapter = { chapter = it }, onDhikr = { period, id -> session = period; sessionStart = id })
+    else -> AdhkarDaily(
+      onHisn = { theme, search -> hisnTheme = theme; hisnSearch = search; screen = "hisn" },
+      onTasbih = { screen = "tasbih" }, onChapter = { chapter = it },
+      onSession = { session = it; sessionStart = null },
+      onDhikr = { period, id -> session = period; sessionStart = id },
+      onFavorites = { screen = "favorites" })
   }
 }
 
-/** شاشة الأذكار (تصميم Figma 07): بطاقتا الصباح والمساء، سلسلة الأيام، حصن المسلم، والمسبحة */
-@Composable fun AdhkarDaily(onHisn: () -> Unit, onTasbih: () -> Unit, onChapter: (HisnChapter) -> Unit, onSession: (String) -> Unit) {
+/** تبويب «الذكر» (المرحلة الخامسة — dhikr.png): فترتا اليوم، «حضورك هذا الأسبوع» بدل السلسلة، المسبحة، حصن المسلم بأبوابه، و«مفضّلتي» */
+@Composable fun AdhkarDaily(onHisn: (Int?, Boolean) -> Unit, onTasbih: () -> Unit, onChapter: (HisnChapter) -> Unit, onSession: (String) -> Unit, onDhikr: (String, String) -> Unit, onFavorites: () -> Unit) {
   val c = DS.c
   val ctx = LocalContext.current
   var searching by remember { mutableStateOf(false) }
   var q by remember { mutableStateOf("") }
   var reminders by remember { mutableStateOf(false) }
-  LazyColumn(Modifier.fillMaxSize().background(c.bgCanvas), contentPadding = PaddingValues(16.dp, 0.dp, 16.dp, 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+  LazyColumn(Modifier.fillMaxSize().background(c.bgCanvas), contentPadding = PaddingValues(16.dp, 0.dp, 16.dp, 32.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
     item {
-      DSNavBar("الأذكار") {
-        DSIconButton(if (searching) Icons.Outlined.Close else Icons.Outlined.Search, contentDescription = if (searching) "إغلاق البحث" else "بحث") { searching = !searching; if (!searching) q = "" }
-        Spacer(Modifier.width(8.dp))
+      DSPageHeader("الذكر", "الأذكار، والمسبحة، وحصن المسلم", Modifier.padding(horizontal = 4.dp)) {
+        DSIconButton(if (searching) Icons.Outlined.Close else Icons.Outlined.Search, contentDescription = if (searching) "إغلاق البحث" else "البحث في الأذكار") { searching = !searching; if (!searching) q = "" }
         DSIconButton(Icons.Outlined.Notifications, contentDescription = "تذكيرات الأذكار", style = if (Store.extras.any) IconStyle.Brand else IconStyle.Outlined) { reminders = true }
       }
     }
@@ -112,9 +155,10 @@ private fun periodMap(p: WebSettings.AdhkarProgress, period: String): Map<String
       }
     } else {
       item { PeriodCards(onSession) }
-      item { StreakCard() }
-      item { HisnCard(onHisn, onChapter) }
+      item { PresenceCard() }
       item { TasbihCard(onTasbih) }
+      item { HisnBlock(onHisn) }
+      item { FavoritesBlock(onChapter, onDhikr, onFavorites) }
       item { Text("النصوص من كتاب «حصن المسلم» للشيخ سعيد بن علي بن وهف القحطاني، بترتيبه وتخريجه.", style = DSType.labelXs, color = c.textTertiary, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
     }
   }
@@ -146,133 +190,207 @@ private fun periodMap(p: WebSettings.AdhkarProgress, period: String): Map<String
   }
 }
 
+/** بطاقتا الفترتين جنباً إلى جنب: الصباح في البداية (يميناً) والمساء بعده، بارتفاعٍ واحد */
 @Composable private fun PeriodCards(onSession: (String) -> Unit) {
-  Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-    PeriodCard("evening", Modifier.weight(1f), onSession)
-    PeriodCard("morning", Modifier.weight(1f), onSession)
+  Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    PeriodCard("morning", Modifier.weight(1f).fillMaxHeight(), onSession)
+    PeriodCard("evening", Modifier.weight(1f).fillMaxHeight(), onSession)
   }
 }
 
 @Composable private fun PeriodCard(period: String, modifier: Modifier, onSession: (String) -> Unit) {
   val c = DS.c
   val list = Adhkar.items(period)
-  val done = periodMap(adhkarProgressToday(), period)
+  val prog = adhkarProgressToday()
+  val done = periodMap(prog, period)
   val completed = list.count { (done[it.id] ?: 0) >= it.target(period) }
   val pct = if (list.isEmpty()) 0f else completed.toFloat() / list.size
-  val started = completed > 0
-  val gold = period == "morning"
-  DSCard(modifier) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-      Text("${Fmt.number((pct * 100).toInt())}٪", style = DSType.numericMd, color = if (gold) c.accentGoldStrong else c.brandPrimary)
-      Spacer(Modifier.weight(1f))
-      Box(Modifier.size(46.dp), contentAlignment = Alignment.Center) {
-        RingProgress(pct, Modifier.fillMaxSize(), tint = if (gold) c.accentGold else c.brandPrimary, stroke = 4.dp)
-        Icon(if (gold) Icons.Outlined.WbTwilight else Icons.Outlined.DarkMode, null, Modifier.size(18.dp), tint = if (gold) c.accentGoldStrong else c.brandPrimary)
+  val started = done.values.any { it > 0 }  // «متابعة» بدل «ابدأ»
+  val finished = list.isNotEmpty() && completed == list.size
+  val morning = period == "morning"
+  val title = if (morning) "أذكار الصباح" else "أذكار المساء"
+  val line = if (finished) "${Fmt.number(completed)} من ${Fmt.number(list.size)}" else "${Fmt.number(completed)} من ${Fmt.number(list.size)}، ${windowLabel(period)}"
+  DSCard(modifier.semantics(mergeDescendants = true) { contentDescription = "$title: $line${if (finished) "، أتممتها اليوم" else ""}" }, padding = 16.dp, onClick = { onSession(period) }) {
+    Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+      Box(Modifier.size(66.dp), contentAlignment = Alignment.Center) {
+        RingProgress(pct, Modifier.fillMaxSize(), tint = if (finished) c.brandPrimary else c.accentGold, track = c.bgSubtle, stroke = 5.dp)
+        Icon(if (morning) Icons.Outlined.WbSunny else Icons.Outlined.DarkMode, null, Modifier.size(22.dp), tint = if (finished) c.brandPrimary else c.textSecondary)
       }
+      Spacer(Modifier.height(12.dp))
+      Text(title, style = DSType.headingSm, color = c.textPrimary, maxLines = 1)
+      Spacer(Modifier.height(2.dp))
+      Text(line, style = DSType.labelXs, color = c.textSecondary, textAlign = TextAlign.Center, maxLines = 2)
+      Spacer(Modifier.weight(1f).heightIn(min = 12.dp))
+      if (finished) Row(Modifier.heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+        Icon(Icons.Filled.Check, null, Modifier.size(16.dp), tint = c.brandPrimary); Spacer(Modifier.width(6.dp))
+        Text("أتممتها اليوم", style = DSType.labelMd, color = c.brandPrimary)
+      } else DSButton(if (started) "متابعة" else "ابدأ", kind = ButtonKind.Gold, modifier = Modifier.fillMaxWidth()) { onSession(period) }
     }
-    Spacer(Modifier.height(12.dp))
-    Text(if (gold) "أذكار الصباح" else "أذكار المساء", style = DSType.headingSm, color = c.textPrimary)
-    Text("${Fmt.number(completed)} من ${Fmt.number(list.size)} · ${windowLabel(period)}", style = DSType.labelXs, color = c.textSecondary, maxLines = 1)
-    Spacer(Modifier.height(12.dp))
-    DSButton(if (started) "متابعة" else "ابدأ", kind = if (gold) ButtonKind.Gold else ButtonKind.Soft, icon = Icons.Outlined.ChevronLeft, modifier = Modifier.fillMaxWidth()) { onSession(period) }
   }
 }
 
-private fun windowLabel(period: String): String {
-  val tl = Store.timeline(); val now = Instant.now()
-  val t = if (period == "morning") tl?.times?.get(Prayer.FAJR) else tl?.times?.get(Prayer.ASR)
-  val fallback = if (period == "morning") "تبدأ بعد الفجر" else "تبدأ بعد العصر"
-  if (t == null) return fallback
-  return if (!now.isBefore(t)) "بدأت ${Fmt.time(t)}" else fallback
-}
-
-/** سلسلة الأيام: طول السلسلة، أطولها، وشريط سبعة أيام */
-@Composable private fun StreakCard() {
+/** «حضورك هذا الأسبوع» (بدل السلسلة): أيام الأسبوع من السبت (يميناً) إلى الجمعة، وما أتممتَ فيه أذكارك — بلا نقاط ولا سلاسل */
+@Composable private fun PresenceCard() {
   val c = DS.c
   val log = Store.adhkarLog; val today = Store.todayKey
-  val days = AdhkarStreak.lastDays(log, today)
-  val cur = AdhkarStreak.current(log, today)
-  val best = maxOf(AdhkarStreak.longest(log), cur)
-  val todayDone = !log[today].isNullOrEmpty()
-  DSCard {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-      if (best > 0) Text("الأطول ${Fmt.number(best)} يومًا", style = DSType.labelXs, color = c.textTertiary)
-      Spacer(Modifier.weight(1f))
-      Text(if (cur > 0) "سلسلة ${Fmt.number(cur)} ${dayWord(cur)}" else "ابدأ سلسلتك اليوم", style = DSType.headingSm, color = c.textPrimary)
-      Spacer(Modifier.width(6.dp))
-      Icon(Icons.Filled.LocalFireDepartment, null, Modifier.size(17.dp), tint = if (cur > 0) c.accentGoldStrong else c.textTertiary)
-    }
-    Spacer(Modifier.height(12.dp))
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+  val sinceSat = (CivilDate.weekdayIndex(Instant.now(), Store.zone) + 1) % 7
+  val start = DayKey.adding(today, -sinceSat)
+  val days = (0..6).map { DayKey.adding(start, it) }
+  val n = days.count { it <= today && !log[it].isNullOrEmpty() }
+  val line = when (n) {
+    0 -> "لم تُتمَّ أذكارك بعد هذا الأسبوع، وهي هنا متى شئت"
+    1 -> "حضرتَ أذكارك يوماً واحداً من ${Fmt.number(7)} هذا الأسبوع"
+    2 -> "حضرتَ أذكارك يومين من ${Fmt.number(7)} هذا الأسبوع"
+    else -> "حضرتَ أذكارك ${Fmt.number(n)} أيام من ${Fmt.number(7)} هذا الأسبوع"
+  }
+  DSCard(Modifier.fillMaxWidth(), padding = 18.dp) {
+    Text(line, style = DSType.headingSm, color = c.textPrimary)
+    Spacer(Modifier.height(14.dp))
+    Row(Modifier.fillMaxWidth()) {
       for (d in days) {
-        Box(
-          Modifier.weight(1f).height(38.dp).clip(CircleShape)
-            .background(if (d.done) c.brandPrimary else c.bgSubtle)
-            .then(if (d.isToday && !d.done) Modifier.border(2.dp, c.accentGold, CircleShape) else Modifier),
-          contentAlignment = Alignment.Center
-        ) {
-          if (d.done) Icon(Icons.Filled.Check, null, Modifier.size(16.dp), tint = c.textOnBrand)
-          else Text(d.letter, style = DSType.labelXs, color = if (d.isToday) c.accentGoldStrong else c.textTertiary)
+        val done = !log[d].isNullOrEmpty(); val future = d > today; val isToday = d == today
+        Column(Modifier.weight(1f).semantics(mergeDescendants = true) { contentDescription = "${AdhkarStreak.letter(d)}: ${if (done) "حضرت" else if (future) "لم يأتِ بعد" else "لم تُتمّ"}" }, horizontalAlignment = Alignment.CenterHorizontally) {
+          Box(Modifier.size(34.dp).alpha(if (future) 0.55f else 1f).clip(CircleShape).background(if (done) c.brandPrimary else c.bgSubtle)
+            .then(if (isToday && !done) Modifier.border(2.dp, c.accentGold, CircleShape) else Modifier))
+          Spacer(Modifier.height(6.dp))
+          Text(AdhkarStreak.letter(d), style = DSType.labelXs, color = if (isToday) c.accentGoldStrong else c.textTertiary)
         }
       }
     }
-    Spacer(Modifier.height(10.dp))
-    Text(
-      if (todayDone) "أحسنت — أذكار اليوم مكتملة، حافظ على السلسلة غدًا."
-      else "أكمل أذكار اليوم لتحافظ على السلسلة" + (if (Store.extras.adhkarEvening) " · تذكير بعد العصر بـ${Fmt.number(Store.extras.eveningAfter)} د" else ""),
-      style = DSType.labelXs, color = c.textSecondary
-    )
+    Spacer(Modifier.height(12.dp))
+    Text("هذا لك وحدك: لا نقاط ولا سلاسل تنكسر.", style = DSType.labelXs, color = c.textSecondary)
+    if (Store.extras.adhkarEvening) Text("وتذكير المساء يصلك بعد العصر بـ${Fmt.number(Store.extras.eveningAfter)} دقيقة.", style = DSType.labelXs, color = c.textTertiary)
   }
 }
-private fun dayWord(n: Int) = if (n == 1) "يوم" else if (n == 2) "يومان" else if (n <= 10) "أيام" else "يومًا"
 
-@Composable private fun HisnCard(onAll: () -> Unit, onChapter: (HisnChapter) -> Unit) {
-  val picks = if (Store.hisnFavorites.isNotEmpty()) Store.hisnFavorites.mapNotNull { Hisn.chapter(it) }.take(3)
-              else listOfNotNull(Hisn.chapter(28), Hisn.chapter(30), Hisn.chapter(19))
-  DSCard {
-    DSSectionHead("حصن المسلم", link = "كل الأبواب (${Fmt.number(Hisn.chapters.size)})", onLink = onAll)
-    Spacer(Modifier.height(4.dp))
-    picks.forEachIndexed { i, ch ->
-      if (i > 0) DSDivider()
-      DSRow(chapterIcon(ch.id), ch.title, chapterHint(ch.id), onClick = { onChapter(ch) }) {
-        Text(Fmt.number(ch.items.size), style = DSType.labelSm, color = DS.c.textTertiary)
-        Spacer(Modifier.width(6.dp)); DSChevron()
-      }
-    }
-  }
+/** مجموع المسبحة في أسبوع اليوم (من السبت) من سجلّها اليوميّ */
+fun tasbihWeekTotal(): Int {
+  val today = Store.todayKey; val sinceSat = (CivilDate.weekdayIndex(Instant.now(), Store.zone) + 1) % 7
+  return (0..sinceSat).sumOf { Store.tasbihOn(DayKey.adding(today, -it)) }
 }
-private fun chapterIcon(id: Int): ImageVector = when (id) {
-  28 -> Icons.Outlined.Grain; 30 -> Icons.Outlined.DarkMode; 19 -> Icons.Outlined.Shield; else -> Icons.Outlined.MenuBook
-}
-private fun chapterHint(id: Int): String? = when (id) {
-  28 -> "تسبيح وتحميد وتكبير"; 30 -> "ما يقال عند النوم"; 19 -> "والحزن"; else -> null
-}
-private fun hisnCountLabel(n: Int) = if (n == 1) "ذكر واحد" else if (n == 2) "ذكران" else if (n <= 10) "${Fmt.number(n)} أذكار" else "${Fmt.number(n)} ذكرًا"
 
+/** بطاقة المسبحة: الصيغة الحالية، ومجموع اليوم والأسبوع، وحلقةٌ بالعدد الجاري — تفتح شاشة المسبحة */
 @Composable private fun TasbihCard(onOpen: () -> Unit) {
   val c = DS.c; val st = Store.tasbih
   val pct = if (st.target > 0) st.count.toFloat() / st.target else 0f
-  DSCard(onClick = onOpen) {
+  val sub = "${plainArabic(Tasbih.phraseText(st))}، اليوم ${Fmt.grouped(Store.tasbihOn(Store.todayKey))}، هذا الأسبوع ${Fmt.grouped(tasbihWeekTotal())}"
+  DSCard(Modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = "المسبحة: $sub" }, padding = 16.dp, onClick = onOpen) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-      Box(Modifier.size(52.dp), contentAlignment = Alignment.Center) {
-        RingProgress(pct, Modifier.fillMaxSize(), tint = c.accentGold, stroke = 4.dp)
-        Text(Fmt.number(st.count), style = DSType.numericSm, color = c.textPrimary)
+      Box(Modifier.size(54.dp), contentAlignment = Alignment.Center) {
+        RingProgress(pct, Modifier.fillMaxSize(), tint = c.brandPrimary, track = c.bgSubtle, stroke = 4.dp)
+        Text(Fmt.number(st.count), style = DSType.numericMd, color = c.textPrimary)
       }
-      Spacer(Modifier.weight(1f))
-      Column(horizontalAlignment = Alignment.End) {
+      Spacer(Modifier.width(14.dp))
+      Column(Modifier.weight(1f)) {
         Text("المسبحة", style = DSType.headingSm, color = c.textPrimary)
-        Text("${Tasbih.phraseText(st)} · اليوم ${Fmt.number(Tasbih.todayCount(st, Store.todayKey))} · الإجمالي ${Fmt.number(Tasbih.grandTotal(st))}", style = DSType.labelXs, color = c.textSecondary, maxLines = 1)
+        Text(sub, style = DSType.labelXs, color = c.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+      }
+      DSChevron()
+    }
+  }
+}
+
+/** «حصن المسلم»: حقل بحثٍ يفتح فهرسه، وثمانية أبوابٍ في شبكة عمودين تفتح الفهرس مصفّىً بموضوعها */
+@Composable private fun HisnBlock(onHisn: (Int?, Boolean) -> Unit) {
+  val c = DS.c
+  Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    DSSectionHead("حصن المسلم", Modifier.padding(horizontal = 4.dp), link = "كل الأبواب (${Fmt.number(Hisn.chapters.size)})", onLink = { onHisn(null, false) })
+    DSCard(Modifier.fillMaxWidth(), padding = 14.dp) {
+      Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(CircleShape).background(c.bgCanvas).border(1.dp, c.borderSubtle, CircleShape).clickable(role = Role.Button, onClickLabel = "البحث في حصن المسلم") { onHisn(null, true) }.padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Icon(Icons.Outlined.Search, null, Modifier.size(18.dp), tint = c.textTertiary)
+        Text("ابحث في الأبواب والأذكار", style = DSType.bodySm, color = c.textTertiary)
+      }
+      Spacer(Modifier.height(12.dp))
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        hisnThemes.withIndex().chunked(2).forEach { row ->
+          Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            row.forEach { (i, t) ->
+              Box(Modifier.weight(1f).heightIn(min = 46.dp).clip(DS.shapeMd).background(c.bgSubtle).clickable(role = Role.Button) { onHisn(i, false) }.padding(horizontal = 10.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
+                Text(t.title, style = DSType.labelMd, color = c.textPrimary, textAlign = TextAlign.Center, maxLines = 1)
+              }
+            }
+          }
+        }
       }
     }
   }
 }
 
-/** جلسة الأذكار (تصميم Figma 08): ذكر واحد، شريط تقدّم مقسّم، عدّاد بحلقة ذهبية، والنقر في أي مكان يعدّ */
-@Composable fun DhikrSession(period: String, onClose: () -> Unit) {
+/** عنصر من «مفضّلتي»: ذكرٌ من أذكار اليوم أو بابٌ من حصن المسلم */
+private class FavItem(val key: String, val title: String, val subtitle: String, val icon: ImageVector, val open: () -> Unit, val remove: () -> Unit)
+/** عنوان ذكرٍ مفضّل: ما يسمّيه الكتاب في ملاحظته («آية الكرسي»، «سيد الاستغفار»)، وإلا مطلع نصّه */
+private fun dhikrTitle(d: Dhikr): String {
+  val note = d.note?.substringBefore('،')?.trim()?.trimEnd('.')
+  val counts = listOf("مرة", "مرات", "مرتين", "مائة", "عشر", "ثلاث", "سبع", "أصبح", "أمسى", "اليوم")
+  if (!note.isNullOrBlank() && counts.none { note.contains(it) }) return note
+  return plainArabic(d.text).replace(Regex("[﴿﴾*]"), "").split(' ').filter { it.isNotBlank() }.take(4).joinToString(" ")
+}
+private fun favoriteItems(onChapter: (HisnChapter) -> Unit, onDhikr: (String, String) -> Unit): List<FavItem> {
+  val out = ArrayList<FavItem>()
+  for (id in Store.hisnFavorites.reversed()) {
+    val ch = Hisn.chapter(id) ?: continue
+    val section = Hisn.sections.firstOrNull { id in it.chapters }?.title
+    out.add(FavItem("hisn:$id", ch.title, "حصن المسلم${section?.let { "، $it" } ?: ""}", Icons.Outlined.MenuBook, { onChapter(ch) }, { Store.hisnFavorites = Store.hisnFavorites - id; Store.save() }))
+  }
+  for (f in Store.favorites.reversed()) {
+    if (!f.startsWith("dhikr:")) continue
+    val d = Adhkar.all.firstOrNull { it.id == f.removePrefix("dhikr:") } ?: continue
+    val sub = when (d.period) { "morning" -> "من أذكار الصباح"; "evening" -> "من أذكار المساء"; else -> "من أذكار الصباح والمساء" }
+    out.add(FavItem(f, dhikrTitle(d), sub, Icons.Outlined.AutoAwesome, { onDhikr(if (d.period == "both") currentPeriod() else d.period, d.id) }, { Store.favorites = Store.favorites - f; Store.save() }))
+  }
+  return out
+}
+@Composable private fun FavRow(f: FavItem, trailing: @Composable RowScope.() -> Unit = { DSChevron() }) {
+  val c = DS.c
+  Row(Modifier.fillMaxWidth().clip(DS.shapeMd).clickable(onClick = f.open).padding(horizontal = 8.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    DSSoftSquare(f.icon, size = 40.dp, iconSize = 18.dp)
+    Spacer(Modifier.width(12.dp))
+    Column(Modifier.weight(1f)) {
+      Text(f.title, style = DSType.labelMd.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+      Text(f.subtitle, style = DSType.labelXs, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+    trailing()
+  }
+}
+/** «مفضّلتي» (جديدة — المفضّلة كانت تُحفظ «dhikr:<id>» ولا تُعرض): أحدث ثلاثٍ، و«الكل» للقائمة كاملة */
+@Composable private fun FavoritesBlock(onChapter: (HisnChapter) -> Unit, onDhikr: (String, String) -> Unit, onAll: () -> Unit) {
+  val c = DS.c
+  val favs = favoriteItems(onChapter, onDhikr)
+  Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    DSSectionHead("مفضّلتي", Modifier.padding(horizontal = 4.dp), link = if (favs.isNotEmpty()) "الكل" else null, onLink = if (favs.isNotEmpty()) onAll else null)
+    DSCard(Modifier.fillMaxWidth(), padding = 8.dp) {
+      if (favs.isEmpty()) Text("لا مفضّلة بعد: اضغط القلب على ذكرٍ في جلسة الأذكار، أو على بابٍ من حصن المسلم، فيظهر هنا.", Modifier.padding(12.dp), style = DSType.bodySm, color = c.textSecondary)
+      favs.take(3).forEachIndexed { i, f -> if (i > 0) DSDivider(); FavRow(f) }
+    }
+  }
+}
+/** المفضّلة كاملةً: كل ذكرٍ وباب، يُفتح بنقرة ويُزال بالقلب */
+@Composable fun AdhkarFavoritesScreen(onBack: () -> Unit, onChapter: (HisnChapter) -> Unit, onDhikr: (String, String) -> Unit) {
+  val c = DS.c
+  val favs = favoriteItems(onChapter, onDhikr)
+  LazyColumn(Modifier.fillMaxSize().background(c.bgCanvas), contentPadding = PaddingValues(16.dp, 0.dp, 16.dp, 32.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    item { DSBackLink("الذكر", onClick = onBack) }
+    item { DSPageHeader("مفضّلتي", "الأذكار وأبواب حصن المسلم التي حفظتَها", Modifier.padding(horizontal = 4.dp)) }
+    if (favs.isEmpty()) item { DSCard(Modifier.fillMaxWidth()) { Text("لا مفضّلة بعد: اضغط القلب على ذكرٍ في جلسة الأذكار، أو على بابٍ من حصن المسلم.", style = DSType.bodySm, color = c.textSecondary) } }
+    else item {
+      DSCard(Modifier.fillMaxWidth(), padding = 8.dp) {
+        favs.forEachIndexed { i, f ->
+          if (i > 0) DSDivider()
+          FavRow(f) { DSIconButton(Icons.Filled.Favorite, style = IconStyle.Plain, size = 44.dp, iconSize = 18.dp, contentDescription = "إزالة «${f.title}» من المفضّلة", onClick = f.remove) }
+        }
+      }
+    }
+  }
+}
+private fun hisnCountLabel(n: Int) = if (n == 1) "ذكر واحد" else if (n == 2) "ذكران" else if (n <= 10) "${Fmt.number(n)} أذكار" else "${Fmt.number(n)} ذكرًا"
+
+/** جلسة الأذكار (تصميم Figma 08): ذكر واحد، شريط تقدّم مقسّم، عدّاد بحلقة ذهبية، والنقر في أي مكان يعدّ — وتبدأ من ذكرٍ بعينه حين تُفتح من «مفضّلتي» */
+@Composable fun DhikrSession(period: String, startId: String? = null, onClose: () -> Unit) {
   val c = DS.c; val ctx = LocalContext.current; val view = LocalView.current
   val list = Adhkar.items(period)
   val title = if (period == "morning") "أذكار الصباح" else "أذكار المساء"
-  var index by remember { mutableIntStateOf(0) }
+  var index by remember { mutableIntStateOf(startId?.let { id -> list.indexOfFirst { it.id == id }.coerceAtLeast(0) } ?: 0) }
   val prog = adhkarProgressToday()
   val map = periodMap(prog, period)
   val d = list.getOrNull(index) ?: list.firstOrNull() ?: return
@@ -288,6 +406,7 @@ private fun hisnCountLabel(n: Int) = if (n == 1) "ذكر واحد" else if (n ==
     if (list.all { (m[it.id] ?: 0) >= it.target(period) }) Store.adhkarLog = AdhkarStreak.mark(Store.adhkarLog, Store.todayKey, period)
     Store.save()
   }
+
   fun advance() { if (index + 1 < list.size) index++ else onClose() }
   fun tap() {
     if (count >= target) { advance(); return }
@@ -301,7 +420,7 @@ private fun hisnCountLabel(n: Int) = if (n == 1) "ذكر واحد" else if (n ==
       Spacer(Modifier.weight(1f))
       Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(title, style = DSType.headingMd, color = c.textPrimary)
-        Text("${Fmt.number(index + 1)} من ${Fmt.number(list.size)} · بقي نحو ${Fmt.number(maxOf(1, (list.size - completed) / 5))} دقائق", style = DSType.labelXs, color = c.textSecondary)
+        Text("${Fmt.number(index + 1)} من ${Fmt.number(list.size)}، بقي نحو ${Fmt.number(maxOf(1, (list.size - completed) / 5))} دقائق", style = DSType.labelXs, color = c.textSecondary)
       }
       Spacer(Modifier.weight(1f))
       DSIconButton(Icons.Outlined.Close, contentDescription = "إغلاق") { onClose() }
@@ -318,7 +437,7 @@ private fun hisnCountLabel(n: Int) = if (n == 1) "ذكر واحد" else if (n ==
       Spacer(Modifier.height(20.dp))
       DhikrDial(count, target)
       Spacer(Modifier.height(12.dp))
-      Text("انقر في أي مكان للعدّ · اهتزاز خفيف عند الاكتمال", style = DSType.labelXs, color = c.textTertiary)
+      Text("انقر في أي مكان للعدّ، واهتزاز خفيف عند الاكتمال", style = DSType.labelXs, color = c.textTertiary)
     }
     Row(Modifier.fillMaxWidth().padding(16.dp, 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
       TextButton(onClick = { advance() }) { Text("تخطِّ", style = DSType.labelMd, color = c.textTertiary) }
@@ -337,7 +456,7 @@ private fun hisnCountLabel(n: Int) = if (n == 1) "ذكر واحد" else if (n ==
     horizontalAlignment = Alignment.CenterHorizontally
   ) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-      DSIconButton(if (fav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, contentDescription = "مفضلة", size = 38.dp, style = if (fav) IconStyle.Brand else IconStyle.Soft) {
+      DSIconButton(if (fav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, contentDescription = if (fav) "إزالة من المفضّلة" else "إضافة إلى المفضّلة", size = 38.dp, style = if (fav) IconStyle.Brand else IconStyle.Soft) {
         Store.favorites = if (fav) Store.favorites - "dhikr:${d.id}" else Store.favorites + "dhikr:${d.id}"; Store.save()
       }
       Spacer(Modifier.width(8.dp))
@@ -426,13 +545,18 @@ private fun repeatLabel(n: Int) = if (n == 1) "مرة واحدة" else if (n == 
   }
 }
 
-@Composable fun HisnScreen(onBack: () -> Unit, onChapter: (HisnChapter) -> Unit) {
+/** فهرس «حصن المسلم»: بحث، المفضّلة، والأقسام — ويُفتح مصفّىً بموضوعٍ من أبواب تبويب الذكر الثمانية، أو والبحث جاهزٌ للكتابة */
+@Composable fun HisnScreen(onBack: () -> Unit, theme: Int? = null, focusSearch: Boolean = false, onChapter: (HisnChapter) -> Unit) {
   val c = DS.c
   var q by remember { mutableStateOf("") }
+  var themeIdx by remember(theme) { mutableStateOf(theme?.takeIf { it in hisnThemes.indices }) }
   val res = remember(q) { Hisn.search(q) }
+  val focus = remember { FocusRequester() }
+  LaunchedEffect(focusSearch) { if (focusSearch) runCatching { focus.requestFocus() } }
+  val shownSections = themeIdx?.let { t -> hisnThemes[t].sections.mapNotNull { Hisn.sections.getOrNull(it) } } ?: Hisn.sections
   LazyColumn(Modifier.fillMaxSize().background(c.bgCanvas), contentPadding = PaddingValues(16.dp, 0.dp, 16.dp, 32.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    item { DSNavBar("حصن المسلم", onBack = onBack) }
-    item { OutlinedTextField(q, { q = it }, Modifier.fillMaxWidth(), placeholder = { Text("ابحث في الأبواب والأذكار…", style = DSType.bodyMd) }, singleLine = true, shape = DS.shapeMd) }
+    item { DSNavBar("حصن المسلم", subtitle = themeIdx?.let { hisnThemes[it].title }, onBack = onBack) }
+    item { OutlinedTextField(q, { q = it }, Modifier.fillMaxWidth().focusRequester(focus), placeholder = { Text("ابحث في الأبواب والأذكار…", style = DSType.bodyMd) }, singleLine = true, shape = DS.shapeMd, leadingIcon = { Icon(Icons.Outlined.Search, null, tint = c.textTertiary) }) }
     if (CityDatabase.normalize(q).length >= 2) {
       items(res.first) { ch -> DSCard { DSRow(Icons.Outlined.MenuBook, ch.title, hisnCountLabel(ch.items.size), onClick = { onChapter(ch) }) { DSChevron() } } }
       items(res.second) { (item, ch) ->
@@ -443,12 +567,20 @@ private fun repeatLabel(n: Int) = if (n == 1) "مرة واحدة" else if (n == 
           }
         }
       }
+      if (res.first.isEmpty() && res.second.isEmpty()) item { Text("لا نتائج، جرّب كلمة أخرى", style = DSType.bodySm, color = c.textTertiary) }
     } else {
-      if (Store.hisnFavorites.isNotEmpty()) {
-        item { Text("♥ المفضلة", style = DSType.headingSm, color = c.textPrimary, modifier = Modifier.padding(top = 8.dp)) }
-        items(Store.hisnFavorites.mapNotNull { Hisn.chapter(it) }) { ch -> DSCard { DSRow(Icons.Outlined.MenuBook, ch.title, hisnCountLabel(ch.items.size), onClick = { onChapter(ch) }) { DSChevron() } } }
+      // شرائح الموضوعات: «الكل» ثم الثمانية — المختار يصفّي الأقسام دون أن يخفي البحث
+      item {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          DSChip("كل الأبواب", on = themeIdx == null) { themeIdx = null }
+          hisnThemes.forEachIndexed { i, t -> DSChip(t.title, on = themeIdx == i) { themeIdx = i } }
+        }
       }
-      for (s in Hisn.sections) {
+      if (themeIdx == null && Store.hisnFavorites.isNotEmpty()) {
+        item { Text("المفضّلة", style = DSType.headingSm, color = c.textPrimary, modifier = Modifier.padding(top = 8.dp)) }
+        items(Store.hisnFavorites.mapNotNull { Hisn.chapter(it) }) { ch -> DSCard { DSRow(Icons.Filled.Favorite, ch.title, hisnCountLabel(ch.items.size), iconStyle = IconStyle.GoldSoft, onClick = { onChapter(ch) }) { DSChevron() } } }
+      }
+      for (s in shownSections) {
         item { Text(s.title, style = DSType.headingSm, color = c.brandPrimary, modifier = Modifier.padding(top = 12.dp)) }
         items(s.chapters.mapNotNull { Hisn.chapter(it) }) { ch ->
           DSCard { DSRow(Icons.Outlined.MenuBook, ch.title, hisnCountLabel(ch.items.size), onClick = { onChapter(ch) }) {
@@ -467,8 +599,8 @@ private fun repeatLabel(n: Int) = if (n == 1) "مرة واحدة" else if (n == 
   val fav = chapter.id in Store.hisnFavorites
   LazyColumn(Modifier.fillMaxSize().background(c.bgCanvas), contentPadding = PaddingValues(16.dp, 0.dp, 16.dp, 32.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
     item {
-      DSNavBar(chapter.title, subtitle = "الباب ${Fmt.number(chapter.id)} · ${hisnCountLabel(chapter.items.size)}", onBack = onBack) {
-        DSIconButton(if (fav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, contentDescription = "مفضلة", style = if (fav) IconStyle.Brand else IconStyle.Outlined) {
+      DSNavBar(chapter.title, subtitle = "الباب ${Fmt.number(chapter.id)}، ${hisnCountLabel(chapter.items.size)}", onBack = onBack) {
+        DSIconButton(if (fav) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder, contentDescription = if (fav) "إزالة من المفضّلة" else "إضافة إلى المفضّلة", style = if (fav) IconStyle.Brand else IconStyle.Outlined) {
           Store.hisnFavorites = if (fav) Store.hisnFavorites - chapter.id else Store.hisnFavorites + chapter.id; Store.save()
         }
       }
@@ -481,86 +613,138 @@ private fun repeatLabel(n: Int) = if (n == 1) "مرة واحدة" else if (n == 
   }
 }
 
-/** المسبحة (تصميم Figma 09): شرائط الصيغ، قرص كبير بحلقة ذهبية، بلاطات إحصاء، وبطاقة إعدادات */
-@Composable fun TasbihScreen(onBack: () -> Unit) {
-  val c = DS.c; val view = LocalView.current
+/**
+ * المسبحة (المرحلة الخامسة — tasbih.png): رجوعٌ إلى القسم الذي فُتحت منه، «تراجع» و«تصفير»، شرائح الصيغ، قرصٌ كبير
+ * (النقر في أي مكانٍ من الشاشة يعدّ)، بلاطات اليوم والأسبوع والإجمالي، «آخر سبعة أيام» من سجلٍّ يوميٍّ على الجهاز وحده، والإعدادات.
+ */
+@Composable fun TasbihScreen(backLabel: String = "الذكر", onBack: () -> Unit) {
+  val c = DS.c; val view = LocalView.current; val ctx = LocalContext.current
   val st = Store.tasbih; val key = Store.todayKey
   var custom by remember { mutableStateOf(false) }
   var customText by remember { mutableStateOf(st.custom) }
-  var showTargets by remember { mutableStateOf(false) }
   var reached by remember { mutableStateOf(false) }
+  LaunchedEffect(reached) { if (reached) { kotlinx.coroutines.delay(260); reached = false } }
   val pct by animateFloatAsState(if (st.target > 0) (st.count.toFloat() / st.target).coerceIn(0f, 1f) else 0f, label = "tasbih")
+  val pop by animateFloatAsState(if (reached) 1.03f else 1f, label = "tasbihPop")
+  val audio = remember { ctx.getSystemService(AudioManager::class.java) }
 
   fun tap() {
-    val r = Tasbih.tap(Store.tasbih, key); Store.tasbih = r.first; Store.save()
-    reached = r.second
-    if (Store.haptics) view.performHapticFeedback(if (r.second) HapticFeedbackConstants.LONG_PRESS else HapticFeedbackConstants.KEYBOARD_TAP)
+    // السجلّ اليوميّ قبل عدّادات النواة (كي لا يُحسب العدّ مرّتين)؛ واليوم يُقرأ لحظة النقر (الشاشة قد تبقى مفتوحة بعد منتصف الليل)
+    val day = Store.todayKey
+    Store.bumpTasbihDay(day, 1)
+    val r = Tasbih.tap(Store.tasbih, day); Store.tasbih = r.first; Store.save()
+    if (r.second) reached = true
+    // نقرةٌ خفيفة مع كل عدّة إن اختيرت، واهتزازٌ أوضح عند تمام الدورة دائماً
+    if (r.second) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+    else if (Store.haptics) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+    if (Store.tasbihSound) runCatching { audio?.playSoundEffect(AudioManager.FX_KEY_CLICK, 0.6f) }
   }
+  fun undo() { val s = Store.tasbih; val day = Store.todayKey; if (s.count > 0 || s.rounds > 0) { Store.bumpTasbihDay(day, -1); Store.tasbih = Tasbih.undo(s, day); Store.save() } }
 
-  LazyColumn(Modifier.fillMaxSize().background(c.bgCanvas), contentPadding = PaddingValues(16.dp, 0.dp, 16.dp, 32.dp), verticalArrangement = Arrangement.spacedBy(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-    item {
-      DSNavBar("المسبحة", onBack = onBack) {
-        DSIconButton(Icons.Outlined.Refresh, contentDescription = "تصفير") { Store.tasbih = Tasbih.reset(st); Store.save() }
-        Spacer(Modifier.width(8.dp))
-        DSIconButton(Icons.Outlined.Undo, contentDescription = "تراجع") { Store.tasbih = Tasbih.undo(st, key); Store.save() }
+  val roundLine = if (st.target > 0) "من ${Fmt.grouped(st.target)}، الدورة ${Fmt.number(st.rounds + 1)}" else "بلا حدّ"
+  // النقر في أي مكانٍ فارغٍ من الشاشة يعدّ (الأزرار والشرائح والمفاتيح تأخذ نقرها لنفسها، والتمرير لا يعدّ)
+  Column(Modifier.fillMaxSize().background(c.bgCanvas).pointerInput(Unit) { detectTapGestures(onTap = { tap() }) }.verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
+    Row(Modifier.fillMaxWidth().padding(start = 10.dp, end = 16.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+      DSBackLink(backLabel, onClick = onBack)
+      Spacer(Modifier.weight(1f))
+      SmallPill("تراجع", "تراجع عن آخر عدّة") { undo() }
+      Spacer(Modifier.width(8.dp))
+      SmallPill("تصفير", "تصفير العدّ الحاليّ") { Store.tasbih = Tasbih.reset(Store.tasbih); Store.save() }
+    }
+    Text("المسبحة", Modifier.padding(horizontal = 20.dp).padding(top = 2.dp, bottom = 12.dp), style = DSType.displayLg, color = c.textPrimary)
+    // شرائح الصيغ: تبدأ من اليمين وتمرّر أفقياً، وآخرها «ذكر آخر…»
+    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+      for (p in Tasbih.phrases) {
+        val label = if (p.id == "custom") st.custom.ifEmpty { "ذكر آخر…" } else plainArabic(p.text)
+        DSPillChip(label, on = st.phrase == p.id) {
+          if (p.id == "custom") { customText = st.custom; custom = true } else { Store.tasbih = st.copy(phrase = p.id, count = 0, rounds = 0); Store.save() }
+        }
       }
     }
-    item {
-      Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        for (p in Tasbih.phrases) {
-          DSChip(if (p.id == "custom") st.custom.ifEmpty { "ذكر آخر…" } else p.text, on = st.phrase == p.id) {
-            if (p.id == "custom") custom = true else { Store.tasbih = st.copy(phrase = p.id, count = 0, rounds = 0); Store.save() }
+    Spacer(Modifier.height(22.dp))
+    // القرص: حلقة تقدّم الدورة، والصيغة والعدد ومكان الدورة في وسطه
+    Box(Modifier.align(Alignment.CenterHorizontally).size(250.dp).scale(pop).clip(CircleShape)
+      .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClickLabel = "عدّ") { tap() }
+      .semantics(mergeDescendants = true) { contentDescription = "${plainArabic(Tasbih.phraseText(st))}، ${st.count}، $roundLine" }, contentAlignment = Alignment.Center) {
+      RingProgress(pct, Modifier.fillMaxSize(), tint = c.brandPrimary, track = c.bgSubtle, stroke = 14.dp)
+      Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(Tasbih.phraseText(st), fontFamily = Fonts.amiri, fontSize = 18.sp, color = c.textSecondary, textAlign = TextAlign.Center, maxLines = 2, modifier = Modifier.padding(horizontal = 36.dp))
+        Spacer(Modifier.height(2.dp))
+        Text(Fmt.grouped(st.count), style = DSType.numericHero.copy(fontSize = 64.sp), color = c.textPrimary, maxLines = 1)
+        Text(roundLine, style = DSType.labelSm, color = c.textSecondary)
+      }
+    }
+    Spacer(Modifier.height(12.dp))
+    Text("انقر في أي مكان للعدّ، واهتزازٌ خفيف عند تمام الدورة", Modifier.fillMaxWidth().padding(horizontal = 20.dp), style = DSType.labelXs, color = c.textTertiary, textAlign = TextAlign.Center)
+    Spacer(Modifier.height(18.dp))
+    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+      Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        TasbihStat(Fmt.grouped(Store.tasbihOn(key)), "اليوم", Modifier.weight(1f))
+        TasbihStat(Fmt.grouped(tasbihWeekTotal()), "هذا الأسبوع", Modifier.weight(1f))
+        TasbihStat(Fmt.grouped(Tasbih.grandTotal(st)), "الإجمالي", Modifier.weight(1f))
+      }
+      TasbihWeekChart()
+      // الإعدادات تأخذ نقرها لنفسها: لا يعدّ نقرٌ على حشوتها
+      DSCard(Modifier.fillMaxWidth().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}, padding = 16.dp) {
+        Text("الهدف", style = DSType.headingSm, color = c.textPrimary)
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          for (t in Tasbih.targets) DSPillChip(if (t > 0) Fmt.grouped(t) else "بلا حدّ", on = st.target == t, style = DSType.numericSm) {
+            Store.tasbih = st.copy(target = t, count = 0, rounds = 0); Store.save()
           }
         }
+        Spacer(Modifier.height(6.dp))
+        DSToggleRow("اهتزاز عند كل عدّة", null, Store.haptics) { Store.haptics = it; Store.save() }
+        DSToggleRow("صوت النقر", null, Store.tasbihSound) { Store.tasbihSound = it; Store.save() }
       }
     }
-    item {
-      Box(Modifier.size(240.dp).scale(if (reached) 1.03f else 1f).clickable { tap() }, contentAlignment = Alignment.Center) {
-        Box(Modifier.fillMaxSize().clip(CircleShape).background(c.bgSurface))
-        RingProgress(pct, Modifier.fillMaxSize(), tint = c.accentGold, stroke = 12.dp)
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-          Text(Tasbih.phraseText(st), fontFamily = Fonts.amiri, fontSize = 19.sp, color = c.brandPrimary, textAlign = TextAlign.Center, maxLines = 2, modifier = Modifier.padding(horizontal = 28.dp))
-          Spacer(Modifier.height(6.dp))
-          Text(Fmt.number(st.count), style = DSType.numericHero, color = c.textPrimary)
-          Text(if (st.target > 0) "من ${Fmt.number(st.target)} · الدورة ${Fmt.number(st.rounds + 1)}" else "بلا حدّ", style = DSType.labelSm, color = c.textSecondary)
-        }
-      }
-    }
-    item { Text("انقر الدائرة للعدّ", style = DSType.labelXs, color = c.textTertiary) }
-    item {
-      Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        DSStatTile(Fmt.number(Tasbih.grandTotal(st)), "الإجمالي", Modifier.weight(1f))
-        DSStatTile(Fmt.number(st.rounds), "دورات", Modifier.weight(1f))
-        DSStatTile(Fmt.number(Tasbih.todayCount(st, key)), "اليوم", Modifier.weight(1f))
-      }
-    }
-    item {
-      DSCard {
-        DSToggleRow("اهتزاز عند كل عدّة", "واهتزاز أقوى عند الاكتمال", Store.haptics, Icons.Outlined.Bolt) { Store.haptics = it; Store.save() }
-        DSDivider()
-        DSToggleRow("صوت النقر", if (Store.tasbihSound) "مفعّل" else "مطفأ", Store.tasbihSound, Icons.Outlined.VolumeUp) { Store.tasbihSound = it; Store.save() }
-        DSDivider()
-        DSRow(Icons.Outlined.TrackChanges, "الهدف", if (st.target > 0) "${Fmt.number(st.target)} لكل دورة" else "بلا حدّ", onClick = { showTargets = !showTargets }) {
-          Text(if (st.target > 0) Fmt.number(st.target) else "∞", style = DSType.labelSm, color = c.brandPrimary, modifier = Modifier.clip(CircleShape).background(c.brandSoft).padding(12.dp, 5.dp))
-        }
-        if (showTargets) {
-          Spacer(Modifier.height(4.dp))
-          Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (t in Tasbih.targets) DSChip(if (t > 0) Fmt.number(t) else "بلا حدّ", on = st.target == t) {
-              Store.tasbih = st.copy(target = t, count = 0, rounds = 0); Store.save(); showTargets = false
-            }
-          }
-        }
-      }
-    }
-    item { Text("الإحصاءات تُحفظ على جهازك فقط.", style = DSType.labelXs, color = c.textTertiary) }
+    Spacer(Modifier.navigationBarsPadding())
   }
   if (custom) AlertDialog(
     onDismissRequest = { custom = false },
     title = { Text("ذكر مخصّص", style = DSType.headingSm) },
     text = { OutlinedTextField(customText, { customText = it }, placeholder = { Text("مثال: حسبي الله ونعم الوكيل") }, singleLine = true) },
-    confirmButton = { TextButton(onClick = { if (customText.isNotBlank()) { Store.tasbih = st.copy(phrase = "custom", custom = customText.trim(), count = 0, rounds = 0); Store.save() }; custom = false }) { Text("اعتماد") } },
+    confirmButton = { TextButton(onClick = { if (customText.isNotBlank()) { Store.tasbih = Store.tasbih.copy(phrase = "custom", custom = customText.trim(), count = 0, rounds = 0); Store.save() }; custom = false }) { Text("اعتماد") } },
     dismissButton = { TextButton(onClick = { custom = false }) { Text("إلغاء") } },
     containerColor = c.bgSurface
   )
+}
+@Composable private fun SmallPill(label: String, a11y: String, onClick: () -> Unit) {
+  val c = DS.c
+  Box(Modifier.heightIn(min = 40.dp).clip(CircleShape).background(c.bgSurface).border(1.dp, c.borderSubtle, CircleShape).clickable(role = Role.Button, onClickLabel = a11y, onClick = onClick).padding(horizontal = 18.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+    Text(label, style = DSType.labelMd, color = c.textPrimary)
+  }
+}
+@Composable private fun TasbihStat(value: String, label: String, modifier: Modifier = Modifier) {
+  val c = DS.c
+  DSTile(modifier, padding = 0.dp, radius = 20.dp) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 14.dp, horizontal = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+      Text(value, style = DSType.numericMd.copy(fontWeight = FontWeight.SemiBold), color = c.textPrimary, maxLines = 1)
+      Text(label, style = DSType.labelXs, color = c.textSecondary, maxLines = 1)
+    }
+  }
+}
+/** «آخر سبعة أيام»: مجموع كل الصيغ لكل يوم من سجلّ المسبحة اليوميّ — الأقدم يميناً واليوم ذهبيّ في آخرها */
+@Composable private fun TasbihWeekChart() {
+  val c = DS.c; val today = Store.todayKey
+  val days = (6 downTo 0).map { DayKey.adding(today, -it) }
+  val values = days.map { Store.tasbihOn(it) }
+  val max = maxOf(1, values.maxOrNull() ?: 0)
+  DSCard(Modifier.fillMaxWidth(), padding = 16.dp) {
+    Text("آخر سبعة أيام", style = DSType.headingSm, color = c.textPrimary)
+    Spacer(Modifier.height(14.dp))
+    Row(Modifier.fillMaxWidth().height(120.dp), verticalAlignment = Alignment.Bottom) {
+      days.forEachIndexed { i, d ->
+        val v = values[i]; val isToday = d == today
+        Column(Modifier.weight(1f).fillMaxHeight().semantics(mergeDescendants = true) { contentDescription = "${if (isToday) "اليوم" else AdhkarStreak.letter(d)}: $v" }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
+          val h = if (v == 0) 4.dp else (6f + 86f * v / max).dp
+          Box(Modifier.width(26.dp).height(h).clip(RoundedCornerShape(8.dp)).background(when { v == 0 -> c.bgSubtle; isToday -> c.accentGold; else -> c.brandPrimary }))
+          Spacer(Modifier.height(8.dp))
+          Text(AdhkarStreak.letter(d), style = DSType.labelXs, color = if (isToday) c.accentGoldStrong else c.textTertiary)
+        }
+      }
+    }
+    Spacer(Modifier.height(12.dp))
+    Text("يُحفظ على جهازك وحده.", style = DSType.labelXs, color = c.textSecondary)
+  }
 }

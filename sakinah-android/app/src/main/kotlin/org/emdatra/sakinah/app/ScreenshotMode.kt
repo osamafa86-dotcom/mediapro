@@ -16,10 +16,10 @@ object ScreenshotMode {
   var skyWeather: org.emdatra.sakinah.core.SkyWeather? = null; private set
   /** المرحلة الثانية: «المزيد» صار «المكتبة»، والإعدادات (ومنها «مظهر السماء» و«ضمان الأذان») والبحث تُفتح من رأس «اليوم» */
   val tab: AppTab? get() = when (route) {
-    "prayer", "qibla", "home", "today", "search", "settings", "sky-settings", "adhan-guard", "ramadan" -> AppTab.Home
-    "mushaf", "mushaf-juz", "mushaf-page", "mushaf-spread", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-khatmah", "mushaf-display", "mushaf-hifz" -> AppTab.Mushaf
+    "prayer", "qibla", "qibla-sun", "qibla-map", "home", "today", "search", "settings", "sky-settings", "adhan-guard", "ramadan" -> AppTab.Home
+    "mushaf", "mushaf-juz", "mushaf-page", "mushaf-spread", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-khatmah", "mushaf-display", "mushaf-hifz", "review-ayahs" -> AppTab.Mushaf
     "adhkar", "hisn", "tasbih" -> AppTab.Adhkar
-    "hadith", "more", "library" -> AppTab.Library
+    "hadith", "more", "library", "library-qibla" -> AppTab.Library
     else -> null
   }
   /** ما يُفتح فوق «اليوم» مباشرةً في وضع اللقطات: البحث (باستعلام التصميم)، الإعدادات، مظهر السماء، ضمان الأذان */
@@ -36,8 +36,9 @@ object ScreenshotMode {
   val librarySheet: String? get() = if (route == "mushaf-khatmah") "khatmah" else null
   /** تبويب الفهرس الذي تُفتح عليه المكتبة (الأجزاء في لقطة التحقّق من تبديل التبويبات) */
   val libraryTab: Int get() = if (route == "mushaf-juz") 1 else 0
-  /** مسار «qibla» يفتح القبلة الكاملة فوق الرئيسية */
-  val fullQibla: Boolean get() = route == "qibla"
+  /** مسارات «qibla» و«qibla-sun» و«qibla-map» تفتح القبلة الكاملة فوق الرئيسية على تبويبها (المرحلة الخامسة) */
+  val fullQibla: Boolean get() = route == "qibla" || route == "qibla-sun" || route == "qibla-map"
+  val qiblaTab: Int get() = when (route) { "qibla-sun" -> 1; "qibla-map" -> 2; else -> 0 }
 
   /** تهيئة حالةٍ ثابتة: بلا مقدّمة، أرقام عربية، مدينة عمّان — فالمحاكي بلا موقع */
   fun arm(r: String?, sky: String? = null, weather: String? = null) {
@@ -47,6 +48,21 @@ object ScreenshotMode {
     skyWeather = org.emdatra.sakinah.core.SkyWeather.of(weather)
     Store.seenIntro = true; Store.numerals = "arab"; Store.seenChromeHint = true
     CityDatabase.bundled.city("jo-amman")?.let { Store.useCity(it) }
+    // المرحلة الخامسة (البيانات نفسها في لقطات iOS): «tasbih»/«adhkar» — سجلّ أسبوعٍ للمسبحة (٢٤٠ اليوم من ١٢٬٤٠٠)،
+    // وحضورٌ في أيام الأسبوع عدا أمس، ومفضّلة؛ «review-ayahs» — أربع آيات موسومة ضعيفة
+    if (route == "tasbih" || route == "adhkar") {
+      val today = Store.todayKey; val dk = org.emdatra.sakinah.core.DayKey
+      Store.tasbih = org.emdatra.sakinah.core.TasbihState(phrase = "subhan", target = 33, count = 23, rounds = 1,
+        totals = mapOf("subhan" to org.emdatra.sakinah.core.TasbihTotals(12_400, 240, today)))
+      Store.putTasbihDaily(listOf(-6 to 180, -5 to 330, -4 to 0, -3 to 99, -2 to 240, -1 to 410, 0 to 240).associate { (d, v) -> dk.adding(today, d) to v })
+      val sinceSat = (org.emdatra.sakinah.core.CivilDate.weekdayIndex(java.time.Instant.now(), Store.zone) + 1) % 7
+      Store.adhkarLog = (0..sinceSat).map { dk.adding(today, -it) }.filter { it != dk.adding(today, -1) }.associateWith { listOf("morning") }
+      Store.favorites = listOf("dhikr:a01"); Store.hisnFavorites = listOf(34, 129)
+    }
+    if (route == "review-ayahs") {
+      val q = org.emdatra.sakinah.core.QuranText.shared
+      Store.weakAyahs = listOfNotNull(q.ayah(2, 255)?.n, q.ayah(2, 286)?.n, q.ayah(18, 10)?.n, q.ayah(67, 2)?.n)
+    }
     // ورقة الختمة تحتاج خطةً وسجلّ ورد كي تُظهر حالةً حقيقية: خطة ٣٠ يومًا بدأت قبل خمسة أيام وورد ٢١ صفحة في أربعة منها
     if (route == "mushaf-khatmah" || route == "mushaf") {
       val today = Store.todayKey

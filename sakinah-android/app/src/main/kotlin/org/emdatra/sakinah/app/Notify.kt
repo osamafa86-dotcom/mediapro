@@ -45,8 +45,24 @@ object Notify {
       if (exact) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi) else am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
     }
     lastIds = ids
+    // تذكير تعامد الشمس على الكعبة (المرحلة الخامسة): منبّهٌ مستقلّ بمعرّفٍ ثابت، يُعاد تسليحه هنا بعد الإقلاع وتغيير الوقت
+    armZenith(ctx)
     // «اليوم الحيّ» يتجدّد في الطريق نفسه (فتح التطبيق، الإعدادات، كل تذكير، الإقلاع وتغيير الوقت): الويدجت والإشعار الحيّ ومنبّه حدّهما
     LiveDay.refresh(ctx)
+  }
+  /** معرّف منبّه «تعامد الشمس على الكعبة» وإشعاره — ثابتٌ كي يستبدل الطلبُ المكرَّر نفسَه (لا تذكيرين) */
+  const val ZENITH_ID = 0x5A4E17
+  /** «ذكّرني بالموعد القادم»: إشعارٌ قبل التعامد بعشر دقائق — يُحفظ الموعد (Store.zenithReminderAt) ويُسلَّح المنبّه */
+  fun scheduleZenith(ctx: Context, event: Instant) { Store.setZenithReminder(event.toEpochMilli()); armZenith(ctx) }
+  fun armZenith(ctx: Context) {
+    val ev = Store.zenithReminderAt; if (ev <= 0L) return
+    val now = System.currentTimeMillis(); val at = ev - 10 * 60_000L
+    if (at <= now) { if (ev < now - 3_600_000L) Store.setZenithReminder(0L); return }
+    val am = ctx.getSystemService(AlarmManager::class.java)
+    val i = Intent(ctx, ReminderReceiver::class.java).setAction("org.emdatra.sakinah.REMINDER").putExtra("id", ZENITH_ID).putExtra("kind", "qibla")
+      .putExtra("title", "تعامد الشمس على الكعبة").putExtra("body", "بعد عشر دقائق تكون الشمس فوق الكعبة تماماً: قف ووجهك إلى الشمس، فأنت متّجه إلى القبلة.")
+    val pi = PendingIntent.getBroadcast(ctx, ZENITH_ID, i, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    if (exactAllowed(ctx)) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi) else am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
   }
   /** «المنبّهات والتذكيرات»: من Android 14 لا يُمنح للتثبيت الجديد تلقائيًا (USE_EXACT_ALARM حكرٌ على تطبيقات المنبّه والتقويم في Google Play)؛
    *  بلا الإذن يُجدوَل المنبّه غير دقيق فقد يتأخر الإشعار دقائق، والإعدادات تعرض زرّ السماح */

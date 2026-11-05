@@ -59,6 +59,11 @@ object Store {
   var liveUpdate by mutableStateOf(false); var liveHiddenUntil = 0L
   /** طبعة رمضان (المرحلة الرابعة): «الإمساك قبل الفجر» بالدقائق — ٠ أو ٥ أو ١٠ (الافتراضي) أو ١٥ */
   var imsakMinutes by mutableStateOf(10)
+  /** المرحلة الخامسة — على الجهاز وحده، خارج صيغة النسخة الاحتياطية المشتركة عمداً:
+   *  مجموع المسبحة لكل يوم (كل الصيغ، آخر ٦٠ يوماً) لرسم «آخر سبعة أيام»، وموعد تعامد الشمس على الكعبة الذي طُلب
+   *  التذكير به (ملّي ثانية؛ ٠ = لا تذكير) */
+  var tasbihDaily by mutableStateOf<Map<String, Int>>(emptyMap())
+  var zenithReminderAt by mutableStateOf(0L)
 
   private fun <T> get(key: String, ser: KSerializer<T>): T? = sp.getString(key, null)?.let { runCatching { json.decodeFromString(ser, it) }.getOrNull() }
   private fun <T> put(key: String, ser: KSerializer<T>, v: T?) { sp.edit().apply { if (v == null) remove(key) else putString(key, json.encodeToString(ser, v)) }.apply() }
@@ -81,6 +86,8 @@ object Store {
     nowHidden = sp.getString("today.nowHidden", null); recentSearches = get("search.recent", ListSerializer(String.serializer())) ?: emptyList()
     liveUpdate = sp.getBoolean("notifications.live", false); liveHiddenUntil = sp.getLong("notifications.liveHiddenUntil", 0L)
     imsakMinutes = sp.getInt("ramadan.imsak", 10).takeIf { it in listOf(0, 5, 10, 15) } ?: 10
+    tasbihDaily = get("tasbih.daily", MapSerializer(String.serializer(), Int.serializer())) ?: emptyMap()
+    zenithReminderAt = sp.getLong("qibla.zenithReminder", 0L)
   }
   /** حفظ كل الحالة (تُستدعى بعد أي تغيير) */
   fun save() {
@@ -104,6 +111,23 @@ object Store {
   fun markPrayed(day: String, p: Prayer) { sp.edit().putBoolean("prayed.$day.${p.id}", true).apply() }
   /** إزاحة الإشعار الحيّ: يبقى مخفيّاً حتى هذا الموعد (أذان الصلاة القادمة) — يُكتب وحده بلا حفظ الحالة كلها */
   fun hideLiveUntil(ms: Long) { liveHiddenUntil = ms; sp.edit().putLong("notifications.liveHiddenUntil", ms).apply() }
+
+  // ---- سجلّ المسبحة اليومي («tasbih.daily»): { يوم → مجموع العدّ بكل الصيغ } — آخر ٦٠ يوماً، على الجهاز وحده
+  /** عدّ اليوم: المحفوظ، أو ما في عدّادات النواة لليوم إن كان أكبر (عدٌّ سبق هذا السجلّ) */
+  fun tasbihOn(day: String): Int {
+    val stored = tasbihDaily[day] ?: 0
+    if (day != todayKey) return stored
+    return maxOf(stored, tasbih.totals.values.filter { it.date == day }.sumOf { it.today })
+  }
+  /** تسجيل نقرة (+١) أو تراجع (−١) في يومها، مع تقليم ما قبل ٦٠ يوماً — تُنادى قبل تطبيق النقرة على عدّادات النواة */
+  fun bumpTasbihDay(day: String, delta: Int) {
+    val next = maxOf(0, tasbihOn(day) + delta)
+    val cutoff = DayKey.adding(day, -59)
+    tasbihDaily = (tasbihDaily + (day to next)).filterKeys { it >= cutoff }
+    put("tasbih.daily", MapSerializer(String.serializer(), Int.serializer()), tasbihDaily)
+  }
+  fun putTasbihDaily(m: Map<String, Int>) { tasbihDaily = m; put("tasbih.daily", MapSerializer(String.serializer(), Int.serializer()), m) }
+  fun setZenithReminder(ms: Long) { zenithReminderAt = ms; sp.edit().putLong("qibla.zenithReminder", ms).apply() }
 
   // ---- مشتقات ----
   val coords: Coordinates? get() = if (locLat.isNaN() || locLon.isNaN()) null else Coordinates(locLat, locLon)
@@ -132,6 +156,18 @@ object Fmt {
     val t = i.atZone(zone); val h = t.hour; val m = t.minute
     val s = if (hour12) { val hh = if (h % 12 == 0) 12 else h % 12; "$hh:${"%02d".format(java.util.Locale.US, m)} ${if (h < 12) "ص" else "م"}" } else "%02d:%02d".format(java.util.Locale.US, h, m)
     return if (numerals == "arab") s.map { if (it.isDigit()) arabic[it - '0'] else it }.joinToString("") else s
+  }
+  /** عدد بفاصل الآلاف: «١٬٥٠٠» بالأرقام العربية و«1,500» باللاتينية */
+  fun grouped(n: Int, numerals: String = Store.numerals): String {
+    val s = String.format(java.util.Locale.US, "%,d", n)
+    return if (numerals == "arab") s.map { if (it.isDigit()) arabic[it - '0'] else if (it == ',') '٬' else it }.joinToString("") else s
+  }
+  /** مدّة نسبية: «ساعتين و١٠ دقائق»، «٥ دقائق»، «دقيقة» — بالتمييز العربيّ للعدد */
+  fun duration(seconds: Long, numerals: String = Store.numerals): String {
+    val total = maxOf(0L, (seconds + 30) / 60); val h = (total / 60).toInt(); val m = (total % 60).toInt()
+    fun hours(n: Int) = when { n == 1 -> "ساعة"; n == 2 -> "ساعتين"; n % 100 in 3..10 -> "${number(n, numerals)} ساعات"; else -> "${number(n, numerals)} ساعة" }
+    fun minutes(n: Int) = when { n == 1 -> "دقيقة"; n == 2 -> "دقيقتين"; n % 100 in 3..10 -> "${number(n, numerals)} دقائق"; else -> "${number(n, numerals)} دقيقة" }
+    return when { h > 0 && m > 0 -> "${hours(h)} و${minutes(m)}"; h > 0 -> hours(h); m > 0 -> minutes(m); else -> "أقلّ من دقيقة" }
   }
   fun countdown(seconds: Long, numerals: String = Store.numerals): String { val s = maxOf(0, seconds); val h = s / 3600; val m = (s % 3600) / 60; val sec = s % 60; val two = { v: Long -> if (v < 10) "0$v" else "$v" }; val t = if (h > 0) "$h:${two(m)}:${two(sec)}" else "${two(m)}:${two(sec)}"; return if (numerals == "arab") t.map { if (it.isDigit()) arabic[it - '0'] else it }.joinToString("") else t }
   /** «١٢ أكتوبر» من مفتاح يوم «YYYY-MM-DD» */

@@ -129,7 +129,7 @@ import kotlin.math.sin
         top == "qibla" -> QiblaScreen(onClose = { pop() })
         top == "guard" -> AdhanGuardScreen { pop() }
         top == "mosques" -> MosquesScreen(onBack = { pop() })
-        top == "tasbih" -> TasbihScreen { pop() }
+        top == "tasbih" -> TasbihScreen(backLabel = "اليوم") { pop() }
         top == "hisn" -> HisnScreen(onBack = { pop() }) { ch -> push("hisn:${ch.id}") }
         top.startsWith("hisn:") -> { val ch = top.removePrefix("hisn:").toIntOrNull()?.let { Hisn.chapter(it) }; if (ch != null) HisnChapterScreen(ch) { pop() } else LaunchedEffect(top) { pop() } }
         top == "hadith" || top == "nawawi" -> HadithScreen(if (top == "nawawi") "nawawi" else "sahih", initialQuery = hadithQuery) { pop() }
@@ -785,25 +785,29 @@ private class PlanRow(val name: String, val time: Instant?, val note: String, va
 
 // MARK: حديث اليوم — المصدر نفسه الذي تعرضه شاشة الحديث (حديث لكل يوم من مختارات الصحيحين)
 @Composable private fun HadithSection(onNawawi: () -> Unit, onOpen: () -> Unit) {
+  Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    DSSectionHead("حديث اليوم", link = "الأربعون", onLink = onNawawi)
+    TodayHadithCard(onOpen)
+  }
+}
+/** بطاقة حديث اليوم (نصّه، درجته وراويه، الحفظ في المفضّلة والمشاركة) — في «اليوم» وفي «المكتبة» بعينها */
+@Composable fun TodayHadithCard(onOpen: () -> Unit, modifier: Modifier = Modifier) {
   val c = DS.c; val ctx = LocalContext.current
   val today = CivilDate.of(Instant.now(), Store.zone)
   val h = remember(today.key) { HadithLibrary.hadithOfDay(today.year, today.month, today.day) }
   val fav = h.id in Store.favorites
-  Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-    DSSectionHead("حديث اليوم", link = "الأربعون", onLink = onNawawi)
-    DSCard(Modifier.fillMaxWidth(), padding = 18.dp, onClick = onOpen) {
-      Text("«${h.text}»", fontFamily = Fonts.amiriText, fontSize = (17 * Store.textScale).sp, lineHeight = (32 * Store.textScale).sp, color = c.textPrimary, maxLines = 6, overflow = TextOverflow.Ellipsis)
-      Spacer(Modifier.height(10.dp))
-      Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text("${h.grade}، عن ${h.narrator}", Modifier.weight(1f), style = DSType.labelXs, color = c.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Spacer(Modifier.width(8.dp))
-        CardIconButton(if (fav) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder, if (fav) "إزالة من المفضلة" else "حفظ في المفضلة", on = fav) {
-          Store.favorites = if (fav) Store.favorites - h.id else Store.favorites + h.id; Store.save()
-        }
-        CardIconButton(Icons.Outlined.Share, "مشاركة الحديث") {
-          val text = "${h.text}\n\nرواه ${h.narrator} — ${h.reference} (${h.grade})"
-          ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), "مشاركة"))
-        }
+  DSCard(modifier.fillMaxWidth(), padding = 18.dp, onClick = onOpen) {
+    Text("«${h.text}»", fontFamily = Fonts.amiriText, fontSize = (17 * Store.textScale).sp, lineHeight = (32 * Store.textScale).sp, color = c.textPrimary, maxLines = 6, overflow = TextOverflow.Ellipsis)
+    Spacer(Modifier.height(10.dp))
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+      Text("${h.grade}، عن ${h.narrator}", Modifier.weight(1f), style = DSType.labelXs, color = c.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+      Spacer(Modifier.width(8.dp))
+      CardIconButton(if (fav) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder, if (fav) "إزالة من المفضلة" else "حفظ في المفضلة", on = fav) {
+        Store.favorites = if (fav) Store.favorites - h.id else Store.favorites + h.id; Store.save()
+      }
+      CardIconButton(Icons.Outlined.Share, "مشاركة الحديث") {
+        val text = "${h.text}\n\nرواه ${h.narrator} — ${h.reference} (${h.grade})"
+        ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), "مشاركة"))
       }
     }
   }

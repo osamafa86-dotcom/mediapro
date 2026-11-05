@@ -138,6 +138,41 @@ enum class IconStyle { Outlined, Soft, GoldSoft, Glass, Brand, Plain }
   }
 }
 
+/** رأس شاشة القسم (المرحلة الخامسة): سطر وصفٍ صغير فوق عنوانٍ كبير في البداية، والأزرار في النهاية */
+@Composable fun DSPageHeader(title: String, subtitle: String? = null, modifier: Modifier = Modifier, trailing: @Composable RowScope.() -> Unit = {}) {
+  val c = DS.c
+  Row(modifier.fillMaxWidth().padding(top = 8.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+    Column(Modifier.weight(1f)) {
+      if (subtitle != null) Text(subtitle, style = DSType.labelSm, color = c.textSecondary, maxLines = 1)
+      Text(title, style = DSType.displayLg, color = c.textPrimary, maxLines = 1)
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, content = trailing)
+  }
+}
+/** رجوعٌ نصّيّ «‹ القسم» في بداية الشاشة (كرجوع الإعدادات) — مساحة لمسٍ ٤٤ */
+@Composable fun DSBackLink(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+  val c = DS.c
+  Row(modifier.heightIn(min = 44.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = "رجوع إلى $label", onClick = onClick).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+    Icon(Icons.Filled.ChevronRight, null, Modifier.size(22.dp), tint = c.brandPrimary)
+    Text(label, style = DSType.labelMd.copy(fontWeight = FontWeight.SemiBold), color = c.brandPrimary)
+  }
+}
+/** مربّع أيقونةٍ ناعم بزوايا (بطاقات المحتوى وصفوف الأدوات) */
+@Composable fun DSSoftSquare(icon: ImageVector, modifier: Modifier = Modifier, size: Dp = 40.dp, iconSize: Dp = 18.dp, gold: Boolean = false) {
+  val c = DS.c
+  Box(modifier.size(size).clip(RoundedCornerShape(12.dp)).background(if (gold) c.accentGoldSoft else c.brandSoft.copy(alpha = 0.8f)), contentAlignment = Alignment.Center) {
+    Icon(icon, null, Modifier.size(iconSize), tint = if (gold) c.accentGoldStrong else c.brandPrimary)
+  }
+}
+/** شريحة كبسولية بحشوةٍ أوسع (شرائح الفهرس والصيغ والأهداف في تصاميم المرحلة الخامسة) */
+@Composable fun DSPillChip(label: String, on: Boolean, modifier: Modifier = Modifier, style: androidx.compose.ui.text.TextStyle = DSType.labelMd, onClick: () -> Unit) {
+  val c = DS.c
+  Box(modifier.heightIn(min = 40.dp).clip(CircleShape).background(if (on) c.brandPrimary else c.bgSurface).then(if (!on) Modifier.border(1.dp, c.borderSubtle, CircleShape) else Modifier)
+    .clickable(role = Role.Tab, onClick = onClick).padding(horizontal = 18.dp, vertical = 9.dp), contentAlignment = Alignment.Center) {
+    Text(label, style = style, color = if (on) c.textOnBrand else c.textSecondary, maxLines = 1)
+  }
+}
+
 /** أربعة تبويبات بلا «المزيد» (المرحلة الثانية): اليوم · القرآن · الذكر · المكتبة — والإعدادات تُفتح من رأس «اليوم» */
 enum class AppTab(val title: String, val icon: ImageVector, val iconSelected: ImageVector) {
   Home("اليوم", Icons.Outlined.WbTwilight, Icons.Filled.WbTwilight), Mushaf("القرآن", Icons.Outlined.MenuBook, Icons.Filled.MenuBook), Adhkar("الذكر", Icons.Outlined.AutoAwesome, Icons.Filled.AutoAwesome), Library("المكتبة", Icons.Outlined.LocalLibrary, Icons.Filled.LocalLibrary)
