@@ -73,10 +73,10 @@ struct HomeView: View {
       .navigationDestination(isPresented: $showGuard) { AdhanGuardView().environment(model).tabBarClearance() }
       .navigationDestination(isPresented: $showSettings) { SettingsView().environment(model).tabBarClearance() }
     }
-    .onAppear { model.location.startHeading() }
-    .onDisappear { model.location.stopHeading() }
-    // القبلة الكاملة توقف البوصلة عند إغلاقها؛ الميدالية تحتاجها من جديد
-    .onChange(of: showQibla) { _, open in if !open { model.location.startHeading() } }
+    // البوصلة مملوكة لكل من يعرضها (LocationService.headingUsers): إغلاق شاشة القبلة — من هنا أو من البحث
+    // أو المكتبة — لا يطفئها تحت الميدالية ما دامت ظاهرة
+    .onAppear { model.location.startHeading("home") }
+    .onDisappear { model.location.stopHeading("home") }
     .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in model.location.syncHeadingOrientation() }
   }
 

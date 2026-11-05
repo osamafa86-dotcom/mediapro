@@ -88,12 +88,33 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     }
   }
 
-  func startHeading() {
+  /// مَن يعرض البوصلة الآن (ميدالية «اليوم»، وكل شاشة قبلة بمعرّفها). البوصلة تعمل ما دام فيهم واحد.
+  /// كان كلٌّ يشغّلها ويطفئها وحده: فلمّا صارت شاشة القبلة تُفتح من البحث (المرحلة الثانية) ومن المكتبة
+  /// (الخامسة)، كان إغلاقها يطفئ البوصلة تحت ميدالية «اليوم» الظاهرة، فتبقى الميدالية تعرض آخر قراءة
+  /// على أنها حيّة — اتجاهٌ متجمّد يُقرأ قبلةً منحرفة. والمجموعة (لا العدّاد) تحتمل نداء ظهورٍ مكرّرًا.
+  @ObservationIgnored private var headingUsers = Set<String>()
+
+  func startHeading(_ user: String) {
     guard CLLocationManager.headingAvailable() else { return }
+    headingUsers.insert(user)
     syncHeadingOrientation()
     manager.startUpdatingHeading()
+    refreshFixForTrueNorth()
   }
-  func stopHeading() { manager.stopUpdatingHeading() }
+  func stopHeading(_ user: String) {
+    guard headingUsers.remove(user) != nil, headingUsers.isEmpty else { return }
+    manager.stopUpdatingHeading()
+  }
+
+  /// الشمال الحقيقي من النظام (CLHeading.trueHeading) لا يصحّ إلا ومدير الموقع يعرف موقعًا حديثًا. كانت بطاقة
+  /// «أقرب مسجد» في «اليوم» تطلب موقعًا طازجًا مع كل ظهور فتُبقيه صالحًا، ولمّا أُزيلت (المرحلة الثانية) لم يبقَ
+  /// ما يطلبه، فصارت البوصلة تقوم على التصحيح البديل وحده. يُطلب الآن مع تشغيل البوصلة، مخنوقًا كما كان،
+  /// وبلا سؤال إذنٍ أبدًا (إن لم يُمنح الإذن فالتصحيح البديل بنموذج WMM قائم).
+  private func refreshFixForTrueNorth() {
+    let s = manager.authorizationStatus
+    guard s == .authorizedWhenInUse || s == .authorizedAlways else { return }
+    requestDeviceFix()
+  }
 
   /// مرجعُ قراءة البوصلة هو اتجاه الجهاز، وافتراضه دائمًا «رأسي». فإن دارت الواجهة (والآيباد
   /// يدور) ولم يدُر المرجع معها، انحرفت قراءة الاتجاه تسعين درجة — والقبلة معها.

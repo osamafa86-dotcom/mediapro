@@ -14,6 +14,8 @@ struct QiblaView: View {
   @State private var showInfo = false
   /// ٠ البوصلة، ١ الشمس، ٢ الخريطة
   @State private var mode = ScreenshotMode.qiblaMode
+  /// معرّف هذه الشاشة عند البوصلة المشتركة: إغلاقها يُنزلها وحدها لا ميدالية «اليوم» الظاهرة تحتها
+  @State private var compassUser = "qibla-\(UUID().uuidString)"
 
   var body: some View {
     NavigationStack {
@@ -41,8 +43,8 @@ struct QiblaView: View {
       .background(DS.C.bgCanvas)
       .safeAreaInset(edge: .top, spacing: 0) { navBar }
       .navigationBarHidden(true)
-      .onAppear { model.location.startHeading() }
-      .onDisappear { model.location.stopHeading() }
+      .onAppear { model.location.startHeading(compassUser) }
+      .onDisappear { model.location.stopHeading(compassUser) }
       // الآيباد يدور: يُعاد ضبط مرجع البوصلة مع كل دوران وإلا انحرفت القراءة تسعين درجة
       .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
         model.location.syncHeadingOrientation()
