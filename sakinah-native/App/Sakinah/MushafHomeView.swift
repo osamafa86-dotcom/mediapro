@@ -267,7 +267,7 @@ struct MushafHomeView: View {
     // بخطة: يومٌ بلغ فيه الورد هدفه؛ وبلا خطة: يومٌ قُرئت فيه صفحة واحدة على الأقل (سجلّ القراءة)
     let days: [Bool] = hasPlan
       ? Wird.commitment(q.wird, today: today, target: q.khatmah?.dailyPages ?? 1, days: 14).days
-      : Khatmah.heatmap(q.readLog, today: today, days: 14).map { $0.count > 0 }
+      : Challenges.heatmap(q.readLog, today: today, days: 14).map { $0.count > 0 }
     let done = days.filter { $0 }.count
     let line = done == 0
       ? "ابدأ اليوم: كل صفحةٍ تقرؤها تُحتسب"

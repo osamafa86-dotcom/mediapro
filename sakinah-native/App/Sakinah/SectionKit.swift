@@ -5,14 +5,13 @@ import SakinahCore
 // ملاحظة اتجاه: البيئة RTL، فأوّل عنصر في HStack يقع يمينًا، و`.leading` هو اليمين.
 
 /// العدد والمعدود بالعربية: ١ و٢ بلفظهما، ٣–١٠ بالجمع، وما فوقها (والصفر) بالمفرد المنصوب
+/// — وما جاوز المئة يتبع آخر رقمين منه (١٠٤ صفحات، ١٣٢ بابًا)
 enum ArabicCount {
   static func phrase(_ v: Int, one: String, two: String, few: String, many: String, numerals: String) -> String {
-    switch v {
-    case 1: return one
-    case 2: return two
-    case 3...10: return "\(Fmt.number(v, numerals: numerals)) \(few)"
-    default: return "\(Fmt.number(v, numerals: numerals)) \(many)"
-    }
+    if v == 1 { return one }
+    if v == 2 { return two }
+    let tail = v > 100 ? v % 100 : v
+    return "\(Fmt.number(v, numerals: numerals)) \((3...10).contains(tail) ? few : many)"
   }
 }
 

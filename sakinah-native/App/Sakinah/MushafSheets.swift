@@ -430,7 +430,7 @@ struct KhatmahSheet: View {
       .accessibilityHidden(true)
       VStack(alignment: .leading, spacing: 6) {
         Text(stt.finished ? "تقبّل الله ✦ أتممت الختمة" : "ورد اليوم \(Fmt.number(min(stt.todayPages, target), numerals: numerals)) من \(Fmt.number(target, numerals: numerals)) صفحة").font(DS.F.headingSm).foregroundStyle(DS.C.textOnDark).lineLimit(2).minimumScaleFactor(0.8)
-        Text("اليوم \(Fmt.number(stt.dayIndex + 1, numerals: numerals)) من \(Fmt.number(plan.days, numerals: numerals)) · الإتمام المتوقّع \(Fmt.shortDate(key: stt.etaKey, numerals: numerals))").font(DS.F.labelXs).foregroundStyle(DS.C.textOnDarkMuted).lineLimit(2)
+        Text("اليوم \(Fmt.number(stt.dayIndex + 1, numerals: numerals)) من \(Fmt.number(plan.days, numerals: numerals))، الإتمام المتوقّع \(Fmt.shortDate(key: stt.etaKey, numerals: numerals))").font(DS.F.labelXs).foregroundStyle(DS.C.textOnDarkMuted).lineLimit(2)
         Text(stt.finished ? "" : (stt.behind > 0 ? "متأخّر \(Fmt.number(stt.behind, numerals: numerals)) صفحة — تُوزَّع على الأيام الباقية (\(Fmt.number(stt.neededPerDay, numerals: numerals)) يوميًا)" : "على الجدول ✓")).font(DS.readex(12, .medium)).foregroundStyle(gold).lineLimit(2).minimumScaleFactor(0.8)
         if !stt.finished, let onGo {
           Button { dismiss(); onGo(nextPage) } label: {

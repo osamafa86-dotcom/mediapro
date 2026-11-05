@@ -82,7 +82,7 @@ struct LibraryView: View {
         }
         .buttonStyle(.plain)
         Button { showChallenges = true } label: {
-          contentCard("book", "الختمة والأوراد", commitmentLabel ?? "الكهف يوم الجمعة، والملك ليلًا")
+          contentCard("book", "الختمة والأوراد", "الكهف يوم الجمعة، والملك ليلًا")
         }
         .buttonStyle(.plain)
       }
@@ -156,13 +156,6 @@ struct LibraryView: View {
     }
   }
 
-  /// لا سلسلة تنكسر: التزامك بالورد في الأسبوعين الأخيرين إن كانت ثمّة خطة
-  private var commitmentLabel: String? {
-    guard let plan = model.quran.khatmah else { return nil }
-    let n = model.settings.numerals
-    let c = Wird.commitment(model.quran.wird, today: model.todayKey, target: plan.dailyPages, days: 14)
-    return "التزامك \(Fmt.number(c.done, numerals: n)) من \(Fmt.number(c.total, numerals: n)) يومًا، والكهف والملك"
-  }
   private var downloadsLabel: String {
     let n = model.downloads.summary(reciter: model.quran.reciter).count
     let surahs = n > 0 ? ArabicCount.phrase(n, one: "سورة واحدة محفوظة", two: "سورتان محفوظتان", few: "سور محفوظة", many: "سورة محفوظة", numerals: model.settings.numerals) : "لا تلاوات محفوظة بعد"

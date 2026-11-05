@@ -84,28 +84,29 @@ struct QiblaSunPanel: View {
   private var numerals: String { model.settings.numerals }
 
   var body: some View {
-    let tz = model.timeZone
-    let key = "\(coords.latitude),\(coords.longitude)|\(tz.identifier)|\(DayKey.key(Date(), tz: tz))"
     TimelineView(.periodic(from: .now, by: 30)) { ctx in
+      // المفتاح يتبع اليوم المدني: بعد منتصف الليل يُعاد الحساب لليوم الجديد
+      let civil = CivilDate(ctx.date, in: model.timeZone)
+      let key = "\(coords.latitude),\(coords.longitude)|\(model.timeZone.identifier)|\(civil.year)-\(civil.month)-\(civil.day)"
       VStack(spacing: DS.Space.s4) {
         sunHero(now: ctx.date)
         shadowCard(now: ctx.date)
         zenithCard(now: ctx.date)
       }
+      .task(id: key) { await load(key: key, civil: civil) }
     }
-    .task(id: key) { await load(key: key) }
   }
 
-  @MainActor private func load(key: String) async {
+  @MainActor private func load(key: String, civil: CivilDate) async {
+    let c = coords; let tz = model.timeZone
     if let d = SunQiblaCache.day[key] { today = d } else {
-      let c = coords; let tz = model.timeZone; let civil = CivilDate(Date(), in: tz)
       let d = await Task.detached(priority: .userInitiated) { SunQiblaDay.compute(c, day: civil, tz: tz) }.value
       SunQiblaCache.day[key] = d
       today = d
     }
-    guard let d = today, d.sun == nil || d.shadow == nil else { return }
+    guard let d = today, d.sun == nil || d.shadow == nil else { next = nil; return }
     if let n = SunQiblaCache.next[key] { next = n; return }
-    let c = coords; let tz = model.timeZone; let civil = CivilDate(Date(), in: tz)
+    next = nil
     let needSun = d.sun == nil, needShadow = d.shadow == nil
     let n = await Task.detached(priority: .utility) { SunQiblaNext.compute(c, after: civil, tz: tz, needSun: needSun, needShadow: needShadow) }.value
     SunQiblaCache.next[key] = n
