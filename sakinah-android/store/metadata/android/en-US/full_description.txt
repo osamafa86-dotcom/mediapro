@@ -5,6 +5,8 @@ Sakinah is a complete Islamic companion that works offline, with no account, no 
 • The Madinah Mushaf (604 pages) with 20 reciters and gapless recitation, word-by-word highlighting, offline downloads, full offline tafsir (Muyassar), Uthmani-aware search, bookmarks with notes, khatmah plans and a voice-checked memorisation mode.
 • The complete Hisn al-Muslim (132 chapters), morning/evening adhkar with a daily counter and reminders, and a tasbih counter.
 • Selected hadith from Bukhari and Muslim, the Forty Hadith of an-Nawawi, hadith of the day, and shareable image cards.
+• Home-screen widgets and a live notification counting down to the next prayer.
+• Phones, tablets, foldables and dual-screen devices such as Galaxy Z Fold and Surface Duo: two panes side by side that the hinge never cuts, facing Mushaf pages in book posture, and the prayer clock on the top half in tabletop posture.
 
 Privacy first: everything is computed on your device. Only a coarse location (about 1 km) leaves your device: to name your city, to find the nearest mosque, and for the optional weather layer. The network is used only for that and to fetch recitations and tafsir on demand.
 
