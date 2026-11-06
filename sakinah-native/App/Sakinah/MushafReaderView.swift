@@ -273,7 +273,8 @@ struct MushafReaderView: View {
       guard !Task.isCancelled, sheet == nil else { return }
       hideChrome()
       // مرة واحدة في عمر التطبيق: تعريف بمكان المفتاح كي لا يبحث عنه القارئ
-      if !prefs.seenChromeHint { prefs.seenChromeHint = true; show("اسحب من حافة الشاشة أو انقرها لإظهار الشريط") }
+      // ولا في لقطات المتجر: تعريفٌ يظهر مرّةً في عمر التطبيق لا يُصوَّر على أنه الصفحة
+      if !prefs.seenChromeHint && !ScreenshotMode.active { prefs.seenChromeHint = true; show("اسحب من حافة الشاشة أو انقرها لإظهار الشريط") }
     }
   }
 

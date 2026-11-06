@@ -1032,9 +1032,11 @@ struct CompassMedallion: View {
           Circle().fill(RadialGradient(colors: [Color(hex: 0x7BE0CF).opacity(0.45), .clear], center: .center, startRadius: r * 0.7, endRadius: r * 1.35))
             .frame(width: r * 2.7, height: r * 2.7)
             .scaleEffect(pulse ? 1.06 : 0.96).opacity(pulse ? 0.55 : 1)
+            .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
           Circle().stroke(Color(hex: 0x7BE0CF), lineWidth: 3)
             .frame(width: r * 2 + 8, height: r * 2 + 8).blur(radius: 1.5)
             .scaleEffect(pulse ? 1.05 : 0.99).opacity(pulse ? 0.35 : 0.95)
+            .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
         }
         Circle()
           .fill(RadialGradient(colors: [Color(hex: 0x125A52).opacity(0.95), Color(hex: 0x061F1C).opacity(0.97)], center: .center, startRadius: 0, endRadius: r))
@@ -1088,7 +1090,7 @@ struct CompassMedallion: View {
       }
       .frame(width: size, height: size)
       .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
+      // النبض على الهالة وحدها (انظر CompassDial): معلّقًا بالميدالية كلّها كان يكرّر كل تغيّرٍ وقع معه
       .animation(.easeOut(duration: 0.3), value: aligned)
     }
     .onAppear { pulse = true }

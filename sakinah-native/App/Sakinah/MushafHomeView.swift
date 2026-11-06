@@ -35,7 +35,7 @@ struct MushafHomeView: View {
             // عمود كسول واحد: صفوف الفهرس عناصره مباشرةً (عمود كسول داخل عمود كسول لا يُعاد رسمه عند تبديل التبويب)
             LazyVStack(spacing: 0) {
               heroCard.padding(.bottom, 14)
-              if MushafPack.shared.phase != .ready { MushafPackCard().padding(.bottom, 14) }
+              if MushafPack.shared.phase != .ready && MushafFonts.bundledPages.count < 604 { MushafPackCard().padding(.bottom, 14) }
               toolsRow.padding(.bottom, 18)
               indexHead.zIndex(1)
               indexRows.transaction { $0.animation = nil }

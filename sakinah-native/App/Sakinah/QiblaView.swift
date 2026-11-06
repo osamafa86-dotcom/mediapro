@@ -224,6 +224,7 @@ struct CompassDial: View {
           Circle().fill(RadialGradient(colors: [DS.C.brandPrimary.opacity(0.3), .clear], center: .center, startRadius: r * 0.8, endRadius: r * 1.25))
             .frame(width: size * 1.3, height: size * 1.3)
             .scaleEffect(pulse ? 1.05 : 0.97).opacity(pulse ? 0.5 : 1)
+            .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
         }
         Circle().fill(DS.C.bgSurface)
           .overlay(Circle().stroke(aligned ? DS.C.brandPrimary.opacity(0.6) : DS.C.borderSubtle, lineWidth: aligned ? 2 : 1))
@@ -254,7 +255,9 @@ struct CompassDial: View {
       }
       .frame(width: size, height: size)
       .frame(maxWidth: .infinity)
-      .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
+      // النبض المتكرّر على الهالة وحدها لا على القرص كلّه: كان معلّقًا بالقرص فيكرّر إلى الأبد كلَّ تغيّرٍ وقع
+      // مع تشغيله — ومنه إزاحة الشاشة وهي تنزلق عند فتحها — فبقي القرص مزاحًا ١٨ نقطة فوق إطاره يغطّي حبّة
+      // الحال (قيس في لقطة المتجر: عرضه ٣٠٠ صحيح وأعلاه فوق موضعه)
       .animation(.easeOut(duration: 0.3), value: aligned)
     }
     .onAppear { pulse = true }
