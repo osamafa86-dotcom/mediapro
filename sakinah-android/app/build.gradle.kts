@@ -7,7 +7,7 @@ android {
   defaultConfig {
     applicationId = "org.emdatra.sakinah"
     minSdk = 26; targetSdk = 36
-    versionCode = (System.getenv("SAKINAH_BUILD") ?: "1").toInt(); versionName = "5.1.1"
+    versionCode = (System.getenv("SAKINAH_BUILD") ?: "1").toInt(); versionName = "5.2.0"
     vectorDrawables.useSupportLibrary = true
   }
   // مفتاح الرفع إلى Google Play من البيئة (سير play.yml في appstore-release)؛ بلا مفتاحٍ يُوقَّع
