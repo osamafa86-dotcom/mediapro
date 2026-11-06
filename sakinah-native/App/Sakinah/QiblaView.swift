@@ -90,7 +90,8 @@ struct QiblaView: View {
     let aligned = diff.map { abs($0) <= 3 } ?? false
     let lowAccuracy = (model.location.heading?.headingAccuracy ?? 0) > 15
 
-    statusPill(aligned: aligned, diff: diff, heading: heading, lowAccuracy: lowAccuracy)
+    // فوق هالة القرص: الهالة تمتدّ خارج إطاره إلى ما فوقه
+    statusPill(aligned: aligned, diff: diff, heading: heading, lowAccuracy: lowAccuracy).zIndex(1)
     CompassDial(bearing: q.bearing, heading: heading ?? 0, aligned: aligned, live: heading != nil)
       .frame(height: 300).padding(.vertical, DS.Space.s1)
     HStack(spacing: DS.Space.s3) {
@@ -226,8 +227,11 @@ struct CompassDial: View {
             .scaleEffect(pulse ? 1.05 : 0.97).opacity(pulse ? 0.5 : 1)
             .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: pulse)
         }
+        // مقاسٌ صريح: بلا إطار يأخذ الوجهُ مقاسَ المكدّس كلّه، والهالة (١٫٣ من القرص) تكبّره حين التوجّه —
+        // فكان القرص يقفز ثلثًا عند بلوغ القبلة ويغطّي حبّة الحال (قيس في لقطتَي ٥٫١ و٥٫٢: ٣٨٧ نقطة والعلامات على ٣٠٠)
         Circle().fill(DS.C.bgSurface)
           .overlay(Circle().stroke(aligned ? DS.C.brandPrimary.opacity(0.6) : DS.C.borderSubtle, lineWidth: aligned ? 2 : 1))
+          .frame(width: size, height: size)
           .shadow(color: aligned ? DS.C.brandPrimary.opacity(0.35) : DS.C.shadowCard, radius: 16, x: 0, y: aligned ? 0 : 6)
         ZStack {
           ticks(r)
