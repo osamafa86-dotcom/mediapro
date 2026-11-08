@@ -26,8 +26,9 @@ struct HomeView: View {
   /// «ليس الآن» في بطاقة «الآن»: يُخفيها حتى الفترة التالية (المفتاح: الفترة ولحظة بدايتها) — يُحفظ في UserDefaults
   @State private var nowDismissed = UserDefaults.standard.string(forKey: "today.now.dismissed") ?? ""
 
-  /// أعمدة بطاقة المواقيت: الخمس وحدها (الشروق ليس عمودًا) — وفي رمضان: الإمساك مكان الفجر والإفطار مكان المغرب
-  private static let cardPrayers: [Prayer] = [.fajr, .dhuhr, .asr, .maghrib, .isha]
+  /// أعمدة بطاقة المواقيت: الخمس والشروق بينها (وقتٌ لا صلاة، فيُعرض أخفت ولا علامة أذان له) — أعاده المالك بعد أن حُذف في إعادة التصميم.
+  /// وفي رمضان: الإمساك مكان الفجر والإفطار مكان المغرب
+  private static let cardPrayers: [Prayer] = [.fajr, .sunrise, .dhuhr, .asr, .maghrib, .isha]
 
   /// لحظة الرسم وما يُشتقّ منها مرّةً لكل إطار: الجدول، الإحداثيات، السماء، وطبعة رمضان
   private struct TodayState {
@@ -505,9 +506,11 @@ struct HomeView: View {
     let past = !isNext && (t.times[p].map { $0 <= now } ?? false)
     let parts = Fmt.timeParts(time, tz: model.timeZone, hour12: s.hour12, numerals: s.numerals)
     let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+    // الشروق وقتٌ لا صلاة: أخفت قليلًا من الصلوات ما لم يكن هو القادم
+    let quiet = p == .sunrise && !isNext
     return VStack(spacing: 4) {
-      Text(name).font(DS.readex(11.5, isNext ? .semibold : .medium)).foregroundStyle(DS.C.textOnDark.opacity(isNext ? 1 : 0.72))
-      Text(parts.main).font(DS.readex(15, .semibold, fixed: true)).monospacedDigit().foregroundStyle(DS.C.textOnDark.opacity(past ? 0.6 : 1))
+      Text(name).font(DS.readex(11.5, isNext ? .semibold : .medium)).foregroundStyle(DS.C.textOnDark.opacity(isNext ? 1 : (quiet ? 0.6 : 0.72)))
+      Text(parts.main).font(DS.readex(15, quiet ? .medium : .semibold, fixed: true)).monospacedDigit().foregroundStyle(DS.C.textOnDark.opacity(past ? 0.6 : (quiet ? 0.8 : 1)))
     }
     .lineLimit(1).minimumScaleFactor(0.75)
     .frame(maxWidth: .infinity).padding(.vertical, 9)

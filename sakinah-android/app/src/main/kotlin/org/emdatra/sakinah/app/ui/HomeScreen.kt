@@ -406,13 +406,15 @@ private fun weatherGlyph(w: SkyWeather?, dark: Boolean): ImageVector = when (w) 
 // MARK: بطاقة المواقيت الزجاجية — داكنة في كل الأطوار كما في التصميم، فحبرها من لوحة سماءٍ داكنة (الشفق) لا من لوحة الطور الحالي
 private val CardInk: SkyPalette = SkyPalette.of(SkyPhase.SHAFAQ)
 private val CardPrayers = listOf(Prayer.FAJR, Prayer.DHUHR, Prayer.ASR, Prayer.MAGHRIB, Prayer.ISHA)
+/** أعمدة بطاقة المواقيت: الخمس والشروق بينها (أعاده المالك بعد أن حُذف في إعادة التصميم) — CardPrayers تبقى للصلوات الخمس وحدها (حصّة القراءة) */
+private val TimeCols = listOf(Prayer.FAJR, Prayer.SUNRISE, Prayer.DHUHR, Prayer.ASR, Prayer.MAGHRIB, Prayer.ISHA)
 
-/** عمودٌ في بطاقة المواقيت: الاسم والوقت، والقادم مميّز */
-private class CardCol(val name: String, val time: Instant?, val on: Boolean)
+/** عمودٌ في بطاقة المواقيت: الاسم والوقت، والقادم مميّز؛ والشروق (وقتٌ لا صلاة) أخفت ما لم يكن القادم */
+private class CardCol(val name: String, val time: Instant?, val on: Boolean, val quiet: Boolean = false)
 
 /**
- * شريط «مضى ٧٢٪ من وقت العصر»، والصلوات الخمس بأوقاتها (القادمة في مستطيلٍ أفتح)، ثم سطر ضمان الأذان (يمين) و«جدول الشهر» (يسار).
- * في رمضان: «مضى ٩٠٪ من صيام اليوم» من الفجر إلى المغرب، والأعمدة الإمساك والظهر والعصر والإفطار والعشاء.
+ * شريط «مضى ٧٢٪ من وقت العصر»، والصلوات الخمس والشروق بأوقاتها (القادم في مستطيلٍ أفتح)، ثم سطر ضمان الأذان (يمين) و«جدول الشهر» (يسار).
+ * في رمضان: «مضى ٩٠٪ من صيام اليوم» من الفجر إلى المغرب، والأعمدة الإمساك والشروق والظهر والعصر والإفطار والعشاء.
  */
 @Composable private fun PrayerCard(tl: PrayerTimes.DayTimeline, now: Instant, ramadan: Boolean, modifier: Modifier, onGuard: () -> Unit, onMonth: () -> Unit) {
   val k = CardInk; val shape = RoundedCornerShape(22.dp)
@@ -423,16 +425,17 @@ private class CardCol(val name: String, val time: Instant?, val on: Boolean)
   val total = start?.let { (endAt.epochSecond - it.epochSecond).toDouble() } ?: 0.0
   val pct = if (start != null && total > 0) ((now.epochSecond - start.epochSecond) / total).coerceIn(0.0, 1.0) else 0.0
   val currentName = if (tl.current == Prayer.SUNRISE) "الضحى" else tl.current.nameAr
-  // العمود المميّز: القادمة (فجر الغد بعد العشاء، وعشاء الأمس حين يتأخر بعد منتصف الليل) — ولا عمود للشروق
-  val highlight: Prayer? = when { tl.next.isTomorrow -> Prayer.FAJR; tl.next.isYesterday -> Prayer.ISHA; tl.next.key == Prayer.SUNRISE -> null; else -> tl.next.key }
+  // العمود المميّز: القادم (فجر الغد بعد العشاء، وعشاء الأمس حين يتأخر بعد منتصف الليل، والشروق بين الفجر وطلوع الشمس)
+  val highlight: Prayer? = when { tl.next.isTomorrow -> Prayer.FAJR; tl.next.isYesterday -> Prayer.ISHA; else -> tl.next.key }
   fun timeOf(pr: Prayer) = if (pr == highlight) tl.next.time else tl.times[pr]
   val cols = if (ramadan) {
     // الإمساك مكان الفجر (القادم بعد العشاء)، والمغرب «الإفطار»؛ والمميّز الإمساك ما دام السحور قائماً
     val suhoor = Ramadan.suhoor(tl, now)
     listOf(CardCol("الإمساك", Ramadan.nextImsak(tl), suhoor),
+      CardCol(Prayer.SUNRISE.nameAr, timeOf(Prayer.SUNRISE), highlight == Prayer.SUNRISE && !suhoor, quiet = highlight != Prayer.SUNRISE),
       CardCol(Prayer.DHUHR.nameAr, timeOf(Prayer.DHUHR), highlight == Prayer.DHUHR), CardCol(Prayer.ASR.nameAr, timeOf(Prayer.ASR), highlight == Prayer.ASR),
       CardCol("الإفطار", timeOf(Prayer.MAGHRIB), highlight == Prayer.MAGHRIB), CardCol(Prayer.ISHA.nameAr, timeOf(Prayer.ISHA), highlight == Prayer.ISHA))
-  } else CardPrayers.map { pr -> CardCol(pr.nameAr, timeOf(pr), pr == highlight) }
+  } else TimeCols.map { pr -> CardCol(pr.nameAr, timeOf(pr), pr == highlight, quiet = pr == Prayer.SUNRISE && pr != highlight) }
   Column(modifier.clip(shape).background(k.stops.first().toColor().copy(alpha = 0.58f)).border(1.dp, k.glassStroke, shape).padding(horizontal = 14.dp, vertical = 12.dp)) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
       Text(if (fast) "مضى ${Fmt.number((pct * 100).toInt())}٪ من صيام اليوم" else "مضى ${Fmt.number((pct * 100).toInt())}٪ من وقت $currentName", style = DSType.labelXs.copy(fontSize = 11.5.sp), color = k.textSoft, maxLines = 1)
@@ -447,7 +450,7 @@ private class CardCol(val name: String, val time: Instant?, val on: Boolean)
           .clearAndSetSemantics { contentDescription = "${col.name} ${Fmt.time(col.time)}" + (if (on) "، القادمة" else "") }
           .padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
           Text(col.name, style = DSType.labelXs.copy(fontSize = 11.5.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium), color = if (on) k.text else k.textMuted, maxLines = 1)
-          Text(clock(col.time), style = DSType.numericSm.copy(fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium), color = k.text, maxLines = 1)
+          Text(clock(col.time), style = DSType.numericSm.copy(fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium), color = if (col.quiet) k.textSoft else k.text, maxLines = 1)
         }
       }
     }
