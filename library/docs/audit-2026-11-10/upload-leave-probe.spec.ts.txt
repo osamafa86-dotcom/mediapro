@@ -1,0 +1,71 @@
+import { ListPartsCommand, S3Client } from '@aws-sdk/client-s3';
+import { expect, test } from '@playwright/test';
+import { randomBytes } from 'node:crypto';
+import { mkdir, open } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { E2E_ENV } from './env';
+import { csrf, H } from './helpers';
+import { ORIGIN, PASSWORD, seed, sql, type Seed } from './seed';
+
+/*
+ * Audit probe P6 (2026-11-10). Kept as .txt so no tool runs it. To reproduce: copy to tests/e2e/zz-upload-probe.spec.ts,
+ * start the S3 stand-in (docs/testing.md), pnpm build && pnpm exec playwright test zz-upload-probe --project=desktop --trace off
+ * Asserts the CURRENT (defective) behaviour: a pass = the defect is real.
+ * A photographer leaves the upload page (an in-app link, not a closed tab) while a file is uploading.
+ */
+const SIZE = 200 * 1024 ** 2; // 13 parts of 16 MiB
+const s3 = () => new S3Client({ endpoint: E2E_ENV.S3_ENDPOINT, region: 'auto', forcePathStyle: true, credentials: { accessKeyId: E2E_ENV.S3_ACCESS_KEY_ID, secretAccessKey: E2E_ENV.S3_SECRET_ACCESS_KEY } });
+let S: Seed;
+test.beforeAll(async () => { S = await seed(); });
+
+test('P6 — leaving the upload page mid-upload aborts the file in storage, keeps its row «active», and the project can no longer be marked ready', async ({ page }) => {
+  test.setTimeout(240_000);
+  const dir = resolve('test-results/probe'); await mkdir(dir, { recursive: true });
+  const file = resolve(dir, 'C0077_interview.MP4');
+  const fh = await open(file, 'w'); await fh.truncate(SIZE);
+  await fh.write(randomBytes(1 << 20), 0, 1 << 20, 0); await fh.write(randomBytes(1 << 20), 0, 1 << 20, SIZE - (1 << 20)); await fh.close();
+
+  await page.context().addCookies([{ name: 'locale', value: 'ar', url: ORIGIN }]);
+  expect((await page.request.post('/api/auth/login', { headers: { origin: ORIGIN }, data: { email: 'a@e2e.test', password: PASSWORD } })).status()).toBe(200);
+  await page.goto(`/upload/${S.p1}`);
+  // a real uplink, so the file is still on its way when the photographer clicks away (≈ 6 MB/s)
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Network.enable');
+  await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 5, downloadThroughput: -1, uploadThroughput: 6 * 1024 * 1024 });
+  let partsDone = 0;
+  page.on('requestfinished', (req) => { if (req.method() === 'PUT' && /[?&]partNumber=\d+/.test(req.url())) partsDone++; });
+  await page.getByTestId('file-input').setInputFiles(file);
+  await expect.poll(() => partsDone, { timeout: 120_000, intervals: [250] }).toBeGreaterThanOrEqual(2);
+
+  // the header link «الرفع» — an ordinary in-app navigation
+  await page.locator('header a[href="/upload"]').first().click();
+  await page.waitForURL(/\/upload$/);
+  await page.waitForTimeout(2500); // the abort request Uppy sends on the way out
+
+  const db = sql();
+  const [row] = await db<{ id: string; status: string; key: string; s3_upload_id: string }[]>`select id, status, key, s3_upload_id from uploads where filename = 'C0077_interview.MP4'`;
+  console.log('PROBE P6 parts stored before leaving →', partsDone, '| uploads row after leaving →', row!.status);
+  expect(row!.status).toBe('active');
+  const listed = await s3().send(new ListPartsCommand({ Bucket: E2E_ENV.S3_BUCKET, Key: row!.key, UploadId: row!.s3_upload_id })).then((r) => `${r.Parts?.length ?? 0} parts`, (e: Error) => e.name);
+  console.log('PROBE P6 the multipart upload in storage →', listed);
+  expect(listed).toBe('NoSuchUpload');
+
+  // back on the page: the file is listed as unfinished; re-adding it «resumes» onto the dead upload
+  await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+  await page.goto(`/upload/${S.p1}`);
+  await expect(page.getByTestId('unfinished')).toContainText('C0077_interview.MP4');
+  await page.getByTestId('file-input').setInputFiles(file);
+  const item = page.getByTestId('queue-item');
+  await expect(item).toHaveAttribute('data-state', /failed|done/, { timeout: 90_000 });
+  const state = await item.getAttribute('data-state');
+  console.log('PROBE P6 re-adding the same file →', state, '|', (await item.innerText()).replace(/\s+/g, ' ').slice(0, 120));
+  expect(state).toBe('failed');
+
+  // and the project is stuck: «جاهز للمراجعة» is refused while that row stays active — no screen removes it
+  const ready = await page.request.post(`/api/admin/projects/${S.p1}/ready`, { headers: { ...H, 'x-csrf-token': await csrf(page.request) }, data: {} });
+  console.log('PROBE P6 «جاهز للمراجعة» →', ready.status(), await ready.text());
+  expect(ready.status()).toBe(409);
+  const [still] = await db<{ n: number }[]>`select count(*)::int as n from uploads where project_id = ${S.p1} and status = 'active'`;
+  await db.end();
+  expect(still!.n).toBe(1);
+});
