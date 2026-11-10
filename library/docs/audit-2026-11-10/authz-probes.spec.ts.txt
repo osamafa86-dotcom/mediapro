@@ -1,0 +1,140 @@
+import { expect, test } from '@playwright/test';
+import { mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+import sharp from 'sharp';
+import { ctx, H, login, uploadFile, write } from './helpers';
+import { PASSWORD, seed, sql, type Seed } from './seed';
+
+/*
+ * Audit probes (2026-11-10). Kept as .txt so no tool runs it. To reproduce: copy to tests/e2e/zz-probe.spec.ts, start the S3
+ * stand-in (docs/testing.md), then: pnpm build && pnpm exec playwright test zz-probe --project=desktop --trace off
+ * Each test asserts the CURRENT (defective) behaviour, so a pass here = the defect is real.
+ */
+
+let S: Seed;
+test.describe.configure({ mode: 'serial' });
+test.beforeAll(async () => { S = await seed(); });
+
+const db1 = async <T>(fn: (db: ReturnType<typeof sql>) => Promise<T>) => { const db = sql(); try { return await fn(db); } finally { await db.end(); } };
+
+async function pinViewer(clientId: string, extra: Record<string, unknown> = {}) {
+  const admin = await login('admin@e2e.test');
+  const r = await write(admin, 'POST', '/api/admin/links', { clientId, kind: 'client', ...extra });
+  expect(r.status(), await r.text()).toBe(201);
+  const l = (await r.json()) as { path: string; pin: string; id: string };
+  const v = await ctx();
+  const token = l.path.replace('/l/', '');
+  const p = await v.post('/api/link/pin', { headers: H, data: { token, pin: l.pin } });
+  expect(p.status(), await p.text()).toBe(200);
+  return { v, linkId: l.id };
+}
+
+test('P1 — /api/assets/:id/url hands a client the UNCROPPED upload of an edited photo', async () => {
+  test.setTimeout(240_000);
+  const dir = resolve(process.cwd(), 'test-results/probe');
+  mkdirSync(dir, { recursive: true });
+  const file = resolve(dir, 'wide.jpg');
+  await sharp({ create: { width: 3000, height: 1500, channels: 3, background: { r: 180, g: 120, b: 60 } } }).jpeg().toFile(file);
+  const admin = await login('admin@e2e.test');
+  const wide = await uploadFile(admin, S.p1, file, { mime: 'image/jpeg' });
+  const row = () => db1(async (db) => (await db<{ status: string; r2_key: string; edit: { v: number; state: string } | null }[]>`select status, r2_key, edit from assets where id = ${wide}`)[0]!);
+  await expect.poll(async () => (await row()).status, { timeout: 120_000, intervals: [500] }).toBe('ready');
+  // the studio crops the picture (e.g. to take something out of the frame) before delivery
+  expect((await write(admin, 'PUT', `/api/admin/assets/${wide}/edit`, { rotate: 0, crop: { x: 0, y: 0, w: 0.5, h: 1 } })).status()).toBe(200);
+  await expect.poll(async () => (await row()).edit?.state, { timeout: 120_000, intervals: [500] }).toBe('done');
+  const original = (await row()).r2_key;
+
+  const { v } = await pinViewer(S.clientX);
+  // the supported download path: the edit
+  const dl = await v.get(`/api/download/${wide}`, { maxRedirects: 0 });
+  expect(dl.status()).toBe(302);
+  expect(dl.headers()['location']).toContain('/e1/edited.jpg');
+  // the legacy endpoint: the untouched upload, signed for an hour, no download recorded
+  const before = await db1(async (db) => (await db<{ n: number }[]>`select count(*)::int as n from downloads`)[0]!.n);
+  const u = await v.get(`/api/assets/${wide}/url`);
+  expect(u.status()).toBe(200);
+  const url = ((await u.json()) as { url: string }).url;
+  console.log('PROBE P1 signed url path →', new URL(url).pathname);
+  expect(decodeURIComponent(new URL(url).pathname)).toContain(original);
+  expect(url).not.toContain('edited.jpg');
+  const bytes = await fetch(url);
+  expect(bytes.status).toBe(200);
+  const after = await db1(async (db) => (await db<{ n: number }[]>`select count(*)::int as n from downloads`)[0]!.n);
+  console.log('PROBE P1 downloads rows before/after legacy fetch →', before, after);
+  expect(after).toBe(before);
+});
+
+test('P2 — a replaced (superseded) asset: hidden everywhere, still served by /api/assets/:id/url', async () => {
+  await db1((db) => db`update assets set replaced_by = ${S.assetP2} where id = ${S.assetFinal}`);
+  const { v } = await pinViewer(S.clientX);
+  expect((await v.get(`/api/download/${S.assetFinal}`, { maxRedirects: 0 })).status()).toBe(404);
+  expect((await v.get(`/m/${S.assetFinal}/w640.webp`, { maxRedirects: 0 })).status()).toBe(404);
+  const u = await v.get(`/api/assets/${S.assetFinal}/url`);
+  console.log('PROBE P2 legacy endpoint status for replaced asset →', u.status());
+  expect(u.status()).toBe(200);
+  await db1((db) => db`update assets set replaced_by = null where id = ${S.assetFinal}`);
+});
+
+test('P3 — projects two photographers create land in one «بانتظار التصنيف» client: a link to one opens the other', async () => {
+  const a = await login('a@e2e.test');
+  const b = await login('b@e2e.test');
+  const ra = await write(a, 'POST', '/api/admin/projects', { title: 'تصوير جهة أولى' });
+  const rb = await write(b, 'POST', '/api/admin/projects', { title: 'تصوير جهة ثانية — سرّي' });
+  expect(ra.status(), await ra.text()).toBe(201);
+  expect(rb.status(), await rb.text()).toBe(201);
+  const pa = ((await ra.json()) as { id: string }).id;
+  const pb = ((await rb.json()) as { id: string }).id;
+  const clients = await db1((db) => db<{ id: string; client_id: string }[]>`select id, client_id from projects where id in (${pa}, ${pb})`);
+  expect(clients[0]!.client_id).toBe(clients[1]!.client_id); // one shared inbox client
+  // both delivered (published) before the admin re-files them under their real clients
+  await db1((db) => db`update projects set status = 'published', published_at = now() where id in (${pa}, ${pb})`);
+  const admin = await login('admin@e2e.test');
+  const lr = await write(admin, 'POST', `/api/admin/projects/${pa}/link`, {});
+  expect(lr.status(), await lr.text()).toBe(200);
+  const short = ((await lr.json()) as { shortPath: string }).shortPath;
+  const v = await ctx();
+  const open = await v.get(short); // /c/<code> → /l/<jwt> → /api/link/open → /p/<id>
+  expect(open.status()).toBe(200);
+  const lib = (await (await v.get('/api/library')).json()) as { projects: { id: string; title: string }[] };
+  console.log('PROBE P3 the link for project A lists →', lib.projects.map((p) => p.title));
+  expect(lib.projects.map((p) => p.id)).toContain(pb);
+  expect((await v.get(`/api/projects/${pb}`)).status()).toBe(200);
+});
+
+test('P4 — anyone who knows the admin e-mail keeps the admin locked out (password AND magic link)', async () => {
+  const attacker = await ctx();
+  for (let i = 0; i < 5; i++) await attacker.post('/api/auth/login', { headers: H, data: { email: 'admin@e2e.test', password: `wrong-${i}` } });
+  const owner = await ctx();
+  const r = await owner.post('/api/auth/login', { headers: H, data: { email: 'admin@e2e.test', password: PASSWORD } });
+  console.log('PROBE P4 correct password after 5 foreign failures →', r.status(), await r.text());
+  expect(r.status()).toBe(423);
+  // the other way in: the magic link budget (5 per 10 min per address) is spent by the same stranger
+  for (let i = 0; i < 5; i++) await attacker.post('/api/auth/magic', { headers: H, data: { email: 'admin@e2e.test' } });
+  const n0 = await db1(async (db) => (await db<{ n: number }[]>`select count(*)::int as n from magic_links`)[0]!.n);
+  const m = await owner.post('/api/auth/magic', { headers: H, data: { email: 'admin@e2e.test' } });
+  const n1 = await db1(async (db) => (await db<{ n: number }[]>`select count(*)::int as n from magic_links`)[0]!.n);
+  console.log('PROBE P4 owner magic-link request →', m.status(), 'links issued before/after →', n0, n1);
+  expect(m.status()).toBe(200);
+  expect(n1).toBe(n0); // answered «ok», nothing sent
+  await db1((db) => db`delete from login_throttle`);
+});
+
+test('P5 — a moved project keeps its old link: «رابط المشروع» returns a link bound to the previous client', async () => {
+  const admin = await login('admin@e2e.test');
+  // P2 belongs to client X; its permanent link is made, then the project is re-filed under client Y
+  const l1 = (await (await write(admin, 'POST', `/api/admin/projects/${S.p2}/link`, {})).json()) as { id: string; shortPath: string };
+  expect((await write(admin, 'PATCH', `/api/admin/projects/${S.p2}`, { clientId: S.clientY })).status()).toBe(200);
+  const l2 = (await (await write(admin, 'POST', `/api/admin/projects/${S.p2}/link`, {})).json()) as { id: string; shortPath: string };
+  const row = await db1(async (db) => (await db<{ client_id: string }[]>`select client_id from links where id = ${l2.id}`)[0]!);
+  console.log('PROBE P5 same link after the move →', l1.id === l2.id, '| link.client_id is still X →', row.client_id === S.clientX);
+  expect(l2.id).toBe(l1.id);
+  expect(row.client_id).toBe(S.clientX);
+  const v = await ctx();
+  await v.get(l2.shortPath);
+  const own = await v.get(`/api/projects/${S.p2}`);
+  const lib = (await (await v.get('/api/library')).json()) as { projects: { id: string; title: string }[] };
+  console.log('PROBE P5 the project its own link was made for →', own.status(), '| what the link shows instead →', lib.projects.map((p) => p.title));
+  expect(own.status()).toBe(404);
+  expect(lib.projects.map((p) => p.id)).toContain(S.p1); // client X's other project, to client Y's recipient
+  await write(admin, 'PATCH', `/api/admin/projects/${S.p2}`, { clientId: S.clientX });
+});

@@ -1,0 +1,30 @@
+set -u
+export DATABASE_URL=postgres://media:media@127.0.0.1:5432/media_test
+Q() { psql "$DATABASE_URL" -tA -F' | ' -c "$1"; }
+Q "delete from graphile_worker._private_jobs where task_id in (select id from graphile_worker._private_tasks where identifier='probe_encode')" >/dev/null 2>&1
+Q "select graphile_worker.add_job('probe_encode', '{}'::json, max_attempts := 2, job_key := 'probe:1')" >/dev/null
+show() { Q "select 'attempts='||attempts, 'max='||max_attempts, 'locked='||(locked_at is not null), 'run_at_in='||round(extract(epoch from run_at-now()))||'s', 'last_error='||coalesce(last_error,'-') from graphile_worker.jobs where key='probe:1'"; }
+echo "== queued:"; show
+for round in 1 2; do
+  node "$(dirname "$0")/worker.mjs" > "$(dirname "$0")/w$round.log" 2>&1 &
+  W=$!
+  for i in $(seq 1 40); do grep -q "job started" "$(dirname "$0")/w$round.log" && break; sleep 0.5; done
+  echo "== round $round: worker picked the job:"; show
+  T0=$(date +%s.%N); kill -TERM $W           # what `docker compose up -d --build` sends to the old container
+  for i in $(seq 1 24); do kill -0 $W 2>/dev/null || break; sleep 0.5; done
+  if kill -0 $W 2>/dev/null; then echo "   still alive after 12 s → docker's default 10 s grace would have SIGKILLed it"; kill -KILL $W; else echo "   worker exited $(echo "$(date +%s.%N) - $T0" | bc | cut -c1-4)s after SIGTERM"; fi
+  wait $W 2>/dev/null
+  echo "== after stop $round:"; show
+  # let the retry back-off pass so the next worker can pick it (if it is still eligible)
+  Q "update graphile_worker._private_jobs set run_at = now() where key='probe:1' and locked_at is null" >/dev/null
+done
+echo "== can any worker ever run it again? (attempts < max_attempts and not locked):"
+Q "select case when attempts < max_attempts then 'yes' else 'NO — permanently failed, silently' end from graphile_worker.jobs where key='probe:1'"
+echo "== SIGKILL case (OOM / hard kill):"
+Q "delete from graphile_worker._private_jobs where key='probe:1'" >/dev/null
+Q "select graphile_worker.add_job('probe_encode', '{}'::json, max_attempts := 3, job_key := 'probe:1')" >/dev/null
+node "$(dirname "$0")/worker.mjs" > "$(dirname "$0")/w3.log" 2>&1 & W=$!
+for i in $(seq 1 40); do grep -q "job started" "$(dirname "$0")/w3.log" && break; sleep 0.5; done
+kill -KILL $W; wait $W 2>/dev/null; sleep 1; show
+Q "select 'eligible again at: '||to_char(locked_at + interval '4 hours','HH24:MI')||' (locked at '||to_char(locked_at,'HH24:MI')||')' from graphile_worker._private_jobs where key='probe:1'"
+Q "delete from graphile_worker._private_jobs where key='probe:1'" >/dev/null

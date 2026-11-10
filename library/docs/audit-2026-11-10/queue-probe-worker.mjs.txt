@@ -1,0 +1,7 @@
+// Stand-in for src/worker/index.ts: same run() options, one task that "encodes" for a long time.
+const { run } = await import('graphile-worker');
+const runner = await run({
+  connectionString: process.env.DATABASE_URL, concurrency: 1, pollInterval: 500,
+  taskList: { probe_encode: async (_p, h) => { console.log('[probe] job started, attempt', h.job.attempts, 'of', h.job.max_attempts); await new Promise((r) => setTimeout(r, 120_000)); } },
+});
+await runner.promise;

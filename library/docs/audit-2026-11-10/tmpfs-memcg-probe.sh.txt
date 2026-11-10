@@ -1,0 +1,17 @@
+# Does a tmpfs "size=" protect a memory-limited container? No: tmpfs pages are charged to the writer's memory cgroup.
+# Run as root on a cgroup-v1 host (on cgroup v2 use memory.max). Measured 2026-11-10 in the audit sandbox:
+#   a process in a 200 MB cgroup writing 300 MB to a 500 MB tmpfs was OOM-killed at 198 MB
+#   ("Memory cgroup out of memory: Killed process … (dd)"). The worker has mem_limit 1g and /tmp tmpfs size=2g.
+set +e
+CG=/sys/fs/cgroup/memory/tmpfs-probe; mkdir -p $CG; echo $((200*1024*1024)) > $CG/memory.limit_in_bytes
+M=/mnt/tmpfs-probe; mkdir -p $M && mount -t tmpfs -o size=500m tmpfs $M
+( echo $BASHPID > $CG/cgroup.procs; dd if=/dev/zero of=$M/big bs=1M count=300 2>&1 | tail -1 )
+echo "file size on tmpfs: $(du -m $M/big | cut -f1) MB of 300"
+echo "cgroup peak: $(( $(cat $CG/memory.max_usage_in_bytes) / 1048576 )) MB (limit 200), oom kills: $(grep oom_kill\  $CG/memory.oom_control)"
+dmesg | grep -i "Memory cgroup out of memory" | tail -1
+rm -f $M/big; umount $M; rmdir $M $CG
+# On the server, measure without provoking it: has it already happened?
+#   docker inspect -f '{{.State.OOMKilled}} restarts={{.RestartCount}}' media-worker
+#   dmesg -T | grep -i "Memory cgroup out of memory" | tail
+#   docker stats --no-stream media-worker        # while a video is being processed: MEM USAGE includes /tmp
+# Do NOT fill /tmp on purpose while the queue is busy: an OOM kill freezes the running job for 4 hours (queue-probe.sh.txt).
