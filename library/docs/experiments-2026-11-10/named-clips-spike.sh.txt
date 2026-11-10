@@ -1,0 +1,24 @@
+# Spike 3 (2026-11-10): per-donor clips by stitching, not rendering. Body rendered once; per donor a 2 s name card
+# (drawn by sharp from SVG — Arabic and Turkish shape correctly) encoded with the SAME x264/AAC settings, then concat with -c copy.
+# Measured on 4 cores: body 20 s 1080x1920 rendered once in 4.0 s; 20 clips in 13.98 s = 0.70 s per clip (re-encoding the
+# whole clip per donor: 5.74 s); 0 decode errors; 22.02 s, 16.5 MB each. 300 clips ~ 3.5 min here; scale by cores for the VPS.
+
+ENC="-c:v libx264 -preset veryfast -profile:v high -crf 21 -pix_fmt yuv420p -r 25 -g 50 -c:a aac -b:a 128k -ar 44100 -ac 2"
+ffmpeg -y -f lavfi -i testsrc2=size=1080x1920:rate=25:duration=20 -f lavfi -i sine=frequency=440:duration=20 $ENC body.mp4
+for i in $(seq 0 19); do
+  ffmpeg -y -loop 1 -t 2 -i card-$i.png -f lavfi -t 2 -i anullsrc=r=44100:cl=stereo $ENC -shortest card-$i.mp4
+  printf "file 'card-%s.mp4'\nfile 'body.mp4'\n" $i > list-$i.txt
+  ffmpeg -y -f concat -safe 0 -i list-$i.txt -c copy -movflags +faststart donor-$i.mp4
+done
+
+# ───── cards.cjs ─────
+const sharp = require(require.resolve('sharp', { paths: ['/home/user/mediapro/library'] }));
+const names = ['Ayşe Kaya', 'Mehmet Demir', 'فاطمة العلي', 'Zeynep Çelik', 'محمد عبد الله', 'Hüseyin Öztürk', 'خديجة يوسف', 'Elif Şahin', 'عائشة إبراهيم', 'Mustafa Yıldız'];
+(async () => { const t0 = Date.now();
+  for (let i = 0; i < 20; i++) {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920"><rect width="1080" height="1920" fill="#0b1839"/>
+      <text x="540" y="860" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="56" fill="#9fb3c8">Bağışınız ulaştı · وصل عطاؤكم</text>
+      <text x="540" y="1000" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="96" font-weight="700" fill="#ffffff">${names[i % names.length]}</text></svg>`;
+    await sharp(Buffer.from(svg)).png().toFile(`card-${i}.png`);
+  }
+  console.log(`20 name cards drawn by sharp: ${Date.now() - t0} ms`); })();

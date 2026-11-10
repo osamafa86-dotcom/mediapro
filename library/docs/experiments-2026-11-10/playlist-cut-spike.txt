@@ -1,0 +1,33 @@
+# Spike 2 (2026-11-10): a cut that is only a playlist over HLS segments the library already has (no rendering).
+# Two 12 s upright clips encoded with the arguments of src/worker/video.ts encodeRung at 720, then edit.m3u8 below,
+# played with the repo's own hls.js 1.x in Chromium at 4x. Result: all four fragments in order, ended at 16.24 s for 16 s of
+# content, one non-fatal stall at the first junction. Without EXT-X-DISCONTINUITY at EVERY jump (also between two
+# non-adjacent segments of the same asset) hls.js leaves a 4 s hole. Cut grid = the 4 s keyframe grid. Safari/iOS native HLS: NOT tested.
+
+#EXTM3U
+#EXT-X-VERSION:7
+#EXT-X-TARGETDURATION:4
+#EXT-X-PLAYLIST-TYPE:VOD
+#EXT-X-MAP:URI="a/init.mp4"
+#EXTINF:4.000,
+a/seg_00001.m4s
+#EXT-X-DISCONTINUITY
+#EXT-X-MAP:URI="b/init.mp4"
+#EXTINF:4.000,
+b/seg_00000.m4s
+#EXT-X-DISCONTINUITY
+#EXTINF:4.000,
+b/seg_00002.m4s
+#EXT-X-DISCONTINUITY
+#EXT-X-MAP:URI="a/init.mp4"
+#EXTINF:4.000,
+a/seg_00000.m4s
+#EXT-X-ENDLIST
+
+# ───── play.html ─────
+<video id="v" muted playsinline style="width:240px"></video><script src="hls.min.js"></script>
+<script>window.R={errors:[],frags:[]};const v=document.getElementById('v');const h=new Hls();
+h.on(Hls.Events.ERROR,(e,d)=>R.errors.push(d.type+':'+d.details+(d.fatal?' FATAL':'')));
+h.on(Hls.Events.FRAG_CHANGED,(e,d)=>R.frags.push(d.frag.relurl+'@'+v.currentTime.toFixed(1)));
+h.loadSource('edit.m3u8');h.attachMedia(v);h.on(Hls.Events.MANIFEST_PARSED,()=>{v.playbackRate=4;v.play();});
+v.addEventListener('ended',()=>R.ended=v.currentTime);</script>
