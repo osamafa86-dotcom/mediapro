@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<!-- عرض عملي لرهانات docs/bets-2026-11-10.md. يُفتح في المتصفح مباشرة؛ كل ما فيه بيانات للعرض ولا يتصل بشيء. -->
+<title>ثمانية مشاهد من المكتبة</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one scene at a time, picked from a numbered rail. Each scene is the product itself in miniature (left:
+   the screen the person uses; right: what happens behind it, step by step). Quiet neutral shell, one teal accent;
+   the mock media and the state colours (yours / shared / held / refused) are the only colour. */
+:root {
+  --bg: #fafafa; --surface: #ffffff; --subtle: #f2f2f2; --line: rgb(0 0 0 / .10);
+  --fg: #0a0a0a; --fg2: #404040; --fg3: #636363;
+  --accent: #04827e; --accent-fg: #ffffff; --accent-soft: #e6fbfa; --accent-text: #05605d;
+  --ok: #15803d; --ok-soft: #f0fdf4; --bad: #b91c1c; --bad-soft: #fef2f2; --warn: #b45309; --warn-soft: #fffbeb;
+  --b: #4338ca; --b-soft: #eef2ff;
+  --sans: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma, 'Noto Sans Arabic', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --r: 10px; --r-sm: 6px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0a0a0a; --surface: #171717; --subtle: #202020; --line: rgb(255 255 255 / .12);
+  --fg: #f5f5f5; --fg2: #b4b4b4; --fg3: #8f8f8f;
+  --accent: #1fc9c2; --accent-fg: #0a0a0a; --accent-soft: #062e2d; --accent-text: #1fc9c2;
+  --ok: #86efac; --ok-soft: #062c16; --bad: #fca5a5; --bad-soft: #3b0d0d; --warn: #fcd34d; --warn-soft: #3a2504;
+  --b: #a5b4fc; --b-soft: #1e1b4b; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0a0a0a; --surface: #171717; --subtle: #202020; --line: rgb(255 255 255 / .12);
+  --fg: #f5f5f5; --fg2: #b4b4b4; --fg3: #8f8f8f;
+  --accent: #1fc9c2; --accent-fg: #0a0a0a; --accent-soft: #062e2d; --accent-text: #1fc9c2;
+  --ok: #86efac; --ok-soft: #062c16; --bad: #fca5a5; --bad-soft: #3b0d0d; --warn: #fcd34d; --warn-soft: #3a2504;
+  --b: #a5b4fc; --b-soft: #1e1b4b; color-scheme: dark }
+
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 16px; line-height: 1.7; }
+.wrap { max-inline-size: 1120px; margin-inline: auto; padding-block: 24px 72px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 24px; }
+h1, h2, h3, h4, p, ol, ul, pre { margin: 0; }
+h1 { font-size: clamp(1.7rem, 4vw, 2.5rem); line-height: 1.3; font-weight: 600; text-wrap: balance; }
+h2 { font-size: clamp(1.3rem, 2.6vw, 1.7rem); line-height: 1.4; font-weight: 600; text-wrap: balance; }
+h4 { font-size: .9rem; font-weight: 600; }
+p, li { color: var(--fg2); } strong { color: var(--fg); font-weight: 600; }
+.lead { font-size: 1.05rem; max-inline-size: 66ch; }
+.small { font-size: .82rem; color: var(--fg3); line-height: 1.6; }
+.mono { font-family: var(--mono); direction: ltr; unicode-bidi: isolate; font-size: .85em; }
+button, select, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.rail { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); overflow: hidden; }
+.rail button { border: 0; border-inline-start: 1px solid var(--line); background: transparent; padding: 10px 10px 12px; text-align: start; display: flex; flex-direction: column; gap: 1px; min-inline-size: 0; }
+.rail button:first-child { border-inline-start: 0; }
+.rail small { font-size: .7rem; color: var(--fg3); } .rail span { font-size: .86rem; font-weight: 500; line-height: 1.4; color: var(--fg2); }
+.rail button[aria-current="true"] { background: var(--accent-soft); } .rail button[aria-current="true"] span { color: var(--accent-text); font-weight: 600; }
+@media (max-width: 900px) { .rail { grid-template-columns: repeat(4, minmax(0, 1fr)); } .rail button:nth-child(5) { border-inline-start: 0; } .rail button:nth-child(n+5) { border-block-start: 1px solid var(--line); } }
+@media (max-width: 520px) { .rail { grid-template-columns: repeat(2, minmax(0, 1fr)); } .rail button { border-block-start: 1px solid var(--line); } .rail button:nth-child(odd) { border-inline-start: 0; } .rail button:nth-child(-n+2) { border-block-start: 0; } }
+
+.scene { display: flex; flex-direction: column; gap: 16px; }
+.scene > header { display: flex; flex-direction: column; gap: 6px; max-inline-size: 70ch; }
+.verb { font-size: .78rem; color: var(--accent-text); font-weight: 500; }
+.cols { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+.stage, .behind { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: flex; flex-direction: column; gap: 14px; min-inline-size: 0; }
+.behind ol { padding-inline-start: 20px; display: flex; flex-direction: column; gap: 8px; font-size: .92rem; line-height: 1.65; }
+.behind li.on { color: var(--fg); } .behind li.on::marker { color: var(--accent-text); font-weight: 600; }
+.fact { font-size: .86rem; background: var(--subtle); border-radius: var(--r-sm); padding: 8px 10px; line-height: 1.6; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.between { justify-content: space-between; }
+.panel { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 12px; display: flex; flex-direction: column; gap: 10px; min-inline-size: 0; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 14px; font-size: .88rem; min-block-size: 36px; }
+.btn.primary { background: var(--accent); color: var(--accent-fg); border-color: transparent; font-weight: 500; }
+.btn[disabled] { opacity: .45; cursor: default; }
+.seg { display: inline-flex; flex-wrap: wrap; background: var(--subtle); border-radius: 8px; padding: 3px; gap: 2px; }
+.stage > .seg { align-self: flex-start; }
+.seg button { border: 0; background: transparent; padding: 4px 12px; border-radius: 6px; font-size: .85rem; color: var(--fg2); min-block-size: 32px; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 0 0 1px var(--line); font-weight: 500; }
+.pill { font-size: .76rem; padding: 2px 9px; border-radius: 99px; background: var(--subtle); color: var(--fg2); white-space: nowrap; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); } .pill.bad { background: var(--bad-soft); color: var(--bad); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); } .pill.acc { background: var(--accent-soft); color: var(--accent-text); } .pill.b { background: var(--b-soft); color: var(--b); }
+.msg { font-size: .9rem; border-radius: var(--r-sm); padding: 8px 12px; line-height: 1.6; } .msg.ok { background: var(--ok-soft); color: var(--ok); } .msg.bad { background: var(--bad-soft); color: var(--bad); } .msg.info { background: var(--subtle); color: var(--fg2); }
+
+/* mock media */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; }
+.ph { position: relative; border-radius: var(--r-sm); overflow: hidden; aspect-ratio: 4 / 3; color: #fff; min-inline-size: 0; border: 0; padding: 0; display: block; inline-size: 100%; }
+.ph .l { position: absolute; inset-inline-start: 5px; inset-block-end: 3px; font-size: .64rem; text-shadow: 0 1px 2px rgb(0 0 0 / .7); line-height: 1.5; }
+.ph .n { position: absolute; inset-inline-end: 4px; inset-block-start: 4px; font-size: .62rem; background: rgb(0 0 0 / .6); border-radius: 99px; padding: 0 6px; line-height: 1.7; }
+.ph.clip::before { content: ''; position: absolute; inset-inline-start: 6px; inset-block-start: 6px; border-style: solid; border-width: 5px 0 5px 8px; border-color: transparent transparent transparent #fff; filter: drop-shadow(0 1px 1px rgb(0 0 0 / .6)); }
+.s1 { background: radial-gradient(60% 70% at 30% 35%, #f6c177 0, transparent 60%), linear-gradient(160deg, #c2410c, #7c2d12 60%, #431407); }
+.s2 { background: radial-gradient(50% 60% at 70% 30%, #7dd3fc 0, transparent 65%), linear-gradient(170deg, #0369a1, #075985 55%, #3f3a2d); }
+.s3 { background: radial-gradient(55% 55% at 45% 60%, #fde68a 0, transparent 60%), linear-gradient(150deg, #a16207, #713f12 60%, #292524); }
+.s4 { background: radial-gradient(50% 70% at 60% 40%, #86efac 0, transparent 60%), linear-gradient(165deg, #3f6212, #365314 55%, #1c1917); }
+.s5 { background: radial-gradient(60% 60% at 35% 45%, #fda4af 0, transparent 60%), linear-gradient(155deg, #9f1239, #6b213a 60%, #27141c); }
+.s6 { background: radial-gradient(55% 65% at 55% 35%, #c4b5fd 0, transparent 60%), linear-gradient(160deg, #5b21b6, #3b1a78 60%, #18122b); }
+.ph.local { background: var(--subtle); outline: 1px dashed var(--line); outline-offset: -1px; }
+.ph .im { position: absolute; inset: -6px; display: block; } .im.ghost { filter: blur(5px) saturate(.55); } .im.sample { filter: blur(1.6px); }
+.ph .l, .ph .n, .ph.clip::before { z-index: 1; } .ph.local .l { color: var(--fg3); text-shadow: none; } .ph.local.clip::before { border-color: transparent transparent transparent var(--fg3); filter: none; }
+.mk-a { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent); } .mk-b { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--b); }
+.mk-h { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--warn); } .dim { opacity: .2; }
+.bn { position: absolute; inset-inline: 18%; inset-block-start: 12%; block-size: 42%; background: #fafafa; border-radius: 1px; }
+.bn::after { content: ''; position: absolute; inset-inline: 32%; inset-block-start: 45%; block-size: 2px; background: #8a8a8a; }
+.bn i { position: absolute; inline-size: 22%; aspect-ratio: 1; background: #111; display: block; }
+.bn i:first-child { inset-block-start: 9%; inset-inline-start: 5%; } .bn i:last-child { inset-block-end: 9%; inset-inline-end: 5%; }
+.bn.read i { background: var(--accent); }
+.meter { display: grid; grid-template-columns: 9.5rem minmax(0, 1fr) 6rem; gap: 8px; align-items: center; font-size: .82rem; }
+.meter .track { block-size: 10px; background: var(--subtle); border-radius: 99px; overflow: hidden; } .meter .fill { block-size: 100%; background: var(--fg3); border-radius: 99px; transition: inline-size .4s ease; }
+.meter .fill.acc { background: var(--accent); } .meter b { font-variant-numeric: tabular-nums; font-weight: 500; text-align: left; direction: ltr; unicode-bidi: isolate; }
+@media (max-width: 520px) { .meter { grid-template-columns: minmax(0, 1fr) 5.5rem; } .meter .track { grid-column: 1 / -1; grid-row: 2; } }
+table { border-collapse: collapse; inline-size: 100%; font-size: .86rem; } th, td { text-align: start; padding: 7px 8px; border-block-end: 1px solid var(--line); vertical-align: middle; }
+th { font-weight: 500; color: var(--fg3); font-size: .76rem; } .tw { overflow-x: auto; } tr.pick td { background: var(--accent-soft); }
+td .ph { inline-size: 44px; }
+pre.code { font-family: var(--mono); direction: ltr; text-align: left; font-size: .74rem; line-height: 1.55; background: var(--subtle); border-radius: var(--r-sm); padding: 10px 12px; overflow-x: auto; color: var(--fg2); }
+pre.code b { color: var(--accent-text); font-weight: 500; }
+.player { position: relative; aspect-ratio: 9 / 16; inline-size: min(100%, 170px); border-radius: 8px; overflow: hidden; color: #fff; margin-inline: auto; }
+.player .cap { position: absolute; inset: auto 0 0 0; padding: 18px 8px 8px; font-size: .78rem; background: linear-gradient(to top, rgb(0 0 0 / .75), transparent); }
+.player .bar { position: absolute; inset: 0 0 auto 0; display: flex; gap: 2px; padding: 5px; } .player .bar i { flex: 1; block-size: 3px; border-radius: 3px; background: rgb(255 255 255 / .35); } .player .bar i.on { background: #fff; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 4px 8px 6px; display: flex; flex-direction: column; gap: 2px; min-inline-size: 84px; text-align: start; }
+.chip .sw { block-size: 26px; border-radius: 4px; } .chip small { font-size: .68rem; color: var(--fg3); } .chip.now { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); } .chip.off { opacity: .35; }
+.card { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; min-inline-size: 0; }
+.big { font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.2; color: var(--fg); }
+.three { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.namecard { background: #0b1839; color: #fff; border-radius: 4px; padding: 6px 8px; font-size: .8rem; min-inline-size: 110px; text-align: center; line-height: 1.4; }
+.bannercrop { background: #fafafa; color: #111; border-radius: 3px; padding: 5px 8px; font-size: .78rem; border: 1px solid #d4d4d4; white-space: nowrap; }
+.stock { display: grid; grid-template-columns: 5rem minmax(0, 1fr) 3rem; gap: 8px; align-items: center; font-size: .82rem; }
+.stock .track { block-size: 8px; background: var(--subtle); border-radius: 99px; position: relative; } .stock .fill { block-size: 100%; border-radius: 99px; background: var(--fg3); } .stock .fill.low { background: var(--warn); }
+.stock .rp { position: absolute; inset-block: -3px; inline-size: 2px; background: var(--fg); }
+.faces { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 4px; } .faces i { inline-size: 13px; block-size: 13px; border-radius: 50%; background: #f5d0a9; display: block; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap" dir="rtl" lang="ar">
+<header style="display:flex;flex-direction:column;gap:10px">
+  <p class="small">مكتبة المرئيات · EMDATRA · عرض عملي للرهانات الثمانية · 10 نوفمبر 2026</p>
+  <h1>ثمانية مشاهد من المكتبة</h1>
+  <p class="lead">كل مشهد نموذج يعمل بالنقر: الشاشة التي يستعملها صاحبها، ومعها ما يجري خلفها خطوة خطوة. الأسماء والأرقام والصور للعرض، وما قيس فعلًا مكتوب عليه أنه قيس.</p>
+</header>
+<nav class="rail" id="rail" aria-label="المشاهد"></nav>
+<main id="main"></main>
+</div>
+
+<script>
+(() => {
+  const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const wait = (ms) => new Promise((r) => setTimeout(r, calm ? 0 : ms));
+  const press = (group, btn) => $$('button', group).forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
+  const mb = (n) => n >= 1000 ? `${(n / 1000).toFixed(1)} GB` : n >= 10 ? `${Math.round(n)} MB` : `${n.toFixed(1)} MB`;
+  const SCENES = [
+    ['upload', 'الرفع', 'الأثر قبل البايتات'], ['sort', 'الفرز', 'اللافتة تفرز'], ['ledger', 'إعادة الاستفادة', 'دفتر التسليم'], ['hand', 'الوصول', 'اليد'],
+    ['cut', 'الإنتاج', 'المونتاج قائمة'], ['named', 'الإنتاج', 'مقاطع بالاسم'], ['heal', 'الإنتاج', 'مخرجات تصحّح نفسها'], ['public', 'الإنتاج', 'نسخة بلا وجوه'],
+  ];
+  const shell = (id, verb, title, lead, stage, steps, fact) => `<section class="scene" id="sc-${id}" hidden>
+    <header><p class="verb">${verb}</p><h2>${title}</h2><p>${lead}</p></header>
+    <div class="cols"><div class="stage">${stage}</div>
+    <aside class="behind"><h4>خلف الشاشة</h4><ol>${steps.map((s) => `<li>${s}</li>`).join('')}</ol>${fact ? `<p class="fact">${fact}</p>` : ''}</aside></div></section>`;
+  const lit = (id, n) => $$(`#sc-${id} .behind li`).forEach((li, i) => li.classList.toggle('on', i < n));
+
+  $('#main').innerHTML = [
+    // 1 ── upload
+    shell('upload', 'الرفع', 'الأثر قبل البايتات', 'المصوّر يختار ملفات اليوم مرة واحدة. تصل الجهة صفحتها بعد دقيقة، لا بعد ساعة، والأصل يُرفع حين يطلبه أحد.',
+      `<div class="row between"><span class="pill acc" id="u-step"></span><button class="btn" id="u-replay" type="button">أعد العرض من البداية</button></div>
+       <div style="display:flex;flex-direction:column;gap:6px">
+         <div class="meter"><span>الرفع العادي قبل أول رابط</span><div class="track"><div class="fill" style="inline-size:100%"></div></div><b id="u-full"></b></div>
+         <div class="meter"><span>الطريق الخفيف حتى الآن</span><div class="track"><div class="fill acc" id="u-bar" style="inline-size:0"></div></div><b id="u-sent"></b></div>
+         <p class="small" id="u-time"></p></div>
+       <div class="panel"><div class="row between"><h4>هاتف المصوّر · 24 ملفًا</h4><span class="small">انقر ملفًا لطلب أصله</span></div><div class="grid" id="u-grid"></div></div>
+       <div class="panel"><div class="row between"><h4>صفحة الجهة</h4><span class="pill" id="u-page-note"></span></div><div class="grid" id="u-page"></div></div>`,
+      ['الصفحة تحسب لكل ملف بصمته ووقت لقطته ومصغّرًا صغيرًا، وترسلها كلها. المكتبة ترى اليوم كاملًا «أشباحًا» تُفرز وتُراجَع.',
+       'الخادم يطلب عيّنات متوسطة لما يحتاج قراءته: لافتة، وجوه، جودة.',
+       'ثم يطلب «نسخ الويب» لما سيظهر في صفحة الجهة فقط. الصفحة تُفتح، وكل صورة معلَّمة «نسخة ويب».',
+       'الأصل يُرفع لمن يطلبه: الجهة، أو المحرّر، أو الأرشيف ليلًا. وبعد التحقق من وصوله يظهر على الهاتف «آمن للحذف».'],
+      'الأحجام هنا تقديرية للعرض: مصغّر <span class="mono">20 KB</span>، عيّنة <span class="mono">150 KB</span>، نسخة ويب <span class="mono">0.8 MB</span>، أصل صورة <span class="mono">4 MB</span> ومقطع <span class="mono">60 MB</span>. نسبتها الحقيقية تقيسها تجربة «كم بايتًا يكفي؟».'),
+    // 2 ── sort
+    shell('sort', 'الفرز', 'اللافتة تفرز، والباقي مشترك', 'لا أحد يفرز ملفًا ملفًا. اللافتة تحمل علامتين؛ ما صُوّر بين أول قراءة وآخرها لطلبها، وكل ما عداه ألبوم التوزيع.',
+      `<div class="row" style="align-items:flex-start;gap:14px">
+         <svg viewBox="0 0 200 70" style="inline-size:min(100%,260px);border:1px solid var(--line);border-radius:4px;background:#fafafa" role="img" aria-label="لافتة تحمل علامتين ورمزًا">
+           <g id="s-mark1" transform="translate(6,6)"></g><g id="s-mark2" transform="translate(166,36)"></g>
+           <text x="100" y="27" text-anchor="middle" font-size="12" font-weight="600" fill="#111" font-family="IBM Plex Sans Arabic, sans-serif">Ayşe Kaya adına</text>
+           <text x="100" y="43" text-anchor="middle" font-size="7.5" fill="#444" font-family="IBM Plex Sans Arabic, sans-serif">Örnek Derneği · Sıcak Yemek</text>
+           <text x="42" y="62" font-size="8" fill="#111" font-family="IBM Plex Mono, monospace">K7-4Q2</text></svg>
+         <p class="small" style="flex:1;min-inline-size:180px">اللافتة تولّدها المكتبة من سطر الطلب: الاسم كما كتبته الجهة، علامتان في زاويتين يقرؤهما الخادم، ورمز من ستة أحرف يقرؤه الإنسان حتى بعد واتساب.</p></div>
+       <div class="row between"><h4>لقطات هاتف واحد، بترتيب التصوير</h4><button class="btn primary" id="s-read" type="button">أعد القراءة</button></div>
+       <div class="grid" id="s-strip"></div>
+       <div class="row"><span class="pill acc">طلب Ayşe Kaya</span><span class="pill b">طلب Mehmet Demir</span><span class="pill warn">محجوز للمراجعة</span><span class="pill">مشترك</span></div>
+       <div class="panel"><div class="row between"><h4>صفحة المتبرّع</h4><div class="seg" role="group" aria-label="المتبرّع" id="s-donor"><button type="button" data-d="a" aria-pressed="true">Ayşe Kaya</button><button type="button" data-d="b" aria-pressed="false">Mehmet Demir</button></div></div>
+         <p class="small"><strong>لك</strong></p><div class="grid" id="s-yours"></div>
+         <p class="small" id="s-shared-h"></p><div class="grid" id="s-shared"></div></div>`,
+      ['الخادم يقرأ العلامة من عيّنات قليلة: أول ثلاث لقطات في كل مجموعة ثم كل رابعة. لا يحتاج أن يراها في كل صورة.',
+       'قاعدة المدى: كل ما صوّره الجهاز بين أول قراءة للعلامة وآخرها، بهامش ثلاثين ثانية، خاص بذلك الطلب، ولو لم تظهر اللافتة فيه.',
+       'مجموعة ظهرت فيها علامتان: ما لم يُقرأ منها يُحجز لإنسان. والباقي كله «مشترك».',
+       'صفحة كل متبرّع قسمان. «لك» يختلف، و«التوزيع» واحد للجميع ومعلَن بأرقامه من السجل. بدّل المتبرّع وانظر ما يتغيّر.'],
+      'قيس مكتبيًا على مشاهد اصطناعية: العلامة تُقرأ 100% حين تكون حادّة ولو من جانب 50°، و91% مع ضبابية خفيفة، وثلاث صور تكفي لتعريف المجموعة في 94%. لم تُجرَّب على لافتة مطبوعة بعد.'),
+    // 3 ── ledger
+    shell('ledger', 'إعادة الاستفادة', 'دفتر التسليم', 'كل ما يخرج من المكتبة يخرج بقيد. ومن القيد ثلاثة أشياء: حصر لقطة الإثبات، وكشف سطرًا بسطر، وسحب يعرف من يحمل النسخة.',
+      `<div class="seg" role="group" aria-label="العرض" id="l-tabs"><button type="button" data-t="excl" aria-pressed="true">الحصر</button><button type="button" data-t="stmt" aria-pressed="false">كشف الإثبات</button><button type="button" data-t="recall" aria-pressed="false">السحب</button></div>
+       <div id="l-excl" style="display:flex;flex-direction:column;gap:12px">
+         <p class="small">لقطات يوم واحد. انقر لقطة لتضيفها إلى حزمة طلب <strong>Mehmet Demir</strong></p>
+         <div class="grid" id="l-pool"></div><div id="l-msg" class="msg info">لقطتا اللافتة وكلمة الشكر تخصّ طلب Ayşe Kaya الباقي من التوزيع نفسه.</div>
+         <div class="panel"><h4>حزمة Mehmet Demir</h4><div class="grid" id="l-pack"></div></div></div>
+       <div id="l-stmt" hidden style="display:flex;flex-direction:column;gap:12px">
+         <div class="row between"><p class="small">جهة تجريبية · أكتوبر · الاستثناءات أولًا</p><button class="btn" id="l-draw" type="button">اسحب ثلاثة أسطر عشوائيًا</button></div>
+         <div class="tw"><table><thead><tr><th>السطر</th><th>المتبرّع</th><th>الطلب</th><th>التنفيذ</th><th>الإثبات</th><th>الحكم</th></tr></thead><tbody id="l-rows"></tbody></table></div>
+         <p class="small" id="l-seed"></p></div>
+       <div id="l-recall" hidden style="display:flex;flex-direction:column;gap:12px">
+         <div class="row" style="align-items:flex-start;gap:12px"><div style="inline-size:120px"><div class="ph s2" id="l-shot"><span class="l">وجه طفل · توزيع 12 أكتوبر</span></div></div>
+           <div style="flex:1;min-inline-size:200px;display:flex;flex-direction:column;gap:8px"><p class="small">أسرة طلبت ألّا تُنشر صورة طفلها.</p><button class="btn primary" id="l-pull" type="button">اسحب هذه اللقطة</button></div></div>
+         <div id="l-radius"></div></div>`,
+      ['كل لقطة تخرج بمطالبة: لأي طلب وبأي صفة. لقطة اللافتة وكلمة الشكر «حصرية» بفهرس فريد في القاعدة، فلا تُقدَّم إثباتًا لطلبين مهما حاول أحد.',
+       'كشف الإثبات ليس تقريرًا يُكتب: استعلام يربط كل سطر طلب بتنفيذه بلقطته بتسليمه. ما انقطع من السلسلة يظهر استثناءً في الأعلى.',
+       'السحب العشوائي له بذرة مسجّلة، فلا يختار أحد أسطره المفضّلة.',
+       'السحب «حجز» يدخل قاعدة العرض فتختفي اللقطة من كل رابط في لحظتها، ثم يقول الدفتر من نزّلها وأي مخرَج دخلته.'],
+      'ما سُلّم قبل وجود الدفتر عبر واتساب لا يعرفه الدفتر، ويقول عنه «مدى غير معروف». تجربة «هل يحتمل السجل؟» تقيس كم من الماضي يُعاد بناؤه.'),
+    // 4 ── hand
+    shell('hand', 'الوصول', 'اليد', 'لا صندوق بحث. الموظف يقول لمن ولماذا، فتُوزَّع له حزمة بقاعدة. لا يتصفّح؛ يبدّل البطاقة التي لا تعجبه.',
+      `<div class="row"><div class="seg" role="group" aria-label="لمن" id="h-who"><button type="button" data-v="jt" aria-pressed="true">جهة تجريبية</button><button type="button" data-v="od" aria-pressed="false">Örnek Derneği</button><button type="button" data-v="new" aria-pressed="false">جهة جديدة</button></div>
+         <div class="seg" role="group" aria-label="لماذا" id="h-why"><button type="button" data-v="post" aria-pressed="true">منشور</button><button type="button" data-v="report" aria-pressed="false">تقرير</button></div>
+         <div class="seg" role="group" aria-label="النوع" id="h-type"><button type="button" data-v="meal" aria-pressed="true">وجبات ساخنة</button><button type="button" data-v="parcel" aria-pressed="false">طرود</button></div></div>
+       <div class="grid" id="h-hand" style="grid-template-columns:repeat(auto-fill,minmax(104px,1fr))"></div>
+       <div class="row between"><p class="small" id="h-src"></p><button class="btn primary" id="h-send" type="button">أرسل</button></div>
+       <div id="h-log" class="msg info">انقر بطاقة لتبديلها بالمرشّحة التالية للدور نفسه.</div>
+       <div class="panel"><h4>مخزون البيت: لقطات عامة بلا لافتة أحد</h4><div id="h-stock" style="display:flex;flex-direction:column;gap:7px"></div><p class="small" id="h-order"></p></div>`,
+      ['ثلاث نقرات تحدّد الحاجة. القاعدة تختار لكل دور لقطة: واسعة، طبخ، تقديم، طابور، أيدٍ، ولافتة تلك الجهة إن كانت لها.',
+       'اليد تُسحب من لقطات طلبات الجهة أولًا، وإلا من «مخزون البيت». لقطة حصرية لطلب لا تدخل يد غيره.',
+       'التبديل هو التصفّح الوحيد. والإرسال يكتب قيدًا في الدفتر؛ ما لم يُرسَل لا يترك أثرًا.',
+       'المخزون يُدار كمخزن النظام الأم: لكل خانة حدّ إعادة طلب. ما نزل تحته يصير أمر تصوير يُلحق بأول تنفيذ قادم من النوع نفسه.'],
+      'تجربة «ماذا يُطلب فعلًا؟» تحسم هذا المشهد: إن كان أكثر من 30% من طلبات المواد لا يُختزل في قاعدة، فاليد لا تنفع.'),
+    // 5 ── cut
+    shell('cut', 'الإنتاج', 'المونتاج قائمة', 'المقطع قائمة قطع جاهزة. لا أحد يحرّر ولا شيء يُصيَّر. الفعل الوحيد للإنسان: بدّل هذه اللقطة.',
+      `<div class="row" style="align-items:flex-start;gap:14px">
+         <div style="display:flex;flex-direction:column;gap:8px;inline-size:170px;max-inline-size:100%"><div class="player s1" id="c-player"><div class="bar" id="c-bar"></div><div class="cap" id="c-cap"></div></div>
+           <button class="btn primary" id="c-play" type="button">شغّل</button></div>
+         <div style="flex:1;min-inline-size:220px;display:flex;flex-direction:column;gap:10px">
+           <p class="small">انقر قطعة لتبديلها. قائمة التشغيل تحتها تتغيّر في لحظتها.</p><div class="chips" id="c-chips"></div>
+           <div class="row"><button class="btn" id="c-mp4" type="button">نزّل ملف MP4</button><span class="small" id="c-mp4-msg"></span></div></div></div>
+       <pre class="code" id="c-m3u8" aria-label="قائمة التشغيل"></pre>`,
+      ['اللقطات المرشّحة تُقطَّع مرة واحدة إلى قطع أربع ثوانٍ بملف موحّد. مفتاح القطعة بصمة محتواها، فتتشاركها كل المخرجات.',
+       'المقطع ملف نصّي صغير يسرد المفاتيح بالترتيب، وبين كل قطعتين من مصدرين فاصل. المشغّل الموجود في المكتبة يعرضه كما هو.',
+       'التبديل يغيّر سطرًا في القائمة. لا تصيير ولا انتظار.',
+       'الملف القابل للتنزيل نسخٌ للقطع بلا إعادة ترميز.'],
+      'قيس مكتبيًا: قائمة من أربع قطع من مصدرين عُرضت حتى النهاية في مشغّل المكتبة، وخياطة سبع قطع إلى ملف في 0.1 إلى 0.3 ثانية معالج. القطع الحالية تتوقّف عند الوصلات، فيلزم تقطيع خاص. لم يُختبر على آيفون.'),
+    // 6 ── named
+    shell('named', 'الإنتاج', 'مقاطع بالاسم تُعتمد بالبصمة', 'مقطع شكر لكل متبرّع في يوم كامل. الجسم المشترك يُشاهَد مرة واحدة، وورقة الإثبات تعرض لكل متبرّع ما يخصّه وحده.',
+      `<div class="chips" aria-label="تركيب المقطع"><div class="chip"><div class="sw s6"></div><small>لافتة طلبه · يتغيّر</small></div><div class="chip"><div class="sw s1"></div><small>الجسم المشترك · 20 ث</small></div><div class="chip"><div class="sw s5"></div><small>كلمة الشكر · إن وُجدت</small></div><div class="chip"><div class="sw" style="background:#0b1839"></div><small>بطاقة الختام · يتغيّر</small></div></div>
+       <div class="row between"><label class="row" style="gap:6px;font-size:.9rem"><input type="checkbox" id="n-body" checked> شاهدتُ الجسم المشترك واعتمدتُه <span class="mono small">9c41…e2</span></label><span class="small" id="n-count"></span></div>
+       <div class="tw"><table><thead><tr><th>على اللافتة</th><th>بطاقة الاسم</th><th>في السجل</th><th>الحكم</th></tr></thead><tbody id="n-rows"></tbody></table></div>
+       <div class="row between"><div id="n-msg" class="msg info" style="flex:1;min-inline-size:200px">سطران لا يطابق فيهما الاسمُ السجلَّ. خرجا من الدفعة.</div><button class="btn primary" id="n-release" type="button">أطلق الباقي</button></div>`,
+      ['لكل سطر متبرّع: لقطة لافتة طلبه، ثم الجسم المشترك، ثم كلمة الشكر إن وُجدت، ثم بطاقة ختام بالاسم والنوع والعدد من السجل.',
+       'لا يُرمَّز إلا ما يتغيّر: ثوانٍ قليلة لكل متبرّع. الجسم يُصيَّر مرة ويُخاط بلا ترميز.',
+       'الاعتماد يلتصق ببصمة القطعة. ما شاهدتَه واعتمدتَه مرة معتمَد في كل مقطع يحمله، فلا يبقى للمراجعة إلا المتغيّر.',
+       'ما لا يطابق السجل يحمرّ ويخرج. ضغطة واحدة تُطلق الباقي للجهة، وهي التي ترسل.'],
+      'قيس مكتبيًا: 0.7 ثانية للمقطع بالخياطة مقابل 5.7 بإعادة الترميز، والأسماء العربية والتركية تُرسم صحيحة. قياس الباحث: 300 مقطع في 199 ثانية معالج على نواة واحدة بدقة منخفضة.'),
+    // 7 ── heal
+    shell('heal', 'الإنتاج', 'مخرجات تصحّح نفسها', 'يُصحَّح رقم في النظام الأم، أو تُسحب لقطة، فيتغيّر كل ما صُنع منهما. لا أحد يبحث عن النسخ.',
+      `<div class="panel"><h4>سجل المشروع في النظام الأم</h4>
+         <div class="row"><label class="row" style="gap:8px;font-size:.9rem">عدد المستفيدين <input id="x-count" type="number" value="250" min="1" max="9999" style="inline-size:6rem;border:1px solid var(--line);border-radius:6px;background:var(--bg);padding:5px 8px"></label>
+           <button class="btn" id="x-fix" type="button">صحّحه إلى 240</button><button class="btn" id="x-pull" type="button">اسحب لقطة الطابور</button><button class="btn" id="x-reset" type="button">أعد الحالة</button></div></div>
+       <div class="three" id="x-out"></div>
+       <div id="x-msg" class="msg info">ثلاثة مخرجات صُنعت من هذا السجل. غيّر الرقم أو اسحب اللقطة.</div>`,
+      ['كل مخرَج وصفة: خانات تُملأ بلقطات، وروابط إلى حقول في السجل. الأرقام لا تدخل البطاقات إلا من حقل، ولا تُكتب باليد.',
+       'قيمة الحقل جزء من مفتاح القطعة. تغيّر القيمة يغيّر المفتاح، فيصير كل مخرَج يحملها «قديمًا» في لحظتها.',
+       'تُعاد البطاقة المتأثّرة وحدها، في نحو ثانية، ويُعرض الفرق أمام من يعتمد.',
+       'سحب لقطة: فهرس عكسي يُظهر كل مخرَج دخلته. الخانة تُملأ بغيرها، وإن لم يوجد بديل قصر المخرَج. والدفتر يقول من يحمل الملف القديم.'],
+      'تجربة «كم يكلّف التصحيح اليوم؟» تحسمه: إن اكتمل البحث اليدوي عن المخرجات المتأثّرة في أقل من خمس دقائق، فالمشكلة غير موجودة بهذا الحجم.'),
+    // 8 ── public
+    shell('public', 'الإنتاج', 'نسخة علنية بلا وجوه', 'لكل مخرَج نسخة تُنشر علنًا، مبنية من لقطات ثبت أن لا وجه فيها. لا أحد يموّه، ولا إطار واحد يفلت.',
+      `<div class="row between"><div class="seg" role="group" aria-label="النسخة" id="p-mode"><button type="button" data-m="funder" aria-pressed="false">نسخة الجهة</button><button type="button" data-m="public" aria-pressed="true">النسخة العلنية</button></div>
+         <button class="btn" id="p-miss" type="button">جرّب: وجه فات الكاشف</button></div>
+       <div class="chips" id="p-segs"></div>
+       <div id="p-msg" class="msg ok"></div>`,
+      ['كاشف وجوه صغير يمرّ على كل قطعة ويخزّن أقصى عدد وجوه ظهر فيها. يعدّ الوجوه ولا يتعرّف على أحد.',
+       'وصفة النسخة العلنية لا تسحب إلا القطع التي عددها صفر: أيدٍ وقدور ولافتات وظهور.',
+       'الملف النهائي يُفحص مرة ثانية كاملًا. أي وجه يُفشل البناء، فلا يخرج ملف.',
+       'إطارات كل نسخة علنية تُعرض على إنسان قبل الإطلاق. وإن لم توجد لقطات بلا وجوه فلا نسخة علنية.'],
+      'تجربة «ثوانٍ بلا وجوه» تحسمه: إن كان أقل من 15% من ثواني المقاطع الحقيقية بلا وجوه، سقط الرهان.'),
+  ].join('');
+
+  // ── rail + routing ──
+  $('#rail').innerHTML = SCENES.map(([id, verb, name], i) => `<button type="button" data-s="${id}"><small>${i + 1} · ${verb}</small><span>${name}</span></button>`).join('');
+  function show(id) {
+    if (!SCENES.some((s) => s[0] === id)) id = 'upload';
+    SCENES.forEach(([s]) => { $(`#sc-${s}`).hidden = s !== id; });
+    $$('#rail button').forEach((b) => b.setAttribute('aria-current', String(b.dataset.s === id)));
+  }
+  $('#rail').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; show(b.dataset.s); if (location.hash.slice(1) !== b.dataset.s) location.hash = b.dataset.s; });
+  addEventListener('hashchange', () => show(location.hash.slice(1)));
+
+  // ── 1 upload ──
+  (() => {
+    const kinds = Array.from({ length: 24 }, (_, i) => ({ clip: i % 4 === 3, cls: ['s3', 's1', 's1', 's5', 's2', 's4'][i % 6], shown: [0, 2, 5, 8, 9, 13, 16, 20].includes(i), read: i % 3 === 0 || [2, 5, 13].includes(i), tier: 0, orig: false }));
+    const size = (f) => (f.clip ? 60 : 4), FULL = kinds.reduce((s, f) => s + size(f), 0);
+    let token = 0;
+    const sent = () => kinds.reduce((s, f) => s + (f.tier >= 1 ? 0.02 : 0) + (f.tier >= 2 && f.read ? 0.15 : 0) + (f.tier >= 3 && f.shown ? 0.8 : 0) + (f.orig ? size(f) : 0), 0);
+    const minutes = (n) => (n === 1 ? 'دقيقة واحدة' : n === 2 ? 'دقيقتان' : n <= 10 ? `${n} دقائق` : `${n} دقيقة`);
+    const mins = (m) => { const s = m * 8; return s < 90 ? `${Math.max(1, Math.round(s))} ثانية` : s < 5400 ? minutes(Math.round(s / 60)) : `${(s / 3600).toFixed(1)} ساعة`; };
+    function draw(step) {
+      $('#u-grid').innerHTML = kinds.map((f, i) => {
+        const t = f.orig ? 4 : f.tier >= 3 && f.shown ? 3 : f.tier >= 2 && f.read ? 2 : Math.min(f.tier, 1);
+        const tag = ['على الهاتف', 'شبح', 'عيّنة', 'نسخة ويب', 'آمن للحذف'][t];
+        return `<button type="button" class="ph ${t ? '' : 'local'} ${f.clip ? 'clip' : ''}" data-i="${i}" aria-label="ملف ${i + 1}: ${tag}">${t ? `<i class="im ${f.cls} ${t === 1 ? 'ghost' : t === 2 ? 'sample' : ''}"></i>` : ''}<span class="l">${tag}</span></button>`;
+      }).join('');
+      const page = kinds.filter((f) => f.shown && f.tier >= 3);
+      $('#u-page').innerHTML = page.length ? page.map((f) => `<div class="ph ${f.cls} ${f.clip ? 'clip' : ''}"><span class="l">${f.orig ? 'الأصل' : 'نسخة ويب'}</span></div>`).join('') : '<p class="small" style="grid-column:1/-1">لم يصل شيء بعد.</p>';
+      $('#u-page-note').textContent = page.length ? (page.every((f) => f.orig) ? 'كل الأصول وصلت' : 'نسخ ويب · الأصول لم تصل بعد') : 'فارغة';
+      const s = sent();
+      $('#u-full').textContent = mb(FULL); $('#u-sent').textContent = mb(s); $('#u-bar').style.inlineSize = `${Math.max(0.6, (s / FULL) * 100)}%`;
+      $('#u-time').textContent = `على اتصال 1 ميغابت في الثانية: الرفع العادي ${mins(FULL)}، والطريق الخفيف ${mins(s)} (${((s / FULL) * 100).toFixed(1)}% من البايتات).`;
+      $('#u-step').textContent = ['اختيار الملفات', 'البصمات والمصغّرات', 'عيّنات للقراءة', 'نسخ الويب · صفحة الجهة جاهزة', 'صفحة الجهة جاهزة · الأصول عند الطلب'][step]; lit('upload', Math.min(step, 4));
+    }
+    async function run() {
+      const me = ++token; kinds.forEach((f) => { f.tier = 0; f.orig = false; }); draw(0); await wait(700);
+      for (const t of [1, 2, 3]) { if (me !== token) return; kinds.forEach((f) => { f.tier = t; }); draw(t); await wait(1100); }
+      if (me === token) draw(4);
+    }
+    $('#u-replay').addEventListener('click', run);
+    $('#u-grid').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (!b) return; const f = kinds[+b.dataset.i]; if (f.tier < 1) return; f.orig = true; f.tier = 3; draw(4); });
+    kinds.forEach((f) => { f.tier = 3; }); draw(4);
+  })();
+
+  // ── 2 sort ──
+  (() => {
+    const mark = (seed) => { let s = seed, out = '<rect width="28" height="28" fill="#111"/>'; const r = () => (s = (s * 9301 + 49297) % 233280) / 233280;
+      for (let y = 0; y < 5; y++) for (let x = 0; x < 5; x++) if (r() > .5) out += `<rect x="${4 + x * 4}" y="${4 + y * 4}" width="4" height="4" fill="#fafafa"/>`; return out; };
+    $('#s-mark1').innerHTML = mark(41); $('#s-mark2').innerHTML = mark(97);
+    // b: which banner is in view; r: the mark was read in this frame; k: final class
+    const F = [['s6', 'a', 1, 'a'], ['s6', 'a', 1, 'a'], ['s6', 'a', 0, 'a'], ['s3', '', 0, 'a'], ['s6', 'a', 1, 'a'], ['s5', '', 0, 'a'],
+      ['s3', '', 0, 's'], ['s3', '', 0, 's'], ['s1', '', 0, 's'], ['s1', '', 0, 's'], ['s2', '', 0, 's'], ['s1', '', 0, 's'],
+      ['s4', 'b', 1, 'b'], ['s4', 'b', 0, 'b'], ['s4', 'b', 1, 'b'], ['s3', '', 0, 'b'], ['s4', 'b', 1, 'b'],
+      ['s6', 'ab', 1, 'h'], ['s5', '', 0, 'h'], ['s2', '', 0, 's'], ['s1', '', 0, 's'], ['s3', '', 0, 's']];
+    const L = { a: 'Ayşe', b: 'Mehmet', h: 'محجوز', s: 'مشترك' };
+    let phase = 2, donor = 'a', token = 0;
+    function draw() {
+      $('#s-strip').innerHTML = F.map(([cls, b, r, k], i) => `<div class="ph ${cls} ${phase === 2 ? `mk-${k === 's' ? '' : k}` : ''}">${b ? `<span class="bn ${phase >= 1 && r ? 'read' : ''}"><i></i><i></i></span>` : ''}<span class="n">${i + 1}</span>${phase === 2 ? `<span class="l">${L[k]}</span>` : phase === 1 && r ? '<span class="l">قُرئت</span>' : ''}</div>`).join('');
+      const mine = F.filter((f) => f[3] === donor), shared = F.filter((f) => f[3] === 's');
+      $('#s-yours').innerHTML = phase === 2 ? mine.map((f) => `<div class="ph ${f[0]}">${f[1] ? '<span class="bn"><i></i><i></i></span>' : ''}</div>`).join('') : '<p class="small" style="grid-column:1/-1">تنتظر القراءة.</p>';
+      $('#s-shared').innerHTML = phase === 2 ? shared.map((f) => `<div class="ph ${f[0]}"></div>`).join('') : '';
+      $('#s-shared-h').innerHTML = phase === 2 ? `<strong>التوزيع</strong> · خمسة طلبات · 450 وجبة · منها ${donor === 'a' ? 150 : 100} لك · هذه اللقطات تظهر لكل متبرّعي اليوم` : '';
+      lit('sort', phase === 0 ? 0 : phase === 1 ? 1 : 4);
+    }
+    $('#s-read').addEventListener('click', async () => { const me = ++token; phase = 0; draw(); await wait(600); if (me !== token) return; phase = 1; draw(); await wait(1200); if (me !== token) return; phase = 2; draw(); });
+    $('#s-donor').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; press(b.parentElement, b); donor = b.dataset.d; draw(); });
+    draw();
+  })();
+
+  // ── 3 ledger ──
+  (() => {
+    $('#l-tabs').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; press(b.parentElement, b); for (const t of ['excl', 'stmt', 'recall']) $(`#l-${t}`).hidden = t !== b.dataset.t; lit('ledger', { excl: 1, stmt: 3, recall: 4 }[b.dataset.t]); });
+    const POOL = [['s6', 'لافتة Ayşe', 'x'], ['s6', 'لافتة Ayşe', 'x'], ['s5', 'شكر باسم Ayşe', 'x'], ['s3', 'طبخ', 'c'], ['s1', 'تقديم', 'c'], ['s2', 'طابور', 'c']];
+    const pack = new Set();
+    function drawPool() {
+      $('#l-pool').innerHTML = POOL.map(([c, l, k], i) => `<button type="button" class="ph ${c} ${k === 'x' ? 'mk-a' : ''}" data-i="${i}"><span class="l">${l}</span></button>`).join('');
+      $('#l-pack').innerHTML = pack.size ? [...pack].map((i) => `<div class="ph ${POOL[i][0]}"><span class="l">${POOL[i][1]} · من التوزيع نفسه</span></div>`).join('') : '<p class="small" style="grid-column:1/-1">فارغة.</p>';
+    }
+    $('#l-pool').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (!b) return; const i = +b.dataset.i, m = $('#l-msg');
+      if (POOL[i][2] === 'x') { m.className = 'msg bad'; m.textContent = `مرفوض. «${POOL[i][1]}» إثبات طلب Ayşe Kaya وحده. القاعدة في قاعدة البيانات، لا في الواجهة.`; }
+      else { pack.add(i); m.className = 'msg ok'; m.textContent = `أُضيفت «${POOL[i][1]}» مشتركةً، وسُجّلت في الدفتر بصفتها «من التوزيع نفسه».`; drawPool(); } });
+    drawPool();
+    const ROWS = [['#2417', 'Ayşe Kaya', 'وجبات × 150', '12 أكتوبر · 150', 's6', 'ok', 'موثَّق وسُلّم'], ['#2418', 'Mehmet Demir', 'وجبات × 100', '12 أكتوبر · 100', 's4', 'ok', 'موثَّق وسُلّم'],
+      ['#2421', 'فاطمة ع.', 'طرود × 60', '14 أكتوبر · 60', '', 'bad', 'نُفّذ ولا إثبات'], ['#2426', 'Zeynep Çelik', 'وجبات × 200', '15 أكتوبر · 180', 's1', 'warn', 'الكمية 200 والعدد 180'],
+      ['#2430', 'Hüseyin Öztürk', 'مياه × 1', '18 أكتوبر · 1', 's2', 'warn', 'وُثّق ولم يُفتح الرابط'], ['#2433', 'خديجة ي.', 'وجبات × 80', '19 أكتوبر · 80', 's1', 'ok', 'موثَّق وسُلّم'],
+      ['#2437', 'Elif Şahin', 'طرود × 40', '21 أكتوبر · 40', 's3', 'ok', 'موثَّق وسُلّم'], ['#2440', 'محمد ع.', 'وجبات × 120', '22 أكتوبر · 120', 's5', 'ok', 'موثَّق وسُلّم']];
+    const order = [2, 3, 4, 0, 1, 5, 6, 7];
+    function drawRows(pick = []) { $('#l-rows').innerHTML = order.map((i) => { const r = ROWS[i]; return `<tr class="${pick.includes(i) ? 'pick' : ''}"><td class="mono">${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td><td>${r[4] ? `<div class="ph ${r[4]}"></div>` : '—'}</td><td><span class="pill ${r[5]}">${r[6]}</span></td></tr>`; }).join(''); }
+    $('#l-draw').addEventListener('click', () => { const seed = Math.floor(10000 + Math.random() * 89999); let s = seed; const r = () => (s = (s * 9301 + 49297) % 233280) / 233280;
+      const pick = new Set(); while (pick.size < 3) pick.add(Math.floor(r() * ROWS.length)); drawRows([...pick]); $('#l-seed').textContent = `سُحبت ثلاثة أسطر · بذرة السحب ${seed} · مسجَّلة في الدفتر، ومن أعاد السحب بها خرجت له الأسطر نفسها.`; });
+    drawRows();
+    const acks = [false, false];
+    function drawRadius(on) {
+      $('#l-shot').classList.toggle('dim', on);
+      $('#l-radius').innerHTML = !on ? '<p class="small">لم تُسحب بعد. اللقطة ظاهرة في ثلاثة روابط.</p>' : `<div class="msg ok">حُجبت الآن عن كل الروابط والتنزيلات والمقاطع.</div>
+        <div class="tw" style="margin-block-start:10px"><table><thead><tr><th>من يحمل نسخة</th><th>كيف وصلته</th><th>رسالة السحب</th></tr></thead><tbody>
+        ${[['جهة تجريبية', 'نزّلتها 13 أكتوبر'], ['Örnek Derneği', 'داخل ملف مضغوط 14 أكتوبر']].map((r, i) => `<tr><td>${r[0]}</td><td>${r[1]}</td><td><button type="button" class="btn" data-ack="${i}">${acks[i] ? 'أقرّت بالحذف' : 'بانتظار الإقرار · علّمها مُقرّة'}</button></td></tr>`).join('')}
+        <tr><td>مقطع «ملخّص أكتوبر»</td><td>القطعة الثالثة</td><td><span class="pill ok">أُعيد بناؤه بلقطة أخرى</span></td></tr>
+        <tr><td>ما قبل الدفتر</td><td>واتساب</td><td><span class="pill">مدى غير معروف</span></td></tr></tbody></table></div>`;
+    }
+    $('#l-pull').addEventListener('click', () => drawRadius(true));
+    $('#l-radius').addEventListener('click', (e) => { const b = e.target.closest('[data-ack]'); if (!b) return; acks[+b.dataset.ack] = true; drawRadius(true); });
+    drawRadius(false); lit('ledger', 1);
+  })();
+
+  // ── 4 hand ──
+  (() => {
+    const ROLES = [['واسعة', ['s2', 's4', 's3']], ['طبخ', ['s3', 's1', 's5']], ['تقديم', ['s1', 's5', 's3']], ['طابور', ['s2', 's6', 's4']], ['أيدٍ', ['s5', 's3', 's1']], ['لافتة الجهة', ['s6', 's4', 's6']]];
+    const st = { who: 'jt', why: 'post', type: 'meal', idx: [0, 0, 0, 0, 0, 0] };
+    const stock = { 'طبخ': [14, 6], 'تقديم': [9, 6], 'طابور': [4, 6], 'أيدٍ': [11, 6], 'واسعة': [7, 6] };
+    const names = { jt: 'جهة تجريبية', od: 'Örnek Derneği', new: 'جهة جديدة' };
+    function roles() { const r = ROLES.filter((x, i) => (st.who === 'new' ? i < 5 : true)); return st.why === 'report' ? r : r.filter((x) => x[0] !== 'أيدٍ' || st.who === 'new'); }
+    function draw() {
+      const rs = roles();
+      $('#h-hand').innerHTML = rs.map(([role, cand]) => { const i = ROLES.findIndex((x) => x[0] === role), k = st.idx[i] % cand.length;
+        return `<button type="button" class="ph ${cand[(k + (st.type === 'parcel' ? 1 : 0)) % cand.length]}" data-r="${i}" style="aspect-ratio:3/4"><span class="n">${k + 1}/${cand.length}</span><span class="l">${role}</span></button>`; }).join('');
+      $('#h-src').textContent = st.who === 'new' ? 'من مخزون البيت: لقطات عامة بلا لافتة أحد.' : `من طلبات ${names[st.who]} أولًا، وما نقص فمن المخزون.`;
+      $('#h-stock').innerHTML = Object.entries(stock).map(([k, [n, rp]]) => `<div class="stock"><span>${k}</span><div class="track"><div class="fill ${n < rp ? 'low' : ''}" style="inline-size:${Math.min(100, (n / 16) * 100)}%"></div><div class="rp" style="inset-inline-start:${(rp / 16) * 100}%"></div></div><b style="text-align:end;font-weight:500">${n}</b></div>`).join('');
+      const low = Object.entries(stock).filter(([, [n, rp]]) => n < rp).map(([k]) => k);
+      $('#h-order').innerHTML = low.length ? `تحت حدّ إعادة الطلب: <strong>${low.join('، ')}</strong>. أُلحق أمر تصوير بتنفيذ ${st.type === 'meal' ? 'الوجبات' : 'الطرود'} القادم: ثلاث لقطات لكل خانة.` : 'كل الخانات فوق حدّ إعادة الطلب (الخط الأسود).';
+      lit('hand', 2);
+    }
+    for (const [id, key] of [['h-who', 'who'], ['h-why', 'why'], ['h-type', 'type']]) $(`#${id}`).addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; press(b.parentElement, b); st[key] = b.dataset.v; st.idx = [0, 0, 0, 0, 0, 0]; $('#h-log').className = 'msg info'; $('#h-log').textContent = 'يد جديدة. انقر بطاقة لتبديلها.'; draw(); });
+    $('#h-hand').addEventListener('click', (e) => { const b = e.target.closest('[data-r]'); if (!b) return; st.idx[+b.dataset.r]++; draw(); lit('hand', 3); $('#h-log').className = 'msg info'; $('#h-log').textContent = `بُدّلت بطاقة «${ROLES[+b.dataset.r][0]}» بالمرشّحة التالية.`; });
+    $('#h-send').addEventListener('click', () => { const rs = roles(); if (st.who === 'new') for (const [role] of rs) if (stock[role]) stock[role][0] = Math.max(0, stock[role][0] - 1);
+      $('#h-log').className = 'msg ok'; $('#h-log').textContent = `سُجّل في الدفتر: ${rs.length} لقطات إلى ${names[st.who]} · ${st.why === 'post' ? 'منشور' : 'تقرير'} · ${st.type === 'meal' ? 'وجبات ساخنة' : 'طرود'}.${st.who === 'new' ? ' ونقص المخزون بما سُحب منه.' : ''}`; draw(); lit('hand', 4); });
+    draw();
+  })();
+
+  // ── 5 cut ──
+  (() => {
+    const SLOT = [['لافتة الطلب', [['s6', 'a3f9'], ['s4', '7b20']]], ['تحضير', [['s3', 'c41d'], ['s5', '09ae']]], ['طبخ', [['s3', 'e77a'], ['s1', '51c2']]], ['تقديم', [['s1', '2d08'], ['s5', 'f6b3']]], ['وجوه', [['s2', '8c5e'], ['s4', 'b912']]], ['شكر', [['s5', '4e61'], ['s6', 'd0a7']]]];
+    const pick = SLOT.map(() => 0); let now = -1, timer = null;
+    const cur = (i) => SLOT[i][1][pick[i]];
+    function draw(changed = -1) {
+      $('#c-chips').innerHTML = SLOT.map(([name], i) => `<button type="button" class="chip ${i === now ? 'now' : ''}" data-i="${i}"><div class="sw ${cur(i)[0]}"></div><small>${name}</small><small class="mono">${cur(i)[1]}…</small></button>`).join('');
+      $('#c-bar').innerHTML = SLOT.map((_, i) => `<i class="${i <= now ? 'on' : ''}"></i>`).join('');
+      const i = Math.max(0, now); $('#c-player').className = `player ${cur(i)[0]}`; $('#c-cap').textContent = now < 0 ? '24 ثانية · ست قطع' : `${SLOT[i][0]} · من ${i * 4} إلى ${i * 4 + 4} ث`;
+      $('#c-m3u8').innerHTML = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-TARGETDURATION:4', ...SLOT.flatMap((_, k) => { const lines = [`${k ? '#EXT-X-DISCONTINUITY\n' : ''}#EXT-X-MAP:URI="seg/${cur(k)[1]}/init.mp4"`, '#EXTINF:4.000,', `seg/${cur(k)[1]}/0.m4s`]; return k === changed ? lines.map((l) => `<b>${l}</b>`) : lines; }), '#EXT-X-ENDLIST'].join('\n');
+    }
+    $('#c-chips').addEventListener('click', (e) => { const b = e.target.closest('[data-i]'); if (!b) return; const i = +b.dataset.i; pick[i] = (pick[i] + 1) % SLOT[i][1].length; draw(i); lit('cut', 3); $('#c-mp4-msg').textContent = ''; });
+    $('#c-play').addEventListener('click', () => { clearInterval(timer); now = 0; draw(); lit('cut', 2); timer = setInterval(() => { now++; if (now >= SLOT.length) { clearInterval(timer); now = -1; } draw(); }, 800); });
+    $('#c-mp4').addEventListener('click', () => { $('#c-mp4-msg').textContent = 'خيطت ست قطع بلا ترميز. في القياس المكتبي: 0.1 إلى 0.3 ثانية معالج.'; lit('cut', 4); });
+    draw(); lit('cut', 2);
+  })();
+
+  // ── 6 named ──
+  (() => {
+    const D = [['Ayşe Kaya adına', 'Ayşe Kaya', 'Ayşe Kaya'], ['Mustafa Demir adına', 'Mustafa Demir', 'Mustafa Demirci'], ['عن روح فاطمة العلي', 'فاطمة العلي', 'فاطمة العلي'], ['Zeynep Çelik adına', 'Zeynep Çelik', 'Zeynep Çelik'],
+      ['Huseyin Ozturk adına', 'Huseyin Ozturk', 'Hüseyin Öztürk'], ['باسم خديجة يوسف', 'خديجة يوسف', 'خديجة يوسف'], ['Elif Şahin adına', 'Elif Şahin', 'Elif Şahin'], ['باسم محمد عبد الله', 'محمد عبد الله', 'محمد عبد الله']];
+    let released = false;
+    function draw() {
+      const body = $('#n-body').checked;
+      $('#n-rows').innerHTML = D.map(([bn, card, rec]) => { const ok = card === rec; return `<tr><td><span class="bannercrop">${bn}</span></td><td><div class="namecard">${card}</div></td><td>${rec}</td>
+        <td><span class="pill ${ok ? (released && body ? 'ok' : '') : 'bad'}">${ok ? (released && body ? 'أُطلق للجهة' : 'مطابق') : 'لا يطابق · خارج الدفعة'}</span></td></tr>`; }).join('');
+      $('#n-count').textContent = `8 مقاطع · يُرمَّز 16 ثانية بطاقات بدل 176 ثانية كاملة`;
+      $('#n-release').disabled = !body;
+    }
+    $('#n-body').addEventListener('change', () => { released = false; $('#n-msg').className = 'msg info'; $('#n-msg').textContent = $('#n-body').checked ? 'الجسم معتمَد. بقي أن تنظر في المتغيّر وحده.' : 'لا يُطلق شيء قبل اعتماد الجسم المشترك.'; draw(); });
+    $('#n-release').addEventListener('click', () => { released = true; $('#n-msg').className = 'msg ok'; $('#n-msg').textContent = 'أُطلقت ستة مقاطع للجهة، وهي التي ترسلها. المقطعان الأحمران ينتظران تصحيح الاسم في اللافتة أو في السجل.'; draw(); lit('named', 4); });
+    draw(); lit('named', 3);
+  })();
+
+  // ── 7 heal ──
+  (() => {
+    const OUT = [['مقطع المتبرّع', 'بطاقة الختام', true], ['تقرير المشروع', 'خانة الأرقام', true], ['فيلم الجهة الجاري', 'العدّاد «حتى اليوم»', false]];
+    let shown = 250, state = OUT.map(() => 'fresh'), was = null, pulled = false, token = 0;
+    function draw() {
+      $('#x-out').innerHTML = OUT.map(([name, where, hasShot], i) => `<div class="card"><div class="row between"><h4>${name}</h4><span class="pill ${state[i] === 'stale' ? 'warn' : state[i] === 'rebuilt' ? 'ok' : ''}">${state[i] === 'stale' ? 'قديم · يُعاد بناؤه' : state[i] === 'rebuilt' ? 'أُعيد بناؤه' : 'محدَّث'}</span></div>
+        <div class="big">${state[i] === 'stale' ? was : shown}</div><p class="small">${where} · مستفيدًا${state[i] === 'rebuilt' && was !== null ? ` · كان ${was}، صار ${shown}` : ''}</p>
+        ${hasShot ? `<div class="chips"><div class="chip" style="min-inline-size:60px"><div class="sw ${pulled ? 's3' : 's2'}"></div><small>${pulled ? 'طبخ · بديل' : 'طابور'}</small></div></div>` : '<p class="small">لا يحمل لقطة الطابور.</p>'}</div>`).join('');
+    }
+    async function change(v) { v = Math.max(1, Math.min(9999, Math.round(+v || shown))); if (v === shown) return; const me = ++token; was = shown; shown = v; $('#x-count').value = v; state = OUT.map(() => 'stale'); const prev = was;
+      was = prev; draw(); lit('heal', 2); $('#x-msg').className = 'msg info'; $('#x-msg').textContent = 'تغيّر الحقل، فتغيّر مفتاح كل قطعة تحمله. المخرجات الثلاثة قديمة.';
+      for (let i = 0; i < OUT.length; i++) { await wait(650); if (me !== token) return; state[i] = 'rebuilt'; draw(); }
+      lit('heal', 3); $('#x-msg').className = 'msg ok'; $('#x-msg').textContent = `أُعيد بناء ثلاث بطاقات فقط. الفرق معروض أمام من يعتمد: كان ${prev}، صار ${shown}. ولا يُعاد إرسال شيء دون ضغطة.`; }
+    $('#x-count').addEventListener('change', (e) => change(e.target.value));
+    $('#x-fix').addEventListener('click', () => change(240));
+    $('#x-pull').addEventListener('click', () => { pulled = true; draw(); lit('heal', 4); $('#x-msg').className = 'msg ok'; $('#x-msg').textContent = 'لقطة الطابور سُحبت. مخرجان كانا يحملانها: مُلئت خانتهما بلقطة طبخ. الفيلم الجاري لا يحملها. والدفتر يسمّي جهتين نزّلتا الملف القديم.'; });
+    $('#x-reset').addEventListener('click', () => { token++; shown = 250; was = null; pulled = false; state = OUT.map(() => 'fresh'); $('#x-count').value = 250; draw(); lit('heal', 1); $('#x-msg').className = 'msg info'; $('#x-msg').textContent = 'ثلاثة مخرجات صُنعت من هذا السجل. غيّر الرقم أو اسحب اللقطة.'; });
+    draw(); lit('heal', 1);
+  })();
+
+  // ── 8 public ──
+  (() => {
+    const SEG = [['s3', 'قدور', 0], ['s2', 'طابور', 3], ['s5', 'أيدٍ', 0], ['s1', 'تقديم', 2], ['s6', 'لافتة', 0], ['s4', 'أطفال', 4], ['s3', 'طبخ', 0], ['s1', 'ظهور', 0], ['s2', 'وجه', 1], ['s5', 'أطباق', 0]];
+    let mode = 'public', miss = false;
+    function draw() {
+      const faces = (i) => (miss && i === 7 ? 1 : SEG[i][2]);
+      $('#p-segs').innerHTML = SEG.map(([cls, name, n], i) => { const out = mode === 'public' && n > 0, hit = mode === 'public' && miss && i === 7;
+        return `<div class="chip ${out ? 'off' : ''}" style="${hit ? 'border-color:var(--bad);box-shadow:0 0 0 1px var(--bad)' : ''}"><div class="sw ${cls}" style="block-size:44px;position:relative"><span class="faces">${'<i></i>'.repeat(hit ? 1 : n)}</span></div><small>${name}</small><small>${hit ? 'الكاشف قال صفر' : n ? `${n} وجوه` : 'بلا وجوه'}</small></div>`; }).join('');
+      const used = SEG.filter((s) => mode === 'funder' || s[2] === 0).length, m = $('#p-msg');
+      if (mode === 'funder') { m.className = 'msg info'; m.textContent = `نسخة الجهة: كل القطع العشر، ${used * 4} ثانية. للجهة أن تنشر منها ما يسمح به حقّ الاستعمال.`; lit('public', 1); }
+      else if (miss) { m.className = 'msg bad'; m.textContent = 'فشل البناء. الفحص الثاني وجد وجهًا في قطعة «ظهور» التي عدّها الكاشف صفرًا. لا ملف يخرج، والقطعة تُعلَّم لإنسان.'; lit('public', 3); }
+      else { m.className = 'msg ok'; m.textContent = `النسخة العلنية: ${used} قطع، ${used * 4} ثانية. الفحص الثاني للملف النهائي: صفر وجوه. تنتظر نظرة إنسان ثم تُطلق.`; lit('public', 4); }
+    }
+    $('#p-mode').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; press(b.parentElement, b); mode = b.dataset.m; draw(); });
+    $('#p-miss').addEventListener('click', (e) => { miss = !miss; e.target.textContent = miss ? 'أعد الكاشف سليمًا' : 'جرّب: وجه فات الكاشف'; mode = 'public'; press($('#p-mode'), $('#p-mode [data-m="public"]')); draw(); });
+    draw();
+  })();
+
+  show(location.hash.slice(1) || 'upload');
+})();
+</script>
+
+</body>
+</html>
