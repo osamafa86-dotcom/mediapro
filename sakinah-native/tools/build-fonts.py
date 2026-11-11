@@ -111,10 +111,34 @@ def build_ui_fonts(android: bool) -> int:
         data = src.read_bytes(); (out / f'{ps}.ttf').write_bytes(data); total += len(data)
     print(f'خطوط الواجهة: {len(list(out.glob("*.ttf")))} ملفًا → {out} ({total // 1024} ك.ب)')
     return total
-def convert_raw(src: pathlib.Path, name: str, out: pathlib.Path = ANDROID_OUT) -> int:
-    """TTF غير مضغوط لتطبيق Android (تُضغط داخل APK/AAB تلقائيًا)"""
+def strip_glyph_hinting(f: TTFont) -> int:
+    """يحذف تعليمات TrueType من الرموز ويعيد عدد الرموز التي كانت تحملها.
+
+    خطوط بعض الصفحات (مقيس: الصفحة ٤ وحدها ١٠٤ رموز من ١٤٩) تحمل تعليمات تلميح معطوبة. أندرويد ينفّذها
+    (Compose يفعّل التلميح، وSkia يحمّل بـFT_LOAD_TARGET_NORMAL) فتُزاح نقاط المخطط وتظهر الكلمة بقعة سوداء
+    ممتدة — بلّغ عنه المالك بصورة من هاتفه، وأُعيد إنتاجه بـFreeType على الصفحة نفسها. آبل والمتصفحات لا تنفّذها.
+    جداول fpgm وprep وcvt تبقى كما هي: بلا تعليمات في الرموز لا تُحرّك شيئًا، وبقاؤها يُبقي الخط على مسار
+    الصفحات السليمة أصلًا (رموز بلا تعليمات) بدل أن ينتقل إلى التلميح الآلي.
+    """
+    glyf = f['glyf']; n = 0
+    for name in f.getGlyphOrder():
+        g = glyf[name]
+        program = getattr(g, 'program', None)
+        if program is not None and program.getBytecode(): n += 1
+        g.removeHinting()
+    f['maxp'].maxSizeOfInstructions = 0
+    return n
+
+def convert_raw(src: pathlib.Path, name: str, out: pathlib.Path = ANDROID_OUT, dehint: bool = False) -> int:
+    """TTF غير مضغوط لتطبيق Android (تُضغط داخل APK/AAB تلقائيًا)؛ dehint لخطوط الصفحات"""
     f = TTFont(str(src)); f.flavor = None
+    if dehint: strip_glyph_hinting(f)
     buf = io.BytesIO(); f.save(buf); ttf = buf.getvalue()
+    if dehint:
+        # تحقّق بعد الكتابة: لا رمز يحمل تعليمات (خطّ يفلت من هنا يظهر للقارئ كلمات مطموسة في المصحف)
+        g = TTFont(io.BytesIO(ttf))['glyf']
+        left = [n for n in g.keys() if getattr(g[n], 'program', None) is not None and g[n].program.getBytecode()]
+        if left: raise SystemExit(f'{name}: بقيت تعليمات تلميح في {len(left)} رمزًا')
     out.mkdir(parents=True, exist_ok=True); (out / f'{name}.ttf').write_bytes(ttf); return len(ttf)
 
 def main():
@@ -133,7 +157,7 @@ def main():
         a, b = args[1].split('-'); pages = range(int(a), int(b) + 1)
     if android:
         total = 0
-        for p in pages: total += convert_raw(fetch(f'hafs/v2/woff2/p{p}.woff2'), f'p{p}', ANDROID_PACK_OUT)
+        for p in pages: total += convert_raw(fetch(f'hafs/v2/woff2/p{p}.woff2'), f'p{p}', ANDROID_PACK_OUT, dehint=True)
         # ما كان في app/assets من خطوط صفحات (قبل حزمة الأصول) يُزال كي لا يُضمَّن مرتين
         for old in ANDROID_OUT.glob('p[0-9]*.ttf'): old.unlink()
         total += convert_raw(fetch('surah-names/v1/sura_names.woff2'), 'sura_names')

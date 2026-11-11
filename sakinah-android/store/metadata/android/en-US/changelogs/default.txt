@@ -7,3 +7,4 @@ Sakinah 5.2: a redesign of the whole app.
 • One search for ayat, adhkar and hadith.
 • New widgets and a live notification for the next prayer.
 • Foldables and tablets, and a Ramadan edition.
+• Fixed black smudges over words on some Mushaf pages.
