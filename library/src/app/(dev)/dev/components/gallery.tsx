@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { I18nProvider } from 'react-aria-components';
 import { ChevronLeft, Download, Link2, MoreHorizontal, Pencil, Play, Plus, Upload } from 'lucide-react';
-import { Button, Chip, IconButton, PinInput, SearchField, SegmentTab, SelectField, StatusBadge, Switch, TextField } from '@/components/ui';
+import { BrandGlyph, Button, Chip, IconButton, PinInput, SearchField, SegmentTab, SelectField, StatusBadge, Switch, TextField } from '@/components/ui';
 import { intlLocale, type Locale } from '@/i18n/config';
 import s from './page.module.css';
 
@@ -18,6 +18,16 @@ export function Gallery({ locale, theme }: { locale: Locale; theme: 'light' | 'd
   return (
     <I18nProvider locale={intlLocale(locale)}>
       <h2 className={`t-heading ${s.h}`}>{t('dev.title')} · {locale.toUpperCase()} · {theme === 'dark' ? t('common.dark') : t('common.light')}</h2>
+
+      <div className={s.block}>
+        <h3 className={`t-label ${s.h}`}>{t('dev.brand')}</h3>
+        <div className={s.row}>
+          <BrandGlyph size={48} />
+          <span className={s.onField}><BrandGlyph size={48} onField /></span>
+          {/* Latin and Arabic at one weight; Ğ ğ Ş ş İ ı are the letters Zain lacks */}
+          <p className={`t-display ${s.h}`} data-testid="type-specimen">{t('dev.specimen')}</p>
+        </div>
+      </div>
 
       <div className={s.block}>
         <h3 className={`t-label ${s.h}`}>{t('dev.buttons')}</h3>

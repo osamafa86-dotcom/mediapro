@@ -72,7 +72,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
                       <td>
                         <div className={s.projectCell}>
                           <span className={s.avatar} aria-hidden>{m.name.trim().charAt(0)}</span>
-                          <span className={s.projectText}><strong style={{ fontWeight: 500 }}>{m.name}</strong><span>{m.title || t(`roles.${m.role}`)}</span></span>
+                          <span className={s.projectText}><strong>{m.name}</strong><span>{m.title || t(`roles.${m.role}`)}</span></span>
                         </div>
                       </td>
                       <td className={s.numCol}>{state === 'pending' ? '—' : m.projects}</td>

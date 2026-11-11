@@ -16,6 +16,21 @@ async function signIn(page: Page, email = 'admin@e2e.test', locale = 'ar') {
   expect(r.status()).toBe(200);
 }
 
+test('admin shell: navigation lives on the deep field and the current page is marked in the action colour', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'the sidebar is a desktop layout; the phone has a top row');
+  await signIn(page);
+  await page.goto('/admin');
+  const aside = page.locator('aside').first();
+  expect(await aside.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(10, 95, 91)');
+  const current = aside.locator('a[aria-current="page"]');
+  await expect(current).toHaveCount(1);
+  expect(await current.evaluate((el) => getComputedStyle(el).color)).toBe('rgb(255, 255, 255)');
+  expect(await current.evaluate((el) => getComputedStyle(el, '::before').backgroundColor)).toBe('rgb(48, 206, 197)');
+  // the page title is the scale's first heading, in Zain's heaviest cut
+  const h1 = page.locator('main h1').first();
+  expect(await h1.evaluate((el) => `${getComputedStyle(el).fontSize} ${getComputedStyle(el).fontWeight}`)).toBe('36px 800');
+});
+
 test('archive: Arabic search folds letter forms and harakat; numbers line up on the right', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'desktop table');
   await signIn(page);
@@ -247,7 +262,7 @@ test('the sidebar folds to a rail of icons and stays folded; the work area takes
   expect(before.aside).toBeGreaterThan(200);
   await expect(toggle).toHaveAttribute('aria-label', 'طيّ القائمة');
   await toggle.click();
-  await expect.poll(async () => (await aside.boundingBox())!.width).toBeLessThan(70);
+  await expect.poll(async () => (await aside.boundingBox())!.width).toBeLessThanOrEqual(72); // the rail (Figma AppSidebarRail: 72)
   await expect.poll(async () => (await main.boundingBox())!.width).toBeGreaterThan(before.main + 150);
   // icons only, but every link keeps its name (screen readers, hover title)
   await expect(aside.getByRole('link', { name: 'الأرشيف' })).toBeVisible();
@@ -256,7 +271,7 @@ test('the sidebar folds to a rail of icons and stays folded; the work area takes
   // remembered: the next page is drawn folded by the server, no flash
   await page.goto('/admin/team');
   await expect(page.locator('[data-shell]')).toHaveAttribute('data-collapsed');
-  expect((await page.locator('aside').first().boundingBox())!.width).toBeLessThan(70);
+  expect((await page.locator('aside').first().boundingBox())!.width).toBeLessThanOrEqual(72);
   await page.getByTestId('sidebar-toggle').click();
   await expect.poll(async () => (await page.locator('aside').first().boundingBox())!.width).toBeGreaterThan(200);
   await page.reload();

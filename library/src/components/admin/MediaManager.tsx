@@ -249,7 +249,7 @@ export function MediaManager({ projectId, section, albumId = null, albums = [], 
               <button key="cover" type="button" className="yarl__button" aria-pressed={cover === cur.id} data-testid="viewer-cover"
                 aria-label={cover === cur.id ? t('uncover') : t('makeCover')} title={cover === cur.id ? t('uncover') : t('makeCover')}
                 onClick={() => void makeCover(cover === cur.id ? null : cur.id)}>
-                <Star size={22} aria-hidden fill={cover === cur.id ? '#f5b301' : 'none'} color={cover === cur.id ? '#f5b301' : 'currentColor'} />
+                <Star size={22} aria-hidden fill={cover === cur.id ? 'currentColor' : 'none'} style={cover === cur.id ? { color: 'var(--color-star-on-media)' } : undefined} />
               </button>,
               ...(a?.deletable ? [
                 <button key="delete" type="button" className="yarl__button" aria-label={t('delete')} title={t('delete')} data-testid="viewer-delete"

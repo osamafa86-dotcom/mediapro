@@ -69,6 +69,16 @@ async function client(page: Page) {
   expect((await page.request.post('/api/link/pin', { headers: H, data: { token: l.path.slice(3), pin: l.pin } })).status()).toBe(200);
 }
 
+test('the header search: the ⌘K hint and the search icon sit on opposite sides, in Arabic too', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'the hint is hidden on a phone');
+  await client(page);
+  await page.goto('/library');
+  await searchReady(page);
+  const box = page.getByRole('search');
+  const k = (await box.locator('kbd').boundingBox())!; const i = (await box.locator('svg').first().boundingBox())!;
+  expect(!(k.x + k.width <= i.x || i.x + i.width <= k.x), '⌘K must not sit on the search icon').toBe(false);
+});
+
 test('«مكتبتي»: the header search filters, and a year with no match says where the match is', async ({ page }) => {
   await client(page);
   await page.goto('/library');

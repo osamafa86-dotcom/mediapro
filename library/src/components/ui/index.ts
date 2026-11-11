@@ -7,3 +7,4 @@ export { StatusBadge, type ProjectStatus } from './StatusBadge';
 export { TextField, SelectField, ComboField } from './TextField';
 export { Switch } from './Switch';
 export { PinInput } from './PinInput';
+export { BrandGlyph } from './BrandGlyph';

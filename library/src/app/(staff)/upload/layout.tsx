@@ -1,4 +1,4 @@
-import { Film } from 'lucide-react';
+import { BrandGlyph } from '@/components/ui/BrandGlyph';
 import Link from 'next/link';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { systemName } from '@/lib/settings';
@@ -14,7 +14,7 @@ export default async function UploadLayout({ children }: { children: React.React
     <div className={s.shell}>
       <header className={s.top}>
         <Link href="/upload" className={s.brand}>
-          <span className={s.mark} aria-hidden><Film size={18} /></span>
+          <span className={s.mark} aria-hidden><BrandGlyph size={32} /></span>
           <strong>{await systemName(await getLocale())}</strong>
         </Link>
         <nav aria-label={t('upload.nav')} className={s.topNav}>

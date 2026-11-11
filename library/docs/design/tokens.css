@@ -1,27 +1,30 @@
 /* ═══════════════════════════════════════════════════════════════════
-   EMDATRA · Media Library — design tokens (v1, 2026-10-28)
-   Source of truth: Figma file MQuPpKCXoEIwtmSbwTaUUJ (collections:
-   Primitives · Color [Light/Dark] · Dimension). Names match Figma code syntax.
-   Rule: the UI is chroma-0 neutral; media is the only saturated element.
+   EMDATRA · Media Library — design tokens (v2, 2026-11-11)
+   Source of truth: Figma file 8emMB8oGRIgHxxnnun408G (collections:
+   Primitives · Color [Light/Dark] · Dimension). Names are the code syntax
+   set on the Figma variables, so Dev Mode shows these same names.
+
+   The brand in one line: neutral greys that step aside for the media, one
+   turquoise that means "act", and a deep turquoise field for navigation.
+   tests/unit/tokens.test.ts reads this file and holds it to that.
    ═══════════════════════════════════════════════════════════════════ */
 
 /* ── Primitives ─────────────────────────────────────────────────── */
 :root {
-  --neutral-0: #ffffff;   --neutral-50: #fafafa;  --neutral-100: #f5f5f5;
-  --neutral-200: #e5e5e5; --neutral-300: #d4d4d4; --neutral-400: #a3a3a3;
-  --neutral-450: #8f8f8f; --neutral-500: #737373; --neutral-550: #636363;
-  --neutral-600: #525252; --neutral-700: #404040; --neutral-800: #262626;
-  --neutral-900: #171717; --neutral-950: #0a0a0a; --neutral-1000: #000000;
+  --neutral-0: #ffffff;   --neutral-25: #fafaf9;  --neutral-50: #f4f4f3;  --neutral-100: #ebebe9;
+  --neutral-200: #dcdcd9; --neutral-300: #c4c4c0; --neutral-400: #9d9d98; --neutral-500: #767672;
+  --neutral-600: #5a5a56; --neutral-700: #42423f; --neutral-800: #2b2b29; --neutral-850: #212120;
+  --neutral-900: #1a1a19; --neutral-950: #0e0e0e;
 
-  --teal-50: #e6fbfa; --teal-100: #c2f3f0; --teal-200: #7fe5e0; --teal-400: #1fc9c2;
-  --teal-500: #06b0aa; --teal-700: #04827e; --teal-800: #05605d; --teal-950: #062e2d;
+  --turquoise-50: #ebfbf9;  --turquoise-100: #d0f6f2; --turquoise-200: #a3ece6; --turquoise-300: #68ded6;
+  --turquoise-400: #30cec5; --turquoise-500: #14b4ac; --turquoise-600: #0b9790; --turquoise-700: #087b76;
+  --turquoise-800: #0a5f5b; --turquoise-900: #08423f; --turquoise-950: #052b29;
 
-  --red-50: #fef2f2;   --red-300: #fca5a5;   --red-500: #ef4444;   --red-700: #b91c1c;   --red-950: #3b0d0d;
-  --amber-50: #fffbeb; --amber-300: #fcd34d; --amber-500: #f59e0b; --amber-700: #b45309; --amber-950: #3a2504;
-  --green-50: #f0fdf4; --green-300: #86efac; --green-600: #16a34a; --green-700: #15803d; --green-950: #062c16;
+  --red-50: #fdecea;   --red-300: #f2a093;   --red-400: #eb6a57;   --red-500: #d9412e;   --red-700: #a82e1f;   --red-900: #4a1710;
+  --amber-50: #fff7e5; --amber-300: #ffc947; --amber-400: #f9b420; --amber-500: #f5a40b; --amber-700: #a86705; --amber-800: #7a4a04; --amber-950: #2b2a17;
 }
 
-/* ── Semantic colour · Light (admin & photographer default) ─────── */
+/* ── Semantic colour · Light ────────────────────────────────────── */
 :root, [data-theme="light"] {
   color-scheme: light;
   --color-bg-app: var(--neutral-50);
@@ -30,98 +33,154 @@
   --color-bg-elevated: var(--neutral-0);
   --color-bg-component: var(--neutral-200);
   --color-bg-component-hover: var(--neutral-300);
-  --color-bg-viewer: var(--neutral-1000);
-  --color-bg-accent: var(--teal-700);
-  --color-bg-accent-hover: var(--teal-800);
-  --color-bg-accent-subtle: var(--teal-50);
+  --color-bg-viewer: var(--neutral-950);
+  --color-bg-accent: var(--turquoise-400);          /* the one action colour: dark text sits on it */
+  --color-bg-accent-hover: var(--turquoise-500);
+  --color-bg-accent-subtle: var(--turquoise-50);
+  --color-bg-accent-soft: var(--turquoise-100);
+  --color-bg-field: var(--turquoise-800);           /* the deep field: sidebar, selected tab */
+  --color-bg-field-active: var(--turquoise-900);
   --color-bg-inverse: var(--neutral-950);
+  --color-bg-brand-mark: var(--neutral-950);         /* the frame of the logo mark */
+  --color-bg-brand-mark-on-field: var(--turquoise-950);
   --color-bg-danger-subtle: var(--red-50);
   --color-bg-warning-subtle: var(--amber-50);
-  --color-bg-success-subtle: var(--green-50);
-  --color-overlay-scrim: rgb(0 0 0 / 0.60);
-  --color-overlay-gradient-start: rgb(0 0 0 / 0.64);
-  --color-overlay-glass: rgb(255 255 255 / 0.16);
+  --color-bg-success-subtle: var(--turquoise-50);
 
   --color-text-primary: var(--neutral-950);
   --color-text-secondary: var(--neutral-700);
-  --color-text-tertiary: var(--neutral-550);   /* 6.0:1 surface · 4.8:1 component */
-  --color-text-on-accent: var(--neutral-0);
-  --color-text-accent: var(--teal-800);        /* 6.9:1 on accent-subtle */
-  --color-text-on-media: var(--neutral-0);
-  --color-text-on-media-muted: rgb(255 255 255 / 0.72);
+  --color-text-tertiary: var(--neutral-600);
+  --color-text-on-accent: var(--neutral-950);
+  --color-text-accent: var(--turquoise-800);
+  --color-text-on-field: var(--neutral-0);
+  --color-text-on-field-muted: var(--turquoise-200);
   --color-text-inverse: var(--neutral-50);
   --color-text-danger: var(--red-700);
-  --color-text-warning: var(--amber-700);
-  --color-text-success: var(--green-700);
+  --color-text-warning: var(--amber-800);
+  --color-text-success: var(--turquoise-800);
 
-  --color-icon-primary: var(--neutral-950);
-  --color-icon-secondary: var(--neutral-600);
-  --color-icon-accent: var(--teal-700);
-  --color-icon-on-media: var(--neutral-0);
-  --color-icon-on-accent: var(--neutral-0);
+  --color-icon-primary: var(--neutral-900);
+  --color-icon-secondary: var(--neutral-500);
+  --color-icon-accent: var(--turquoise-700);
+  --color-icon-on-accent: var(--neutral-950);
+  --color-icon-on-field: var(--turquoise-200);
+  --color-icon-on-field-strong: var(--neutral-0);
 
-  --color-border-hairline: rgb(0 0 0 / 0.08);
-  --color-border-soft: rgb(0 0 0 / 0.04);
-  --color-border-strong: var(--neutral-400);
-  --color-border-focus: var(--teal-700);       /* 4.5:1 vs app (1.4.11) */
-  --color-border-on-media: var(--neutral-0);
+  --color-border-hairline: var(--neutral-200);      /* dividers, card edges */
+  --color-border-soft: var(--neutral-100);
+  --color-border-strong: var(--neutral-300);
+  --color-border-control: var(--neutral-500);       /* anything you can type in or press: 3:1 (1.4.11) */
+  --color-border-accent: var(--turquoise-600);
+  --color-border-on-field: var(--turquoise-700);
+  --color-border-focus: var(--turquoise-700);
+  --color-border-focus-on-field: var(--turquoise-200);
   --color-border-danger: var(--red-500);
+
+  --color-status-success: var(--turquoise-600);
+  --color-status-danger: var(--red-500);
+  --color-status-warning: var(--amber-700);
+  --color-meter-fill: var(--turquoise-700);         /* progress, switch on, slider */
+
+  --shadow-sm: 0 1px 2px 0 rgb(20 19 15 / 0.06);
+  --shadow-md: 0 1px 2px 0 rgb(20 19 15 / 0.05), 0 6px 16px -2px rgb(20 19 15 / 0.08);
+  --shadow-lg: 0 2px 4px 0 rgb(20 19 15 / 0.06), 0 20px 44px -8px rgb(20 19 15 / 0.14);
 }
 
-/* ── Semantic colour · Dark (client default) ────────────────────── */
+/* ── Semantic colour · Dark ─────────────────────────────────────── */
 [data-theme="dark"] {
   color-scheme: dark;
   --color-bg-app: var(--neutral-950);
   --color-bg-surface: var(--neutral-900);
-  --color-bg-subtle: var(--neutral-900);
-  --color-bg-elevated: var(--neutral-800);
+  --color-bg-subtle: var(--neutral-850);
+  --color-bg-elevated: var(--neutral-900);
   --color-bg-component: var(--neutral-800);
   --color-bg-component-hover: var(--neutral-700);
-  --color-bg-viewer: var(--neutral-1000);      /* pure black only inside the viewer */
-  --color-bg-accent: var(--teal-400);
-  --color-bg-accent-hover: var(--teal-200);
-  --color-bg-accent-subtle: var(--teal-950);
+  --color-bg-viewer: var(--neutral-950);
+  --color-bg-accent: var(--turquoise-400);
+  --color-bg-accent-hover: var(--turquoise-300);
+  --color-bg-accent-subtle: var(--turquoise-950);
+  --color-bg-accent-soft: var(--turquoise-950);
+  --color-bg-field: var(--turquoise-950);
+  --color-bg-field-active: var(--turquoise-900);
   --color-bg-inverse: var(--neutral-50);
-  --color-bg-danger-subtle: var(--red-950);
+  --color-bg-brand-mark: var(--turquoise-950);
+  --color-bg-brand-mark-on-field: var(--turquoise-900);
+  --color-bg-danger-subtle: var(--red-900);
   --color-bg-warning-subtle: var(--amber-950);
-  --color-bg-success-subtle: var(--green-950);
+  --color-bg-success-subtle: var(--turquoise-950);
 
-  --color-text-primary: var(--neutral-100);
-  --color-text-secondary: var(--neutral-400);
-  --color-text-tertiary: var(--neutral-450);   /* 6.1:1 app · 5.5:1 surface */
+  --color-text-primary: var(--neutral-50);
+  --color-text-secondary: var(--neutral-300);
+  --color-text-tertiary: var(--neutral-400);
   --color-text-on-accent: var(--neutral-950);
-  --color-text-accent: var(--teal-400);
+  --color-text-accent: var(--turquoise-300);
+  --color-text-on-field: var(--neutral-50);
+  --color-text-on-field-muted: var(--neutral-400);
   --color-text-inverse: var(--neutral-950);
   --color-text-danger: var(--red-300);
   --color-text-warning: var(--amber-300);
-  --color-text-success: var(--green-300);
+  --color-text-success: var(--turquoise-300);
 
   --color-icon-primary: var(--neutral-100);
   --color-icon-secondary: var(--neutral-400);
-  --color-icon-accent: var(--teal-400);
+  --color-icon-accent: var(--turquoise-300);
   --color-icon-on-accent: var(--neutral-950);
+  --color-icon-on-field: var(--neutral-300);
+  --color-icon-on-field-strong: var(--neutral-50);
 
-  --color-border-hairline: rgb(255 255 255 / 0.08);
-  --color-border-soft: rgb(255 255 255 / 0.04);
+  --color-border-hairline: var(--neutral-800);
+  --color-border-soft: var(--neutral-850);
   --color-border-strong: var(--neutral-700);
-  --color-border-focus: var(--teal-400);
+  --color-border-control: var(--neutral-500);
+  --color-border-accent: var(--turquoise-400);
+  --color-border-on-field: var(--turquoise-900);
+  --color-border-focus: var(--turquoise-300);
+  --color-border-focus-on-field: var(--turquoise-300);
+  --color-border-danger: var(--red-400);
+
+  --color-status-success: var(--turquoise-400);
+  --color-status-danger: var(--red-400);
+  --color-status-warning: var(--amber-400);
+  --color-meter-fill: var(--turquoise-300);
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  --shadow-md: 0 1px 2px 0 rgb(0 0 0 / 0.4), 0 6px 16px -2px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 2px 4px 0 rgb(0 0 0 / 0.4), 0 20px 44px -8px rgb(0 0 0 / 0.6);
+}
+
+/* ── Over media: the same in both themes, because the media does not change with the theme ── */
+:root {
+  --color-overlay-scrim: rgb(14 14 14 / 0.6);
+  --color-overlay-gradient-start: rgb(14 14 14 / 0.64);
+  --color-overlay-glass: rgb(255 255 255 / 0.16);
+  --color-text-on-media: var(--neutral-0);
+  --color-text-on-media-muted: rgb(255 255 255 / 0.72);
+  --color-icon-on-media: var(--neutral-0);
+  --color-border-on-media: var(--neutral-0);
+  --color-accent-on-media: var(--turquoise-400);    /* a favourite, a played track, a pin */
+  --color-muted-on-media: var(--neutral-400);       /* the same marks once resolved */
+  --color-danger-on-media: var(--red-700);          /* a failed job, with white text on it */
+  --color-star-on-media: var(--amber-400);          /* the cover star */
 }
 
 /* ── Dimension · Type · Motion ───────────────────────────────────── */
 :root {
+  /* Named by pixels. Figma names the same steps by index (space/4 = 16px): do not port its names. */
   --space-2: 2px; --space-4: 4px; --space-8: 8px; --space-12: 12px; --space-16: 16px; --space-20: 20px;
   --space-24: 24px; --space-32: 32px; --space-40: 40px; --space-48: 48px; --space-64: 64px;
-  --radius-none: 0; --radius-control: 6px; --radius-card: 10px; --radius-panel: 16px; --radius-full: 9999px;
+  --radius-none: 0; --radius-control: 6px; --radius-card: 10px; --radius-panel: 14px; --radius-dialog: 20px; --radius-full: 9999px;
   --size-target-min: 24px;  /* WCAG 2.5.8 */
   --size-icon-button: 32px; /* over media */
   --size-touch: 44px;       /* touch */
   --size-control: 40px;
+  --size-control-lg: 52px;
   --stroke-hairline: 1px; --stroke-focus: 2px;
 
-  /* Arabic first, Latin (Turkish) paired; load latin-ext for Ğ Ş İ */
-  --font-ar: "IBM Plex Sans Arabic", "Noto Sans Arabic", system-ui, sans-serif;
-  --font-tr: "IBM Plex Sans", "Noto Sans", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  /* Split by script (fonts.css): Zain draws Arabic, digits and punctuation; Outfit draws every Latin
+     letter, because Zain has no Ğ ğ Ş ş İ. In Turkish, Outfit leads and draws the digits too. */
+  --font-ar: "Zain", "Outfit", "Noto Sans Arabic", system-ui, sans-serif;
+  --font-tr: "Outfit", "Zain", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
 
   --dur-fast: 120ms;  /* hover, toggles */
   --dur-base: 200ms;  /* scrims, menus */
@@ -131,18 +190,21 @@
   --viewer-chrome-autohide: 2500ms;
 }
 
-/* Type scale — [lang="ar"] uses the AR column, [lang="tr"] the TR column.
-   role        TR size/line   AR size/line   weight
-   display     32/40          34/48          600
-   title       24/32          26/38          600
-   heading     20/28          22/32          600
-   subheading  16/24          17/26          500
-   body        16/24          17/28          400
-   ui          14/20          15/24          400
-   ui-strong   14/20          15/24          500
-   label       12/16          13/20          500
-   caption     12/16          13/20          400
-   meta(mono)  12/16 tabular-nums, always direction:ltr                    */
+/* Type scale — one column for both languages (Zain and Outfit share a cap height).
+   Three weights only: 400, 700, 800. No face exists for 500 or 600, so asking for one
+   silently falls to 400 or 700 — tests/unit/tokens.test.ts refuses them.
+   role          size/line   weight     class (globals.css)
+   heading 1     36/52       800        .t-display
+   heading 2     28/38       800        .t-title
+   heading 3     22/32       700        .t-heading
+   title         18/28       700        .t-subheading
+   title small   16/24       700
+   body large    17/28       400
+   body          15/24       400 | 700  .t-ui
+   body small    14/22       400 | 700
+   caption       13/20       400 | 700  .t-caption · .t-label
+   numeric       60/64 · 34/40 · 22/28  800 | 700
+   code (mono)   13/20       tabular-nums, always direction:ltr                     */
 :lang(ar) { font-family: var(--font-ar); letter-spacing: 0; }
 :lang(tr) { font-family: var(--font-tr); }
 .meta, time, .size, .duration { font-family: var(--font-mono); font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }

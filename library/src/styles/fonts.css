@@ -1,10 +1,29 @@
-/* Self-hosted IBM Plex (SIL OFL 1.1, public/fonts/OFL-IBM-Plex.txt). No runtime request to any
-   external font host — the UI must render correctly with no outside network (PROMPT §2). */
-@font-face { font-family: "IBM Plex Sans Arabic"; src: url("/fonts/IBMPlexSansArabic-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
-@font-face { font-family: "IBM Plex Sans Arabic"; src: url("/fonts/IBMPlexSansArabic-Medium.woff2") format("woff2"); font-weight: 500; font-style: normal; font-display: swap; }
-@font-face { font-family: "IBM Plex Sans Arabic"; src: url("/fonts/IBMPlexSansArabic-SemiBold.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
-/* complete builds include Latin Extended-A, so Turkish Ğ Ş İ ı render in Plex, not a fallback */
-@font-face { font-family: "IBM Plex Sans"; src: url("/fonts/IBMPlexSans-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
-@font-face { font-family: "IBM Plex Sans"; src: url("/fonts/IBMPlexSans-Medium.woff2") format("woff2"); font-weight: 500; font-style: normal; font-display: swap; }
-@font-face { font-family: "IBM Plex Sans"; src: url("/fonts/IBMPlexSans-SemiBold.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
-@font-face { font-family: "IBM Plex Mono"; src: url("/fonts/IBMPlexMono-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+/* Self-hosted fonts (SIL OFL 1.1 — licences beside the files in public/fonts). No request to any external
+   font host: the UI must render correctly with no outside network. Rebuilt by scripts/fonts/build.py.
+
+   Split by script. Zain draws Arabic, digits and punctuation and claims no Latin letter: it has no
+   Ğ ğ Ş ş İ, so a Turkish word set in it would come out half in a fallback face. Every Latin letter is
+   Outfit's, cut at the weights whose stems match Zain's (700 and 800 here are wght 536 and 648).
+   tests/unit/fonts.test.ts opens the files and checks the glyphs are really in them. */
+
+/* Zain · Arabic */
+@font-face { font-family: "Zain"; src: url("/fonts/Zain-Arabic-400.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
+@font-face { font-family: "Zain"; src: url("/fonts/Zain-Arabic-700.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
+@font-face { font-family: "Zain"; src: url("/fonts/Zain-Arabic-800.woff2") format("woff2"); font-weight: 800; font-style: normal; font-display: swap; unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
+
+/* Zain · space, digits and the punctuation of running text (ZAIN_NUMERALS in the build script) */
+@font-face { font-family: "Zain"; src: url("/fonts/Zain-Numerals-400.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; unicode-range: U+0020-0022, U+0025, U+0027-0029, U+002B-003B, U+003F, U+005B, U+005D, U+00A0, U+00AB, U+00B7, U+00BB, U+00D7, U+2013-2014, U+2018-2019, U+201C-201D, U+2026, U+2212; }
+@font-face { font-family: "Zain"; src: url("/fonts/Zain-Numerals-700.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; unicode-range: U+0020-0022, U+0025, U+0027-0029, U+002B-003B, U+003F, U+005B, U+005D, U+00A0, U+00AB, U+00B7, U+00BB, U+00D7, U+2013-2014, U+2018-2019, U+201C-201D, U+2026, U+2212; }
+@font-face { font-family: "Zain"; src: url("/fonts/Zain-Numerals-800.woff2") format("woff2"); font-weight: 800; font-style: normal; font-display: swap; unicode-range: U+0020-0022, U+0025, U+0027-0029, U+002B-003B, U+003F, U+005B, U+005D, U+00A0, U+00AB, U+00B7, U+00BB, U+00D7, U+2013-2014, U+2018-2019, U+201C-201D, U+2026, U+2212; }
+
+/* Outfit · Latin, then Latin Extended (Ğ ğ Ş ş İ live in the second file) */
+@font-face { font-family: "Outfit"; src: url("/fonts/Outfit-Latin-400.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Outfit"; src: url("/fonts/Outfit-Latin-700.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Outfit"; src: url("/fonts/Outfit-Latin-800.woff2") format("woff2"); font-weight: 800; font-style: normal; font-display: swap; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Outfit"; src: url("/fonts/Outfit-LatinExt-400.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "Outfit"; src: url("/fonts/Outfit-LatinExt-700.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: "Outfit"; src: url("/fonts/Outfit-LatinExt-800.woff2") format("woff2"); font-weight: 800; font-style: normal; font-display: swap; unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+
+/* Geist Mono · one cut answers every weight, so numbers are never drawn faux-bold */
+@font-face { font-family: "Geist Mono"; src: url("/fonts/GeistMono-Latin-500.woff2") format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: "Geist Mono"; src: url("/fonts/GeistMono-LatinExt-500.woff2") format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }

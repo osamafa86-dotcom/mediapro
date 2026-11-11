@@ -55,7 +55,7 @@ export function PhotoViewer({ items, index, canDownload, canNote = false, favs, 
   const buttons = canNote && cur ? [
     <button key="fav" type="button" className="yarl__button" aria-pressed={fav} aria-label={fav ? t('fav.remove') : t('fav.add')} data-testid="viewer-fav"
       onClick={() => onFav?.(cur.id, !fav)}>
-      <Heart size={22} aria-hidden fill={fav ? '#1fc9c2' : 'none'} color={fav ? '#1fc9c2' : 'currentColor'} />
+      <Heart size={22} aria-hidden fill={fav ? 'currentColor' : 'none'} style={fav ? { color: 'var(--color-accent-on-media)' } : undefined} />
     </button>,
     <button key="notes" type="button" className="yarl__button" aria-pressed={notesOpen} aria-label={t('notes.open')} data-testid="viewer-notes"
       onClick={() => { setNotesOpen((o) => !o); setPin(null); }}>
@@ -98,13 +98,13 @@ export function PhotoViewer({ items, index, canDownload, canNote = false, favs, 
           <>
             {canNote ? (
               // mounted even while closed, so the toolbar count and the pins are there from the start
-              <div className={s.viewerNotes} hidden={!notesOpen}>
+              <div className={s.viewerNotes} hidden={!notesOpen} data-theme="dark">
                 <NotesPanel key={cur.id} assetId={cur.id} kind="photo" pin={pin} onClearPin={() => setPin(null)} onNotes={setNotes}
                   onClose={() => { setNotesOpen(false); setPin(null); }} />
               </div>
             ) : null}
             {!notesOpen ? (
-              <div className={s.viewerFoot} data-testid="viewer-footer">
+              <div className={s.viewerFoot} data-testid="viewer-footer" data-theme="dark">
                 <div className={s.viewerInfo}>
                   <span className={s.mono} dir="ltr">{cur.name}</span>
                   <span className={s.viewerMeta}>

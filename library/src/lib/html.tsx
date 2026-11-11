@@ -8,7 +8,7 @@ import '@/styles/globals.css';
 
 /**
  * Shared <html> for every root layout. `lang` and `dir` are decided on the server — never flipped by
- * client JS after paint (PROMPT §2). Theme: cookie, else the area default (client = dark, staff = light).
+ * client JS after paint (PROMPT §2). Theme: cookie, else the area default (light everywhere since the v2 identity; a viewer can still choose dark).
  */
 export async function RootHtml({ children, defaultTheme }: { children: React.ReactNode; defaultTheme: 'light' | 'dark' }) {
   const locale = await resolveLocale();

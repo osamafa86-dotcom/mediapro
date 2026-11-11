@@ -43,7 +43,7 @@
     "help": "Bağlantıdan ayrı olarak gönderilen 4 haneli kodu girin."
   },
   "dev": {
-    "title": "Arayüz bileşenleri",
+    "title": "Arayüz bileşenleri", "brand": "Kimlik", "specimen": "Ğğ Şş İı · Gazze 2026",
     "buttons": "Düğmeler",
     "primary": "Bağlantı oluştur",
     "secondary": "Düzenle",

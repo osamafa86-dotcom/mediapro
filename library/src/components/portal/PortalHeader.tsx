@@ -1,9 +1,10 @@
-import { ChevronRight, Film } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
 import { getSql } from '@/db';
 import { THEME_COOKIE } from '@/i18n/config';
+import { BrandGlyph } from '@/components/ui/BrandGlyph';
 import { LangSwitch } from './LangSwitch';
 import { PortalSearch } from './PortalSearch';
 import { ThemeToggle } from './ThemeToggle';
@@ -20,13 +21,13 @@ export async function PortalHeader({ org, project, library = true, search }: { o
         <Link href="/library" className={s.brand}>
           <span className={s.brandMark} aria-hidden>
             {/* eslint-disable-next-line @next/next/no-img-element -- tiny same-origin logo */}
-            {logo ? <img src="/api/branding/logo" alt="" width={24} height={24} style={{ objectFit: 'contain' }} /> : <Film size={18} />}
+            {logo ? <img src="/api/branding/logo" alt="" width={24} height={24} style={{ objectFit: 'contain' }} /> : <BrandGlyph size={32} />}
           </span>
           <span className={s.brandName}>{org}</span>
         </Link>
       ) : (
         <span className={s.brand}>
-          <span className={s.brandMark} aria-hidden><Film size={18} /></span>
+          <span className={s.brandMark} aria-hidden><BrandGlyph size={32} /></span>
           <span className={s.brandName}>{org}</span>
         </span>
       )}
@@ -42,7 +43,7 @@ export async function PortalHeader({ org, project, library = true, search }: { o
       <div className={s.headEnd}>
         {search ? <PortalSearch scope={search} /> : null}
         <LangSwitch />
-        <ThemeToggle initial={(await cookies()).get(THEME_COOKIE)?.value === 'light' ? 'light' : 'dark'} />
+        <ThemeToggle initial={(await cookies()).get(THEME_COOKIE)?.value === 'dark' ? 'dark' : 'light'} />
       </div>
     </header>
   );

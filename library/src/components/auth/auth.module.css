@@ -11,9 +11,11 @@
 .mark {
   inline-size: 56px; block-size: 56px; border-radius: var(--radius-card);
   display: grid; place-items: center;
-  background: var(--color-bg-accent-subtle); color: var(--color-icon-accent);
+  color: var(--color-meter-fill);
   margin-block-end: var(--space-8);
 }
+/* an uploaded logo sits on a tinted plate, as it always has; the brand mark needs none */
+.mark:has(img) { background: var(--color-bg-accent-subtle); }
 .kicker { color: var(--color-text-secondary); font-size: 13px; margin: 0; }
 .title { margin: 0; }
 .body { color: var(--color-text-secondary); margin: 0; }
@@ -24,16 +26,16 @@
 .success { color: var(--color-text-success); font-size: 14px; margin: 0; }
 .alert {
   display: grid; grid-template-columns: auto 1fr; gap: var(--space-4) var(--space-8);
-  padding: var(--space-12) var(--space-16); border-radius: var(--radius-control);
+  padding: var(--space-12) var(--space-16); border-radius: var(--radius-card);
   background: var(--color-bg-danger-subtle); border: var(--stroke-hairline) solid var(--color-border-danger);
 }
-.alert strong { color: var(--color-text-danger); font-weight: 600; }
+.alert strong { color: var(--color-text-danger); font-weight: 700; }
 .alert p { grid-column: 2; margin: 0; color: var(--color-text-secondary); font-size: 13px; }
 .alert svg { color: var(--color-text-danger); margin-block-start: 3px; }
 .card {
   display: grid; grid-template-columns: auto 1fr; gap: var(--space-4) var(--space-8);
-  padding: var(--space-12) var(--space-16); border-radius: var(--radius-control);
-  background: var(--color-bg-component);
+  padding: var(--space-12) var(--space-16); border-radius: var(--radius-card);
+  background: var(--color-bg-subtle);
 }
 .card p { grid-column: 2; margin: 0; color: var(--color-text-tertiary); font-size: 13px; }
 .card svg { color: var(--color-icon-secondary); margin-block-start: 3px; }
@@ -43,7 +45,7 @@
   background: none; border: 0; color: var(--color-text-primary); font: inherit; cursor: pointer;
   border-radius: var(--radius-control);
 }
-.locale:hover { background: var(--color-bg-component-hover); }
+.locale:hover { background: var(--color-bg-subtle); }
 .link { background: none; border: 0; padding: 0; font: inherit; color: var(--color-text-accent); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 .time { unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
-.ssoError { margin: 0; padding: var(--space-12) var(--space-16); border-radius: var(--radius-control); background: var(--color-bg-danger-subtle); color: var(--color-text-danger); font-size: 14px; }
+.ssoError { margin: 0; padding: var(--space-12) var(--space-16); border-radius: var(--radius-card); background: var(--color-bg-danger-subtle); color: var(--color-text-danger); font-size: 14px; }

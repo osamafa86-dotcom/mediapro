@@ -1,4 +1,3 @@
-import { Film } from 'lucide-react';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { systemName } from '@/lib/settings';
 import { cookies } from 'next/headers';
@@ -7,6 +6,7 @@ import { navCounts } from '@/lib/admin/queries';
 import { openNotesCount } from '@/lib/notes';
 import type { Staff } from '@/lib/auth/session';
 import { LogoutButton } from '@/components/auth/LogoutButton';
+import { BrandGlyph } from '@/components/ui/BrandGlyph';
 import { NavLinks, type NavItem } from './NavLinks';
 import { SIDEBAR_COOKIE } from '@/lib/sidebar';
 import { SidebarToggle } from './SidebarToggle';
@@ -41,7 +41,7 @@ export async function AdminShell({ staff, children }: { staff: Staff; children: 
         <div className={s.brand}>
           <span className={s.brandMark} aria-hidden>
             {/* eslint-disable-next-line @next/next/no-img-element -- tiny same-origin logo; next/image adds nothing here */}
-            {logo ? <img src="/api/branding/logo" alt="" width={20} height={20} /> : <Film size={18} />}
+            {logo ? <img src="/api/branding/logo" alt="" width={20} height={20} /> : <BrandGlyph size={32} onField />}
           </span>
           <span className={s.brandText}>
             <strong>{await systemName(await getLocale())}</strong>

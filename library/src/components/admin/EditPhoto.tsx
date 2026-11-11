@@ -62,7 +62,7 @@ export function EditPhoto({ id, name, w, h, edit, onClose, onSaved }: {
   }
 
   return (
-    <div className={s.eDialog} role="dialog" aria-modal="true" aria-label={t('title', { name })} data-testid="edit-dialog">
+    <div className={s.eDialog} role="dialog" aria-modal="true" aria-label={t('title', { name })} data-testid="edit-dialog" data-theme="dark">
       <div className={s.vBar}>
         <span className={s.eTitle}>{t('titleShort')} <bdi className={s.mono} dir="auto">{name}</bdi></span>
         <button type="button" className={s.vBtn} aria-label={tc('close')} onClick={onClose}><X size={22} aria-hidden /></button>
@@ -91,7 +91,7 @@ export function EditPhoto({ id, name, w, h, edit, onClose, onSaved }: {
             </button>
           ))}
         </div>
-        {err ? <p className={s.formMsg} data-kind="error" role="alert" style={{ color: '#ff8a80' }}>{err}</p> : null}
+        {err ? <p className={s.formMsg} data-kind="error" role="alert">{err}</p> : null}
         <div className={s.eRow} style={{ justifyContent: 'space-between' }}>
           {edit && (edit.rotate || edit.crop) ? (
             <Button variant="ghost" className={s.eGhost} icon={<Undo2 size={16} />} isDisabled={busy} onPress={() => void save({ reset: true })}>{t('reset')}</Button>

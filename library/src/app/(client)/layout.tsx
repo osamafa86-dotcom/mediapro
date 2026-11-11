@@ -8,5 +8,5 @@ export async function generateMetadata() {
 }
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
-  return <RootHtml defaultTheme="dark">{children}</RootHtml>;
+  return <RootHtml defaultTheme="light">{children}</RootHtml>;
 }

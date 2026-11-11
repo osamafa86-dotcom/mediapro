@@ -160,7 +160,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       <section aria-label={album ? album.name : t(`project.${tab as 'photos' | 'videos'}`)}>
         {assets.length === 0 ? (
           <div className={`${s.card} ${s.emptyState}`} style={{ paddingBlock: 32 }}>
-            <h2 style={{ fontSize: 17 }}>{album ? t('albums.empty') : t('project.emptyMedia')}</h2>
+            <h2 style={{ fontSize: 18 }}>{album ? t('albums.empty') : t('project.emptyMedia')}</h2>
             <p className={s.small}>{album ? t('albums.emptyHint') : t('project.emptyMediaHint')}</p>
           </div>
         ) : (

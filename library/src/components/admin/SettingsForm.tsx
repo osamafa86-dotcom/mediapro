@@ -1,5 +1,6 @@
 'use client';
 import { Bell, Film, Globe, HardDrive, KeyRound, Link2, Lock, Upload } from 'lucide-react';
+import { BrandGlyph } from '@/components/ui/BrandGlyph';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRef, useState } from 'react';
@@ -82,7 +83,7 @@ export function SettingsForm({ initial, logoVersion, storage, ssoEnabled }: {
               <div className={s.projectCell}>
                 <span className={`${s.emptyIcon}`} style={{ inlineSize: 64, blockSize: 64, borderRadius: 12 }} aria-hidden>
                   {/* eslint-disable-next-line @next/next/no-img-element -- tiny same-origin logo; next/image adds nothing here */}
-            {logo ? <img src={`/api/branding/logo?v=${logo}`} alt="" width={40} height={40} style={{ objectFit: 'contain' }} /> : <Film size={26} />}
+            {logo ? <img src={`/api/branding/logo?v=${logo}`} alt="" width={40} height={40} style={{ objectFit: 'contain' }} /> : <BrandGlyph size={40} />}
                 </span>
                 <span className={s.itemText}><strong>{t('settings.logo')}</strong><span className={`${s.small} ${s.tertiary}`}>{t('settings.logoSub')}</span></span>
                 <input ref={file} type="file" accept="image/png,image/webp,image/jpeg" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadLogo(f); e.target.value = ''; }} data-testid="logo-input" />

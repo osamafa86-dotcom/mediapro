@@ -107,7 +107,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
                         <Link href={keep({ id: c.id })} className={s.projectCell} scroll={false} style={{ color: 'inherit', textDecoration: 'none' }}>
                           <span className={s.initial} aria-hidden>{name.trim().charAt(0)}</span>
                           <span className={s.projectText}>
-                            <strong style={{ fontWeight: 500 }}>{name}</strong>
+                            <strong>{name}</strong>
                             <span>{t(`clients.kind.${c.kind}`)}{c.contact_name ? ` · ${c.contact_name}` : ''}</span>
                           </span>
                         </Link>
