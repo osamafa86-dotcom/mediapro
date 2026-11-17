@@ -22,7 +22,7 @@ enum ScreenshotMode {
   static var tab: AppTab? {
     switch route {
     case "prayer", "qibla", "qibla-sun", "qibla-map", "home", "home-bottom", "sky-settings", "search", "settings", "ramadan", "ramadan-iftar", "ramadan-suhoor": return .home
-    case "mushaf", "mushaf-juz", "mushaf-switch", "mushaf-bookmarks", "mushaf-ayah-bookmark", "mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-khatmah", "mushaf-display", "mushaf-hifz", "mushaf-spread", "review-ayahs": return .mushaf
+    case "mushaf", "mushaf-juz", "mushaf-switch", "mushaf-bookmarks", "mushaf-ayah-bookmark", "mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-nav", "mushaf-khatmah", "mushaf-display", "mushaf-hifz", "mushaf-spread", "mushaf-page-bundled", "review-ayahs": return .mushaf
     case "adhkar", "hisn", "tasbih": return .adhkar
     // «more» يبقى اسمًا للمسار القديم في سير اللقطات — التبويب صار «المكتبة»
     case "hadith", "more", "library": return .library
@@ -34,6 +34,9 @@ enum ScreenshotMode {
   static var readerPage: Int? {
     // «mushaf-spread» (المرحلة الرابعة): الفاتحة وأول البقرة متقابلتين على الآيباد أفقيًّا (mushaf-ipad-spread-v3.png)
     if route == "mushaf-spread" { return 1 }
+    // «mushaf-page-bundled»: صفحة من جزء عمّ خطُّها مضمّن في التطبيق (BUNDLED_PAGES) — بناء المحاكي بلا حزمة
+    // الخطوط يعرض ص ٢٧٠ بوضع النص، فهذه لقطة تحقّق من تخطيط صفحة المصحف بخطّ صفحتها (١٥ سطرًا)
+    if route == "mushaf-page-bundled" { return 585 }
     return ["mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-ayah-bookmark", "mushaf-nav", "mushaf-display", "mushaf-hifz"].contains(route ?? "") ? 270 : nil
   }
 
