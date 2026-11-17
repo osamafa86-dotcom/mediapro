@@ -1,10 +1,10 @@
-Sakinah 5.2: a redesign of the whole app.
+Sakinah 5.2.1: a redesign of the whole app.
 
-• Today: a living sky, the next prayer, adhkar for the time of day, and today's reading.
+• Today: a living sky, the next prayer, adhkar for the time of day, today's reading.
 • Adhan guarantee: checks every adhan is really scheduled.
 • Qibla by compass, by the sun, and on a map.
 • New tasbih, favourites, and Hisn al-Muslim by theme.
 • One search for ayat, adhkar and hadith.
-• New widgets and a live notification for the next prayer.
-• Foldables and tablets, and a Ramadan edition.
-• Fixed black smudges over words on some Mushaf pages.
+• New widgets and a live next-prayer notification.
+• Foldables, tablets, a Ramadan edition.
+• A larger, easier-to-read Mushaf page; black smudges on some pages fixed.

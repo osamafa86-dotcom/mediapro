@@ -172,8 +172,10 @@ struct MushafReaderView: View {
   }
   private func pageView(_ p: Int, _ geo: GeometryProxy, _ rs: MushafReaderState) -> some View {
     Group {
-      // صفحة لم يُنزَّل خطها بعد (الحزمة بعد التثبيت) تُعرض بوضع النص؛ تتبدّل وحدها حين تكتمل الحزمة
-      if rs.textMode || !MushafPack.shared.hasPage(p) { MushafTextPageView(page: p, insets: geo.safeAreaInsets) } else { MushafPageView(page: p, insets: geo.safeAreaInsets) }
+      // صفحة لم يُنزَّل خطها بعد (الحزمة بعد التثبيت) تُعرض بوضع النص؛ تتبدّل وحدها حين تكتمل الحزمة.
+      // المقلّب نفسه داخل المنطقة الآمنة، فلا تُمرَّر حوافّها إلى الصفحة: كانت تُحسب مرّتين (٦٢ نقطة فوق
+      // و٣٤ تحت على هواتف الجزيرة) فبدت الصفحة أصغر من نظيراتها في تطبيقات المصاحف (مقارنة المالك بـ«سورة»)
+      if rs.textMode || !MushafPack.shared.hasPage(p) { MushafTextPageView(page: p) } else { MushafPageView(page: p) }
     }
     .contentShape(Rectangle())
     .onTapGesture { if rs.hifz != nil { hifzTap() } else { toggleChrome() } }

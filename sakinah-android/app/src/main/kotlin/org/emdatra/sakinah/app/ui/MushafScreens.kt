@@ -766,11 +766,13 @@ private fun Modifier.frosted(on: Boolean) = if (on && canBlur) this.blur(5.dp) e
   }
 }
 
-/** صفحة بخط صفحتها: 15 سطرًا، كل كلمة عنصر (نقر)، حجم الخط من العرض ÷ 14.85 مع تصحيح بالقياس */
+/** صفحة بخط صفحتها: 15 سطرًا، كل كلمة عنصر (نقر)، حجم الخط من العرض ÷ 14.85 مع تصحيح بالقياس.
+ * الهامش الجانبي 11dp وتباعد الأسطر حتى 2.3em (كان 12dp و2em): مقارنة المالك بتطبيق «سورة» على الهاتف نفسه
+ * أظهرت أن الصفحة عندنا أصغر وفوقها وتحتها شريطان فارغان، فتُفرد الأسطر على الارتفاع كلّه ويكبر الخط قليلًا */
 @Composable fun MushafPage(p: Int, ink: Color, paper: Color, selected: Int?, hifz: HifzSession?, onTap: (Ayah) -> Unit, onLongPress: (Ayah) -> Unit = {}) {
   val family = Fonts.page(p); val lines = MushafLayout.shared.lines(p); val measurer = rememberTextMeasurer(); val density = LocalDensity.current
   val label = QuranText.shared.label(p)
-  BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp)) {
+  BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 11.dp, vertical = 8.dp)) {
     val wPx = with(density) { maxWidth.toPx() }; val hPx = with(density) { (maxHeight - 60.dp).toPx() }
     val sizePx = remember(p, wPx, hPx, family) {
       var s = wPx / 14.85f
@@ -781,14 +783,14 @@ private fun Modifier.frosted(on: Boolean) = if (on && canBlur) this.blur(5.dp) e
       val rowH = hPx / 15f; if (rowH < s * 1.12f) s = rowH / 1.12f
       s
     }
-    val fontSize = with(density) { sizePx.toSp() }; val bodyH = minOf(hPx, 15 * sizePx * 2f)
+    val fontSize = with(density) { sizePx.toSp() }; val bodyH = minOf(hPx, 15 * sizePx * 2.3f)
     // سطر الكلمة = ارتفاع صفّها بالضبط، والحبر خارجه يُرسم ولا يُقصّ: خطوط QCF v2 مقاييسها (ascent 1.2em
     // + descent 0.6em) أطول من الصفّ (نحو 1.5em، وأقصر مع الرصيف)، فكان Text يُقيَّد بالصفّ ويقصّ نفسه
     // فتسقط نقاط ما تحت السطر والكسرات (قِيس في لقطة المحاكي: «ٱلَّذِينَ» تخرج «ٱلذىں»)
     val wordStyle = TextStyle(lineHeight = with(density) { (bodyH / 15f).toSp() }, lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None))
     Column(Modifier.fillMaxSize()) {
       // اسم السورة والجزء أعلى الصفحة مع هامشٍ واضح قبل أوّل سطر (ملاحظة المالك: كانا ملاصقين لأوّل آية)
-      if (label != null) Row(Modifier.fillMaxWidth().padding(bottom = with(density) { (sizePx * 0.6f).toDp() }), horizontalArrangement = Arrangement.SpaceBetween) { val s = "سُورَةُ ${QuranMeta.surah(label.surah).vocalized}"; val j = QuranMeta.juzName(label.juz); Text(if (p % 2 == 1) s else j, fontFamily = Fonts.amiri, color = ink.copy(alpha = 0.85f), fontSize = fontSize * 0.66, maxLines = 1); Text(if (p % 2 == 1) j else s, fontFamily = Fonts.amiri, color = ink.copy(alpha = 0.85f), fontSize = fontSize * 0.66, maxLines = 1) }
+      if (label != null) Row(Modifier.fillMaxWidth().padding(bottom = with(density) { (sizePx * 0.3f).toDp() }), horizontalArrangement = Arrangement.SpaceBetween) { val s = "سُورَةُ ${QuranMeta.surah(label.surah).vocalized}"; val j = QuranMeta.juzName(label.juz); Text(if (p % 2 == 1) s else j, fontFamily = Fonts.amiri, color = ink.copy(alpha = 0.85f), fontSize = fontSize * 0.66, maxLines = 1); Text(if (p % 2 == 1) j else s, fontFamily = Fonts.amiri, color = ink.copy(alpha = 0.85f), fontSize = fontSize * 0.66, maxLines = 1) }
       Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
         Column(Modifier.height(with(density) { bodyH.toDp() }).fillMaxWidth()) {
           val short = lines.size < 15
@@ -816,7 +818,7 @@ private fun Modifier.frosted(on: Boolean) = if (on && canBlur) this.blur(5.dp) e
           }
         }
       }
-      Text(QuranMeta.arabicDigits(p), Modifier.align(Alignment.CenterHorizontally), fontFamily = Fonts.amiri, color = ink.copy(alpha = 0.85f), fontSize = fontSize * 0.8)
+      Text(QuranMeta.arabicDigits(p), Modifier.align(Alignment.CenterHorizontally), fontFamily = Fonts.amiri, color = ink.copy(alpha = 0.85f), fontSize = fontSize * 0.65)
     }
   }
 }

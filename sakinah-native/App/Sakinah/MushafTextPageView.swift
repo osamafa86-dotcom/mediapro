@@ -44,7 +44,7 @@ struct MushafTextPageView: View {
     let label = QuranText.shared.label(ofPage: page)
     let palette = rs.palette
     GeometryReader { geo in
-      let sideInset = max(geo.size.width * 0.035, max(insets.leading, insets.trailing))
+      let sideInset = max(geo.size.width * 0.028, max(insets.leading, insets.trailing))
       let W = geo.size.width - 2 * sideInset
       let base = W / MushafMetrics.fullLineEm
       VStack(spacing: 0) {

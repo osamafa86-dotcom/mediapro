@@ -16,11 +16,13 @@ struct MushafPalette {
   static let paper = MushafPalette()
 }
 
-/// قياسات الصفحة كما في المطبوع (نسخة الويب نفسها): السطر الكامل ≈ 14.85em، وارتفاع السطر بين 1.12em و2em
+/// قياسات الصفحة (نسخة الويب نفسها): السطر الكامل ≈ 14.85em، وارتفاع السطر بين 1.12em و2.3em.
+/// الحدّ الأعلى كان 2em (نسبة المطبوع تقريبًا) فقيّد الكتلة على الشاشات الطويلة والألواح وترك فوقها وتحتها
+/// فراغًا؛ 2.3em يفردها أكثر دون أن تبتعد عن نسبة المطبوع (طلب المالك بعد مقارنة «سورة»: «مساحة أكبر وأريح للقراءة»)
 enum MushafMetrics {
   static let fullLineEm: CGFloat = 14.85
   static let rowMinEm: CGFloat = 1.12
-  static let rowMaxEm: CGFloat = 2.0
+  static let rowMaxEm: CGFloat = 2.3
   static let rows = 15
 
   struct Fit: Equatable { let fontSize: CGFloat; let bodyHeight: CGFloat }
@@ -128,14 +130,16 @@ struct MushafPageView: View {
     let _ = MushafFonts.shared.ensureAmiri()
     let palette = rs.palette
     GeometryReader { geo in
-      let sideInset = max(geo.size.width * 0.035, max(insets.leading, insets.trailing))
+      // هامش جانبي ٢٫٨٪ (كان ٣٫٥٪): مع فسحة الأمان ٠٫٠١٢ يشغل النصّ ≈ ٩٣٪ من العرض كما في المصاحف المنافسة
+      let sideInset = max(geo.size.width * 0.028, max(insets.leading, insets.trailing))
       let W = geo.size.width - 2 * sideInset
       let base = W / MushafMetrics.fullLineEm
       VStack(spacing: 0) {
-        // اسم السورة والجزء أعلى الصفحة مع هامشٍ واضح قبل أوّل سطر (ملاحظة المالك: كانا ملاصقين لأوّل آية)
-        if showChrome, let label { PageHead(page: page, label: label, size: base, palette: palette).padding(.horizontal, W * 0.01).padding(.bottom, base * 0.6) }
+        // اسم السورة والجزء أعلى الصفحة مع هامشٍ قبل أوّل سطر (ملاحظة المالك: كانا ملاصقين لأوّل آية)؛
+        // الهامش 0.3 من القاعدة يكفي لأن الصفوف نفسها صارت أعلى من حبر الحرف (1.8em) فبينها هواء
+        if showChrome, let label { PageHead(page: page, label: label, size: base, palette: palette).padding(.horizontal, W * 0.01).padding(.bottom, base * 0.3) }
         GeometryReader { inner in
-          let H = inner.size.height - base * 0.6
+          let H = inner.size.height - base * 0.2
           let fit = MushafMetrics.fit(page: page, lines: lines, width: W, height: H)
           let rowH = fit.bodyHeight / CGFloat(MushafMetrics.rows)
           let short = lines.count < MushafMetrics.rows
@@ -153,7 +157,7 @@ struct MushafPageView: View {
           .opacity(fontReady ? 1 : 0.35)
         }
         if showChrome {
-          Text(QuranMeta.arabicDigits(page)).font(MushafFonts.font(MushafFonts.amiriQuranFont, size: base * 0.8)).foregroundStyle(palette.ink.opacity(0.85)).padding(.top, base * 0.1)
+          Text(QuranMeta.arabicDigits(page)).font(MushafFonts.font(MushafFonts.amiriQuranFont, size: base * 0.65)).foregroundStyle(palette.ink.opacity(0.85)).padding(.top, base * 0.1)
         }
       }
       .padding(.top, max(insets.top, 8)).padding(.bottom, max(insets.bottom, 6)).padding(.horizontal, sideInset)
