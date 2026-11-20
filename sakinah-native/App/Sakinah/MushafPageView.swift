@@ -50,13 +50,18 @@ enum MushafMetrics {
     return f
   }
   /// صعود الخطّ ونزوله — لتحديد خطّ الأساس وارتفاع السطر عند الرسم المباشر
-  struct FontMetrics { let ascent: CGFloat; let descent: CGFloat; var height: CGFloat { ascent + descent } }
+  /// `pad`: ما يتجاوز به حبرُ الخطّ صعودَه ونزولَه الاسميين (من صندوق الخطّ الكلّي head.yMax/yMin) —
+  /// في خطوط QCF v2 تعلو الضمّة فوق الألف المركّبة حتى 0.44em فوق الصعود (ص ٥٥) و0.22em تحت النزول،
+  /// وCanvas يقصّ ما خرج عن إطاره (لاحظ المالك ضمّة «أُحِلَّ» مقطوعة في ص ٨٢)؛ فيُوسَّع الإطار بهذا القدر من الجهتين
+  struct FontMetrics { let ascent: CGFloat; let descent: CGFloat; let pad: CGFloat; var height: CGFloat { ascent + descent } }
   private static var metricsCache: [String: FontMetrics] = [:]
   static func fontMetrics(fontName: String, size: CGFloat) -> FontMetrics {
     let key = "\(fontName)|\(Int(size * 4))"
     if let c = metricsCache[key] { return c }
     let f = MushafFonts.shared.ctFont(fontName, size: size)
-    let m = FontMetrics(ascent: CTFontGetAscent(f), descent: CTFontGetDescent(f))
+    let bb = CTFontGetBoundingBox(f)
+    let a = CTFontGetAscent(f), d = CTFontGetDescent(f)
+    let m = FontMetrics(ascent: a, descent: d, pad: max(0, bb.maxY - a, -bb.minY - d))
     // لا يُحفظ قياسُ خطٍّ لم يُحمَّل بعد (خطّ النظام البديل) وإلا بقي خطؤه بعد التحميل
     guard MushafFonts.shared.isLoaded(fontName) else { return m }
     if metricsCache.count > 256 { metricsCache.removeAll() }
@@ -225,12 +230,14 @@ struct MushafLineView: View {
     let m = MushafMetrics.fontMetrics(fontName: fontName, size: size)
     // حارس: لو فاض السطر رغم الملاءمة، تقلّص كاملًا بدل أن يُقتطع طرفه
     let scale = (lineWidth > 0 && maxWidth > 0) ? min(1, maxWidth / lineWidth) : 1
+    // الإطار أعلى من صندوق المقاييس بقدر فيض الحبر من الجهتين (متساويًا كي لا يتزحزح خطّ الأساس عن وسط الصفّ)،
+    // والشرائط (التظليل والنقر) تبقى على صندوق المقاييس وحده فلا تتداخل مع الصفّ المجاور
     Canvas { ctx, canvasSize in
-      paint(ctx, width: canvasSize.width, fontName: fontName, runs: runs, styles: styles, ascent: m.ascent)
+      paint(ctx, width: canvasSize.width, fontName: fontName, runs: runs, styles: styles, ascent: m.ascent + m.pad)
     }
-    .frame(width: max(1, lineWidth), height: max(1, m.height))
-    .background { band(runs: runs, styles: styles, marksLayer: false) }
-    .overlay { band(runs: runs, styles: styles, marksLayer: true) }
+    .frame(width: max(1, lineWidth), height: max(1, m.height + 2 * m.pad))
+    .background { band(runs: runs, styles: styles, marksLayer: false).padding(.vertical, m.pad) }
+    .overlay { band(runs: runs, styles: styles, marksLayer: true).padding(.vertical, m.pad) }
     .scaleEffect(scale, anchor: .center)
   }
 
@@ -479,14 +486,14 @@ struct MadinahBasmala: View {
       Canvas { ctx, sz in
         let font = MushafFonts.shared.ctFont(fontName, size: size)
         ctx.withCGContext { cg in
-          cg.textMatrix = .identity; cg.translateBy(x: 0, y: m.ascent); cg.scaleBy(x: 1, y: -1)
+          cg.textMatrix = .identity; cg.translateBy(x: 0, y: m.ascent + m.pad); cg.scaleBy(x: 1, y: -1)
           if stroke > 0 { cg.setTextDrawingMode(.fillStroke); cg.setLineWidth(stroke); cg.setLineJoin(.round) } else { cg.setTextDrawingMode(.fill) }
           let c = UIColor(palette.ink).cgColor; cg.setFillColor(c); cg.setStrokeColor(c)
           var x = sz.width
           for run in runs { for gi in run.ids.indices { x -= run.advances[gi]; var g = run.ids[gi]; var pt = CGPoint(x: x, y: 0); CTFontDrawGlyphs(font, &g, &pt, 1, cg) } }
         }
       }
-      .frame(width: max(1, w), height: max(1, m.height))
+      .frame(width: max(1, w), height: max(1, m.height + 2 * m.pad))
       .scaleEffect(w > maxWidth && w > 0 ? maxWidth / w : 1, anchor: .center)
       .accessibilityLabel(QuranMeta.basmala)
     } else {

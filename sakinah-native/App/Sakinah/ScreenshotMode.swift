@@ -36,7 +36,7 @@ enum ScreenshotMode {
     if route == "mushaf-spread" { return 1 }
     // «mushaf-page-bundled»: صفحة من جزء عمّ خطُّها مضمّن في التطبيق (BUNDLED_PAGES) — بناء المحاكي بلا حزمة
     // الخطوط يعرض ص ٢٧٠ بوضع النص، فهذه لقطة تحقّق من تخطيط صفحة المصحف بخطّ صفحتها (١٥ سطرًا)
-    if route == "mushaf-page-bundled" { return 585 }
+    if route == "mushaf-page-bundled" { return 583 }  // ص ٥٨٣: أكبر فيض للحبر فوق الصعود بين الصفحات المضمّنة (0.2em)
     return ["mushaf-page", "mushaf-bar", "mushaf-ayah", "mushaf-ayah-bookmark", "mushaf-nav", "mushaf-display", "mushaf-hifz"].contains(route ?? "") ? 270 : nil
   }
 
